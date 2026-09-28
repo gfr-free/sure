@@ -7,18 +7,44 @@
     everywhere else. The other half and the AI review live in the overflow
     menu, so the header carries one action instead of a toolbar of three. %>
 <% income_first = active == "paycheck" %>
+<% contracts_view = active == "contracts" %>
 <header class="flex justify-between items-center gap-2 text-primary font-medium">
-  <h1 class="text-xl"><%= t("bills.index.title") %></h1>
+  <div class="flex items-center gap-2">
+    <h1 class="text-xl"><%= contracts_view ? t("contracts.index.title") : t("bills.index.title") %></h1>
+    <% if contracts_view %>
+      <%= render DS::Pill.new(label: t("contracts.index.preview"), size: :md) %>
+    <% end %>
+  </div>
 
   <div class="flex items-center gap-2 shrink-0">
-    <%= render DS::Link.new(
-          text: income_first ? t("bills.index.add_income") : t("bills.index.add_bill"),
-          icon: "plus",
-          variant: "primary",
-          href: income_first ? new_recurring_transaction_path(income: true) : new_recurring_transaction_path,
-          frame: :modal
-        ) %>
+    <%# On the Contracts segment the header action adds a contract, and both
+        bill actions move to the overflow menu. %>
+    <% if contracts_view %>
+      <%= render DS::Link.new(
+            text: t("contracts.index.add_contract"),
+            icon: "plus",
+            variant: "primary",
+            href: new_contract_path,
+            frame: :modal
+          ) %>
+    <% else %>
+      <%= render DS::Link.new(
+            text: income_first ? t("bills.index.add_income") : t("bills.index.add_bill"),
+            icon: "plus",
+            variant: "primary",
+            href: income_first ? new_recurring_transaction_path(income: true) : new_recurring_transaction_path,
+            frame: :modal
+          ) %>
+    <% end %>
     <%= render DS::Menu.new do |menu| %>
+      <% if contracts_view %>
+        <% menu.with_item(
+             variant: "link",
+             text: t("bills.index.add_bill"),
+             icon: "plus",
+             href: new_recurring_transaction_path,
+             data: { turbo_frame: :modal }) %>
+      <% end %>
       <% menu.with_item(
            variant: "link",
            text: income_first ? t("bills.index.add_bill") : t("bills.index.add_income"),
@@ -47,4 +73,5 @@
   <% control.with_segment(t("bills.views.calendar"), active: active == "calendar", href: bills_path(view: "calendar")) %>
   <% control.with_segment(t("bills.views.paycheck"), active: active == "paycheck", href: bills_path(view: "paycheck")) %>
   <% control.with_segment(t("bills.views.all"), active: active == "all", href: bills_path(view: "all")) %>
+  <% control.with_segment(t("bills.views.contracts"), active: contracts_view, href: contracts_path) %>
 <% end %>

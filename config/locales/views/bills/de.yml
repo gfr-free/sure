@@ -18,6 +18,7 @@ de:
       calendar: Kalender
       paycheck: Einkommensplan
       all: Alle Rechnungen
+      contracts: Verträge
     index:
       title: Rechnungen
       add_bill: Rechnung hinzufügen

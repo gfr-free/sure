@@ -1,0 +1,40 @@
+<%# locals: (contract:, editable:) %>
+<%# Where a cancellation stands, and the one action that moves it on. %>
+<% if contract.cancellation_sent? %>
+  <div class="bg-warning/10 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-start gap-2 text-sm text-primary">
+      <%= icon "file-signature", size: "sm", color: "warning", class: "mt-0.5" %>
+      <p>
+        <%= t("contracts.cancellation_notice.sent", date: l(contract.cancelled_on, format: :long)) if contract.cancelled_on %>
+        <% if contract.ends_on %>
+          <%= t("contracts.cancellation_notice.ends", date: l(contract.ends_on, format: :long)) %>
+        <% end %>
+        <span class="block text-xs text-secondary"><%= t("contracts.cancellation_notice.awaiting_confirmation") %></span>
+      </p>
+    </div>
+    <% if editable %>
+      <div class="flex items-center gap-2">
+        <%= render DS::Button.new(text: t("contracts.cancellation_notice.confirm"), icon: "circle-check", variant: :outline, size: :sm,
+                                  href: contract_cancellation_path(contract), method: :patch) %>
+        <%= render DS::Button.new(text: t("contracts.cancellation_notice.withdraw"), icon: "undo-2", variant: :ghost, size: :sm,
+                                  href: contract_cancellation_path(contract), method: :delete,
+                                  confirm: CustomConfirm.new(title: t("contracts.cancellation_notice.withdraw_confirm_title"), body: t("contracts.cancellation_notice.withdraw_confirm_body"), btn_text: t("contracts.cancellation_notice.withdraw"))) %>
+      </div>
+    <% end %>
+  </div>
+<% elsif contract.cancelled? && contract.open? %>
+  <div class="bg-container-inset rounded-xl px-4 py-3 flex items-start gap-2 text-sm text-primary">
+    <%= icon "circle-check", size: "sm", color: "success", class: "mt-0.5" %>
+    <p>
+      <%= t("contracts.cancellation_notice.confirmed", date: l(contract.cancellation_confirmed_on, format: :long)) if contract.cancellation_confirmed_on %>
+      <% if contract.ends_on %>
+        <%= t("contracts.cancellation_notice.ends", date: l(contract.ends_on, format: :long)) %>
+      <% end %>
+    </p>
+  </div>
+<% end %>
+
+<% running = contract.running_bills_after_end.accessible_by(Current.user).to_a %>
+<% if running.any? %>
+  <%= render DS::Alert.new(variant: :warning, message: t("contracts.cancellation_notice.bills_still_running", names: running.map(&:display_name).to_sentence)) %>
+<% end %>

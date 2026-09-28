@@ -73,19 +73,18 @@ class Contract < ApplicationRecord
 
   scope :alphabetically, -> { order(Arel.sql("LOWER(contracts.name)")) }
 
-  # Everything a user may see: owned or shared with them in any tier.
+  # Everything a user may see: owned or shared with them in any tier. A
+  # subquery rather than a join, so the scope stays free of DISTINCT and can be
+  # ordered by any expression.
   scope :accessible_by, ->(user) {
-    left_joins(:contract_shares)
-      .where("contracts.owner_id = :uid OR contract_shares.user_id = :uid", uid: user.id)
-      .distinct
+    where(owner_id: user.id).or(where(id: ContractShare.where(user_id: user.id).select(:contract_id)))
   }
 
   # Contracts a user may change (fields, documents, notes, linked bills).
   scope :editable_by, ->(user) {
-    left_joins(:contract_shares)
-      .where("contracts.owner_id = :uid OR (contract_shares.user_id = :uid AND contract_shares.permission IN (:permissions))",
-             uid: user.id, permissions: ContractShare::EDIT_PERMISSIONS)
-      .distinct
+    where(owner_id: user.id).or(
+      where(id: ContractShare.where(user_id: user.id, permission: ContractShare::EDIT_PERMISSIONS).select(:contract_id))
+    )
   }
 
   class << self
@@ -181,19 +180,34 @@ class Contract < ApplicationRecord
   # currency. Returns [money_or_nil, unconvertible_count]; nil when nothing is
   # linked, so the UI can say "cost unknown" rather than show zero.
   def annual_cost_for(user)
-    series = visible_recurring_transactions_for(user).where(status: "active").to_a
-    return [ nil, 0 ] if series.empty?
+    self.class.annual_costs_for([ self ], user).fetch(id)
+  end
 
+  # The same for a list of contracts in one query, for the index page.
+  def self.annual_costs_for(contracts, user)
+    return {} if contracts.empty?
+
+    family = contracts.first.family
     target = family.currency
-    unconvertible = 0
-    total = series.reduce(Money.new(0, target)) do |sum, recurring|
-      sum + (recurring.monthly_equivalent_amount.abs * 12).exchange_to(target)
-    rescue Money::ConversionError
-      unconvertible += 1
-      sum
-    end
+    series_by_contract = RecurringTransaction.accessible_by(user)
+                                             .where(contract_id: contracts.map(&:id), status: "active")
+                                             .includes(:recurrence_rules)
+                                             .group_by(&:contract_id)
 
-    [ total, unconvertible ]
+    contracts.to_h do |contract|
+      series = series_by_contract.fetch(contract.id, [])
+      next [ contract.id, [ nil, 0 ] ] if series.empty?
+
+      unconvertible = 0
+      total = series.reduce(Money.new(0, target)) do |sum, recurring|
+        sum + (recurring.monthly_equivalent_amount.abs * 12).exchange_to(target)
+      rescue Money::ConversionError
+        unconvertible += 1
+        sum
+      end
+
+      [ contract.id, [ total, unconvertible ] ]
+    end
   end
 
   def next_payment_for(user)

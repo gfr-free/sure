@@ -1,0 +1,106 @@
+<%# locals: (contract:, prefill_bill_ids: nil) %>
+<% selected_bill_ids = prefill_bill_ids || contract.recurring_transaction_ids %>
+<% bills = linkable_bills.includes(:merchant).order(:name).to_a %>
+<% successors = Current.family.contracts.accessible_by(Current.user).where.not(id: contract.id).alphabetically %>
+
+<%= styled_form_with model: contract, class: "space-y-4" do |f| %>
+  <% if contract.errors.any? %>
+    <%= render "shared/form_errors", model: contract %>
+  <% end %>
+
+  <section class="space-y-3">
+    <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) } %>
+    <%= f.text_field :name, label: Contract.human_attribute_name(:name), placeholder: t(".name_placeholder"), required: true, autofocus: true %>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <%= f.collection_select :merchant_id, Current.family.merchants.alphabetically, :id, :name,
+            { label: Contract.human_attribute_name(:merchant), include_blank: t(".no_merchant"), searchable: true } %>
+      <%= f.text_field :provider_name, label: Contract.human_attribute_name(:provider_name), placeholder: t(".provider_placeholder") %>
+    </div>
+    <p class="text-xs text-secondary"><%= t(".provider_hint") %></p>
+
+    <%= f.collection_select :account_id, Current.user.accessible_accounts.visible.alphabetically, :id, :name,
+          { label: Contract.human_attribute_name(:account), include_blank: t(".no_account") } %>
+  </section>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-medium text-primary"><%= t(".term_section") %></h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <%= f.date_field :started_on, label: Contract.human_attribute_name(:started_on) %>
+      <%= f.number_field :minimum_term_months, label: t(".minimum_term_label"), min: 0, step: 1 %>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <%= f.number_field :notice_period_value, label: Contract.human_attribute_name(:notice_period_value), min: 0, step: 1 %>
+      <%= f.select :notice_period_unit, contract_notice_unit_options, { label: Contract.human_attribute_name(:notice_period_unit), include_blank: true } %>
+      <%= f.select :notice_anchor, contract_notice_anchor_options, { label: Contract.human_attribute_name(:notice_anchor), include_blank: true } %>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <%= f.number_field :renewal_period_months, label: t(".renewal_label"), min: 1, step: 1, placeholder: t(".renewal_placeholder") %>
+      <%= f.date_field :renewal_anchor_on, label: Contract.human_attribute_name(:renewal_anchor_on) %>
+      <%= f.date_field :ends_on, label: Contract.human_attribute_name(:ends_on) %>
+    </div>
+    <p class="text-xs text-secondary"><%= t(".term_hint") %></p>
+  </section>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-medium text-primary"><%= t(".numbers_section") %></h3>
+    <% unless Contract.encryption_ready? %>
+      <%= render DS::Alert.new(variant: :warning, title: t(".encryption_warning_title"), message: t(".encryption_warning")) %>
+    <% end %>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <%= f.text_field :contract_number, label: Contract.human_attribute_name(:contract_number), autocomplete: "off" %>
+      <%= f.text_field :customer_number, label: Contract.human_attribute_name(:customer_number), autocomplete: "off" %>
+    </div>
+  </section>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-medium text-primary"><%= t(".contacts_section") %></h3>
+    <%= f.url_field :portal_url, label: Contract.human_attribute_name(:portal_url), placeholder: "https://" %>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <%= f.telephone_field :service_phone, label: Contract.human_attribute_name(:service_phone) %>
+      <%= f.telephone_field :claims_phone, label: Contract.human_attribute_name(:claims_phone) %>
+      <%= f.email_field :service_email, label: Contract.human_attribute_name(:service_email) %>
+    </div>
+  </section>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-medium text-primary"><%= t(".payments_section") %></h3>
+    <% if bills.any? %>
+      <div class="max-h-48 overflow-y-auto rounded-lg border border-secondary divide-y divide-subdued">
+        <% bills.each do |bill| %>
+          <label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer">
+            <%= check_box_tag "contract[recurring_transaction_ids][]", bill.id, selected_bill_ids.include?(bill.id), id: "contract_bill_#{bill.id}", class: "checkbox checkbox--light" %>
+            <span class="flex-1 min-w-0 truncate text-primary"><%= bill.display_name %></span>
+            <span class="text-secondary privacy-sensitive"><%= format_money(bill.amount_money.abs) %></span>
+          </label>
+        <% end %>
+      </div>
+      <%= hidden_field_tag "contract[recurring_transaction_ids][]", "" %>
+    <% else %>
+      <p class="text-sm text-secondary"><%= t(".no_bills") %></p>
+    <% end %>
+  </section>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-medium text-primary"><%= t(".links_section") %></h3>
+    <% links = contract.document_links + [ {} ] * [ 2 - contract.document_links.size, 1 ].max %>
+    <% links.each_with_index do |link, index| %>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="sm:col-span-2">
+          <%= text_field_tag "contract[document_links][#{index}][url]", link["url"], placeholder: "https://", class: "form-field__input", autocomplete: "off", "aria-label": t(".link_url") %>
+        </div>
+        <%= text_field_tag "contract[document_links][#{index}][label]", link["label"], placeholder: t(".link_label"), class: "form-field__input", autocomplete: "off", "aria-label": t(".link_label") %>
+      </div>
+    <% end %>
+    <p class="text-xs text-secondary"><%= t(".links_hint") %></p>
+  </section>
+
+  <% if successors.any? %>
+    <%= f.collection_select :replaced_by_id, successors, :id, :name,
+          { label: Contract.human_attribute_name(:replaced_by), include_blank: t(".no_successor") } %>
+  <% end %>
+
+  <%= f.text_area :notes, label: Contract.human_attribute_name(:notes), rows: 3 %>
+
+  <%= f.submit contract.new_record? ? t(".create") : t(".update") %>
+<% end %>

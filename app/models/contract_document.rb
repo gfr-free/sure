@@ -22,7 +22,44 @@ class ContractDocument < ApplicationRecord
 
   delegate :filename, :byte_size, :content_type, to: :file
 
+  after_destroy_commit :remove_from_search_index
+
+  # The assistant's document store only takes some formats; a scanned photo
+  # of a policy stays out of it.
+  def indexable?
+    file.attached? && VectorStore::Base::SUPPORTED_EXTENSIONS.include?(File.extname(file.filename.to_s).downcase)
+  end
+
+  # The owner opted this document in or out of the assistant's document
+  # search. The vector-store upload runs in the background.
+  def set_ai_searchable!(searchable)
+    update!(ai_searchable: searchable && indexable?)
+    ContractDocumentIndexJob.perform_later(self)
+  end
+
+  # Brings the vector store in line with the opt-in. The uploaded copy carries
+  # the contract id, so search results can be filtered to contracts the asking
+  # user may see.
+  def sync_search_index!
+    family = contract.family
+
+    if ai_searchable? && family_document.nil? && indexable?
+      document = family.upload_document(
+        file_content: file.download,
+        filename: file.filename.to_s,
+        metadata: { "type" => "contract", "contract_id" => contract_id, "contract_document_id" => id }
+      )
+      update_columns(family_document_id: document.id, updated_at: Time.current) if document
+    elsif !ai_searchable? && family_document.present?
+      update_columns(family_document_id: nil, updated_at: Time.current) if family.remove_document(family_document)
+    end
+  end
+
   private
+
+    def remove_from_search_index
+      ContractDocumentUnindexJob.perform_later(family_document) if family_document.present?
+    end
 
     def file_attached
       errors.add(:file, :blank) unless file.attached?

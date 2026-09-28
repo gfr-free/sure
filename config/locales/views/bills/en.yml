@@ -149,6 +149,7 @@ en:
       # promising the earnings reporting that Reports already owns.
       paycheck: Income plan
       all: All bills
+      contracts: Contracts
     pay_period:
       paycheck_on: "Paycheck %{date}"
       before_next_paycheck: Before your next paycheck

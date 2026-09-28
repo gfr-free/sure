@@ -1,0 +1,185 @@
+---
+en:
+  contracts:
+    kinds:
+      insurance: Insurance
+      mobile: Mobile phone
+      internet: Internet
+      energy: Energy
+      streaming: Streaming
+      software: Software
+      fitness: Fitness
+      membership: Membership
+      rent: Rent
+      other: Other
+    statuses:
+      active: Active
+      cancellation_sent: Cancellation sent
+      cancelled: Cancelled
+      ended: Ended
+    status_until: "Cancelled for %{date}"
+    notice_anchors:
+      end_of_term: to the end of the term
+      end_of_month: to the end of a month
+      any_day: at any time
+    terms:
+      none: None
+      months:
+        one: "%{count} month"
+        other: "%{count} months"
+      indefinite: Runs indefinitely
+      renews_every:
+        one: "Renews every month"
+        other: "Renews every %{count} months"
+      unknown: Not recorded
+      notice_units:
+        days:
+          one: "%{count} day"
+          other: "%{count} days"
+        weeks:
+          one: "%{count} week"
+          other: "%{count} weeks"
+        months:
+          one: "%{count} month"
+          other: "%{count} months"
+      notice_with_anchor: "%{period} %{anchor}"
+    cost_unknown: Cost unknown
+    per_year: "%{amount} / year"
+    shared_with_you: Shared with you
+    shared: Shared
+    index:
+      title: Contracts
+      preview: Preview
+      add_contract: Add contract
+      empty_title: No contracts yet
+      empty_description: Keep insurance, phone, internet, energy and subscription contracts in one place, with their notice periods, contacts and documents.
+      from_bill: Record from a bill
+      active_count_label: Active contracts
+      annual_cost_label: Cost per year
+      ended:
+        one: "Ended contract (%{count})"
+        other: "Ended contracts (%{count})"
+    show:
+      back: Contracts
+      owned_by: "Managed by %{name}"
+      edit: Edit
+      share: Share
+      record_cancellation: Record cancellation
+      mark_ended: Mark as ended
+      confirm_mark_ended: "Mark %{name} as ended?"
+      delete: Delete
+      confirm_delete: "Delete %{name}? Its payments stay in Bills; its documents are removed."
+      possible_duplicate: "This may duplicate %{names}: same provider and contract number."
+      contract_section: Contract
+      renewal: Renewal
+      payments_section: Payments
+      next_due: "Next due %{date}"
+      no_payments: No payments linked. Link a bill to see what this contract costs.
+      hidden_payments: Further payments are linked from accounts you cannot see.
+      link_payments: Link payments
+      add_payment: Add payment
+      contacts_section: Contacts
+    documents:
+      title: Documents
+      resource: document
+      count: "%{count} of %{max}"
+      searchable: Searchable by the assistant
+      allow_search: Let the assistant search
+      stop_search: Stop assistant search
+      search_hint: Documents are only searchable by the assistant when you switch this on, and only for people who can see this contract.
+      delete: Delete document
+      empty: No documents yet.
+      choose: "Choose PDFs or images (up to %{size} MB each)"
+      upload: Upload
+      create:
+        success:
+          one: Document uploaded
+          other: "%{count} documents uploaded"
+        no_file: Choose a file to upload.
+        too_many: "A contract can hold at most %{max} documents."
+      update:
+        ai_disabled: Turn on the assistant in your settings to make documents searchable.
+        searchable: The assistant can now search this document.
+        not_searchable: The assistant can no longer search this document.
+      destroy:
+        success: Document deleted
+    new:
+      title: New contract
+    edit:
+      title: "Edit %{name}"
+    form:
+      name_placeholder: e.g. Private liability insurance
+      no_merchant: No merchant
+      provider_placeholder: e.g. HUK24
+      provider_hint: Pick a merchant for its logo, or type the provider's name.
+      no_account: No related account
+      term_section: Term and notice
+      minimum_term_label: Minimum term (months)
+      renewal_label: Renews every (months)
+      renewal_placeholder: Indefinite
+      term_hint: Leave renewal empty when the contract runs on indefinitely after its minimum term.
+      numbers_section: Contract and customer number
+      encryption_warning_title: Numbers are stored unencrypted
+      encryption_warning: This instance has no encryption keys configured, so contract and customer numbers are stored as plain text. Ask your administrator to configure Active Record encryption.
+      contacts_section: Contacts
+      payments_section: Payments
+      no_bills: No bills to link yet. Add the payment in Bills first.
+      links_section: Document links
+      link_url: Document link
+      link_label: Label
+      links_hint: Link documents stored elsewhere, for example in Paperless-ngx.
+      no_successor: No successor
+      create: Save contract
+      update: Save changes
+      units:
+        days: Days
+        weeks: Weeks
+        months: Months
+    create:
+      success: Contract saved
+    update:
+      success: Contract updated
+    destroy:
+      success: Contract deleted
+    mark_ended:
+      success: Contract marked as ended
+    cancellations:
+      new:
+        title: "Cancel %{name}"
+        intro: Record when you sent the cancellation and when the contract ends. Sure does not send anything to the provider.
+        sent_on: Cancellation sent on
+        ends_on: Contract ends on
+        end_linked_bills: End the linked bills when the contract ends
+        end_linked_bills_hint: Off by default. Left on, Bills stops expecting payments after the end date.
+        submit: Record cancellation
+      create:
+        success: Cancellation recorded
+        ends_before_sent: The contract cannot end before the cancellation was sent.
+      update:
+        success: Cancellation confirmed
+      destroy:
+        success: Cancellation withdrawn
+    cancellation_notice:
+      sent: "Cancellation sent on %{date}."
+      ends: "Ends on %{date}."
+      awaiting_confirmation: Waiting for the provider to confirm.
+      confirm: Confirmation received
+      withdraw: Withdraw
+      withdraw_confirm_title: Withdraw the cancellation?
+      withdraw_confirm_body: The contract goes back to active, for example after accepting a retention offer.
+      confirmed: "Cancellation confirmed on %{date}."
+      bills_still_running: "The contract has ended but these bills are still running: %{names}. End them in Bills if the payments have stopped."
+    sharings:
+      show:
+        title: "Share %{name}"
+        intro: Contracts are private to you until you share them. Admins do not see contracts that are not shared with them.
+        shared_with: "Share with %{name}"
+        permissions_hint: Read only shows the contract with masked numbers. Read and write can edit it. Full control can also share and delete it.
+        save: Save sharing
+        no_members: There are no other members in this household.
+      update:
+        success: Sharing updated
+      permissions:
+        full_control: Full control
+        read_write: Read and write
+        read_only: Read only

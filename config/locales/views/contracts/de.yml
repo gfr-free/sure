@@ -1,0 +1,185 @@
+---
+de:
+  contracts:
+    kinds:
+      insurance: Versicherung
+      mobile: Mobilfunk
+      internet: Internet
+      energy: Energie
+      streaming: Streaming
+      software: Software
+      fitness: Fitness
+      membership: Mitgliedschaft
+      rent: Miete
+      other: Sonstiges
+    statuses:
+      active: Aktiv
+      cancellation_sent: Kündigung verschickt
+      cancelled: Gekündigt
+      ended: Beendet
+    status_until: "Gekündigt zum %{date}"
+    notice_anchors:
+      end_of_term: zum Laufzeitende
+      end_of_month: zum Monatsende
+      any_day: jederzeit
+    terms:
+      none: Keine
+      months:
+        one: "%{count} Monat"
+        other: "%{count} Monate"
+      indefinite: Läuft unbefristet weiter
+      renews_every:
+        one: "Verlängert sich um einen Monat"
+        other: "Verlängert sich um %{count} Monate"
+      unknown: Nicht erfasst
+      notice_units:
+        days:
+          one: "%{count} Tag"
+          other: "%{count} Tage"
+        weeks:
+          one: "%{count} Woche"
+          other: "%{count} Wochen"
+        months:
+          one: "%{count} Monat"
+          other: "%{count} Monate"
+      notice_with_anchor: "%{period} %{anchor}"
+    cost_unknown: Kosten unbekannt
+    per_year: "%{amount} / Jahr"
+    shared_with_you: Mit dir geteilt
+    shared: Geteilt
+    index:
+      title: Verträge
+      preview: Vorschau
+      add_contract: Vertrag hinzufügen
+      empty_title: Noch keine Verträge
+      empty_description: Versicherungen, Handy-, Internet-, Strom- und Abo-Verträge an einem Ort, mit Kündigungsfristen, Kontakten und Dokumenten.
+      from_bill: Aus Rechnung anlegen
+      active_count_label: Aktive Verträge
+      annual_cost_label: Kosten pro Jahr
+      ended:
+        one: "Beendeter Vertrag (%{count})"
+        other: "Beendete Verträge (%{count})"
+    show:
+      back: Verträge
+      owned_by: "Verwaltet von %{name}"
+      edit: Bearbeiten
+      share: Teilen
+      record_cancellation: Kündigung erfassen
+      mark_ended: Als beendet markieren
+      confirm_mark_ended: "%{name} als beendet markieren?"
+      delete: Löschen
+      confirm_delete: "%{name} löschen? Die Zahlungen bleiben in den Rechnungen erhalten, die Dokumente werden entfernt."
+      possible_duplicate: "Möglicherweise doppelt mit %{names}: gleicher Anbieter und gleiche Vertragsnummer."
+      contract_section: Vertrag
+      renewal: Verlängerung
+      payments_section: Zahlungen
+      next_due: "Nächste Fälligkeit %{date}"
+      no_payments: Keine Zahlungen verknüpft. Verknüpfe eine Rechnung, um die Kosten zu sehen.
+      hidden_payments: Weitere Zahlungen sind mit Konten verknüpft, die du nicht sehen kannst.
+      link_payments: Zahlungen verknüpfen
+      add_payment: Zahlung hinzufügen
+      contacts_section: Kontakte
+    documents:
+      title: Dokumente
+      resource: Dokument
+      count: "%{count} von %{max}"
+      searchable: Für den Assistenten durchsuchbar
+      allow_search: Für den Assistenten freigeben
+      stop_search: Freigabe beenden
+      search_hint: Der Assistent kann Dokumente nur durchsuchen, wenn du das einschaltest, und nur für Personen, die diesen Vertrag sehen dürfen.
+      delete: Dokument löschen
+      empty: Noch keine Dokumente.
+      choose: "PDFs oder Bilder auswählen (je bis %{size} MB)"
+      upload: Hochladen
+      create:
+        success:
+          one: Dokument hochgeladen
+          other: "%{count} Dokumente hochgeladen"
+        no_file: Wähle eine Datei zum Hochladen aus.
+        too_many: "Ein Vertrag kann höchstens %{max} Dokumente enthalten."
+      update:
+        ai_disabled: Schalte den Assistenten in deinen Einstellungen ein, um Dokumente durchsuchbar zu machen.
+        searchable: Der Assistent kann dieses Dokument jetzt durchsuchen.
+        not_searchable: Der Assistent kann dieses Dokument nicht mehr durchsuchen.
+      destroy:
+        success: Dokument gelöscht
+    new:
+      title: Neuer Vertrag
+    edit:
+      title: "%{name} bearbeiten"
+    form:
+      name_placeholder: z. B. Privathaftpflicht
+      no_merchant: Kein Händler
+      provider_placeholder: z. B. HUK24
+      provider_hint: Wähle einen Händler für das Logo oder gib den Namen des Anbieters ein.
+      no_account: Kein verknüpftes Konto
+      term_section: Laufzeit und Kündigung
+      minimum_term_label: Mindestlaufzeit (Monate)
+      renewal_label: Verlängert sich um (Monate)
+      renewal_placeholder: Unbefristet
+      term_hint: Lass die Verlängerung leer, wenn der Vertrag nach der Mindestlaufzeit unbefristet weiterläuft.
+      numbers_section: Vertrags- und Kundennummer
+      encryption_warning_title: Nummern werden unverschlüsselt gespeichert
+      encryption_warning: Auf dieser Instanz sind keine Verschlüsselungsschlüssel eingerichtet, daher werden Vertrags- und Kundennummern im Klartext gespeichert. Bitte deinen Administrator, die Active-Record-Verschlüsselung einzurichten.
+      contacts_section: Kontakte
+      payments_section: Zahlungen
+      no_bills: Noch keine Rechnungen zum Verknüpfen. Lege die Zahlung zuerst unter Rechnungen an.
+      links_section: Dokument-Links
+      link_url: Dokument-Link
+      link_label: Bezeichnung
+      links_hint: Verlinke Dokumente, die anderswo liegen, zum Beispiel in Paperless-ngx.
+      no_successor: Kein Nachfolger
+      create: Vertrag speichern
+      update: Änderungen speichern
+      units:
+        days: Tage
+        weeks: Wochen
+        months: Monate
+    create:
+      success: Vertrag gespeichert
+    update:
+      success: Vertrag aktualisiert
+    destroy:
+      success: Vertrag gelöscht
+    mark_ended:
+      success: Vertrag als beendet markiert
+    cancellations:
+      new:
+        title: "%{name} kündigen"
+        intro: Erfasse, wann du die Kündigung verschickt hast und wann der Vertrag endet. Sure verschickt nichts an den Anbieter.
+        sent_on: Kündigung verschickt am
+        ends_on: Vertrag endet am
+        end_linked_bills: Verknüpfte Rechnungen zum Vertragsende beenden
+        end_linked_bills_hint: Standardmäßig aus. Eingeschaltet erwartet Bills nach dem Vertragsende keine Zahlungen mehr.
+        submit: Kündigung erfassen
+      create:
+        success: Kündigung erfasst
+        ends_before_sent: Der Vertrag kann nicht vor dem Versand der Kündigung enden.
+      update:
+        success: Kündigung bestätigt
+      destroy:
+        success: Kündigung zurückgenommen
+    cancellation_notice:
+      sent: "Kündigung verschickt am %{date}."
+      ends: "Endet am %{date}."
+      awaiting_confirmation: Die Bestätigung des Anbieters steht noch aus.
+      confirm: Bestätigung erhalten
+      withdraw: Zurücknehmen
+      withdraw_confirm_title: Kündigung zurücknehmen?
+      withdraw_confirm_body: Der Vertrag wird wieder aktiv, zum Beispiel nach einem angenommenen Halteangebot.
+      confirmed: "Kündigung bestätigt am %{date}."
+      bills_still_running: "Der Vertrag ist beendet, aber diese Rechnungen laufen noch: %{names}. Beende sie unter Rechnungen, wenn keine Zahlungen mehr kommen."
+    sharings:
+      show:
+        title: "%{name} teilen"
+        intro: Verträge sind privat, bis du sie teilst. Admins sehen keine Verträge, die nicht mit ihnen geteilt sind.
+        shared_with: "Mit %{name} teilen"
+        permissions_hint: Nur lesen zeigt den Vertrag mit maskierten Nummern. Lesen und schreiben darf ihn bearbeiten. Volle Kontrolle darf ihn zusätzlich teilen und löschen.
+        save: Freigaben speichern
+        no_members: In diesem Haushalt gibt es keine weiteren Mitglieder.
+      update:
+        success: Freigaben aktualisiert
+      permissions:
+        full_control: Volle Kontrolle
+        read_write: Lesen und schreiben
+        read_only: Nur lesen

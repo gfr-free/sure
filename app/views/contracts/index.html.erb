@@ -1,0 +1,67 @@
+<%= content_for :page_title, t(".title") %>
+
+<div class="space-y-4 pb-6 lg:pb-12">
+  <%= render "bills/view_switcher", active: "contracts" %>
+
+  <% if @open_contracts.empty? && @ended_contracts.empty? %>
+    <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <%= render DS::EmptyState.new(
+            icon: "file-text",
+            title: t(".empty_title"),
+            description: t(".empty_description")
+          ) do |empty_state| %>
+        <% empty_state.with_action do %>
+          <div class="flex flex-wrap justify-center gap-2">
+            <%= render DS::Link.new(text: t(".add_contract"), icon: "plus", variant: "primary", href: new_contract_path, frame: :modal) %>
+            <%= render DS::Link.new(text: t(".from_bill"), icon: "receipt", variant: "secondary", href: bills_path(view: "all", q: { status: "due" })) %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="grid grid-cols-1 sm:grid-cols-2 bg-container rounded-xl shadow-border-xs divide-y sm:divide-y-0 sm:divide-x divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".active_count_label") %></p>
+        <p class="text-primary font-medium text-xl"><%= @open_contracts.size %></p>
+      </div>
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".annual_cost_label") %></p>
+        <p class="text-primary font-medium text-xl privacy-sensitive">
+          <%= @total_annual_cost ? format_money(@total_annual_cost) : "–" %>
+        </p>
+        <% if @unconvertible_count.positive? %>
+          <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: @unconvertible_count) %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <% @groups.each do |kind, contracts| %>
+      <% group_total = contracts.filter_map { |contract| @costs.dig(contract.id, 0) }.sum(Money.new(0, Current.family.currency)) %>
+      <section class="bg-container rounded-xl shadow-border-xs" aria-labelledby="contracts-<%= kind %>">
+        <header class="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
+          <h2 id="contracts-<%= kind %>" class="flex items-center gap-2 text-sm font-medium text-primary">
+            <%= icon Contract.icon_for(kind), size: "sm" %>
+            <%= contract_kind_label(kind) %>
+            <span class="text-secondary font-normal"><%= contracts.size %></span>
+          </h2>
+          <% if group_total.positive? %>
+            <p class="text-sm text-secondary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(group_total)) %></p>
+          <% end %>
+        </header>
+        <ul class="divide-y divide-subdued">
+          <%= render partial: "contracts/contract_row", collection: contracts, as: :contract %>
+        </ul>
+      </section>
+    <% end %>
+
+    <% if @ended_contracts.any? %>
+      <div class="bg-container rounded-xl shadow-border-xs px-4 py-3">
+        <%= render DS::Disclosure.new(title: t(".ended", count: @ended_contracts.size), align: "left") do %>
+          <ul class="divide-y divide-subdued">
+            <%= render partial: "contracts/contract_row", collection: @ended_contracts, as: :contract %>
+          </ul>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

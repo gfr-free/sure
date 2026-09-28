@@ -1,0 +1,30 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title", name: @contract.name)) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with url: contract_cancellation_path(@contract), method: :post, scope: :cancellation, class: "space-y-4" do |f| %>
+      <% if @error %>
+        <%= render DS::Alert.new(variant: :error, message: @error) %>
+      <% end %>
+
+      <p class="text-sm text-secondary"><%= t(".intro") %></p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <%= f.date_field :sent_on, label: t(".sent_on"), value: @sent_on, max: Date.current, required: true %>
+        <%= f.date_field :ends_on, label: t(".ends_on"), value: @ends_on %>
+      </div>
+
+      <% if @contract.recurring_transactions.where(status: %w[active inactive paused]).exists? %>
+        <label class="flex items-start gap-3 text-sm text-primary cursor-pointer">
+          <%= hidden_field_tag "cancellation[end_linked_bills]", "0", id: nil %>
+          <%= check_box_tag "cancellation[end_linked_bills]", "1", false, class: "checkbox checkbox--light mt-0.5" %>
+          <span>
+            <%= t(".end_linked_bills") %>
+            <span class="block text-xs text-secondary"><%= t(".end_linked_bills_hint") %></span>
+          </span>
+        </label>
+      <% end %>
+
+      <%= f.submit t(".submit") %>
+    <% end %>
+  <% end %>
+<% end %>

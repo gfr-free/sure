@@ -12,7 +12,8 @@
   <div class="flex items-center gap-2">
     <h1 class="text-xl"><%= contracts_view ? t("contracts.index.title") : t("bills.index.title") %></h1>
     <% if contracts_view %>
-      <%= render DS::Pill.new(label: t("contracts.index.preview"), size: :md) %>
+      <%# Beside the heading only where there is room for it and the header action. %>
+      <span class="hidden sm:inline-flex"><%= render DS::Pill.new(label: t("contracts.index.preview"), size: :md) %></span>
     <% end %>
   </div>
 
@@ -68,6 +69,9 @@
   </div>
 </header>
 
+<%# Five segments are wider than a phone: the switcher scrolls within itself
+    instead of pushing the page sideways. %>
+<div class="overflow-x-auto no-scrollbar max-w-full">
 <%= render DS::SegmentedControl.new(aria_label: t("bills.views.aria_label")) do |control| %>
   <% control.with_segment(t("bills.views.overview"), active: active == "overview", href: bills_path) %>
   <% control.with_segment(t("bills.views.calendar"), active: active == "calendar", href: bills_path(view: "calendar")) %>
@@ -75,3 +79,4 @@
   <% control.with_segment(t("bills.views.all"), active: active == "all", href: bills_path(view: "all")) %>
   <% control.with_segment(t("bills.views.contracts"), active: contracts_view, href: contracts_path) %>
 <% end %>
+</div>

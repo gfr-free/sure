@@ -14,10 +14,20 @@ export default class extends Controller {
     this.resizeObserver = new ResizeObserver(() => this.reposition());
     this.resizeObserver.observe(this.mainTarget);
     this.reposition();
+
+    this._onBeforeStreamRender = this.#deferWhileDialogOpen.bind(this);
+    document.addEventListener(
+      "turbo:before-stream-render",
+      this._onBeforeStreamRender,
+    );
   }
 
   disconnect() {
     this.resizeObserver?.disconnect();
+    document.removeEventListener(
+      "turbo:before-stream-render",
+      this._onBeforeStreamRender,
+    );
   }
 
   reposition() {
@@ -36,5 +46,26 @@ export default class extends Controller {
   // only `style` on this one element — no node-identity system involved.
   preserveStyle(event) {
     if (event.detail.attributeName === "style") event.preventDefault();
+  }
+
+  // A native <dialog> shown via showModal() (the transaction drawer, any
+  // modal) renders in the browser's top layer, which sits above this tray
+  // regardless of z-index. A "create a rule?" CTA streaming in while one is
+  // open is invisible and unclickable until the dialog closes — and by then
+  // its one-time flash has already been consumed server-side, so it never
+  // gets a second chance to render. Defer the stream's own render call until
+  // the open dialog's `close` event fires instead of applying it immediately.
+  #deferWhileDialogOpen(event) {
+    if (event.target.target !== "cta") return;
+
+    const openDialog = document.querySelector("dialog[open]");
+    if (!openDialog) return;
+
+    const defaultRender = event.detail.render;
+    event.detail.render = (streamElement) => {
+      openDialog.addEventListener("close", () => defaultRender(streamElement), {
+        once: true,
+      });
+    };
   }
 }

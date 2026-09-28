@@ -67,6 +67,7 @@ en:
       mark_recurring_title: Recurring Transaction
       applied_to_title: Bills this paid
       applied_to_detail: "%{amount} toward the bill due %{date}"
+      applied_to_contract: "Contract: %{name}"
       applied_to_unreviewed: Needs review
       merge_duplicate: Yes, merge them
       potential_duplicate_description: This pending transaction may be the same as the posted transaction below. If so, merge them to avoid double-counting.

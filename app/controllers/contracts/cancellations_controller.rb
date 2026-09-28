@@ -25,8 +25,10 @@ class Contracts::CancellationsController < Contracts::BaseController
       end_linked_bills: ActiveModel::Type::Boolean.new.cast(params.dig(:cancellation, :end_linked_bills))
     )
 
+    flash[:notice] = t(".success")
+
     respond_to do |format|
-      format.html { redirect_to contract_path(@contract), notice: t(".success") }
+      format.html { redirect_to contract_path(@contract) }
       format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, contract_path(@contract)) }
     end
   end

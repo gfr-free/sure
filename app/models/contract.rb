@@ -245,7 +245,9 @@ class Contract < ApplicationRecord
   def running_bills_after_end
     return RecurringTransaction.none unless effectively_ended?
 
+    end_date = ends_on || updated_at.to_date
     recurring_transactions.where(status: "active")
+                          .where("recurring_transactions.end_mode <> 'on_date' OR recurring_transactions.end_on IS NULL OR recurring_transactions.end_on > ?", end_date)
   end
 
   def end_linked_bills_on!(date)

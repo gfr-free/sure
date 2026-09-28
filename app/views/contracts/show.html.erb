@@ -4,11 +4,6 @@
 <% manageable = @contract.manageable_by?(Current.user) %>
 
 <div class="space-y-4 pb-6 lg:pb-12">
-  <%= link_to contracts_path, class: "inline-flex items-center gap-1 text-sm text-secondary hover:text-primary" do %>
-    <%= icon "chevron-left", size: "sm" %>
-    <%= t(".back") %>
-  <% end %>
-
   <header class="flex items-start justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
       <%= contract_avatar(@contract) %>
@@ -53,7 +48,7 @@
     <%= render DS::Alert.new(variant: :warning, message: t(".possible_duplicate", names: @duplicates.map(&:name).to_sentence)) %>
   <% end %>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+  <div class="space-y-4">
     <%= render DS::Card.new(class: "space-y-3") do %>
       <h2 class="text-sm font-medium text-primary"><%= t(".contract_section") %></h2>
       <dl class="space-y-2">
@@ -152,7 +147,7 @@
     <%= render "contracts/documents", contract: @contract, documents: @documents, editable: editable %>
 
     <% if @contract.notes.present? %>
-      <%= render DS::Card.new(class: "space-y-2 lg:col-span-2") do %>
+      <%= render DS::Card.new(class: "space-y-2") do %>
         <h2 class="text-sm font-medium text-primary"><%= Contract.human_attribute_name(:notes) %></h2>
         <p class="text-sm text-primary whitespace-pre-line"><%= @contract.notes %></p>
       <% end %>

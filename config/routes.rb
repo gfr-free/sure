@@ -591,6 +591,7 @@ Rails.application.routes.draw do
   resources :contracts do
     member do
       patch :mark_ended
+      post :end_linked_bills
     end
 
     resource :cancellation, only: %i[new create update destroy], controller: "contracts/cancellations"

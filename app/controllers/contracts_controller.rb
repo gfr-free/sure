@@ -6,8 +6,8 @@ class ContractsController < ApplicationController
   include RecurringFeatureGuardable
 
   before_action :ensure_recurring_enabled
-  before_action :set_contract, only: %i[show edit update destroy mark_ended]
-  before_action :require_editable, only: %i[edit update mark_ended]
+  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills]
+  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills]
   before_action :require_manageable, only: %i[destroy]
 
   def index
@@ -21,6 +21,7 @@ class ContractsController < ApplicationController
     @groups = @open_contracts.group_by(&:kind).sort_by { |kind, _| Contract.kinds.keys.index(kind) }
     @costs = Contract.annual_costs_for(contracts, Current.user)
     @total_annual_cost, @unconvertible_count = total_annual_cost(@open_contracts)
+    @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
 
   def show
@@ -29,6 +30,7 @@ class ContractsController < ApplicationController
     @annual_cost, @unconvertible_count = @contract.annual_cost_for(Current.user)
     @documents = @contract.contract_documents.with_attached_file.ordered
     @duplicates = @contract.editable_by?(Current.user) ? @contract.possible_duplicates.accessible_by(Current.user) : Contract.none
+    @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), contracts_path ], [ @contract.name, nil ] ]
   end
 
   def new
@@ -43,7 +45,12 @@ class ContractsController < ApplicationController
     assign_related_records
 
     if @contract.errors.none? && save_with_bills
-      redirect_to contract_path(@contract), notice: t(".success")
+      flash[:notice] = t(".success")
+
+      respond_to do |format|
+        format.html { redirect_to contract_path(@contract) }
+        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, contract_path(@contract)) }
+      end
     else
       render :new, status: :unprocessable_entity, layout: dialog_layout
     end
@@ -58,8 +65,10 @@ class ContractsController < ApplicationController
     assign_related_records
 
     if @contract.errors.none? && save_with_bills
+      flash[:notice] = t(".success")
+
       respond_to do |format|
-        format.html { redirect_to contract_path(@contract), notice: t(".success") }
+        format.html { redirect_to contract_path(@contract) }
         format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, contract_path(@contract)) }
       end
     else
@@ -75,6 +84,17 @@ class ContractsController < ApplicationController
   def mark_ended
     @contract.mark_ended!(ended_on: Date.current)
     redirect_to contract_path(@contract), notice: t(".success")
+  end
+
+  # The contract has ended but its bills still expect payments. Ends the ones
+  # this user may change, on the contract's end date.
+  def end_linked_bills
+    ends_on = @contract.ends_on || Date.current
+    linkable_bills.where(contract_id: @contract.id, status: %w[active inactive paused]).find_each do |bill|
+      bill.update!(end_mode: "on_date", end_on: ends_on)
+    end
+
+    redirect_back_or_to contract_path(@contract), notice: t(".success")
   end
 
   private
@@ -180,6 +200,10 @@ class ContractsController < ApplicationController
       return "streaming" if bill.typed_subscription?
 
       "other"
+    end
+
+    def contracts_breadcrumb_prefix
+      [ [ t("breadcrumbs.home"), root_path ], [ t("bills.index.title"), bills_path ] ]
     end
 
     def total_annual_cost(contracts)

@@ -60,7 +60,6 @@ en:
         one: "Ended contract (%{count})"
         other: "Ended contracts (%{count})"
     show:
-      back: Contracts
       owned_by: "Managed by %{name}"
       edit: Edit
       share: Share
@@ -141,6 +140,8 @@ en:
       success: Contract updated
     destroy:
       success: Contract deleted
+    end_linked_bills:
+      success: "The linked bills end with the contract."
     mark_ended:
       success: Contract marked as ended
     cancellations:

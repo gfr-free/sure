@@ -1,6 +1,12 @@
 ---
 en:
   bills:
+    contract_line:
+      linked: "Contract: %{name}"
+      ended_on: "The contract ended on %{date}, but this bill still expects payments."
+      ended: "The contract has ended, but this bill still expects payments."
+      end_bill: "End bill"
+      record: "Record as contract"
     row_overdue: Overdue
     row_today: Today
     detect:

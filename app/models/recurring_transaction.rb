@@ -254,6 +254,12 @@ class RecurringTransaction < ApplicationRecord
     end
   end
 
+  # Still expecting payments after the given date: active and not scheduled to
+  # end on or before it. A contract that ended flags bills for which this holds.
+  def runs_past?(date)
+    active? && !(ends_on_date? && end_on.present? && end_on <= date)
+  end
+
   def transfer?
     destination_account_id.present?
   end

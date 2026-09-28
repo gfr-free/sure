@@ -60,7 +60,6 @@ de:
         one: "Beendeter Vertrag (%{count})"
         other: "Beendete Verträge (%{count})"
     show:
-      back: Verträge
       owned_by: "Verwaltet von %{name}"
       edit: Bearbeiten
       share: Teilen
@@ -141,6 +140,8 @@ de:
       success: Vertrag aktualisiert
     destroy:
       success: Vertrag gelöscht
+    end_linked_bills:
+      success: "Die verknüpften Rechnungen enden mit dem Vertrag."
     mark_ended:
       success: Vertrag als beendet markiert
     cancellations:

@@ -1,0 +1,29 @@
+liability_insurance:
+  family: dylan_family
+  owner: family_admin
+  name: Private liability
+  provider_name: HUK24
+  kind: insurance
+  status: active
+  contract_number: LV-2024-004711
+  started_on: <%= Date.new(2024, 1, 1) %>
+  minimum_term_months: 12
+  notice_period_value: 3
+  notice_period_unit: months
+  notice_anchor: end_of_term
+  renewal_period_months: 12
+
+phone_plan:
+  family: dylan_family
+  owner: family_admin
+  name: Phone plan
+  provider_name: Telekom
+  kind: mobile
+  status: active
+  contract_number: MOB-99887766
+  customer_number: K-123456
+  started_on: <%= Date.new(2025, 3, 1) %>
+  minimum_term_months: 24
+  notice_period_value: 1
+  notice_period_unit: months
+  notice_anchor: end_of_month

@@ -31,3 +31,5 @@ en:
               same_as_source: "cannot be the same as the source account"
               family_mismatch: "must belong to the same family as the source account"
               wrong_family: "must belong to this family"
+            contract:
+              wrong_family: "must belong to this family"

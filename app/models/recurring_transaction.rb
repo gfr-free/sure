@@ -14,6 +14,7 @@ class RecurringTransaction < ApplicationRecord
   belongs_to :merchant, optional: true
   belongs_to :category, optional: true
   belongs_to :replaced_by, optional: true, class_name: "RecurringTransaction"
+  belongs_to :contract, optional: true
   # autosave: FrequencyPreset marks old rules for destruction and builds
   # replacements in one assignment, and only autosave honors that on save.
   has_many :recurrence_rules, -> { order(:position) }, dependent: :destroy, autosave: true
@@ -144,7 +145,7 @@ class RecurringTransaction < ApplicationRecord
   def accounts_belong_to_family
     return if family_id.blank?
 
-    { account: account, destination_account: destination_account }.each do |attribute, record|
+    { account: account, destination_account: destination_account, contract: contract }.each do |attribute, record|
       next if record.blank? || record.family_id == family_id
 
       errors.add(attribute, :wrong_family)

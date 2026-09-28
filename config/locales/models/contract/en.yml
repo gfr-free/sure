@@ -1,0 +1,68 @@
+---
+en:
+  activerecord:
+    models:
+      contract:
+        one: Contract
+        other: Contracts
+      contract_share: Contract share
+      contract_document: Contract document
+    attributes:
+      contract:
+        name: Name
+        provider_name: Provider
+        kind: Type
+        status: Status
+        contract_number: Contract number
+        customer_number: Customer number
+        started_on: Start date
+        minimum_term_months: Minimum term
+        notice_period_value: Notice period
+        notice_period_unit: Notice period unit
+        notice_anchor: Notice applies to
+        renewal_period_months: Renews every
+        renewal_anchor_on: Main due date
+        ends_on: End date
+        cancelled_on: Cancellation sent
+        cancellation_confirmed_on: Cancellation confirmed
+        portal_url: Customer portal
+        service_phone: Service phone
+        service_email: Service email
+        claims_phone: Claims hotline
+        document_links: Document links
+        notes: Notes
+        account: Related account
+        merchant: Merchant
+        owner: Owner
+        replaced_by: Successor
+      contract_share:
+        user: Member
+        permission: Permission
+      contract_document:
+        file: File
+    errors:
+      models:
+        contract:
+          attributes:
+            notice_period_value:
+              incomplete: "needs both a number and a unit"
+            ends_on:
+              before_start: "cannot be before the start date"
+            document_links:
+              invalid: "must be valid http:// or https:// addresses"
+              too_many: "cannot have more than %{count} entries"
+            portal_url:
+              invalid: "must be a valid http:// or https:// address"
+        contract_share:
+          attributes:
+            user:
+              owner: "already owns this contract"
+              other_family: "must be in the same family"
+            permission:
+              guest_read_only: "can only be read only for guests"
+        contract_document:
+          too_many: "A contract can hold at most %{max} documents"
+          attributes:
+            file:
+              too_large: "is too large (maximum %{max_mb} MB)"
+              invalid_format: "has an unsupported format (%{file_format})"

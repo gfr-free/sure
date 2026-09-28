@@ -263,6 +263,7 @@ en:
       rules: "Rules"
       merchants: "Merchants"
       recurring_transactions: "Recurring Transactions"
+      contracts: "Contracts"
       transfers: "Transfers"
       rejected_transfers: "Rejected Transfers"
       trades: "Trades"

@@ -42,6 +42,9 @@ class Family < ApplicationRecord
   CATEGORIZATION_PROVIDERS = %w[llm jev].freeze
   SHARING_DEFAULTS = %w[shared private].freeze
 
+  # Declared before users on purpose: dependents are destroyed in declaration
+  # order, and a contract must go (purging its documents) before its owner.
+  has_many :contracts, dependent: :destroy
   has_many :users, dependent: :destroy
   has_many :accounts, dependent: :destroy
   has_many :invitations, dependent: :destroy
@@ -375,6 +378,24 @@ class Family < ApplicationRecord
     end
 
     AccountShare.insert_all(records, unique_by: %i[account_id user_id]) if records.any?
+
+    auto_share_existing_contracts_with(user)
+  end
+
+  # Contracts follow the same default as accounts, so a member who joins a
+  # sharing family sees the household's contracts too. Same guards as above:
+  # insert_all skips ContractShare's validations.
+  def auto_share_existing_contracts_with(user)
+    return unless share_all_by_default?
+    return unless user&.persisted? && user.family_id == id
+
+    permission = user.guest? ? "read_only" : "read_write"
+    records = contracts.where.not(owner_id: user.id).pluck(:id).map do |contract_id|
+      { contract_id: contract_id, user_id: user.id, permission: permission,
+        created_at: Time.current, updated_at: Time.current }
+    end
+
+    ContractShare.insert_all(records, unique_by: %i[contract_id user_id]) if records.any?
   end
 
   def uses_custom_month_start?

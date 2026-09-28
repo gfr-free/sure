@@ -11,6 +11,7 @@ class Merchant < ApplicationRecord
 
   has_many :transactions, dependent: :nullify
   has_many :recurring_transactions, dependent: :destroy
+  has_many :contracts, dependent: :nullify
 
   validates :name, presence: true
   validates :name, exclusion: { in: [ NO_MERCHANT_FILTER_VALUE ] }

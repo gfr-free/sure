@@ -28,6 +28,7 @@ class ContractsController < ApplicationController
     @visible_bills = @contract.visible_recurring_transactions_for(Current.user).includes(:merchant).order(:next_expected_date)
     @hidden_bills = @contract.hidden_recurring_transactions_for?(Current.user)
     @annual_cost, @unconvertible_count = @contract.annual_cost_for(Current.user)
+    @schedule = @contract.notice_schedule
     @documents = @contract.contract_documents.with_attached_file.ordered
     @duplicates = @contract.editable_by?(Current.user) ? @contract.possible_duplicates.accessible_by(Current.user) : Contract.none
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), contracts_path ], [ @contract.name, nil ] ]
@@ -118,7 +119,7 @@ class ContractsController < ApplicationController
         :name, :provider_name, :kind, :contract_number, :customer_number,
         :started_on, :minimum_term_months, :notice_period_value, :notice_period_unit, :notice_anchor,
         :renewal_period_months, :renewal_anchor_on, :ends_on,
-        :portal_url, :service_phone, :service_email, :claims_phone, :notes,
+        :portal_url, :service_phone, :service_email, :claims_phone, :notes, :email_reminders,
         document_links: [ :url, :label ]
       ).tap do |permitted|
         permitted[:document_links] = permitted[:document_links].to_h.values if permitted[:document_links].is_a?(ActionController::Parameters)

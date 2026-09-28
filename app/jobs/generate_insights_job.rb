@@ -53,22 +53,26 @@ class GenerateInsightsJob < ApplicationJob
       Array(notifiable_insights).each { |insight| DeliverInsightNotificationJob.enqueue_for(insight) }
     end
 
+    # One stream per member: an insight addressed to one user (a contract they
+    # own) must not be rendered into anyone else's list.
     def broadcast_feed(family)
-      insights = family.insights.visible.ordered.to_a
-      unread_ids = insights.select(&:active?).map(&:id).to_set
+      family.users.find_each do |user|
+        insights = family.insights.for_user(user).visible.ordered.to_a
+        unread_ids = insights.select(&:active?).map(&:id).to_set
 
-      Turbo::StreamsChannel.broadcast_replace_to(
-        [ family, :insights ],
-        target: "insights-list",
-        partial: "insights/list",
-        locals: { insights: insights, unread_ids: unread_ids }
-      )
-      Turbo::StreamsChannel.broadcast_replace_to(
-        [ family, :insights ],
-        target: "insights-refresh",
-        partial: "insights/refresh_button",
-        locals: { pending: false }
-      )
+        Turbo::StreamsChannel.broadcast_replace_to(
+          [ user, :insights ],
+          target: "insights-list",
+          partial: "insights/list",
+          locals: { insights: insights, unread_ids: unread_ids }
+        )
+        Turbo::StreamsChannel.broadcast_replace_to(
+          [ user, :insights ],
+          target: "insights-refresh",
+          partial: "insights/refresh_button",
+          locals: { pending: false }
+        )
+      end
     end
 
     # A visible insight whose generator ran successfully but did not re-emit
@@ -104,12 +108,14 @@ class GenerateInsightsJob < ApplicationJob
             period_start: generated.period_start,
             period_end: generated.period_end,
             generated_at: Time.current,
-            dedup_key: generated.dedup_key
+            dedup_key: generated.dedup_key,
+            user_id: generated.user_id
           )
         elsif existing.metadata != metadata
           # The numbers changed materially: refresh the prose and resurface the
           # insight even if the user had read or dismissed the stale version.
           existing.update!(
+            user_id: generated.user_id,
             priority: generated.priority,
             status: "active",
             title: generated.title,

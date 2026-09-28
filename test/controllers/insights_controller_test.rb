@@ -16,6 +16,22 @@ class InsightsControllerTest < ActionDispatch::IntegrationTest
     assert @insight.reload.read?
   end
 
+  test "an insight addressed to another member stays with them" do
+    member = users(:family_member)
+    personal = @user.family.insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Notice deadline for Member's insurance", body: "Private reminder",
+      dedup_key: "contract_notice_deadline:private", generated_at: Time.current, user: member
+    )
+
+    get insights_url
+    assert_no_match "Member&#39;s insurance", response.body
+    assert personal.reload.active?, "viewing the feed must not mark someone else's insight read"
+
+    patch acknowledge_insight_url(personal)
+    assert_response :not_found
+  end
+
   test "turbo prefetch requests do not mark insights read" do
     get insights_url, headers: { "X-Sec-Purpose" => "prefetch" }
 

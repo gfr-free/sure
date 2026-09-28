@@ -740,6 +740,7 @@ class Family::DataExporter
         service_email: contract.service_email,
         claims_phone: contract.claims_phone,
         document_links: contract.document_links,
+        email_reminders: contract.email_reminders,
         notes: contract.notes,
         created_at: contract.created_at,
         updated_at: contract.updated_at

@@ -720,6 +720,7 @@ class Family::DataImporter
           service_email: data["service_email"],
           claims_phone: data["claims_phone"],
           document_links: Array(data["document_links"]),
+          email_reminders: boolean_import_value(data, "email_reminders", default: true),
           notes: data["notes"]
         )
 

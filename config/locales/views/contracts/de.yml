@@ -43,6 +43,7 @@ de:
           one: "%{count} Monat"
           other: "%{count} Monate"
       notice_with_anchor: "%{period} %{anchor}"
+    cancel_by: "Kündigen bis %{date}"
     cost_unknown: Kosten unbekannt
     per_year: "%{amount} / Jahr"
     shared_with_you: Mit dir geteilt
@@ -71,6 +72,9 @@ de:
       possible_duplicate: "Möglicherweise doppelt mit %{names}: gleicher Anbieter und gleiche Vertragsnummer."
       contract_section: Vertrag
       renewal: Verlängerung
+      notice_deadline: "Kündigungsfrist"
+      to_end_on: "zum %{date}"
+      earliest_end: "Frühestes Ende bei Kündigung heute"
       payments_section: Zahlungen
       next_due: "Nächste Fälligkeit %{date}"
       no_payments: Keine Zahlungen verknüpft. Verknüpfe eine Rechnung, um die Kosten zu sehen.
@@ -117,6 +121,9 @@ de:
       renewal_label: Verlängert sich um (Monate)
       renewal_placeholder: Unbefristet
       term_hint: Lass die Verlängerung leer, wenn der Vertrag nach der Mindestlaufzeit unbefristet weiterläuft.
+      apply_defaults: "Übliche Fristen übernehmen"
+      defaults_disclaimer: "Nur Vorschläge, keine Rechtsberatung: Maßgeblich ist dein Vertrag."
+      email_reminders: "Mich vor Ablauf der Kündigungsfrist per E-Mail erinnern"
       numbers_section: Vertrags- und Kundennummer
       encryption_warning_title: Nummern werden unverschlüsselt gespeichert
       encryption_warning: Auf dieser Instanz sind keine Verschlüsselungsschlüssel eingerichtet, daher werden Vertrags- und Kundennummern im Klartext gespeichert. Bitte deinen Administrator, die Active-Record-Verschlüsselung einzurichten.

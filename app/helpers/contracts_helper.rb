@@ -17,6 +17,13 @@ module ContractsHelper
     render DS::Pill.new(label: label, tone: STATUS_TONES.fetch(status, :neutral), marker: false)
   end
 
+  # The notice deadline when it is close enough to act on (the same window the
+  # reminder insight uses), for the list row.
+  def contract_upcoming_deadline(contract)
+    deadline = contract.notice_deadline
+    deadline if deadline && deadline <= Date.current + Insight::Generators::ContractGenerator::DEADLINE_WINDOW_DAYS
+  end
+
   def contract_kind_label(kind)
     t("contracts.kinds.#{kind}")
   end

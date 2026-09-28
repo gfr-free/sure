@@ -43,6 +43,7 @@ en:
           one: "%{count} month"
           other: "%{count} months"
       notice_with_anchor: "%{period} %{anchor}"
+    cancel_by: "Cancel by %{date}"
     cost_unknown: Cost unknown
     per_year: "%{amount} / year"
     shared_with_you: Shared with you
@@ -71,6 +72,9 @@ en:
       possible_duplicate: "This may duplicate %{names}: same provider and contract number."
       contract_section: Contract
       renewal: Renewal
+      notice_deadline: "Notice deadline"
+      to_end_on: "to end on %{date}"
+      earliest_end: "Earliest end if cancelled today"
       payments_section: Payments
       next_due: "Next due %{date}"
       no_payments: No payments linked. Link a bill to see what this contract costs.
@@ -117,6 +121,9 @@ en:
       renewal_label: Renews every (months)
       renewal_placeholder: Indefinite
       term_hint: Leave renewal empty when the contract runs on indefinitely after its minimum term.
+      apply_defaults: "Use typical German terms"
+      defaults_disclaimer: "Suggestions only, not legal advice: the contract’s wording wins."
+      email_reminders: "Email me before the notice deadline"
       numbers_section: Contract and customer number
       encryption_warning_title: Numbers are stored unencrypted
       encryption_warning: This instance has no encryption keys configured, so contract and customer numbers are stored as plain text. Ask your administrator to configure Active Record encryption.

@@ -10,7 +10,11 @@ module InsightsHelper
     "budget_on_track" => "circle-check",
     # Same shield the reserve panel uses on the goal page, so the two read as
     # the same object seen from two places.
-    "maintained_goal_depleted" => "shield-alert"
+    "maintained_goal_depleted" => "shield-alert",
+    "contract_notice_deadline" => "calendar-clock",
+    "contract_price_increase" => "trending-up",
+    "contract_charges_after_end" => "receipt",
+    "contract_cancellation_unconfirmed" => "file-signature"
   }.freeze
 
   def insight_icon_key(insight)
@@ -81,6 +85,12 @@ module InsightsHelper
     when "budget_on_track"
       # Still the right figure here, where overall usage *is* the subject.
       facts["budget_spent_pct"] && [ "#{facts["budget_spent_pct"]}%", t("insights.figures.of_budget") ]
+    when "contract_notice_deadline"
+      facts["days_left"] && [ facts["deadline"], t("insights.figures.days_left", count: facts["days_left"].to_i) ]
+    when "contract_price_increase"
+      facts["new_amount"] && [ facts["new_amount"], t("insights.figures.was", amount: facts["previous_amount"]) ]
+    when "contract_charges_after_end"
+      facts["amount"] && [ facts["amount"], t("insights.figures.payments", count: facts["count"].to_i) ]
     end
   end
 
@@ -117,6 +127,9 @@ module InsightsHelper
     when "maintained_goal_depleted"
       goal = insight.family.goals.find_by(id: metadata["goal_id"])
       goal && { text: t("insights.actions.maintained_goal_depleted"), href: goal_path(goal) }
+    when "contract_notice_deadline", "contract_price_increase", "contract_charges_after_end", "contract_cancellation_unconfirmed"
+      contract = insight.family.contracts.find_by(id: metadata["contract_id"])
+      contract && { text: t("insights.actions.contract"), href: contract_path(contract) }
     end
   end
 
@@ -158,7 +171,9 @@ module InsightsHelper
       metadata["direction"] == "below" ? :positive : :warning
     when "cash_flow_warning"
       metadata["negative"] ? :negative : :warning
-    when "budget_at_risk", "maintained_goal_depleted"
+    when "contract_charges_after_end"
+      :negative
+    when "budget_at_risk", "maintained_goal_depleted", "contract_notice_deadline", "contract_price_increase", "contract_cancellation_unconfirmed"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

@@ -16,6 +16,7 @@ en:
       none_found: No new recurring patterns found. You can add bills by hand.
       already_running: Detection is already running. Check back in a moment.
     feed:
+      notice_deadline: "Notice deadline: %{name}"
       calendar_name: Sure Bills
     ai_prompts:
       due_before_paycheck: What's due before my next paycheck?

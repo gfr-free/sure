@@ -3,13 +3,15 @@
 <% bills = linkable_bills.includes(:merchant).order(:name).to_a %>
 <% successors = Current.family.contracts.accessible_by(Current.user).where.not(id: contract.id).alphabetically %>
 
-<%= styled_form_with model: contract, class: "space-y-4" do |f| %>
+<% legal_defaults = Contract::LegalDefaults.for_country(Current.family.country) %>
+<%= styled_form_with model: contract, class: "space-y-4",
+      data: { controller: "contract-defaults", contract_defaults_defaults_value: legal_defaults.to_json } do |f| %>
   <% if contract.errors.any? %>
     <%= render "shared/form_errors", model: contract %>
   <% end %>
 
   <section class="space-y-3">
-    <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) } %>
+    <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) }, { data: { contract_defaults_target: "kind" } } %>
     <%= f.text_field :name, label: Contract.human_attribute_name(:name), placeholder: t(".name_placeholder"), required: true, autofocus: true %>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -27,19 +29,35 @@
     <h3 class="text-sm font-medium text-primary"><%= t(".term_section") %></h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <%= f.date_field :started_on, label: Contract.human_attribute_name(:started_on) %>
-      <%= f.number_field :minimum_term_months, label: t(".minimum_term_label"), min: 0, step: 1 %>
+      <%= f.number_field :minimum_term_months, label: t(".minimum_term_label"), min: 0, step: 1,
+            data: { contract_defaults_target: "field", contract_defaults_key: "minimum_term_months" } %>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <%= f.number_field :notice_period_value, label: Contract.human_attribute_name(:notice_period_value), min: 0, step: 1 %>
-      <%= f.select :notice_period_unit, contract_notice_unit_options, { label: Contract.human_attribute_name(:notice_period_unit), include_blank: true } %>
-      <%= f.select :notice_anchor, contract_notice_anchor_options, { label: Contract.human_attribute_name(:notice_anchor), include_blank: true } %>
+      <%= f.number_field :notice_period_value, label: Contract.human_attribute_name(:notice_period_value), min: 0, step: 1,
+            data: { contract_defaults_target: "field", contract_defaults_key: "notice_period_value" } %>
+      <%= f.select :notice_period_unit, contract_notice_unit_options, { label: Contract.human_attribute_name(:notice_period_unit), include_blank: true },
+            { data: { contract_defaults_target: "field", contract_defaults_key: "notice_period_unit" } } %>
+      <%= f.select :notice_anchor, contract_notice_anchor_options, { label: Contract.human_attribute_name(:notice_anchor), include_blank: true },
+            { data: { contract_defaults_target: "field", contract_defaults_key: "notice_anchor" } } %>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <%= f.number_field :renewal_period_months, label: t(".renewal_label"), min: 1, step: 1, placeholder: t(".renewal_placeholder") %>
+      <%= f.number_field :renewal_period_months, label: t(".renewal_label"), min: 1, step: 1, placeholder: t(".renewal_placeholder"),
+            data: { contract_defaults_target: "field", contract_defaults_key: "renewal_period_months" } %>
       <%= f.date_field :renewal_anchor_on, label: Contract.human_attribute_name(:renewal_anchor_on) %>
       <%= f.date_field :ends_on, label: Contract.human_attribute_name(:ends_on) %>
     </div>
     <p class="text-xs text-secondary"><%= t(".term_hint") %></p>
+    <% if legal_defaults.any? %>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= render DS::Button.new(text: t(".apply_defaults"), icon: "wand-sparkles", variant: :outline, size: :sm, type: :button,
+                                  data: { action: "contract-defaults#apply" }) %>
+        <span class="text-xs text-secondary"><%= t(".defaults_disclaimer") %></span>
+      </div>
+    <% end %>
+    <label class="flex items-center gap-3 text-sm text-primary cursor-pointer">
+      <%= f.check_box :email_reminders, class: "checkbox checkbox--light" %>
+      <span><%= t(".email_reminders") %></span>
+    </label>
   </section>
 
   <section class="space-y-3">

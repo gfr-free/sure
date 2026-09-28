@@ -165,6 +165,17 @@ class Contract < ApplicationRecord
     !effectively_ended?(on: on)
   end
 
+  def notice_schedule(today: Date.current)
+    Contract::NoticeSchedule.new(self, today: today).call
+  end
+
+  # The last day to give notice for the next possible end, or nil when there
+  # is nothing to miss (cancellable any time, already cancelled, or terms not
+  # recorded).
+  def notice_deadline(today: Date.current)
+    notice_schedule(today: today).notice_deadline
+  end
+
   # The linked bills this user may see. Bills keep their own visibility, so a
   # shared contract never reveals a payment from an account the viewer cannot
   # reach.

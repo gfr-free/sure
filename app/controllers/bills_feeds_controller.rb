@@ -36,15 +36,22 @@ class BillsFeedsController < ApplicationController
                         .includes(:recurring_transaction)
                         .order(:due_on)
 
+    # Notice deadlines of the contracts this member can see, with an alarm a
+    # week ahead: the date to act by, not a payment.
+    deadlines = Contract.where(family: family, status: "active").accessible_by(user).filter_map do |contract|
+      deadline = contract.notice_deadline
+      [ contract, deadline ] if deadline && deadline <= Date.current + HORIZON_DAYS
+    end
+
     I18n.with_locale(family.locale.presence || I18n.default_locale) do
-      render plain: to_ical(occurrences), content_type: "text/calendar"
+      render plain: to_ical(occurrences, deadlines), content_type: "text/calendar"
     end
   rescue ActiveRecord::RecordNotFound
     head :not_found
   end
 
   private
-    def to_ical(occurrences)
+    def to_ical(occurrences, deadlines = [])
       events = occurrences.map do |occurrence|
         series = occurrence.recurring_transaction
         amount = Money.new(occurrence.resolved_expected_amount, occurrence.currency).format
@@ -55,6 +62,22 @@ class BillsFeedsController < ApplicationController
           DTSTAMP:#{Time.current.utc.strftime("%Y%m%dT%H%M%SZ")}
           DTSTART;VALUE=DATE:#{occurrence.effective_due_on.strftime("%Y%m%d")}
           SUMMARY:#{escape_ical(series.display_name)} (#{escape_ical(amount)})
+          END:VEVENT
+        EVENT
+      end
+
+      events += deadlines.map do |contract, deadline|
+        <<~EVENT
+          BEGIN:VEVENT
+          UID:#{contract.id}-#{deadline.strftime("%Y%m%d")}@sure-contracts
+          DTSTAMP:#{Time.current.utc.strftime("%Y%m%dT%H%M%SZ")}
+          DTSTART;VALUE=DATE:#{deadline.strftime("%Y%m%d")}
+          SUMMARY:#{escape_ical(I18n.t("bills.feed.notice_deadline", name: contract.name))}
+          BEGIN:VALARM
+          ACTION:DISPLAY
+          DESCRIPTION:#{escape_ical(I18n.t("bills.feed.notice_deadline", name: contract.name))}
+          TRIGGER:-P7D
+          END:VALARM
           END:VEVENT
         EVENT
       end

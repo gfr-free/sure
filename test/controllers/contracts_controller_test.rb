@@ -66,6 +66,15 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "K-123456"
   end
 
+  test "show states the notice deadline" do
+    travel_to Date.new(2026, 9, 1) do
+      get contract_url(@insurance)
+
+      assert_includes response.body, I18n.l(Date.new(2026, 9, 30), format: :long)
+      assert_includes response.body, I18n.t("contracts.show.notice_deadline")
+    end
+  end
+
   test "read-only shares see masked numbers only" do
     sign_in @member
 

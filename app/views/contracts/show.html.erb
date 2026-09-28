@@ -64,6 +64,16 @@
         <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:minimum_term_months), value: contract_minimum_term(@contract)) %>
         <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:notice_period_value), value: contract_notice(@contract)) %>
         <%= render DS::DetailRow.new(label: t(".renewal"), value: contract_renewal(@contract)) %>
+        <% if @schedule.notice_deadline %>
+          <%= render DS::DetailRow.new(label: t(".notice_deadline")) do |row| %>
+            <% row.with_value do %>
+              <span class="font-medium"><%= l(@schedule.notice_deadline, format: :long) %></span>
+              <span class="block text-xs text-secondary"><%= t(".to_end_on", date: l(@schedule.term_ends_on, format: :long)) %></span>
+            <% end %>
+          <% end %>
+        <% elsif @contract.active? && @schedule.earliest_end_on %>
+          <%= render DS::DetailRow.new(label: t(".earliest_end"), value: l(@schedule.earliest_end_on, format: :long)) %>
+        <% end %>
         <% if @contract.renewal_anchor_on %>
           <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:renewal_anchor_on), value: l(@contract.renewal_anchor_on, format: :long)) %>
         <% end %>

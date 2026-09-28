@@ -24,6 +24,12 @@ module ContractsHelper
     deadline if deadline && deadline <= Date.current + Insight::Generators::ContractGenerator::DEADLINE_WINDOW_DAYS
   end
 
+  # Portal and document links are validated as http(s) on save; checked again
+  # here so a link is only ever rendered for a web address.
+  def contract_safe_url(url)
+    url if Contract.http_url?(url)
+  end
+
   def contract_kind_label(kind)
     t("contracts.kinds.#{kind}")
   end

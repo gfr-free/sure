@@ -28,6 +28,7 @@
           <% menu.with_item(variant: "link", text: t(".share"), icon: "share-2", href: contract_sharing_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
         <% if @contract.active? && @contract.open? %>
+          <% menu.with_item(variant: "link", text: t(".cancellation_letter"), icon: "printer", href: cancellation_letter_contract_path(@contract), target: "_blank") %>
           <% menu.with_item(variant: "link", text: t(".record_cancellation"), icon: "file-signature", href: new_contract_cancellation_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
         <% unless @contract.ended? %>
@@ -132,9 +133,9 @@
       <%= render DS::Card.new(class: "space-y-3") do %>
         <h2 class="text-sm font-medium text-primary"><%= t(".contacts_section") %></h2>
         <dl class="space-y-2">
-          <% if @contract.portal_url.present? %>
+          <% if (portal_url = contract_safe_url(@contract.portal_url)) %>
             <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:portal_url)) do |row| %>
-              <% row.with_value { link_to URI.parse(@contract.portal_url).host, @contract.portal_url, target: "_blank", rel: "noopener noreferrer", class: "underline" } %>
+              <% row.with_value { link_to URI.parse(portal_url).host, portal_url, target: "_blank", rel: "noopener noreferrer", class: "underline" } %>
             <% end %>
           <% end %>
           <% if @contract.service_phone.present? %>

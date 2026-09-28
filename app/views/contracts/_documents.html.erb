@@ -57,10 +57,11 @@
   <% if contract.document_links.any? %>
     <ul class="space-y-1">
       <% contract.document_links.each do |link| %>
+        <% next unless (url = contract_safe_url(link["url"])) %>
         <li>
-          <%= link_to link["url"], target: "_blank", rel: "noopener noreferrer", class: "inline-flex items-center gap-1 text-sm text-primary hover:underline" do %>
+          <%= link_to url, target: "_blank", rel: "noopener noreferrer", class: "inline-flex items-center gap-1 text-sm text-primary hover:underline" do %>
             <%= icon "external-link", size: "sm", color: "secondary" %>
-            <%= link["label"].presence || URI.parse(link["url"]).host %>
+            <%= link["label"].presence || URI.parse(url).host %>
           <% end %>
         </li>
       <% end %>

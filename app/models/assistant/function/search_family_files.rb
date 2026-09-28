@@ -118,6 +118,8 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
       )
     end
 
+    results = results_visible_to_user(results)
+
     mapped = results.map do |result|
       { content: result[:content], filename: result[:filename], score: result[:score] }
     end
@@ -150,6 +152,26 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
   end
 
   private
+    # The document store is per family, but a contract document is private to
+    # the contract's owner and shares. Hits from a contract the user cannot see
+    # are dropped here; everything else keeps its family-wide visibility.
+    def results_visible_to_user(results)
+      file_ids = results.filter_map { |result| result[:file_id] }.uniq
+      return results if file_ids.empty?
+
+      contract_by_file = ContractDocument.joins(:family_document, :contract)
+                                         .where(family_documents: { family_id: family.id, provider_file_id: file_ids })
+                                         .pluck("family_documents.provider_file_id", "contract_documents.contract_id")
+                                         .to_h
+      return results if contract_by_file.empty?
+
+      visible = family.contracts.accessible_by(user).where(id: contract_by_file.values.uniq).pluck(:id).to_set
+      results.reject do |result|
+        contract_id = contract_by_file[result[:file_id]]
+        contract_id && !visible.include?(contract_id)
+      end
+    end
+
     def langfuse_client
       return unless ENV["LANGFUSE_PUBLIC_KEY"].present? && ENV["LANGFUSE_SECRET_KEY"].present?
 

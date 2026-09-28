@@ -105,6 +105,7 @@ en:
       documents: "Documents"
       empty: "No open contracts."
     show:
+      cancellation_letter: "Cancellation letter"
       owned_by: "Managed by %{name}"
       edit: Edit
       share: Share
@@ -155,6 +156,8 @@ en:
     edit:
       title: "Edit %{name}"
     form:
+      from_document: "Prefilled from %{filename}. Check every value against the document; contract numbers are not read, add them yourself."
+      document_premium: "The document states a premium of %{amount} (%{frequency}). Link or add the bill that pays it below."
       name_placeholder: e.g. Private liability insurance
       no_merchant: No merchant
       provider_placeholder: e.g. HUK24
@@ -195,6 +198,17 @@ en:
       success: "The linked bills end with the contract."
     mark_ended:
       success: Contract marked as ended
+    cancellation_letter:
+      subject: "Cancellation of %{name}"
+      address_placeholder: "[Your address]"
+      provider_address_placeholder: "[Provider address]"
+      place_date: "[Place], %{date}"
+      salutation: "Dear Sir or Madam,"
+      body_with_date: "I hereby cancel the contract named above with effect from %{date}, or alternatively at the next possible date."
+      body_next_possible: "I hereby cancel the contract named above at the next possible date."
+      confirmation_request: "Please confirm the cancellation and the date the contract ends in writing."
+      no_further_debits: "Please make no further debits from my account after the contract has ended."
+      closing: "Yours faithfully,"
     cancellations:
       new:
         title: "Cancel %{name}"

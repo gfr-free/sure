@@ -10,6 +10,14 @@
     <%= render "shared/form_errors", model: contract %>
   <% end %>
 
+  <% if @source_pdf_import %>
+    <%= hidden_field_tag "contract[pdf_import_id]", @source_pdf_import.id %>
+    <%= render DS::Alert.new(variant: :info, message: t(".from_document", filename: @source_pdf_import.pdf_filename)) %>
+    <% if @document_premium %>
+      <p class="text-xs text-secondary"><%= t(".document_premium", amount: format_money(Money.new(@document_premium[:amount], Current.family.currency)), frequency: @document_premium[:frequency].presence || "–") %></p>
+    <% end %>
+  <% end %>
+
   <section class="space-y-3">
     <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) }, { data: { contract_defaults_target: "kind", contract_kind_fields_target: "kind", action: "change->contract-kind-fields#switch" } } %>
     <%= f.text_field :name, label: Contract.human_attribute_name(:name), placeholder: t(".name_placeholder"), required: true, autofocus: true %>

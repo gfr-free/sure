@@ -75,6 +75,12 @@ class Provider::Openai::PdfProcessor
          - Opening and closing balances (if visible)
          - Currency used
 
+      4. **Contract terms**: If the document is a `contract` for an ongoing consumer contract
+         (insurance policy, phone, internet, energy, gym, membership, subscription or rental agreement),
+         fill `extracted_data.contract` with the terms you can read. Never include contract, policy,
+         customer or account numbers, and no personal names or addresses. Use null for anything not
+         clearly stated.
+
       IMPORTANT GUIDELINES:
       - Be factual and precise - only report what you can clearly see in the document
       - If information is unclear or redacted, note it as "not clearly visible" or "redacted"
@@ -95,7 +101,22 @@ class Provider::Openai::PdfProcessor
           "opening_balance": number or null,
           "closing_balance": number or null,
           "currency": "USD/EUR/etc or null",
-          "account_holder": "Name or null"
+          "account_holder": "Name or null",
+          "contract": {
+            "name": "Short name of the contract, e.g. Private liability insurance, or null",
+            "provider": "Company the contract is with, or null",
+            "kind": "insurance|mobile|internet|energy|streaming|software|fitness|membership|rent|other or null",
+            "started_on": "YYYY-MM-DD or null",
+            "minimum_term_months": number or null,
+            "notice_period_value": number or null,
+            "notice_period_unit": "days|weeks|months or null",
+            "notice_anchor": "end_of_term|end_of_month|any_day or null",
+            "renewal_period_months": number or null,
+            "renewal_anchor_on": "YYYY-MM-DD (main due date) or null",
+            "ends_on": "YYYY-MM-DD or null",
+            "premium_amount": number or null,
+            "premium_frequency": "monthly|quarterly|semiannual|annual or null"
+          }
         }
       }
     INSTRUCTIONS

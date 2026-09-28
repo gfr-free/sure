@@ -1,0 +1,43 @@
+<% content_for :title do %>
+  <%= t(".subject", name: @contract.name) %>
+<% end %>
+
+<div class="tufte-report">
+  <section class="tufte-section">
+    <p>
+      <%= Current.user.display_name %><br>
+      <%= t(".address_placeholder") %>
+    </p>
+
+    <p class="mt-8">
+      <%= @contract.provider_display_name %><br>
+      <%= t(".provider_address_placeholder") %>
+    </p>
+
+    <p class="mt-8 text-right"><%= t(".place_date", date: l(Date.current, format: :long)) %></p>
+
+    <p class="mt-8"><strong><%= t(".subject", name: @contract.name) %></strong></p>
+    <p>
+      <% if @contract.contract_number.present? %>
+        <%= Contract.human_attribute_name(:contract_number) %>: <%= @contract.contract_number %><br>
+      <% end %>
+      <% if @contract.customer_number.present? %>
+        <%= Contract.human_attribute_name(:customer_number) %>: <%= @contract.customer_number %>
+      <% end %>
+    </p>
+
+    <p class="mt-6"><%= t(".salutation") %></p>
+    <p>
+      <% if @end_date %>
+        <%= t(".body_with_date", date: l(@end_date, format: :long)) %>
+      <% else %>
+        <%= t(".body_next_possible") %>
+      <% end %>
+    </p>
+    <p><%= t(".confirmation_request") %></p>
+    <p><%= t(".no_further_debits") %></p>
+
+    <p class="mt-6"><%= t(".closing") %></p>
+    <p class="mt-12">______________________________<br><%= Current.user.display_name %></p>
+  </section>
+</div>

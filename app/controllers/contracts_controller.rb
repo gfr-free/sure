@@ -6,8 +6,8 @@ class ContractsController < ApplicationController
   include RecurringFeatureGuardable
 
   before_action :ensure_recurring_enabled
-  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills]
-  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills]
+  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills cancellation_letter]
+  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills cancellation_letter]
   before_action :require_manageable, only: %i[destroy]
 
   def index
@@ -49,6 +49,7 @@ class ContractsController < ApplicationController
   def new
     @contract = Current.family.contracts.new(kind: "other", owner: Current.user)
     prefill_from_bill(params[:recurring_transaction_id]) if params[:recurring_transaction_id].present?
+    prefill_from_document(params[:pdf_import_id]) if params[:pdf_import_id].present?
     render layout: dialog_layout
   end
 
@@ -58,6 +59,7 @@ class ContractsController < ApplicationController
     assign_related_records
 
     if @contract.errors.none? && save_with_bills
+      attach_source_document
       flash[:notice] = t(".success")
 
       respond_to do |format|
@@ -92,6 +94,16 @@ class ContractsController < ApplicationController
   def destroy
     @contract.destroy!
     redirect_to contracts_path, notice: t(".success")
+  end
+
+  # A cancellation letter filled from a fixed template on the server, so the
+  # contract and customer numbers never pass through an LLM. Sure does not
+  # send it; the user prints or copies it.
+  def cancellation_letter
+    schedule = @contract.notice_schedule
+    @end_date = schedule.notice_deadline ? schedule.term_ends_on : schedule.earliest_end_on
+
+    render layout: "print"
   end
 
   def mark_ended
@@ -208,9 +220,48 @@ class ContractsController < ApplicationController
       @prefill_bill_ids = [ bill.id ]
     end
 
+    # "Create contract from this document" on a PDF import the processor
+    # classified as a contract.
+    def prefill_from_document(pdf_import_id)
+      pdf_import = source_pdf_import(pdf_import_id)
+      return unless pdf_import
+
+      prefill = Contract::DocumentPrefill.new(pdf_import)
+      prefill.apply_to(@contract)
+      @source_pdf_import = pdf_import
+      @document_premium = prefill.premium
+    end
+
+    def source_pdf_import(pdf_import_id)
+      Current.family.imports.where(type: "PdfImport", document_type: "contract").find_by(id: pdf_import_id)
+    end
+
+    # The document a contract was created from becomes its first document.
+    def attach_source_document
+      pdf_import = source_pdf_import(params.dig(:contract, :pdf_import_id))
+      return unless pdf_import&.pdf_file&.attached?
+
+      document = @contract.contract_documents.new
+      document.file.attach(pdf_import.pdf_file.blob)
+      document.save
+    end
+
+    KIND_KEYWORDS = {
+      "insurance" => /insur|versicher|allianz|axa|huk|ergo|generali|devk|signal iduna|debeka|zurich|gothaer/,
+      "mobile" => /mobil|handy|telekom|vodafone|o2|telefonica|congstar|1&1|t-mobile|verizon|at&t/,
+      "internet" => /internet|dsl|glasfaser|fiber|kabel|comcast|xfinity|spectrum/,
+      "energy" => /strom|energie|energy|gas|electric|stadtwerke|eon|e\.on|vattenfall|enbw|rwe/,
+      "streaming" => /netflix|spotify|disney|prime video|hulu|dazn|sky|apple tv|youtube|deezer|tidal/,
+      "software" => /microsoft|adobe|google one|icloud|dropbox|1password|notion|github|openai|anthropic/,
+      "fitness" => /fitness|gym|mcfit|urban sports|peloton|clever fit/,
+      "rent" => /miete|rent|wohnung|landlord|vermiet/
+    }.freeze
+
+    # A deterministic guess from the bill's category and names; the user can
+    # change it in the form.
     def guess_kind(bill)
-      category_name = bill.category&.name.to_s.downcase
-      return "insurance" if category_name.match?(/insur|versicher/)
+      haystack = [ bill.category&.name, bill.merchant&.name, bill.name ].compact.join(" ").downcase
+      KIND_KEYWORDS.each { |kind, pattern| return kind if haystack.match?(pattern) }
       return "streaming" if bill.typed_subscription?
 
       "other"

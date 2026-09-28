@@ -525,6 +525,7 @@ en:
       other: Other Document
       unknown: Unknown Document
     pdf_import:
+      create_contract: "Create contract from this document"
       processing_title: Processing your PDF
       processing_description: We're analyzing your document using AI. This may take a moment. You'll receive an email when the analysis is complete.
       check_status: Check status

@@ -190,6 +190,34 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, CGI.escapeHTML(I18n.t("reports.contracts.title"))
   end
 
+  test "cancellation letter carries the numbers for editors only" do
+    get cancellation_letter_contract_url(@phone)
+
+    assert_response :success
+    assert_includes response.body, "MOB-99887766"
+    assert_includes response.body, "K-123456"
+
+    sign_in @member
+    get cancellation_letter_contract_url(@phone)
+    assert_response :not_found
+  end
+
+  test "creating from a contract document prefills the form and attaches the PDF" do
+    pdf_import = @family.imports.create!(type: "PdfImport", document_type: "contract",
+                                         extracted_data: { "contract" => { "name" => "Home contents", "provider" => "Allianz", "kind" => "insurance" } })
+    pdf_import.pdf_file.attach(io: StringIO.new("%PDF-1.4 policy"), filename: "policy.pdf", content_type: "application/pdf")
+
+    get new_contract_url(pdf_import_id: pdf_import.id)
+    assert_response :success
+    assert_select "input[name='contract[name]'][value=?]", "Home contents"
+    assert_select "input[name='contract[pdf_import_id]'][value=?]", pdf_import.id
+
+    post contracts_url, params: { contract: { name: "Home contents", provider_name: "Allianz", kind: "insurance", pdf_import_id: pdf_import.id } }
+
+    contract = @family.contracts.find_by!(name: "Home contents")
+    assert_equal [ "policy.pdf" ], contract.contract_documents.map { |document| document.file.filename.to_s }
+  end
+
   test "rejects related records the user cannot reach" do
     other_account = families(:empty).accounts.create!(name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
 

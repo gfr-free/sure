@@ -17,7 +17,7 @@ being changed. These guides hold the detailed conventions and procedures.
 | Add a preview survey or usage event | [Feedback surveys](feedback-surveys.md) |
 | Gate or release a preview feature | [Preview-feature gating](gating-a-preview-feature.md) |
 | Change goals, pledges or reconciliation | [Goals](goals.md) |
-| Build the contract register (planned) | [Contracts design](contracts.md) |
+| Change contracts, their reminders or assistant tools | [Contracts](contracts.md) |
 
 ## External wealth integration
 

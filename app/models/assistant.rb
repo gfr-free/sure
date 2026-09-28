@@ -32,7 +32,15 @@ module Assistant
     Function::GetBillAudit,
     Function::CreateBill,
     Function::UpdateBill,
-    Function::RecordBillPayment
+    Function::RecordBillPayment,
+    # Contracts live under Bills and share its gates. None of these tools ever
+    # returns a contract or customer number.
+    Function::GetContracts,
+    Function::GetContractDetails,
+    Function::GetContractAudit,
+    Function::CreateContract,
+    Function::UpdateContract,
+    Function::GetCancellationLetter
   ].freeze
 
   class << self

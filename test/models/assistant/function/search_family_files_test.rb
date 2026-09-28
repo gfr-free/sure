@@ -51,6 +51,39 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_equal "provider_not_configured", result[:error]
   end
 
+  test "drops hits from contract documents the user cannot see" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    member = users(:family_member)
+    private_contract = contracts(:liability_insurance)
+    shared_contract = contracts(:phone_plan)
+
+    [ [ private_contract, "file-private" ], [ shared_contract, "file-shared" ] ].each do |contract, file_id|
+      family_document = family.family_documents.create!(filename: "#{file_id}.pdf", status: "ready", provider_file_id: file_id)
+      document = contract.contract_documents.new(family_document: family_document, ai_searchable: true)
+      document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "#{file_id}.pdf", content_type: "application/pdf")
+      document.save!
+    end
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "private policy", filename: "file-private.pdf", score: 0.9, file_id: "file-private" },
+          { content: "shared plan", filename: "file-shared.pdf", score: 0.8, file_id: "file-shared" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-other" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = Assistant::Function::SearchFamilyFiles.new(member).call("query" => "policy")
+
+    assert_equal [ "shared plan", "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
 

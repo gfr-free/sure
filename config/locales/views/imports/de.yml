@@ -342,6 +342,7 @@ de:
       other: Sonstiges Dokument
       unknown: Unbekanntes Dokument
     pdf_import:
+      create_contract: "Vertrag aus diesem Dokument anlegen"
       processing_title: Deine PDF wird verarbeitet
       processing_description: Wir analysieren dein Dokument mit KI. Das kann einen Moment dauern. Du bekommst eine E-Mail, sobald die Analyse fertig ist.
       check_status: Status prüfen

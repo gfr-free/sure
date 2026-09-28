@@ -589,6 +589,10 @@ Rails.application.routes.draw do
 
   # The contract register, a segment of Bills (docs/llm-guides/contracts.md).
   resources :contracts do
+    collection do
+      get :overview
+    end
+
     member do
       patch :mark_ended
       post :end_linked_bills

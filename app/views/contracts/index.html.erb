@@ -35,6 +35,11 @@
       </div>
     </div>
 
+    <div class="flex flex-wrap justify-end gap-2">
+      <%= render DS::Link.new(text: t(".print_overview"), icon: "printer", variant: "outline", size: :sm, href: overview_contracts_path, target: "_blank") %>
+      <%= render DS::Link.new(text: t(".print_overview_with_numbers"), icon: "printer", variant: "ghost", size: :sm, href: overview_contracts_path(numbers: 1), target: "_blank") %>
+    </div>
+
     <% @groups.each do |kind, contracts| %>
       <% group_total = contracts.filter_map { |contract| @costs.dig(contract.id, 0) }.sum(Money.new(0, Current.family.currency)) %>
       <section class="bg-container rounded-xl shadow-border-xs" aria-labelledby="contracts-<%= kind %>">

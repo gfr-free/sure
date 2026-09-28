@@ -139,6 +139,57 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_equal contract, bill.reload.contract
   end
 
+  test "saves kind-specific details" do
+    patch contract_url(@insurance), params: { contract: { details: { insurance_line: "liability", sum_insured: "5000000" } } }
+
+    assert_redirected_to contract_url(@insurance)
+    assert_equal({ "insurance_line" => "liability", "sum_insured" => "5000000" }, @insurance.reload.details)
+
+    get contract_url(@insurance)
+    assert_includes response.body, I18n.t("contracts.insurance_lines.liability")
+  end
+
+  test "overview prints open contracts with masked numbers unless asked" do
+    get overview_contracts_url
+
+    assert_response :success
+    assert_includes response.body, @insurance.name
+    assert_includes response.body, "•••• 4711"
+    assert_not_includes response.body, "LV-2024-004711"
+
+    get overview_contracts_url(numbers: 1)
+    assert_includes response.body, "LV-2024-004711"
+  end
+
+  test "overview never reveals numbers to a read-only share" do
+    sign_in @member
+
+    get overview_contracts_url(numbers: 1)
+
+    assert_response :success
+    assert_includes response.body, @phone.name
+    assert_not_includes response.body, "MOB-99887766"
+    assert_not_includes response.body, @insurance.name
+  end
+
+  test "an account page lists the contracts tied to it that the viewer can see" do
+    @insurance.update!(account: accounts(:vehicle))
+
+    get account_url(accounts(:vehicle), tab: "contracts")
+
+    assert_response :success
+    assert_select "a[href=?]", contract_path(@insurance)
+  end
+
+  test "reports show fixed costs and contracts" do
+    recurring_transactions(:netflix_subscription).update!(contract: @phone)
+
+    get reports_url
+
+    assert_response :success
+    assert_includes response.body, CGI.escapeHTML(I18n.t("reports.contracts.title"))
+  end
+
   test "rejects related records the user cannot reach" do
     other_account = families(:empty).accounts.create!(name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
 

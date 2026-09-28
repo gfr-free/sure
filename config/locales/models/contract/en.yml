@@ -51,6 +51,8 @@ en:
             document_links:
               invalid: "must be valid http:// or https:// addresses"
               too_many: "cannot have more than %{count} entries"
+            details:
+              invalid_field: "has an invalid value for %{field}"
             portal_url:
               invalid: "must be a valid http:// or https:// address"
         contract_share:

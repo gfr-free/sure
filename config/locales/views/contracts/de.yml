@@ -12,6 +12,41 @@ de:
       membership: Mitgliedschaft
       rent: Miete
       other: Sonstiges
+    details:
+      title: "Details: %{kind}"
+      possibly_deductible: "Beiträge zu dieser Versicherungsart können in der Steuererklärung als sonstige Vorsorgeaufwendungen zählen (bei der Kfz-Versicherung nur der Haftpflichtanteil). Keine Steuerberatung."
+      fields:
+        insurance_line: "Sparte"
+        sum_insured: "Versicherungssumme"
+        deductible: "Selbstbeteiligung"
+        insured_persons: "Versicherte Personen"
+        beneficiaries: "Bezugsberechtigte"
+        tariff: "Tarif"
+        phone_number: "Rufnummer"
+        data_volume_gb: "Datenvolumen (GB)"
+        device_paid_off_on: "Gerät abbezahlt am"
+        bandwidth_mbit: "Bandbreite (Mbit/s)"
+        advance_payment: "Abschlag"
+        price_guarantee_until: "Preisgarantie bis"
+        meter_number: "Zählernummer"
+        landlord: "Vermieter"
+        deposit: "Kaution"
+        plan: "Tarif"
+    insurance_lines:
+      liability: "Privathaftpflicht"
+      household: "Hausrat"
+      building: "Wohngebäude"
+      accident: "Unfall"
+      disability: "Berufsunfähigkeit"
+      term_life: "Risikolebensversicherung"
+      whole_life: "Kapitallebensversicherung"
+      car: "Kfz"
+      legal: "Rechtsschutz"
+      health_supplementary: "Krankenzusatz"
+      care: "Pflege"
+      pet: "Tierversicherung"
+      travel: "Reise"
+      other: "Sonstige"
     statuses:
       active: Aktiv
       cancellation_sent: Kündigung verschickt
@@ -49,6 +84,8 @@ de:
     shared_with_you: Mit dir geteilt
     shared: Geteilt
     index:
+      print_overview: "Notfallübersicht drucken"
+      print_overview_with_numbers: "Mit Vertragsnummern"
       title: Verträge
       preview: Vorschau
       add_contract: Vertrag hinzufügen
@@ -60,6 +97,13 @@ de:
       ended:
         one: "Beendeter Vertrag (%{count})"
         other: "Beendete Verträge (%{count})"
+    overview:
+      title: "Vertragsübersicht"
+      generated_on: "Erstellt am %{date}"
+      intro: "Alle offenen Verträge, die du sehen kannst, mit Ansprechpartnern. Bewahre einen Ausdruck bei deinen wichtigen Unterlagen auf."
+      contacts: "Kontakte"
+      documents: "Dokumente"
+      empty: "Keine offenen Verträge."
     show:
       owned_by: "Verwaltet von %{name}"
       edit: Bearbeiten

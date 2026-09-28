@@ -5,13 +5,13 @@
 
 <% legal_defaults = Contract::LegalDefaults.for_country(Current.family.country) %>
 <%= styled_form_with model: contract, class: "space-y-4",
-      data: { controller: "contract-defaults", contract_defaults_defaults_value: legal_defaults.to_json } do |f| %>
+      data: { controller: "contract-defaults contract-kind-fields", contract_defaults_defaults_value: legal_defaults.to_json } do |f| %>
   <% if contract.errors.any? %>
     <%= render "shared/form_errors", model: contract %>
   <% end %>
 
   <section class="space-y-3">
-    <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) }, { data: { contract_defaults_target: "kind" } } %>
+    <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) }, { data: { contract_defaults_target: "kind", contract_kind_fields_target: "kind", action: "change->contract-kind-fields#switch" } } %>
     <%= f.text_field :name, label: Contract.human_attribute_name(:name), placeholder: t(".name_placeholder"), required: true, autofocus: true %>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -59,6 +59,8 @@
       <span><%= t(".email_reminders") %></span>
     </label>
   </section>
+
+  <%= render "contracts/details_fields", f: f, contract: contract %>
 
   <section class="space-y-3">
     <h3 class="text-sm font-medium text-primary"><%= t(".numbers_section") %></h3>

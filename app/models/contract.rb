@@ -6,7 +6,7 @@
 # Visibility mirrors accounts: the owner plus the users it is explicitly shared
 # with. There is no admin override, and a related account grants nothing.
 class Contract < ApplicationRecord
-  include Encryptable
+  include Encryptable, Contract::Detailable
 
   KIND_ICONS = {
     "insurance" => "shield",

@@ -1,0 +1,60 @@
+<% content_for :title do %>
+  <%= t(".title") %> – <%= Current.family.name %>
+<% end %>
+
+<div class="tufte-report">
+  <header class="tufte-header">
+    <h1 class="tufte-title"><%= t(".title") %></h1>
+    <p class="tufte-meta"><%= Current.family.name %> · <%= t(".generated_on", date: l(Date.current, format: :long)) %></p>
+    <p class="tufte-meta"><%= t(".intro") %></p>
+  </header>
+
+  <% @contracts.group_by(&:kind).each do |kind, contracts| %>
+    <section class="tufte-section">
+      <h2 class="tufte-section-title"><%= t("contracts.kinds.#{kind}") %></h2>
+      <table class="tufte-table tufte-compact">
+        <thead>
+          <tr>
+            <th><%= Contract.human_attribute_name(:name) %></th>
+            <th><%= Contract.human_attribute_name(:provider_name) %></th>
+            <th><%= Contract.human_attribute_name(:contract_number) %></th>
+            <th><%= t(".contacts") %></th>
+            <th><%= t(".documents") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% contracts.each do |contract| %>
+            <% number = contract.contract_number %>
+            <tr>
+              <td>
+                <%= contract.name %>
+                <% if contract.insurance_line %><br><small><%= t("contracts.insurance_lines.#{contract.insurance_line}") %></small><% end %>
+              </td>
+              <td><%= contract.provider_display_name %></td>
+              <td>
+                <% if number.present? %>
+                  <%= @show_numbers && contract.numbers_visible_to?(Current.user) ? number : Contract.mask(number) %>
+                <% end %>
+              </td>
+              <td>
+                <% [ [ :service_phone, contract.service_phone ], [ :claims_phone, contract.claims_phone ], [ :service_email, contract.service_email ], [ :portal_url, contract.portal_url ] ].each do |attribute, value| %>
+                  <% next if value.blank? %>
+                  <div><small><%= Contract.human_attribute_name(attribute) %>:</small> <%= value %></div>
+                <% end %>
+              </td>
+              <td>
+                <% names = contract.contract_documents.map { |document| document.file.filename.to_s } %>
+                <% names += contract.document_links.map { |link| link["label"].presence || link["url"] } %>
+                <%= names.join(", ").presence || "–" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
+  <% end %>
+
+  <% if @contracts.empty? %>
+    <p><%= t(".empty") %></p>
+  <% end %>
+</div>

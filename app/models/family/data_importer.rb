@@ -721,6 +721,7 @@ class Family::DataImporter
           claims_phone: data["claims_phone"],
           document_links: Array(data["document_links"]),
           email_reminders: boolean_import_value(data, "email_reminders", default: true),
+          details: data["details"].is_a?(Hash) ? data["details"] : {},
           notes: data["notes"]
         )
 

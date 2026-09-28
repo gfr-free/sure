@@ -24,6 +24,18 @@ class ContractsController < ApplicationController
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
 
+  # A printable overview of every open contract the user can see, with
+  # contacts, for the household's emergency folder. Numbers are masked unless
+  # the user asks for them, and even then only where they may see them.
+  def overview
+    @contracts = Current.family.contracts.accessible_by(Current.user).includes(:merchant, :owner, :contract_documents)
+                        .alphabetically.to_a.select(&:open?)
+                        .sort_by { |contract| [ Contract.kinds.keys.index(contract.kind), contract.name.downcase ] }
+    @show_numbers = params[:numbers] == "1"
+
+    render layout: "print"
+  end
+
   def show
     @visible_bills = @contract.visible_recurring_transactions_for(Current.user).includes(:merchant).order(:next_expected_date)
     @hidden_bills = @contract.hidden_recurring_transactions_for?(Current.user)
@@ -120,7 +132,8 @@ class ContractsController < ApplicationController
         :started_on, :minimum_term_months, :notice_period_value, :notice_period_unit, :notice_anchor,
         :renewal_period_months, :renewal_anchor_on, :ends_on,
         :portal_url, :service_phone, :service_email, :claims_phone, :notes, :email_reminders,
-        document_links: [ :url, :label ]
+        document_links: [ :url, :label ],
+        details: Contract::DETAIL_FIELDS.values.flat_map(&:keys).uniq
       ).tap do |permitted|
         permitted[:document_links] = permitted[:document_links].to_h.values if permitted[:document_links].is_a?(ActionController::Parameters)
         %i[notice_period_unit notice_anchor].each { |key| permitted[key] = permitted[key].presence if permitted.key?(key) }

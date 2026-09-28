@@ -126,6 +126,8 @@
       <% end %>
     <% end %>
 
+    <%= render "contracts/details_rows", contract: @contract %>
+
     <% if [ @contract.portal_url, @contract.service_phone, @contract.service_email, @contract.claims_phone ].any?(&:present?) %>
       <%= render DS::Card.new(class: "space-y-3") do %>
         <h2 class="text-sm font-medium text-primary"><%= t(".contacts_section") %></h2>

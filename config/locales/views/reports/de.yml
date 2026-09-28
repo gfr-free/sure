@@ -138,6 +138,16 @@ de:
       sell_trades: Verkaufstrades
       and_more: "+%{count} weitere"
       period_return: Rendite im Zeitraum
+    contracts:
+      title: "Fixkosten & Verträge"
+      description: "Was deine Verträge pro Jahr kosten, berechnet aus den verknüpften Rechnungen."
+      total: "Gesamt"
+      insurance_title: "Gezahlte Versicherungsbeiträge in diesem Zeitraum"
+      insurance_description: "Aus den Zahlungen auf Rechnungen, die mit Versicherungsverträgen verknüpft sind."
+      line_unknown: "Sparte nicht angegeben"
+      possibly_deductible: "Möglicherweise absetzbar"
+      possibly_deductible_total: "Möglicherweise absetzbar insgesamt"
+      tax_disclaimer: "Beiträge zu Haftpflicht-, Unfall-, Berufsunfähigkeits-, Risikolebens-, Krankenzusatz- und Pflegeversicherungen (und der Haftpflichtanteil der Kfz-Versicherung) können in der Steuererklärung als sonstige Vorsorgeaufwendungen zählen, im Rahmen der Höchstbeträge. Keine Steuerberatung."
     investment_flows:
       title: Anlageflüsse
       description: Verfolge Geldflüsse in und aus deinen Anlagekonten

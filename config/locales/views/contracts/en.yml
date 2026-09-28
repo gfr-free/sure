@@ -12,6 +12,41 @@ en:
       membership: Membership
       rent: Rent
       other: Other
+    details:
+      title: "%{kind} details"
+      possibly_deductible: "Premiums for this kind of insurance may count as provident expenses in a German tax return (the liability share only, for car insurance). Not tax advice."
+      fields:
+        insurance_line: "Line of insurance"
+        sum_insured: "Sum insured"
+        deductible: "Deductible"
+        insured_persons: "Insured persons"
+        beneficiaries: "Beneficiaries"
+        tariff: "Tariff"
+        phone_number: "Phone number"
+        data_volume_gb: "Data volume (GB)"
+        device_paid_off_on: "Device paid off on"
+        bandwidth_mbit: "Bandwidth (Mbit/s)"
+        advance_payment: "Advance payment"
+        price_guarantee_until: "Price guaranteed until"
+        meter_number: "Meter number"
+        landlord: "Landlord"
+        deposit: "Deposit"
+        plan: "Plan"
+    insurance_lines:
+      liability: "Personal liability"
+      household: "Home contents"
+      building: "Buildings"
+      accident: "Accident"
+      disability: "Disability"
+      term_life: "Term life"
+      whole_life: "Whole life / endowment"
+      car: "Car"
+      legal: "Legal expenses"
+      health_supplementary: "Supplementary health"
+      care: "Long-term care"
+      pet: "Pet"
+      travel: "Travel"
+      other: "Other"
     statuses:
       active: Active
       cancellation_sent: Cancellation sent
@@ -49,6 +84,8 @@ en:
     shared_with_you: Shared with you
     shared: Shared
     index:
+      print_overview: "Print emergency overview"
+      print_overview_with_numbers: "With contract numbers"
       title: Contracts
       preview: Preview
       add_contract: Add contract
@@ -60,6 +97,13 @@ en:
       ended:
         one: "Ended contract (%{count})"
         other: "Ended contracts (%{count})"
+    overview:
+      title: "Contracts overview"
+      generated_on: "Generated on %{date}"
+      intro: "Every open contract you can see, with who to call. Keep a printed copy with your important papers."
+      contacts: "Contacts"
+      documents: "Documents"
+      empty: "No open contracts."
     show:
       owned_by: "Managed by %{name}"
       edit: Edit

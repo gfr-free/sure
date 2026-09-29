@@ -226,6 +226,54 @@ class BudgetCategoryTest < ActiveSupport::TestCase
     assert_equal 40.0, standalone_bc.percent_of_budget_spent
   end
 
+  test "subcategories come from the loaded budget rows, not a query per call" do
+    extra_inheriting = 3.times.map do |i|
+      BudgetCategory.create!(
+        budget: @budget,
+        category: Category.create!(name: "Test Shared #{i} #{Time.now.to_f}", parent: @parent_category, family: @family),
+        budgeted_spending: 0,
+        currency: "USD"
+      )
+    end
+    expected_ids = BudgetCategory.joins(:category)
+                                 .where(budget: @budget, categories: { parent_id: @parent_category.id })
+                                 .pluck(:id)
+
+    budget = Budget.find(@budget.id)
+    budget.stubs(:budget_category_actual_spending).returns(0)
+    rows = budget.budget_categories.to_a
+    parent = rows.find { |bc| bc.id == @parent_budget_category.id }
+    shared_children = rows.select { |bc| bc.subcategory? && bc.inherits_parent_budget? }
+    assert_equal 4, shared_children.size
+
+    results = nil
+    assert_no_queries do
+      results = rows.to_h { |bc| [ bc.id, [ bc.available_to_spend, bc.percent_of_budget_spent, bc.display_rolled_over_amount ] ] }
+    end
+
+    assert_equal expected_ids.sort, parent.subcategories.map(&:id).sort
+    # 1000 allocated to the parent, 300 ring-fenced by the child with its own limit.
+    shared_children.each { |child| assert_equal [ 700, 0.0, 0 ], results[child.id] }
+    assert_equal [ 300, 0, 0 ], results[@subcategory_with_limit_bc.id]
+    assert_equal [ 1000, 0, 0 ], results[@parent_budget_category.id]
+    assert_includes expected_ids, extra_inheriting.first.id
+  end
+
+  test "reload drops memoized subcategories" do
+    parent = BudgetCategory.find(@parent_budget_category.id)
+    assert_equal 2, parent.subcategories.size
+
+    BudgetCategory.create!(
+      budget: @budget,
+      category: Category.create!(name: "Test Late #{Time.now.to_f}", parent: @parent_category, family: @family),
+      budgeted_spending: 0,
+      currency: "USD"
+    )
+
+    assert_equal 2, parent.subcategories.size
+    assert_equal 3, parent.reload.subcategories.size
+  end
+
   test "uncategorized budget category returns no subcategories" do
     uncategorized_bc = BudgetCategory.uncategorized
     uncategorized_bc.budget = @budget

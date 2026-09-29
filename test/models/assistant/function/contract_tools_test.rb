@@ -91,6 +91,20 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert_equal accounts(:loan).name, admin_view[:related_account]
   end
 
+  test "create_contract saves nothing when a bill fails to link" do
+    bill = recurring_transactions(:netflix_subscription)
+    RecurringTransaction.any_instance.stubs(:update!).raises(ActiveRecord::RecordInvalid.new(bill))
+
+    result = nil
+    assert_no_difference -> { Contract.count } do
+      result = call(Assistant::Function::CreateContract, @admin,
+                    "name" => "Streaming", "provider" => "Netflix", "kind" => "streaming", "bill_ids" => [ bill.id ])
+    end
+
+    assert result[:error].present?
+    assert_nil bill.reload.contract_id
+  end
+
   test "update_contract refuses a read-only share" do
     result = call(Assistant::Function::UpdateContract, @member, "contract_id" => @phone.id, "name" => "Hijacked")
 

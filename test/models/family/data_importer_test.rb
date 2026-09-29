@@ -685,6 +685,19 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "FitX", contract.provider_name
   end
 
+  test "records a source mapping for contracts imported in a session" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    ndjson = build_ndjson([
+      { type: "Contract", data: { id: "c-session", name: "Gym", kind: "fitness", provider_name: "FitX" } }
+    ])
+
+    Family::DataImporter.new(@family, ndjson, import_session: session).import!
+
+    contract = @family.contracts.find_by!(name: "Gym")
+    mapping = session.source_mappings.find_by!(source_type: "Contract", source_id: "c-session")
+    assert_equal contract, mapping.target
+  end
+
   test "imports recurring transactions with unknown status fallback" do
     ndjson = build_ndjson([
       {

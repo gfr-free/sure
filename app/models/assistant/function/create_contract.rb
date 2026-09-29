@@ -31,10 +31,10 @@ class Assistant::Function::CreateContract < Assistant::Function
     )
   end
 
-  # Saves a contract owned by the user, then links writable bills. Returns the
-  # serialized contract, linked bill names and path, or an error hash for disabled
-  # Bills, malformed dates or contract validation failures. Bill validation failures
-  # raise ActiveRecord::RecordInvalid after the contract has already been saved.
+  # Saves a contract owned by the user and links writable bills in one
+  # transaction. Returns the serialized contract, linked bill names and path, or
+  # an error hash for disabled Bills, malformed dates or a contract or bill
+  # validation failure, in which case nothing was saved.
   def call(params = {})
     return contracts_disabled_result if contracts_disabled?
 
@@ -42,15 +42,28 @@ class Assistant::Function::CreateContract < Assistant::Function
     invalid_dates = assign_contract_attributes(contract, params)
     return invalid_dates_result(invalid_dates) if invalid_dates.any?
 
-    unless contract.save
-      return { error: contract.errors.full_messages.to_sentence, hint: "Fix the listed fields and try again." }
-    end
+    linked, error = save_and_link_bills(contract, params["bill_ids"])
+    return error if error
 
-    linked = link_bills(contract, params["bill_ids"])
     { contract: serialize_contract(contract.reload), linked_bills: linked, url: Rails.application.routes.url_helpers.contract_path(contract) }
   end
 
   private
+    # Saves the contract and links the bills together: a bill that fails its own
+    # validation rolls the contract back too, so a retry cannot leave a
+    # duplicate contract behind. Returns [linked_bill_names, nil] or [nil, error_hash].
+    def save_and_link_bills(contract, bill_ids)
+      linked = Contract.transaction do
+        contract.save!
+        link_bills(contract, bill_ids)
+      end
+      [ linked, nil ]
+    rescue ActiveRecord::RecordInvalid => e
+      message = e.record.errors.full_messages.to_sentence
+      message = "Bill #{e.record.display_name}: #{message}" if e.record.is_a?(RecurringTransaction)
+      [ nil, { error: message, hint: "Fix the listed fields and try again. Nothing was saved." } ]
+    end
+
     def contract_properties
       {
         name: { type: "string" },
@@ -113,7 +126,8 @@ class Assistant::Function::CreateContract < Assistant::Function
     # Invalid, missing or inaccessible IDs are ignored, and so are bills held by
     # a contract the user cannot edit; other existing contract links on selected
     # bills are replaced. ActiveRecord::RecordInvalid propagates,
-    # leaving earlier bill updates saved unless the caller supplies a transaction.
+    # leaving earlier bill updates saved unless the caller supplies a transaction
+    # (save_and_link_bills does).
     def link_bills(contract, bill_ids)
       ids = Array(bill_ids).select { |id| valid_uuid?(id) }
       return [] if ids.empty?

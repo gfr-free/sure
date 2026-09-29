@@ -336,4 +336,17 @@ class OauthRegistrationControllerTest < ActionDispatch::IntegrationTest
       assert_equal [ redirect_uri ], json["redirect_uris"]
     end
   end
+
+  test "rejects the mobile app's reserved client name" do
+    [ "Sure Mobile", "  sure   MOBILE " ].each do |name|
+      assert_no_difference("Doorkeeper::Application.count") do
+        post "/register",
+          params: { client_name: name, redirect_uris: [ "https://example.com/callback" ] }.to_json,
+          headers: { "Content-Type" => "application/json" }
+      end
+
+      assert_response :bad_request
+      assert_equal "invalid_client_metadata", JSON.parse(response.body)["error"]
+    end
+  end
 end

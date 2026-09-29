@@ -1,0 +1,52 @@
+# Automatic Claude review on every new pull request, mirroring the
+# CodeRabbit/Codex setup on the upstream repo. Auth: repo secret
+# CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`, runs on the Claude
+# subscription) — or swap in ANTHROPIC_API_KEY for API billing.
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  claude-review:
+    # Drafts are skipped; mark ready for review to trigger.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request like a senior Rails reviewer on this
+            codebase. Read CLAUDE.md / AGENTS.md and the relevant
+            docs/llm-guides/ first and hold the diff against them.
+
+            Focus, in this order:
+            1. Correctness and logic errors, including edge cases and
+               end-to-end flows the diff touches
+            2. Security: family/user scoping (Current.user / Current.family),
+               authorization boundaries, secrets or PII in logs and LLM paths
+            3. Test coverage for behavior the diff adds or changes
+            4. Project conventions (thin controllers, DS components, i18n,
+               design tokens)
+
+            Report only findings that matter; do not pad with praise or
+            restate the diff. Use inline comments for specific lines and a
+            summary comment for the verdict.
+          claude_args: '--allowed-tools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*)"'

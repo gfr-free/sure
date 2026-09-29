@@ -55,17 +55,42 @@ export default class extends Controller {
   // its one-time flash has already been consumed server-side, so it never
   // gets a second chance to render. Defer the stream's own render call until
   // the open dialog's `close` event fires instead of applying it immediately.
+  //
+  // Separately, some background jobs (e.g. Account::SyncCompleteEvent)
+  // broadcast a raw <turbo-stream action="refresh"> with no target — a
+  // full-page morph that bypasses the sync-toast controller's own
+  // dialog/CTA-aware deferral entirely, since Turbo handles "refresh"
+  // itself rather than routing it through that Stimulus controller. Left
+  // alone, one of these can silently wipe an unread CTA a moment after it
+  // was revealed. Defer those the same way, and once nothing is left to
+  // wait for, still skip the refresh while a CTA is pending acknowledgement.
   #deferWhileDialogOpen(event) {
-    if (event.target.target !== "cta") return;
+    const stream = event.target;
+    const isCta = stream.target === "cta";
+    const isRefresh = stream.action === "refresh";
+    if (!isCta && !isRefresh) return;
 
     const openDialog = document.querySelector("dialog[open]");
-    if (!openDialog) return;
+
+    if (!openDialog) {
+      if (isRefresh && this.#ctaPending()) event.detail.render = () => {};
+      return;
+    }
 
     const defaultRender = event.detail.render;
     event.detail.render = (streamElement) => {
-      openDialog.addEventListener("close", () => defaultRender(streamElement), {
-        once: true,
-      });
+      openDialog.addEventListener(
+        "close",
+        () => {
+          if (isRefresh && this.#ctaPending()) return;
+          defaultRender(streamElement);
+        },
+        { once: true },
+      );
     };
+  }
+
+  #ctaPending() {
+    return !!document.getElementById("cta")?.firstElementChild;
   }
 }

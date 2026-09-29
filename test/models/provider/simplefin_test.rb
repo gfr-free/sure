@@ -272,4 +272,38 @@ class Provider::SimplefinTest < ActiveSupport::TestCase
 
     assert_not_includes error.message, "internal-secret"
   end
+
+  test "get_accounts rejects a stored access URL pointing at a disallowed address" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:get).never
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_accounts("http://user:pass@169.254.169.254/simplefin")
+    end
+
+    assert_equal :invalid_url, error.error_type
+  end
+
+  test "get_accounts does not follow redirects" do
+    Provider::Simplefin.expects(:get).with("#{@access_url}/accounts", has_entry(follow_redirects: false))
+      .returns(OpenStruct.new(code: 200, body: '{"accounts": []}'))
+
+    @provider.get_accounts(@access_url)
+  end
+
+  test "get_info rejects a base URL pointing at a disallowed address" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:get).never
+
+    assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_info("http://169.254.169.254/simplefin")
+    end
+  end
+
+  test "get_info does not follow redirects" do
+    Provider::Simplefin.expects(:get).with("https://example.com/simplefin/info", has_entry(follow_redirects: false))
+      .returns(OpenStruct.new(code: 200, body: "1.0\n"))
+
+    assert_equal [ "1.0" ], @provider.get_info("https://example.com/simplefin")
+  end
 end

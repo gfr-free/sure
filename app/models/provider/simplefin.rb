@@ -27,7 +27,7 @@ class Provider::Simplefin
     EOFError
   ].freeze
 
-  # Address ranges for the setup-token URL check (see ensure_allowed_url!).
+  # Address ranges for the SimpleFIN URL check (see ensure_allowed_url!).
   # Always blocked: unspecified addresses and AWS's IPv6 metadata endpoint,
   # which sits in fc00::/7 rather than the link-local range.
   ALWAYS_BLOCKED_NETWORKS = [ IPAddr.new("0.0.0.0/8"), IPAddr.new("::/128"), IPAddr.new("fd00:ec2::254/128") ].freeze
@@ -87,6 +87,9 @@ class Provider::Simplefin
     # spec-compliant way to exclude pending is to omit the param entirely.
     query_params["pending"] = "1" if pending
 
+    # The stored access URL came from the bridge; re-check it on every sync.
+    ensure_allowed_url!(access_url)
+
     accounts_url = "#{access_url}/accounts"
     accounts_url += "?#{URI.encode_www_form(query_params)}" unless query_params.empty?
 
@@ -94,7 +97,7 @@ class Provider::Simplefin
     # Use retry logic with exponential backoff for transient network failures
     # Use self.class.get to inherit class-level SSL and timeout defaults
     response = with_retries("GET /accounts") do
-      self.class.get(accounts_url)
+      self.class.get(accounts_url, follow_redirects: false)
     end
 
     case response.code
@@ -120,8 +123,10 @@ class Provider::Simplefin
   end
 
   def get_info(base_url)
+    ensure_allowed_url!(base_url)
+
     # Use self.class.get to inherit class-level SSL and timeout defaults
-    response = self.class.get("#{base_url}/info")
+    response = self.class.get("#{base_url}/info", follow_redirects: false)
 
     case response.code
     when 200

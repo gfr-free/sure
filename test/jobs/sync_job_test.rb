@@ -10,4 +10,14 @@ class SyncJobTest < ActiveJob::TestCase
 
     SyncJob.perform_now(sync)
   end
+
+  test "re-enqueues with the same arguments while another sync of the syncable runs" do
+    sync = accounts(:depository).syncs.create!
+
+    sync.expects(:perform).raises(Sync::ConcurrentSyncError)
+
+    assert_enqueued_with(job: SyncJob, args: [ sync, { balances_only: true } ]) do
+      SyncJob.perform_now(sync, balances_only: true)
+    end
+  end
 end

@@ -4,6 +4,7 @@ class Insight::Generators::ContractGeneratorTest < ActiveSupport::TestCase
   setup do
     @family = families(:dylan_family)
     @owner = users(:family_admin)
+    @member = users(:family_member)
     @insurance = contracts(:liability_insurance)
     @phone = contracts(:phone_plan)
   end
@@ -41,6 +42,25 @@ class Insight::Generators::ContractGeneratorTest < ActiveSupport::TestCase
     assert insight
     assert_equal "contract_price_increase.special", insight.template_key
     assert_equal "high", insight.priority
+  end
+
+  test "a price increase on a bill the owner cannot see is not an insight" do
+    bill = private_member_bill(contract: @insurance)
+    bill.recurring_price_changes.create!(effective_on: 5.days.ago.to_date, previous_amount: 12, new_amount: 15.99, currency: "USD", source: "detected")
+
+    assert_empty generated.select { |i| i.insight_type == "contract_price_increase" },
+                 "the insight goes to the owner, so it must not carry amounts from a bill only another member can see"
+  end
+
+  test "payments after the end date on a bill the owner cannot see are not flagged" do
+    bill = private_member_bill(contract: @phone)
+    @phone.update!(status: "ended", ends_on: 20.days.ago.to_date)
+    entry = bill.account.entries.create!(date: 5.days.ago.to_date, amount: 15.99, currency: "USD", name: "Netflix", entryable: Transaction.new)
+    occurrence = bill.recurring_occurrences.create!(family: @family, original_due_on: 5.days.ago.to_date, due_on: 5.days.ago.to_date,
+                                                    currency: "USD", expected_amount: 15.99, status: "scheduled")
+    RecurringTransaction::Allocator.new(occurrence).allocate!(entry: entry)
+
+    assert_empty generated.select { |i| i.insight_type == "contract_charges_after_end" }
   end
 
   test "a price decrease is not an insight" do
@@ -88,5 +108,19 @@ class Insight::Generators::ContractGeneratorTest < ActiveSupport::TestCase
 
     def generated
       Insight::Generators::ContractGenerator.new(@family.reload).generate
+    end
+
+    # An active bill on an account only @member can reach, linked to a
+    # contract owned by @owner.
+    def private_member_bill(contract:)
+      @family.update!(default_account_sharing: "private")
+      account = @family.accounts.create!(name: "Member only", balance: 0, currency: "USD",
+                                         accountable: Depository.new, owner: @member)
+      account.account_shares.delete_all
+      @family.recurring_transactions.create!(
+        account: account, name: "Private bill", amount: -15.99, currency: "USD",
+        expected_day_of_month: 3, last_occurrence_date: 1.month.ago.to_date,
+        next_expected_date: 3.days.from_now.to_date, status: "active", contract: contract
+      )
     end
 end

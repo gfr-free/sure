@@ -641,7 +641,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     source = families(:dylan_family)
     old_contract = contracts(:liability_insurance)
     successor = contracts(:phone_plan)
-    old_contract.update!(replaced_by: successor, document_links: [ { "url" => "https://docs.example.com/1" } ])
+    old_contract.update!(replaced_by: successor, document_links: [ { "url" => "https://docs.example.com/1" } ],
+                         notice_reminders_sent: { "2026-09-30" => [ 30 ] })
     recurring_transactions(:netflix_subscription).update!(contract: successor)
 
     ndjson = nil
@@ -659,6 +660,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "end_of_term", restored_old.notice_anchor
     assert_equal restored_new, restored_old.replaced_by
     assert_equal [ { "url" => "https://docs.example.com/1" } ], restored_old.document_links
+    assert_equal({ "2026-09-30" => [ 30 ] }, restored_old.notice_reminders_sent,
+                 "sent reminder stages travel with the contract or a restore re-sends them")
     assert_equal "K-123456", restored_new.customer_number
     # Members do not travel with an export, so the importing family owns it
     # and the source family's shares are skipped.

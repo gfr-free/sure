@@ -35,7 +35,8 @@ class Assistant::Function::CreateContract < Assistant::Function
     return contracts_disabled_result if contracts_disabled?
 
     contract = family.contracts.new(owner: user)
-    assign_contract_attributes(contract, params)
+    invalid_dates = assign_contract_attributes(contract, params)
+    return invalid_dates_result(invalid_dates) if invalid_dates.any?
 
     unless contract.save
       return { error: contract.errors.full_messages.to_sentence, hint: "Fix the listed fields and try again." }
@@ -62,6 +63,9 @@ class Assistant::Function::CreateContract < Assistant::Function
       }
     end
 
+    # Returns the date params that were present but unparseable. Those calls
+    # are rejected outright: assigning nil instead would silently clear a
+    # stored date over a malformed LLM value.
     def assign_contract_attributes(contract, params)
       contract.name = params["name"] if params.key?("name")
       contract.provider_name = params["provider"] if params.key?("provider")
@@ -71,11 +75,28 @@ class Assistant::Function::CreateContract < Assistant::Function
       end
       contract.notice_period_unit = params["notice_period_unit"] if params["notice_period_unit"].in?(Contract.notice_period_units.keys)
       contract.notice_anchor = params["notice_anchor"] if params["notice_anchor"].in?(Contract.notice_anchors.keys)
-      %w[started_on renewal_anchor_on ends_on].each do |key|
+
+      %w[started_on renewal_anchor_on ends_on].filter_map do |key|
         next unless params.key?(key)
 
-        contract.public_send("#{key}=", parse_date(params[key]))
+        if params[key].blank?
+          contract.public_send("#{key}=", nil)
+          next
+        end
+
+        date = parse_date(params[key])
+        next key if date.nil?
+
+        contract.public_send("#{key}=", date)
+        nil
       end
+    end
+
+    def invalid_dates_result(keys)
+      {
+        error: "#{keys.join(', ')} is not a valid date",
+        hint: "Pass dates as YYYY-MM-DD, or an empty string to clear a date. Nothing was changed."
+      }
     end
 
     def parse_date(value)

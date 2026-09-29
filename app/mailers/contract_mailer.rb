@@ -7,7 +7,8 @@ class ContractMailer < ApplicationMailer
     @recipient = contract.owner
     @deadline = deadline
     @term_ends_on = term_ends_on
-    @days_left = (deadline - Date.current).to_i
+    # The family's date, not the server's: the job decides stages on it too.
+    @days_left = (deadline - contract.family.current_date).to_i
     @contract_url = contract_url(contract)
 
     I18n.with_locale(@recipient.locale.presence || contract.family.locale.presence || I18n.default_locale) do

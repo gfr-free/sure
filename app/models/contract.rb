@@ -95,6 +95,14 @@ class Contract < ApplicationRecord
     def kind_options
       kinds.keys.map { |kind| [ I18n.t("contracts.kinds.#{kind}"), kind ] }
     end
+
+    # Public: views render portal and document links only when this holds.
+    def http_url?(value)
+      uri = URI.parse(value.to_s)
+      uri.is_a?(URI::HTTP) && uri.host.present?
+    rescue URI::InvalidURIError
+      false
+    end
   end
 
   def icon
@@ -145,10 +153,14 @@ class Contract < ApplicationRecord
     self.class.mask(customer_number)
   end
 
+  # Short values would survive "last 4" whole, so they mask entirely.
   def self.mask(value)
     return if value.blank?
 
-    "•••• #{value.to_s.last(4)}"
+    value = value.to_s
+    return "••••" if value.length <= 4
+
+    "•••• #{value.last(4)}"
   end
 
   # Contract status is set by the user, but a fixed end date that has passed
@@ -364,12 +376,5 @@ class Contract < ApplicationRecord
       elsif document_links.any? { |link| !self.class.http_url?(link["url"]) }
         errors.add(:document_links, :invalid)
       end
-    end
-
-    def self.http_url?(value)
-      uri = URI.parse(value.to_s)
-      uri.is_a?(URI::HTTP) && uri.host.present?
-    rescue URI::InvalidURIError
-      false
     end
 end

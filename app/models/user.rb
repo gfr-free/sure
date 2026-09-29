@@ -438,6 +438,25 @@ class User < ApplicationRecord
       end
       Contract.where(id: contract.id).update_all(attrs)
     end
+
+    unindex_moved_contract_documents!(contract_ids)
+  end
+
+  # A moved contract's documents were indexed into the old family's document
+  # store; that copy is removed and the opt-in reset, so nothing owned by the
+  # new family stays searchable to the old one. The owner opts in again in the
+  # new family if they want the assistant to read the document.
+  def unindex_moved_contract_documents!(contract_ids)
+    ContractDocument.where(contract_id: contract_ids).where.not(family_document_id: nil)
+                    .includes(:family_document).find_each do |document|
+      family_document = document.family_document
+      document.update_columns(ai_searchable: false, family_document_id: nil, updated_at: Time.current)
+      # After the surrounding move transaction: the job must not run against
+      # state that could still roll back.
+      ActiveRecord.after_all_transactions_commit do
+        ContractDocumentUnindexJob.perform_later(family_document)
+      end
+    end
   end
 
   def provider_items_for_transfer(accounts_to_move)

@@ -236,14 +236,16 @@ class ContractsController < ApplicationController
       Current.family.imports.where(type: "PdfImport", document_type: "contract").find_by(id: pdf_import_id)
     end
 
-    # The document a contract was created from becomes its first document.
+    # The document a contract was created from becomes its first document. The
+    # contract itself is already saved, so a failure here downgrades the flash
+    # instead of failing the request: the user attaches the file by hand.
     def attach_source_document
       pdf_import = source_pdf_import(params.dig(:contract, :pdf_import_id))
       return unless pdf_import&.pdf_file&.attached?
 
       document = @contract.contract_documents.new
       document.file.attach(pdf_import.pdf_file.blob)
-      document.save
+      flash[:alert] = t("contracts.create.document_not_attached") unless document.save
     end
 
     KIND_KEYWORDS = {

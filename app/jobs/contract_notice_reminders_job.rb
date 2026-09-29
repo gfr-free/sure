@@ -30,7 +30,7 @@ class ContractNoticeRemindersJob < ApplicationJob
       owner = contract.owner
       return unless owner.active? && owner.preview_features_enabled?
 
-      today = contract.family.timezone.present? ? Time.current.in_time_zone(contract.family.timezone).to_date : Date.current
+      today = contract.family.current_date
       schedule = contract.notice_schedule(today: today)
       deadline = schedule.notice_deadline
       return if deadline.nil?

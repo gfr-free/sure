@@ -25,7 +25,11 @@ class Contract::NoticeSchedule
   end
 
   def call
-    return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: nil) unless contract.active?
+    # effectively_ended? covers an active status with a passed end date: such
+    # a contract shows as ended, so it must not produce deadlines or reminders
+    # (an end date next to a renewal period is contradictory input; the end
+    # date wins once it has passed).
+    return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: nil) if !contract.active? || contract.effectively_ended?(on: today)
     return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: contract.ends_on) if fixed_end?
 
     case anchor

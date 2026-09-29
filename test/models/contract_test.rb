@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ContractTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @family = families(:dylan_family)
     @admin = users(:family_admin)
@@ -86,6 +88,7 @@ class ContractTest < ActiveSupport::TestCase
     assert_equal "•••• 7766", @phone.masked_contract_number
     assert_equal "•••• 3456", @phone.masked_customer_number
     assert_nil @insurance.masked_customer_number
+    assert_equal "••••", Contract.mask("123"), "short values mask entirely or the mask reveals them whole"
   end
 
   test "owner defaults to the current user" do
@@ -254,13 +257,19 @@ class ContractTest < ActiveSupport::TestCase
     assert_nil bill.reload.contract_id
   end
 
-  test "deleting a merchant keeps the contract" do
+  test "deleting a merchant keeps the contract and its provider name" do
     merchant = @family.merchants.create!(name: "Insurer Inc")
     @insurance.update!(merchant: merchant)
+    merchant_only = @family.contracts.create!(name: "Gym", kind: "fitness", merchant: merchant, owner: @admin)
 
     merchant.destroy!
 
     assert_nil @insurance.reload.merchant_id
+    assert_equal "HUK24", @insurance.provider_name
+    merchant_only.reload
+    assert_nil merchant_only.merchant_id
+    assert_equal "Insurer Inc", merchant_only.provider_name, "the merchant name must survive as text or the contract fails validation"
+    assert merchant_only.valid?
   end
 
   test "merging merchants moves contracts to the target" do
@@ -295,6 +304,11 @@ class ContractTest < ActiveSupport::TestCase
     bill = recurring_transactions(:netflix_subscription)
     bill.update!(contract: owned)
     @insurance.update!(replaced_by: owned)
+    document = owned.contract_documents.new
+    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "policy.pdf", content_type: "application/pdf")
+    document.save!
+    family_document = @family.family_documents.create!(filename: "policy.pdf", status: "ready", provider_file_id: "file-move-1")
+    document.update!(ai_searchable: true, family_document: family_document)
 
     @member.transfer_to_family!(new_family)
 
@@ -307,6 +321,12 @@ class ContractTest < ActiveSupport::TestCase
     assert_nil bill.reload.contract_id
     assert_nil @insurance.reload.replaced_by_id
     assert_not ContractShare.exists?(user: @member)
+    # The indexed copy lives in the old family's document store; the move
+    # removes it and resets the opt-in so the owner re-opts in the new family.
+    document.reload
+    assert_nil document.family_document_id
+    assert_not document.ai_searchable?
+    assert_enqueued_with(job: ContractDocumentUnindexJob, args: [ family_document ])
   end
 
   test "bills can only link contracts of their family" do

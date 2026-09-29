@@ -398,6 +398,12 @@ class Family < ApplicationRecord
     ContractShare.insert_all(records, unique_by: %i[contract_id user_id]) if records.any?
   end
 
+  # Today in the family's timezone, for date arithmetic done on the server's
+  # clock (notice deadlines, reminder stages) rather than in a request.
+  def current_date
+    timezone.present? ? Time.current.in_time_zone(timezone).to_date : Date.current
+  end
+
   def uses_custom_month_start?
     month_start_day != 1
   end

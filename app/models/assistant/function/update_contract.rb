@@ -30,7 +30,8 @@ class Assistant::Function::UpdateContract < Assistant::Function::CreateContract
     contract, error = find_editable_contract(params["contract_id"])
     return error if error
 
-    assign_contract_attributes(contract, params)
+    invalid_dates = assign_contract_attributes(contract, params)
+    return invalid_dates_result(invalid_dates) if invalid_dates.any?
 
     unless contract.save
       return { error: contract.errors.full_messages.to_sentence, hint: "Fix the listed fields and try again." }

@@ -91,6 +91,10 @@ Same model as accounts, with **no admin override**:
   joining the family (`Family#auto_share_existing_contracts_with`).
 - Guests can only hold `read_only`.
 - `read_only` sees numbers masked (`Contract.mask`); editors see them in full.
+  The masking is a UI courtesy, not a boundary: every share, including
+  `read_only`, can open the uploaded documents, and a policy PDF usually
+  carries the numbers. The share dialog says so; do not present masking as
+  protection against someone the contract is shared with.
 - Bills keep their own visibility: `visible_recurring_transactions_for(user)`,
   and costs only count bills the viewer can see.
 - Contract insights and email reminders go to the owner only.

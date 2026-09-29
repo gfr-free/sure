@@ -190,6 +190,7 @@ de:
         months: Monate
     create:
       success: Vertrag gespeichert
+      document_not_attached: Der Vertrag wurde gespeichert, aber das Dokument konnte nicht angehängt werden. Füge es unter Dokumente hinzu.
     update:
       success: Vertrag aktualisiert
     destroy:
@@ -240,7 +241,7 @@ de:
         title: "%{name} teilen"
         intro: Verträge sind privat, bis du sie teilst. Admins sehen keine Verträge, die nicht mit ihnen geteilt sind.
         shared_with: "Mit %{name} teilen"
-        permissions_hint: Nur lesen zeigt den Vertrag mit maskierten Nummern. Lesen und schreiben darf ihn bearbeiten. Volle Kontrolle darf ihn zusätzlich teilen und löschen.
+        permissions_hint: Nur lesen zeigt den Vertrag mit maskierten Nummern, hochgeladene Dokumente aber im Original — sie können die Nummern enthalten. Lesen und schreiben darf ihn bearbeiten. Volle Kontrolle darf ihn zusätzlich teilen und löschen.
         save: Freigaben speichern
         no_members: In diesem Haushalt gibt es keine weiteren Mitglieder.
       update:

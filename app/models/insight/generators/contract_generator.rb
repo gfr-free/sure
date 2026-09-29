@@ -25,7 +25,7 @@ class Insight::Generators::ContractGenerator < Insight::Generator
   def generate
     return [] if family.recurring_transactions_disabled?
 
-    contracts = family.contracts.includes(:merchant).to_a
+    contracts = family.contracts.includes(:merchant, :owner).to_a
     return [] if contracts.empty?
 
     notice_deadlines(contracts) +
@@ -65,38 +65,46 @@ class Insight::Generators::ContractGenerator < Insight::Generator
     end
 
     def price_increases(contracts)
-      eligible = contracts.select { |contract| contract.open?(on: today) }.index_by(&:id)
+      eligible = contracts.select { |contract| contract.open?(on: today) }
       return [] if eligible.empty?
 
-      RecurringPriceChange.joins(:recurring_transaction)
-                          .where(recurring_transactions: { contract_id: eligible.keys, status: "active" })
-                          .where(effective_on: (today - PRICE_CHANGE_WINDOW_DAYS)..today)
-                          .includes(:recurring_transaction)
-                          .order(effective_on: :desc)
-                          .to_a
-                          .select { |change| change.new_amount.abs > change.previous_amount.abs }
-                          .uniq { |change| change.recurring_transaction.contract_id }
-                          .map do |change|
-        contract = eligible.fetch(change.recurring_transaction.contract_id)
-        special = contract.kind.in?(SPECIAL_TERMINATION_KINDS)
-        previous_amount = Money.new(change.previous_amount.abs, change.currency).format
-        new_amount = Money.new(change.new_amount.abs, change.currency).format
+      # Grouped by owner because the insight goes to the owner: like the audit
+      # tool, it must only report bills that owner can see, or it would leak
+      # amounts from another member's private account.
+      eligible.group_by(&:owner).flat_map do |owner, owned|
+        by_id = owned.index_by(&:id)
 
-        build_insight(
-          insight_type: "contract_price_increase",
-          priority: special ? "high" : "medium",
-          title: I18n.t("insights.titles.contract_price_increase", name: contract.name),
-          template_key: special ? "contract_price_increase.special" : "contract_price_increase.plain",
-          facts: {
-            name: contract.name,
-            previous_amount: previous_amount,
-            new_amount: new_amount,
-            effective_on: I18n.l(change.effective_on, format: :long)
-          },
-          metadata: { contract_id: contract.id, price_change_id: change.id, special_termination: special },
-          dedup_key: "contract_price_increase:#{contract.id}:#{change.id}",
-          user_id: contract.owner_id
-        )
+        RecurringPriceChange.joins(:recurring_transaction)
+                            .merge(RecurringTransaction.accessible_by(owner))
+                            .where(recurring_transactions: { contract_id: by_id.keys, status: "active" })
+                            .where(effective_on: (today - PRICE_CHANGE_WINDOW_DAYS)..today)
+                            .includes(:recurring_transaction)
+                            .order(effective_on: :desc)
+                            .to_a
+                            .select { |change| change.new_amount.abs > change.previous_amount.abs }
+                            .uniq { |change| change.recurring_transaction.contract_id }
+                            .map do |change|
+          contract = by_id.fetch(change.recurring_transaction.contract_id)
+          special = contract.kind.in?(SPECIAL_TERMINATION_KINDS)
+          previous_amount = Money.new(change.previous_amount.abs, change.currency).format
+          new_amount = Money.new(change.new_amount.abs, change.currency).format
+
+          build_insight(
+            insight_type: "contract_price_increase",
+            priority: special ? "high" : "medium",
+            title: I18n.t("insights.titles.contract_price_increase", name: contract.name),
+            template_key: special ? "contract_price_increase.special" : "contract_price_increase.plain",
+            facts: {
+              name: contract.name,
+              previous_amount: previous_amount,
+              new_amount: new_amount,
+              effective_on: I18n.l(change.effective_on, format: :long)
+            },
+            metadata: { contract_id: contract.id, price_change_id: change.id, special_termination: special },
+            dedup_key: "contract_price_increase:#{contract.id}:#{change.id}",
+            user_id: contract.owner_id
+          )
+        end
       end
     end
 
@@ -107,8 +115,10 @@ class Insight::Generators::ContractGenerator < Insight::Generator
       return [] if ended.empty?
 
       ended.filter_map do |contract|
+        # Scoped to the bills the owner can see, like price_increases above.
         allocations = RecurringAllocation.confirmed
                                          .joins(:entry, recurring_occurrence: :recurring_transaction)
+                                         .merge(RecurringTransaction.accessible_by(contract.owner))
                                          .where(recurring_transactions: { contract_id: contract.id })
                                          .where("entries.date > ? AND entries.date >= ?", contract.ends_on, today - CHARGES_WINDOW_DAYS)
                                          .includes(:entry)

@@ -100,6 +100,17 @@ class Contract::NoticeScheduleTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 12, 31), schedule(fixed, Date.new(2026, 6, 1)).term_ends_on
   end
 
+  test "an active contract whose end date has passed produces no deadline" do
+    contract = build(started_on: Date.new(2024, 1, 1), minimum_term_months: 12, renewal_period_months: 12,
+                     notice: [ 3, "months" ], anchor: "end_of_term")
+    contract.ends_on = Date.new(2026, 3, 31)
+
+    result = schedule(contract, Date.new(2026, 6, 1))
+
+    assert_nil result.notice_deadline
+    assert_nil result.earliest_end_on
+  end
+
   test "end of February is handled" do
     contract = build(started_on: Date.new(2024, 3, 1), minimum_term_months: 12, renewal_period_months: 12,
                      notice: [ 1, "months" ], anchor: "end_of_term")

@@ -741,6 +741,7 @@ class Family::DataExporter
         claims_phone: contract.claims_phone,
         document_links: contract.document_links,
         email_reminders: contract.email_reminders,
+        notice_reminders_sent: contract.notice_reminders_sent,
         details: contract.details,
         notes: contract.notes,
         created_at: contract.created_at,

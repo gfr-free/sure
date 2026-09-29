@@ -77,6 +77,19 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert_equal "Phone plan", @phone.reload.name
   end
 
+  test "update_contract rejects a malformed date instead of clearing the stored one" do
+    @phone.update!(ends_on: Date.new(2027, 2, 28))
+
+    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "ends_on" => "2027-13-45")
+
+    assert_includes result[:error], "ends_on"
+    assert_equal Date.new(2027, 2, 28), @phone.reload.ends_on
+
+    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "ends_on" => "")
+    assert_nil result[:error]
+    assert_nil @phone.reload.ends_on, "an explicit empty string still clears the date"
+  end
+
   test "the cancellation letter is a link, never the letter" do
     result = call(Assistant::Function::GetCancellationLetter, @admin, "contract_id" => @phone.id)
 

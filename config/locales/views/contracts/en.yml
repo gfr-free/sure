@@ -190,6 +190,7 @@ en:
         months: Months
     create:
       success: Contract saved
+      document_not_attached: The contract was saved, but the document could not be attached. Add it under Documents.
     update:
       success: Contract updated
     destroy:
@@ -240,7 +241,7 @@ en:
         title: "Share %{name}"
         intro: Contracts are private to you until you share them. Admins do not see contracts that are not shared with them.
         shared_with: "Share with %{name}"
-        permissions_hint: Read only shows the contract with masked numbers. Read and write can edit it. Full control can also share and delete it.
+        permissions_hint: Read only shows the contract with masked numbers, but uploaded documents as-is — they may contain the numbers. Read and write can edit it. Full control can also share and delete it.
         save: Save sharing
         no_members: There are no other members in this household.
       update:

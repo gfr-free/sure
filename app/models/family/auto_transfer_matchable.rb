@@ -137,10 +137,17 @@ module Family::AutoTransferMatchable
         )
       end
     rescue ActiveRecord::RecordNotUnique
-      # The composite unique index rejected the insert because this exact
-      # (inflow, outflow) pair was committed concurrently between our find and our
-      # insert. Return that committed row; if it is somehow absent, return nil so the
-      # caller skips rather than marking a transaction with no Transfer behind it.
+      # A unique index rejected the insert because a concurrent sync committed a
+      # transfer between our find and our insert: either this exact (inflow, outflow)
+      # pair, or a different pairing that claimed one of the two transactions (each
+      # transaction is unique per side). Return the committed row for this exact pair;
+      # otherwise nil, so the caller skips rather than marking a transaction with no
+      # Transfer behind it.
+      existing_transfer(match)
+    rescue ActiveRecord::RecordNotFound
+      # find_or_create_by! falls back to create_or_find_by!, which rescues the
+      # RecordNotUnique itself and then raises RecordNotFound when the conflicting
+      # row is a different pairing. Skip, same as above.
       existing_transfer(match)
     rescue ActiveRecord::RecordInvalid => e
       # The same race surfaces through the per-column uniqueness validation. Re-raise

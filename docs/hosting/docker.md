@@ -317,6 +317,22 @@ If you want to load sample/demo data on a small host:
 2. Apply the change with a **fresh deploy/restart of the worker**. Note for Render specifically: plan changes only take effect on the next deploy - they do **not** apply on a plain restart.
 3. Load the sample data, then optionally drop the worker back to the small plan with another fresh deploy.
 
+## Tuning concurrency
+
+The defaults (1 Puma process x 3 threads, 3 Sidekiq job threads) are sized for the 512 MB hosts described above. A single page can trigger many parallel requests (the page itself, account sparklines, turbo frames), and background syncs share 3 job threads with scheduled jobs, so larger hosts benefit from more capacity:
+
+| Variable | Service | Default | Recommended with 1 GB+ RAM |
+| --- | --- | --- | --- |
+| `WEB_CONCURRENCY` | `web` | `1` | `2` (up to one per CPU core) |
+| `RAILS_MAX_THREADS` | `web` | `3` | `5` |
+| `SIDEKIQ_CONCURRENCY` | `worker` | `RAILS_MAX_THREADS`, then `3` | `5` |
+
+- Extra threads are cheap, extra Puma processes are not: `WEB_CONCURRENCY` above `1` switches Puma to cluster mode, and each process adds a large share of the web container's memory (the app is preloaded, so some memory is shared). Watch memory after raising it. More processes also help CPU-bound pages, since threads within one process share Ruby's global VM lock.
+- `SIDEKIQ_CONCURRENCY` is independent of the web settings. When it is unset, the worker falls back to `RAILS_MAX_THREADS`, so existing setups keep their previous behavior.
+- The database connection pool follows these values automatically (per web process: `RAILS_MAX_THREADS`; worker: the larger of `RAILS_MAX_THREADS` and `SIDEKIQ_CONCURRENCY`). Make sure PostgreSQL allows enough connections: `max_connections` (default `100`) must be at least `WEB_CONCURRENCY x RAILS_MAX_THREADS + SIDEKIQ_CONCURRENCY` per worker, plus a few for migrations and consoles.
+
+With Docker Compose, variables from your `.env` file only reach the containers when they are listed under `environment:`. `SIDEKIQ_CONCURRENCY` is already passed to the `worker` service in `compose.example.yml`; for the web settings, uncomment `WEB_CONCURRENCY` and `RAILS_MAX_THREADS` under the `web` service.
+
 ## How to update your app
 
 The mechanism that updates your self-hosted Sure app is the GHCR (Github Container Registry) Docker image that you see in the `compose.yml` file:

@@ -1,4 +1,9 @@
-concurrency: <%= ENV.fetch("RAILS_MAX_THREADS") { 3 } %>
+# Job threads in this Sidekiq process. Falls back to RAILS_MAX_THREADS (then 3)
+# so existing setups keep their previous behavior. config/database.yml sizes the
+# worker's DB pool to at least this value. Plain Ruby only: Sidekiq renders this
+# file before Rails (and ActiveSupport) is loaded.
+<% sidekiq_concurrency = ENV["SIDEKIQ_CONCURRENCY"].to_s.strip -%>
+concurrency: <%= sidekiq_concurrency.empty? ? ENV.fetch("RAILS_MAX_THREADS") { 3 } : sidekiq_concurrency %>
 queues:
   - [scheduled, 10] # For cron-like jobs (e.g. "daily market data sync")
   - [high_priority, 4]

@@ -30,6 +30,8 @@ module Assistant::Function::ContractsSupport
       family.contracts.accessible_by(user)
     end
 
+    # Returns [contract, nil], or [nil, error_hash] for a malformed UUID.
+    # Raises ActiveRecord::RecordNotFound for missing or inaccessible contracts.
     def find_contract(id)
       unless valid_uuid?(id)
         return [ nil, {
@@ -41,6 +43,9 @@ module Assistant::Function::ContractsSupport
       [ accessible_contracts.find(id), nil ]
     end
 
+    # Uses find_contract's result/error contract, also returning [nil, error_hash]
+    # for read-only access. Missing or inaccessible records still raise
+    # ActiveRecord::RecordNotFound.
     def find_editable_contract(id)
       contract, error = find_contract(id)
       return [ nil, error ] if error
@@ -55,6 +60,9 @@ module Assistant::Function::ContractsSupport
       [ contract, nil ]
     end
 
+    # Returns terms, permissions and visible annual cost, omitting nil fields,
+    # contract/customer numbers and notes, and restricting details to SAFE_DETAIL_KEYS.
+    # cost may supply the [money_or_nil, unconvertible_count] from annual_cost_for.
     def serialize_contract(contract, cost: nil)
       schedule = contract.notice_schedule
       money, unconvertible = cost || contract.annual_cost_for(user)

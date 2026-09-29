@@ -78,6 +78,8 @@ module Contract::Detailable
   end
 
   # Typed read: decimals as BigDecimal, dates as Date.
+  # Returns nil for blank values or failed conversions; other field types are
+  # returned unchanged. Reading does not validate ranges or allowed values.
   def typed_detail(key)
     value = detail(key)
     return if value.blank?

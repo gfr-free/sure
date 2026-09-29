@@ -31,6 +31,10 @@ class Assistant::Function::CreateContract < Assistant::Function
     )
   end
 
+  # Saves a contract owned by the user, then links writable bills. Returns the
+  # serialized contract, linked bill names and path, or an error hash for disabled
+  # Bills, malformed dates or contract validation failures. Bill validation failures
+  # raise ActiveRecord::RecordInvalid after the contract has already been saved.
   def call(params = {})
     return contracts_disabled_result if contracts_disabled?
 
@@ -105,7 +109,10 @@ class Assistant::Function::CreateContract < Assistant::Function
       nil
     end
 
-    # Only bills this user may change, as on the contract form.
+    # Links visible bills the user may change and returns their display names.
+    # Invalid, missing or inaccessible IDs are ignored; existing contract links
+    # on selected bills are replaced. ActiveRecord::RecordInvalid propagates,
+    # leaving earlier bill updates saved unless the caller supplies a transaction.
     def link_bills(contract, bill_ids)
       ids = Array(bill_ids).select { |id| valid_uuid?(id) }
       return [] if ids.empty?

@@ -14,6 +14,10 @@ class Contract::DocumentPrefill
     terms.values.any?(&:present?)
   end
 
+  # Assigns extracted terms and returns the same contract without saving or running
+  # model validation. Invalid enums/dates and negative or unparseable integers are
+  # ignored; a zero renewal period is cleared. Name and provider are overwritten,
+  # with the PDF filename as the fallback name. Contract/customer numbers are ignored.
   def apply_to(contract)
     contract.name = terms["name"].to_s.strip.first(255).presence || pdf_import.pdf_filename.to_s.sub(/\.pdf\z/i, "").presence
     contract.provider_name = terms["provider"].to_s.strip.first(255).presence

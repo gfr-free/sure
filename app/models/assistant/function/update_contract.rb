@@ -24,6 +24,11 @@ class Assistant::Function::UpdateContract < Assistant::Function::CreateContract
     )
   end
 
+  # Updates supplied fields and adds bill links, returning the serialized contract
+  # and linked bill names. Disabled Bills, malformed IDs/dates, read-only access and
+  # contract validation failures return error hashes. Missing or inaccessible records
+  # raise ActiveRecord::RecordNotFound. Bill validation failures propagate as
+  # ActiveRecord::RecordInvalid after the contract update has been saved.
   def call(params = {})
     return contracts_disabled_result if contracts_disabled?
 

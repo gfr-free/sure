@@ -24,6 +24,10 @@ class Contract::NoticeSchedule
     @today = today
   end
 
+  # Returns term_ends_on, notice_deadline and earliest_end_on relative to today;
+  # a deadline on today is still usable. Non-active or effectively ended contracts
+  # retain their recorded end date but have no deadline or earliest cancellation end.
+  # An active contract with a fixed end and no renewal needs no notice deadline.
   def call
     # effectively_ended? covers an active status with a passed end date: such
     # a contract shows as ended, so it must not produce deadlines or reminders
@@ -40,6 +44,7 @@ class Contract::NoticeSchedule
   end
 
   # The last day notice can be given for the contract to end on `end_date`.
+  # Returns nil when the notice value or unit is missing.
   def notice_before(end_date)
     return if notice_value.nil?
 
@@ -51,6 +56,8 @@ class Contract::NoticeSchedule
   end
 
   # The earliest end date when notice is given on `date`.
+  # Applies only the notice period, without term or month-end constraints;
+  # returns date unchanged when the notice value or unit is missing.
   def end_after_notice(date)
     return date if notice_value.nil?
 

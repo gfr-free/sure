@@ -165,6 +165,7 @@ class Contract < ApplicationRecord
 
   # Contract status is set by the user, but a fixed end date that has passed
   # ends the contract for display whether or not anyone recorded it.
+  # The end date itself still counts as open unless the status is "ended".
   def effectively_ended?(on: Date.current)
     ended? || (ends_on.present? && ends_on < on)
   end
@@ -200,13 +201,16 @@ class Contract < ApplicationRecord
   end
 
   # Yearly cost across the active linked bills the user can see, in the family
-  # currency. Returns [money_or_nil, unconvertible_count]; nil when nothing is
-  # linked, so the UI can say "cost unknown" rather than show zero.
+  # currency. Returns [money_or_nil, unconvertible_count]; nil when no active
+  # linked bills are visible. Bills raising Money::ConversionError are omitted
+  # and counted; the total is zero if every visible active bill fails conversion.
   def annual_cost_for(user)
     self.class.annual_costs_for([ self ], user).fetch(id)
   end
 
-  # The same for a list of contracts in one query, for the index page.
+  # Returns a hash of contract IDs to annual_cost_for results. Pass contracts
+  # from one family; all totals use the first contract's family currency and
+  # exchange rates for Date.current. An empty list returns {}.
   def self.annual_costs_for(contracts, user)
     return {} if contracts.empty?
 
@@ -243,6 +247,8 @@ class Contract < ApplicationRecord
   # Records that a cancellation went out. The caller decides whether the
   # linked bills end with the contract; the default leaves them running and the
   # bill pane flags them once the contract has ended.
+  # A blank ends_on preserves the recorded end date. Contract and optional bill
+  # updates share a transaction; validation failures raise ActiveRecord::RecordInvalid.
   def record_cancellation!(sent_on:, ends_on: nil, end_linked_bills: false)
     transaction do
       update!(status: "cancellation_sent", cancelled_on: sent_on, ends_on: ends_on.presence || self.ends_on)
@@ -250,15 +256,21 @@ class Contract < ApplicationRecord
     end
   end
 
+  # Records provider confirmation without changing the end date or linked bills.
+  # Raises ActiveRecord::RecordInvalid if validation fails.
   def confirm_cancellation!(confirmed_on:)
     update!(status: "cancelled", cancellation_confirmed_on: confirmed_on)
   end
 
   # A retention offer was accepted, or the cancellation was sent in error.
+  # Clears cancellation dates and restores active status, preserving ends_on
+  # and linked bill end dates. Raises ActiveRecord::RecordInvalid on validation failure.
   def withdraw_cancellation!
     update!(status: "active", cancelled_on: nil, cancellation_confirmed_on: nil)
   end
 
+  # Marks the contract ended, using ended_on only when no end date is recorded.
+  # Leaves linked bills unchanged; raises ActiveRecord::RecordInvalid on validation failure.
   def mark_ended!(ended_on: Date.current)
     update!(status: "ended", ends_on: ends_on.presence || ended_on)
   end
@@ -273,6 +285,9 @@ class Contract < ApplicationRecord
                           .where("recurring_transactions.end_mode <> 'on_date' OR recurring_transactions.end_on IS NULL OR recurring_transactions.end_on > ?", end_date)
   end
 
+  # Sets the end date on all active, inactive and paused linked bills, regardless
+  # of viewer permissions. Raises ActiveRecord::RecordInvalid on validation failure;
+  # earlier updates remain unless the caller wraps the operation in a transaction.
   def end_linked_bills_on!(date)
     recurring_transactions.where(status: %w[active inactive paused]).find_each do |recurring|
       recurring.update!(end_mode: "on_date", end_on: date)

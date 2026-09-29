@@ -206,7 +206,7 @@ class ContractsController < ApplicationController
     end
     helper_method :linkable_bills
 
-    # "Record as contract" from a bill: the bill's name, merchant and account
+    # "Record as contract" from a bill: the bill's name and provider
     # seed the form, and the kind is guessed from how the bill is classified.
     def prefill_from_bill(recurring_transaction_id)
       bill = linkable_bills.find_by(id: recurring_transaction_id)
@@ -237,8 +237,8 @@ class ContractsController < ApplicationController
     end
 
     # The document a contract was created from becomes its first document. The
-    # contract itself is already saved, so a failure here downgrades the flash
-    # instead of failing the request: the user attaches the file by hand.
+    # contract is already saved; a false result from document.save adds an alert
+    # so the user can attach the file by hand. Exceptions are not rescued here.
     def attach_source_document
       pdf_import = source_pdf_import(params.dig(:contract, :pdf_import_id))
       return unless pdf_import&.pdf_file&.attached?

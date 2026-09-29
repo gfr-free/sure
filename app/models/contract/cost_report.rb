@@ -28,6 +28,9 @@ class Contract::CostReport
     contracts.any?
   end
 
+  # Groups open, visible contracts by kind, sorted by descending annual cost
+  # in the family currency. Counts include contracts without visible active bills.
+  # Caches the rows and adds skipped bill conversions to unconvertible_count once.
   def by_kind
     @by_kind ||= begin
       open_contracts = contracts.select(&:open?)
@@ -45,6 +48,10 @@ class Contract::CostReport
     by_kind.sum(zero) { |row| row.annual_cost }
   end
 
+  # Returns visible insurance contracts with nonzero confirmed payments in the
+  # inclusive report period, including ended contracts. Amounts use the family
+  # currency at each payment date; failed conversions are omitted and counted.
+  # Caches rows, sorted with possibly deductible lines first, then by amount descending.
   def insurance
     @insurance ||= begin
       insurances = contracts.select(&:insurance?)
@@ -73,6 +80,8 @@ class Contract::CostReport
 
     # Confirmed payments on the user's visible bills linked to these contracts,
     # dated inside the period, converted to the family currency on the day paid.
+    # Returns totals keyed by contract ID. Money::ConversionError skips that
+    # allocation and increments unconvertible_count.
     def paid_in_period(contracts)
       return {} if contracts.empty?
 

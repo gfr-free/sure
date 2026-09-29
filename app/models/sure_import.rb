@@ -271,10 +271,11 @@ class SureImport < Import
       )
     end
 
-    # Category/Tag/Merchant rows matched to an existing family record by name are
-    # "updated", not created, so they add nothing to the readback delta.
+    # Category/Tag/Merchant rows matched to an existing family record by name,
+    # and Contract rows mapped to one already imported, are "updated", not
+    # created, so they add nothing to the readback delta.
     def reused_counts_from(summary)
-      %w[categories tags merchants].index_with { |key| (summary || {}).dig(key, "updated").to_i }
+      %w[categories tags merchants contracts].index_with { |key| (summary || {}).dig(key, "updated").to_i }
     end
 
     def record_readback_verification!(before_counts:, reused_counts: {})
@@ -336,6 +337,7 @@ class SureImport < Import
         categories: family.categories.count,
         tags: family.tags.count,
         merchants: family.merchants.count,
+        contracts: family.contracts.count,
         recurring_transactions: family.recurring_transactions.count,
         transactions: family.entries.where(entryable_type: "Transaction").count,
         transfers: Transfer.joins(inflow_transaction: { entry: :account }).where(accounts: { family_id: family.id }).count,

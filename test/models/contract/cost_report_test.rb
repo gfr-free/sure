@@ -35,6 +35,21 @@ class Contract::CostReportTest < ActiveSupport::TestCase
     assert_in_delta 15.99, report.possibly_deductible_total.amount, 0.01
   end
 
+  test "counts insurance payments that fail conversion even when read before the rows" do
+    entry = accounts(:depository).entries.create!(date: Date.current.beginning_of_year + 10, amount: 15.99, currency: "USD", name: "Premium", entryable: Transaction.new)
+    @bill.recurring_occurrences.destroy_all
+    occurrence = @bill.recurring_occurrences.create!(family: @family, original_due_on: entry.date, due_on: entry.date,
+                                                     currency: "USD", expected_amount: 15.99, status: "scheduled")
+    RecurringTransaction::Allocator.new(occurrence).allocate!(entry: entry)
+    Money.any_instance.stubs(:exchange_to).raises(Money::ConversionError.new(from_currency: "USD", to_currency: "EUR", date: entry.date))
+
+    report = build(@admin)
+
+    assert_equal 1, report.unconvertible_payment_count
+    assert_equal 1, report.unconvertible_count, "the bill series counts separately from its payments"
+    assert_empty report.insurance
+  end
+
   test "a member only sees the contracts shared with them" do
     report = build(@member)
 

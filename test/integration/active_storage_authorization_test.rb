@@ -285,6 +285,33 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "contract document blobs follow contract access, not family membership" do
+    contract = contracts(:liability_insurance) # owned by family_admin, not shared
+    document = contract.contract_documents.new
+    document.file.attach(io: StringIO.new("%PDF-1.4 policy"), filename: "policy.pdf", content_type: "application/pdf")
+    document.save!
+
+    sign_in users(:family_member)
+    get rails_blob_path(document.file)
+    assert_response :not_found
+    sign_out users(:family_member)
+
+    sign_in @user_a
+    get rails_blob_path(document.file)
+    assert_response :redirect
+  end
+
+  test "a shared contract's document blob is served to the share holder" do
+    contract = contracts(:phone_plan) # shared read-only with family_member
+    document = contract.contract_documents.new
+    document.file.attach(io: StringIO.new("%PDF-1.4 plan"), filename: "plan.pdf", content_type: "application/pdf")
+    document.save!
+
+    sign_in users(:family_member)
+    get rails_blob_path(document.file)
+    assert_response :redirect
+  end
+
   private
 
     def sign_out(user)

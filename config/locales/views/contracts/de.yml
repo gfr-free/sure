@@ -117,7 +117,7 @@ de:
       possible_duplicate: "Möglicherweise doppelt mit %{names}: gleicher Anbieter und gleiche Vertragsnummer."
       contract_section: Vertrag
       renewal: Verlängerung
-      notice_deadline: "Kündigungsfrist"
+      notice_deadline: "Letzter Kündigungstag"
       to_end_on: "zum %{date}"
       earliest_end: "Frühestes Ende bei Kündigung heute"
       payments_section: Zahlungen

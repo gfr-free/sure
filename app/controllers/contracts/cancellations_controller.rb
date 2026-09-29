@@ -22,7 +22,8 @@ class Contracts::CancellationsController < Contracts::BaseController
     @contract.record_cancellation!(
       sent_on: @sent_on,
       ends_on: @ends_on,
-      end_linked_bills: ActiveModel::Type::Boolean.new.cast(params.dig(:cancellation, :end_linked_bills))
+      end_linked_bills: ActiveModel::Type::Boolean.new.cast(params.dig(:cancellation, :end_linked_bills)),
+      bills: RecurringTransaction.writable_by(Current.user)
     )
 
     flash[:notice] = t(".success")

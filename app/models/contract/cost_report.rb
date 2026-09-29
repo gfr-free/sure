@@ -10,14 +10,27 @@ class Contract::CostReport
   KindRow = Data.define(:kind, :count, :annual_cost)
   InsuranceRow = Data.define(:contract, :line, :paid, :possibly_deductible)
 
-  attr_reader :unconvertible_count
-
   def initialize(family:, user:, start_date:, end_date:)
     @family = family
     @user = user
     @start_date = start_date
     @end_date = end_date
     @unconvertible_count = 0
+    @unconvertible_payment_count = 0
+  end
+
+  # Bill series left out of by_kind because their amount could not be
+  # converted to the family currency.
+  def unconvertible_count
+    by_kind
+    @unconvertible_count
+  end
+
+  # Confirmed payments left out of insurance for the same reason. Counted
+  # apart from unconvertible_count, which counts bill series, not payments.
+  def unconvertible_payment_count
+    insurance
+    @unconvertible_payment_count
   end
 
   def contracts
@@ -81,7 +94,7 @@ class Contract::CostReport
     # Confirmed payments on the user's visible bills linked to these contracts,
     # dated inside the period, converted to the family currency on the day paid.
     # Returns totals keyed by contract ID. Money::ConversionError skips that
-    # allocation and increments unconvertible_count.
+    # allocation and increments unconvertible_payment_count.
     def paid_in_period(contracts)
       return {} if contracts.empty?
 
@@ -97,7 +110,7 @@ class Contract::CostReport
         money = Money.new(allocation.allocated_amount.abs, allocation.currency)
         totals[contract_id] += money.exchange_to(family.currency, date: allocation.entry.date)
       rescue Money::ConversionError
-        @unconvertible_count += 1
+        @unconvertible_payment_count += 1
       end
     end
 end

@@ -400,6 +400,23 @@ class RecurringTransaction < ApplicationRecord
       )
   }
 
+  # Bills this user may change: visible to them, and on an account they can
+  # write. An accountless bill has no account gate.
+  scope :writable_by, ->(user) {
+    writable_account = RecurringTransaction.where(account_id: nil)
+                                           .or(RecurringTransaction.where(account_id: Account.writable_by(user).select(:id)))
+    accessible_by(user).and(writable_account)
+  }
+
+  # Bills this user may link to a contract: ones they may change that are
+  # unlinked or held by a contract they can edit, so linking never takes a
+  # bill away from a contract they may only read or cannot see.
+  scope :linkable_by, ->(user) {
+    unlinked_or_editable = RecurringTransaction.where(contract_id: nil)
+                                               .or(RecurringTransaction.where(contract_id: Contract.editable_by(user).select(:id)))
+    writable_by(user).and(unlinked_or_editable)
+  }
+
   # Class methods for identification and cleanup
   # Schedules pattern identification with debounce to run after all syncs complete
   def self.identify_patterns_for(family)

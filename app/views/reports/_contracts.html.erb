@@ -53,4 +53,7 @@
       <p class="text-xs text-secondary"><%= t(".tax_disclaimer") %></p>
     </div>
   <% end %>
+  <% if report.unconvertible_payment_count.positive? %>
+    <p class="text-xs text-warning"><%= t(".unconvertible_payments", count: report.unconvertible_payment_count) %></p>
+  <% end %>
 </div>

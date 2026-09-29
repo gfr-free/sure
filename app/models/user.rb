@@ -421,6 +421,12 @@ class User < ApplicationRecord
   # behind, a family merchant (the provider name survives as text), a related
   # account that did not move with them, and the successor chain.
   def move_owned_contracts!(from:, to:, moved_account_ids:)
+    # Contracts that stay behind must not point at an account that left.
+    if moved_account_ids.any?
+      Contract.where(family_id: from.id, account_id: moved_account_ids).where.not(owner_id: id)
+              .update_all(account_id: nil, updated_at: Time.current)
+    end
+
     contracts = Contract.where(family_id: from.id, owner_id: id).includes(:merchant).to_a
     return if contracts.empty?
 

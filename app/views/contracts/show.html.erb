@@ -107,7 +107,7 @@
               <div class="text-right shrink-0">
                 <p class="text-sm text-primary privacy-sensitive"><%= format_money(bill.amount_money.abs) %></p>
                 <p class="text-xs text-secondary">
-                  <%= bill.active? ? t(".next_due", date: l(bill.next_expected_date, format: :short)) : t("recurring_transactions.status.#{bill.status}") %>
+                  <%= bill.active? ? t(".next_due", date: l(bill.next_due_date, format: :short)) : t("recurring_transactions.status.#{bill.status}") %>
                 </p>
               </div>
             </li>

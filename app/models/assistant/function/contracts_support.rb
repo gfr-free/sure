@@ -87,7 +87,7 @@ module Assistant::Function::ContractsSupport
         earliest_end_if_cancelled_today: schedule.earliest_end_on&.iso8601,
         annual_cost: money && { amount: money.amount.round(money.currency.default_precision).to_f, currency: money.currency.iso_code },
         annual_cost_unconvertible_bills: unconvertible.to_i.positive? ? unconvertible : nil,
-        related_account: contract.account&.name,
+        related_account: contract.account_id && Account.accessible_by(user).where(id: contract.account_id).pick(:name),
         details: contract.details.to_h.slice(*SAFE_DETAIL_KEYS).presence
       }.compact
     end

@@ -10,7 +10,7 @@
         <% if (number = contract_number_for(contract, :contract_number)) %>
           &middot; <span class="privacy-sensitive"><%= Contract.mask(number) %></span>
         <% end %>
-        <% if contract.account %>
+        <% if contract.account && @accessible_account_ids.include?(contract.account_id) %>
           &middot; <%= contract.account.name %>
         <% end %>
       </p>

@@ -225,6 +225,18 @@ class SureImportTest < ActiveSupport::TestCase
     assert_equal "matched", @import.readback_verification["status"]
   end
 
+  test "readback verification counts imported contracts" do
+    attach_ndjson(build_ndjson([
+      { type: "Contract", data: { id: "source-contract", name: "Household insurance", provider_name: "Allianz", kind: "insurance", status: "active" } }
+    ]))
+
+    @import.import!
+    @import.reload
+
+    assert_equal 1, @import.readback_verification.dig("expected_record_counts", "contracts")
+    assert_equal "matched", @import.readback_verification["status"]
+  end
+
   test "publishes import successfully" do
     attach_ndjson(build_ndjson([
       { type: "Account", data: {

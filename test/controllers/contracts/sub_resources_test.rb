@@ -34,6 +34,24 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     assert_equal ends_on, bill.reload.end_on
   end
 
+  test "a read-write share ends only the bills it may change, and sees no offer for hidden ones" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @contract, account: accounts(:loan)) # an account not shared with the member
+    @contract.contract_shares.find_by!(user: @member).update!(permission: "read_write")
+    sign_in @member
+
+    get new_contract_cancellation_url(@contract)
+    assert_response :success
+    assert_select "input[name='cancellation[end_linked_bills]']", count: 0
+
+    post contract_cancellation_url(@contract), params: {
+      cancellation: { sent_on: Date.current.iso8601, ends_on: 2.months.from_now.to_date.iso8601, end_linked_bills: "1" }
+    }
+
+    assert @contract.reload.cancellation_sent?
+    assert bill.reload.ends_never?
+  end
+
   test "rejects an end before the cancellation was sent" do
     post contract_cancellation_url(@contract), params: {
       cancellation: { sent_on: Date.current.iso8601, ends_on: 1.day.ago.to_date.iso8601 }

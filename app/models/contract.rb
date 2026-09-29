@@ -237,11 +237,12 @@ class Contract < ApplicationRecord
     end
   end
 
+  # Sorted by next_due_date, because the stored next_expected_date is only a
+  # cached hint that can lag behind settled payments.
   def next_payment_for(user)
     visible_recurring_transactions_for(user)
       .where(status: "active")
-      .order(:next_expected_date)
-      .first
+      .min_by(&:next_due_date)
   end
 
   # Records that a cancellation went out. The caller decides whether the
@@ -249,10 +250,12 @@ class Contract < ApplicationRecord
   # bill pane flags them once the contract has ended.
   # A blank ends_on preserves the recorded end date. Contract and optional bill
   # updates share a transaction; validation failures raise ActiveRecord::RecordInvalid.
-  def record_cancellation!(sent_on:, ends_on: nil, end_linked_bills: false)
+  # Pass bills: to limit which linked bills may be ended, for example to the
+  # ones the acting user may change.
+  def record_cancellation!(sent_on:, ends_on: nil, end_linked_bills: false, bills: recurring_transactions)
     transaction do
       update!(status: "cancellation_sent", cancelled_on: sent_on, ends_on: ends_on.presence || self.ends_on)
-      end_linked_bills_on!(self.ends_on) if end_linked_bills && self.ends_on.present?
+      end_linked_bills_on!(self.ends_on, bills: bills) if end_linked_bills && self.ends_on.present?
     end
   end
 
@@ -285,11 +288,12 @@ class Contract < ApplicationRecord
                           .where("recurring_transactions.end_mode <> 'on_date' OR recurring_transactions.end_on IS NULL OR recurring_transactions.end_on > ?", end_date)
   end
 
-  # Sets the end date on all active, inactive and paused linked bills, regardless
-  # of viewer permissions. Raises ActiveRecord::RecordInvalid on validation failure;
+  # Sets the end date on the active, inactive and paused linked bills within
+  # bills (all linked bills by default; callers acting for a user pass the ones
+  # that user may change). Raises ActiveRecord::RecordInvalid on validation failure;
   # earlier updates remain unless the caller wraps the operation in a transaction.
-  def end_linked_bills_on!(date)
-    recurring_transactions.where(status: %w[active inactive paused]).find_each do |recurring|
+  def end_linked_bills_on!(date, bills: recurring_transactions)
+    bills.where(contract_id: id, status: %w[active inactive paused]).find_each do |recurring|
       recurring.update!(end_mode: "on_date", end_on: date)
     end
   end

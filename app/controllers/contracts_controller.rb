@@ -20,6 +20,8 @@ class ContractsController < ApplicationController
     @open_contracts, @ended_contracts = contracts.partition(&:open?)
     @groups = @open_contracts.group_by(&:kind).sort_by { |kind, _| Contract.kinds.keys.index(kind) }
     @costs = Contract.annual_costs_for(contracts, Current.user)
+    # A related account grants nothing: its name shows only to users who can see it.
+    @accessible_account_ids = Current.user.accessible_accounts.pluck(:id).to_set
     @total_annual_cost, @unconvertible_count = total_annual_cost(@open_contracts)
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
@@ -158,9 +160,14 @@ class ContractsController < ApplicationController
     def assign_related_records
       attrs = params.require(:contract)
 
+      # A link to a record the editor cannot see is not in the select, so the
+      # form submits it blank. Keep that link instead of clearing it.
       if attrs.key?(:account_id)
-        @contract.account = attrs[:account_id].presence && Current.user.accessible_accounts.find_by(id: attrs[:account_id])
-        @contract.errors.add(:account, :invalid) if attrs[:account_id].present? && @contract.account.nil?
+        hidden_account = @contract.account_id.present? && !Current.user.accessible_accounts.exists?(id: @contract.account_id)
+        unless hidden_account && attrs[:account_id].blank?
+          @contract.account = attrs[:account_id].presence && Current.user.accessible_accounts.find_by(id: attrs[:account_id])
+          @contract.errors.add(:account, :invalid) if attrs[:account_id].present? && @contract.account.nil?
+        end
       end
 
       if attrs.key?(:merchant_id)
@@ -170,8 +177,11 @@ class ContractsController < ApplicationController
 
       if attrs.key?(:replaced_by_id)
         successor_scope = Current.family.contracts.accessible_by(Current.user).where.not(id: @contract.id)
-        @contract.replaced_by = attrs[:replaced_by_id].presence && successor_scope.find_by(id: attrs[:replaced_by_id])
-        @contract.errors.add(:replaced_by, :invalid) if attrs[:replaced_by_id].present? && @contract.replaced_by.nil?
+        hidden_successor = @contract.replaced_by_id.present? && !successor_scope.exists?(id: @contract.replaced_by_id)
+        unless hidden_successor && attrs[:replaced_by_id].blank?
+          @contract.replaced_by = attrs[:replaced_by_id].presence && successor_scope.find_by(id: attrs[:replaced_by_id])
+          @contract.errors.add(:replaced_by, :invalid) if attrs[:replaced_by_id].present? && @contract.replaced_by.nil?
+        end
       end
     end
 
@@ -194,14 +204,10 @@ class ContractsController < ApplicationController
 
     # Same write rule as RecurringTransactionsController#ensure_series_writable:
     # a bill on an account needs write access to it; an accountless bill has no
-    # account gate.
+    # account gate. A bill held by a contract the user cannot edit is left out.
     def linkable_bills
-      writable = RecurringTransaction.where(account_id: nil)
-                                     .or(RecurringTransaction.where(account_id: Account.writable_by(Current.user).select(:id)))
-
       Current.family.recurring_transactions
-             .accessible_by(Current.user)
-             .and(writable)
+             .linkable_by(Current.user)
              .where.not(status: %w[suggested ended])
     end
     helper_method :linkable_bills

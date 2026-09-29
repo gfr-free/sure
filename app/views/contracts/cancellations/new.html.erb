@@ -13,7 +13,7 @@
         <%= f.date_field :ends_on, label: t(".ends_on"), value: @ends_on %>
       </div>
 
-      <% if @contract.recurring_transactions.where(status: %w[active inactive paused]).exists? %>
+      <% if @contract.recurring_transactions.writable_by(Current.user).where(status: %w[active inactive paused]).exists? %>
         <label class="flex items-start gap-3 text-sm text-primary cursor-pointer">
           <%= hidden_field_tag "cancellation[end_linked_bills]", "0", id: nil %>
           <%= check_box_tag "cancellation[end_linked_bills]", "1", false, class: "checkbox checkbox--light mt-0.5" %>

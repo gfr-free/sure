@@ -218,6 +218,42 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "policy.pdf" ], contract.contract_documents.map { |document| document.file.filename.to_s }
   end
 
+  test "saving the form keeps an account and successor the editor cannot see" do
+    @phone.update!(account: accounts(:loan), replaced_by: @insurance) # neither is visible to the member
+    contract_shares(:phone_plan_shared_with_member).update!(permission: "read_write")
+    sign_in @member
+
+    patch contract_url(@phone), params: { contract: { notes: "Only the notes", account_id: "", replaced_by_id: "" } }
+
+    assert_redirected_to contract_url(@phone)
+    @phone.reload
+    assert_equal accounts(:loan), @phone.account
+    assert_equal @insurance, @phone.replaced_by
+    assert_equal "Only the notes", @phone.notes
+  end
+
+  test "the index names a related account only to users who can see it" do
+    @phone.update!(account: accounts(:loan)) # not shared with the member
+
+    get contracts_url
+    assert_includes response.body, accounts(:loan).name
+
+    sign_in @member
+    get contracts_url
+    assert_not_includes response.body, accounts(:loan).name
+  end
+
+  test "linking bills leaves a bill held by a contract the editor cannot edit" do
+    bill = recurring_transactions(:netflix_subscription) # on an account the member may write
+    bill.update!(contract: @insurance) # the admin's contract, not shared with the member
+    contract_shares(:phone_plan_shared_with_member).update!(permission: "read_write")
+    sign_in @member
+
+    patch contract_url(@phone), params: { contract: { name: "Phone plan", recurring_transaction_ids: [ bill.id ] } }
+
+    assert_equal @insurance, bill.reload.contract
+  end
+
   test "rejects related records the user cannot reach" do
     other_account = families(:empty).accounts.create!(name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
 
@@ -274,6 +310,7 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
 
     get contract_url(@insurance)
     assert_includes response.body, "Kündigungsfrist"
+    assert_includes response.body, "Letzter Kündigungstag"
   end
 
   private

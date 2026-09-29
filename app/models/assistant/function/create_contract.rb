@@ -110,16 +110,15 @@ class Assistant::Function::CreateContract < Assistant::Function
     end
 
     # Links visible bills the user may change and returns their display names.
-    # Invalid, missing or inaccessible IDs are ignored; existing contract links
-    # on selected bills are replaced. ActiveRecord::RecordInvalid propagates,
+    # Invalid, missing or inaccessible IDs are ignored, and so are bills held by
+    # a contract the user cannot edit; other existing contract links on selected
+    # bills are replaced. ActiveRecord::RecordInvalid propagates,
     # leaving earlier bill updates saved unless the caller supplies a transaction.
     def link_bills(contract, bill_ids)
       ids = Array(bill_ids).select { |id| valid_uuid?(id) }
       return [] if ids.empty?
 
-      writable = RecurringTransaction.where(account_id: nil)
-                                     .or(RecurringTransaction.where(account_id: Account.writable_by(user).select(:id)))
-      bills = family.recurring_transactions.accessible_by(user).and(writable).where(id: ids).to_a
+      bills = family.recurring_transactions.linkable_by(user).where(id: ids).to_a
       bills.each { |bill| bill.update!(contract: contract) }
       bills.map(&:display_name)
     end

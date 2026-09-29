@@ -147,6 +147,9 @@ de:
       line_unknown: "Sparte nicht angegeben"
       possibly_deductible: "Möglicherweise absetzbar"
       possibly_deductible_total: "Möglicherweise absetzbar insgesamt"
+      unconvertible_payments:
+        one: "1 Zahlung ließ sich nicht in die Haushaltswährung umrechnen und fehlt in den Versicherungsbeiträgen."
+        other: "%{count} Zahlungen ließen sich nicht in die Haushaltswährung umrechnen und fehlen in den Versicherungsbeiträgen."
       tax_disclaimer: "Beiträge zu Haftpflicht-, Unfall-, Berufsunfähigkeits-, Risikolebens-, Krankenzusatz- und Pflegeversicherungen (und der Haftpflichtanteil der Kfz-Versicherung) können in der Steuererklärung als sonstige Vorsorgeaufwendungen zählen, im Rahmen der Höchstbeträge. Keine Steuerberatung."
     investment_flows:
       title: Anlageflüsse

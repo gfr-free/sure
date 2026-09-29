@@ -70,6 +70,27 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert_equal [ bill.display_name ], result[:linked_bills]
   end
 
+  test "create_contract does not take a bill from a contract the user cannot edit" do
+    bill = recurring_transactions(:netflix_subscription) # on an account the member may write
+    bill.update!(contract: @insurance) # the admin's contract, not shared with the member
+
+    result = call(Assistant::Function::CreateContract, @member,
+                  "name" => "Streaming", "provider" => "Netflix", "kind" => "streaming", "bill_ids" => [ bill.id ])
+
+    assert_equal @insurance, bill.reload.contract
+    assert_empty result[:linked_bills]
+  end
+
+  test "the related account is named only to users who can see that account" do
+    @phone.update!(account: accounts(:loan)) # not shared with the member
+
+    member_view = call(Assistant::Function::GetContracts, @member)[:contracts].find { |c| c[:id] == @phone.id }
+    admin_view = call(Assistant::Function::GetContracts, @admin)[:contracts].find { |c| c[:id] == @phone.id }
+
+    assert_nil member_view[:related_account]
+    assert_equal accounts(:loan).name, admin_view[:related_account]
+  end
+
   test "update_contract refuses a read-only share" do
     result = call(Assistant::Function::UpdateContract, @member, "contract_id" => @phone.id, "name" => "Hijacked")
 

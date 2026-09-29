@@ -325,7 +325,7 @@ Doorkeeper.configure do
   # (sureapp://) are unaffected. Plain http stays allowed for loopback hosts
   # (RFC 8252 native clients) and in development.
   force_ssl_in_redirect_uri do |uri|
-    !Rails.env.development? && !uri.host.to_s.delete_prefix("[").delete_suffix("]").in?(%w[localhost 127.0.0.1 ::1])
+    !Rails.env.development? && !uri.host.to_s.downcase.delete_prefix("[").delete_suffix("]").in?(%w[localhost 127.0.0.1 ::1])
   end
 
   # Specify what redirect URI's you want to block during Application creation.

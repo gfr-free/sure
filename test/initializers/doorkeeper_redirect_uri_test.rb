@@ -12,6 +12,7 @@ class DoorkeeperRedirectUriTest < ActiveSupport::TestCase
     [
       "https://example.com/callback",
       "http://localhost:8787/callback",
+      "http://LocalHost:8787/callback",
       "http://127.0.0.1/callback",
       "http://[::1]:3000/callback",
       MobileDevice::CALLBACK_URL

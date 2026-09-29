@@ -21,13 +21,14 @@ class MobileDevice < ApplicationRecord
 
   def self.shared_oauth_application
     @shared_oauth_application ||= begin
-      Doorkeeper::Application.find_or_create_by!(name: SHARED_OAUTH_APPLICATION_NAME) do |app|
-        app.redirect_uri = CALLBACK_URL
+      # Matching the redirect URI too skips same-named clients registered
+      # through /register before that name was reserved.
+      Doorkeeper::Application.find_or_create_by!(name: SHARED_OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL) do |app|
         app.scopes = "read_write"
         app.confidential = false
       end
     rescue ActiveRecord::RecordNotUnique
-      Doorkeeper::Application.find_by!(name: SHARED_OAUTH_APPLICATION_NAME)
+      Doorkeeper::Application.find_by!(name: SHARED_OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL)
     end
   end
 

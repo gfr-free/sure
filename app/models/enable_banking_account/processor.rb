@@ -22,6 +22,9 @@ class EnableBankingAccount::Processor
       Rails.logger.error "EnableBankingAccount::Processor - Failed to process account #{enable_banking_account.id}: #{e.message}"
       Rails.logger.error "Backtrace: #{e.backtrace.join("\n")}"
       report_exception(e, "account")
+      # The importer marked this sync's balance as verified, but it never became
+      # the anchor, so the next sync must not trust the anchor on that basis.
+      enable_banking_account.update_column(:balance_verified, false) if enable_banking_account.persisted?
       raise
     end
 

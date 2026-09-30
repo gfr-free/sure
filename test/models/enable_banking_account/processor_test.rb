@@ -27,6 +27,17 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_equal 1500.0, @account.reload.cash_balance
   end
 
+  test "clears balance_verified when the balance never becomes the anchor" do
+    @enable_banking_account.update!(balance_verified: true)
+    Account.any_instance.stubs(:set_current_balance).raises(StandardError, "boom")
+
+    assert_raises(StandardError) do
+      EnableBankingAccount::Processor.new(@enable_banking_account).process
+    end
+
+    assert_not @enable_banking_account.reload.balance_verified?
+  end
+
   test "updates account currency" do
     @enable_banking_account.update!(currency: "USD")
 

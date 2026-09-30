@@ -324,8 +324,8 @@ services:
       # BINDING: "::"  # Uncomment for IPv6 dual-stack inside the container
       # Puma sizing (defaults: 1 process x 3 threads). Hosts with 1 GB+ RAM can
       # serve pages faster with more; see docs/hosting/docker.md "Tuning concurrency".
-      # WEB_CONCURRENCY: 2
-      # RAILS_MAX_THREADS: 5
+      # WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+      # RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-3}
     depends_on:
       db:
         condition: service_healthy

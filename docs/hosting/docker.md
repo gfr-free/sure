@@ -331,7 +331,7 @@ The defaults (1 Puma process x 3 threads, 3 Sidekiq job threads) are sized for t
 - `SIDEKIQ_CONCURRENCY` is independent of the web settings. When it is unset, the worker falls back to `RAILS_MAX_THREADS`, so existing setups keep their previous behavior.
 - The database connection pool follows these values automatically (per web process: `RAILS_MAX_THREADS`; worker: the larger of `RAILS_MAX_THREADS` and `SIDEKIQ_CONCURRENCY`). Make sure PostgreSQL allows enough connections: `max_connections` (default `100`) must be at least `WEB_CONCURRENCY x RAILS_MAX_THREADS` per web container plus `max(RAILS_MAX_THREADS, SIDEKIQ_CONCURRENCY)` per worker, plus a few for migrations and consoles.
 
-With Docker Compose, variables from your `.env` file only reach the containers when they are listed under `environment:`. `SIDEKIQ_CONCURRENCY` is already passed to the `worker` service in `compose.example.yml`; for the web settings, uncomment `WEB_CONCURRENCY` and `RAILS_MAX_THREADS` under the `web` service.
+With Docker Compose, variables from your `.env` file only reach the containers when they are listed under `environment:`. `SIDEKIQ_CONCURRENCY` is already passed to the `worker` service in `compose.example.yml`; for the web settings, uncomment the `WEB_CONCURRENCY` and `RAILS_MAX_THREADS` lines under the `web` service. They forward the values from `.env` and fall back to the defaults when a value is unset.
 
 ## How to update your app
 

@@ -195,6 +195,21 @@ class Transactions::CategorizesControllerTest < ActionDispatch::IntegrationTest
     assert_nil entry.transaction.reload.category
   end
 
+  test "show and preview_rule skip entries from read-only shared accounts" do
+    read_only_account = accounts(:credit_card) # shared read_only with family_member
+    entry = create_transaction(account: read_only_account, name: "ReadOnlyShop")
+
+    sign_in users(:family_member)
+
+    get transactions_categorize_url
+    assert_not_includes response.body, entry.id
+
+    get preview_rule_transactions_categorize_url(filter: "ReadOnlyShop"),
+      headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_not_includes response.body, entry.id
+  end
+
   # GET /transactions/categorize/preview_rule
 
   test "preview_rule returns matching entries for a filter" do

@@ -114,6 +114,19 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert_nil bill.reload.contract_id
   end
 
+  test "create_contract does not carry a new merchant over to the next call" do
+    function = Assistant::Function::CreateContract.new(@admin)
+    function.call("name" => "Gym", "provider" => "FitX", "kind" => "fitness")
+
+    result = nil
+    assert_no_difference -> { Merchant.count } do
+      result = function.call("name" => "Second gym", "kind" => "fitness")
+    end
+
+    assert_nil result[:error]
+    assert_nil @admin.family.contracts.find_by!(name: "Second gym").merchant
+  end
+
   test "update_contract refuses a read-only share" do
     result = call(Assistant::Function::UpdateContract, @member, "contract_id" => @phone.id, "name" => "Hijacked")
 

@@ -21,9 +21,12 @@ class SimplifyContractLifecycle < ActiveRecord::Migration[8.1]
         AND merchants.name = contracts.provider_name
     SQL
 
+    # A cancelled contract ends; without a stored end date the cancellation
+    # dates stand in, so no reminders start again for it.
     execute <<~SQL
       UPDATE contracts
-      SET status = CASE WHEN ends_on IS NULL THEN 'active' ELSE 'ended' END
+      SET status = 'ended',
+          ends_on = COALESCE(ends_on, cancellation_confirmed_on, cancelled_on, updated_at::date)
       WHERE status IN ('cancellation_sent', 'cancelled')
     SQL
     execute "UPDATE contracts SET ends_on = updated_at::date WHERE status = 'ended' AND ends_on IS NULL"

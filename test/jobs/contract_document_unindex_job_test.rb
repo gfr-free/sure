@@ -35,4 +35,24 @@ class ContractDocumentUnindexJobTest < ActiveJob::TestCase
       ContractDocumentUnindexJob.perform_now(@family_document)
     end
   end
+
+  test "does not retry without a family document store" do
+    @family.update!(vector_store_id: nil)
+    VectorStore::Registry.stubs(:adapter).returns(mock("vector_store_adapter"))
+
+    assert_no_enqueued_jobs only: ContractDocumentUnindexJob do
+      ContractDocumentUnindexJob.perform_now(@family_document)
+    end
+  end
+
+  test "logs and gives up once the retries are used up" do
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:remove_file).returns(VectorStore::Response.new(success?: false, data: nil, error: "boom"))
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    assert_difference -> { DebugLogEntry.where(source: "ContractDocumentUnindexJob").count }, 1 do
+      perform_enqueued_jobs { ContractDocumentUnindexJob.perform_later(@family_document) }
+    end
+    assert_performed_jobs 5
+  end
 end

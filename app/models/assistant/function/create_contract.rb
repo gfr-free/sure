@@ -86,7 +86,8 @@ class Assistant::Function::CreateContract < Assistant::Function
     def assign_contract_attributes(contract, params)
       contract.name = params["name"] if params.key?("name")
       contract.merchant = Contract.merchant_named(family, user, params["provider"]) if params["provider"].present?
-      @new_merchant_name = params["provider"].to_s.strip if params["provider"].present? && contract.merchant.nil?
+      # The function object is reused across calls, so this is reset every time.
+      @new_merchant_name = (params["provider"].to_s.strip if params["provider"].present? && contract.merchant.nil?)
       contract.kind = params["kind"] if params["kind"].in?(Contract.kinds.keys)
       %w[minimum_term_months notice_period_value renewal_period_months].each do |key|
         contract.public_send("#{key}=", params[key]) if params.key?(key)

@@ -14,28 +14,28 @@ module RecurringTransactionsHelper
   end
 
   # Which of these accounts are manual, for the bill form's auto-post switch.
-  # One query instead of Account#manual? per option.
-  def recurring_manual_account_ids(accounts)
-    accounts.reorder(nil).manual.pluck(:id)
+  # One query instead of Account#manual? per option. The current destination
+  # may sit outside the list, and must not switch auto-posting off on load.
+  def recurring_manual_account_ids(accounts, recurring_transaction)
+    ids = accounts.reorder(nil).manual.pluck(:id)
+    destination = recurring_transaction.destination_account
+    ids << destination.id if destination&.manual? && ids.exclude?(destination.id)
+    ids
   end
 
   # Writable accounts only, since a posted transfer writes into the
   # destination too. The current destination stays listed even when the user
   # could not pick it, so saving the form does not silently clear it.
   def recurring_destination_options(recurring_transaction)
-    options = Current.family.accounts.writable_by(Current.user).visible.alphabetically.to_a
-    current = recurring_transaction.destination_account
-    options << current if current && options.exclude?(current)
-    options
+    with_current_option(Current.family.accounts.writable_by(Current.user).visible.alphabetically,
+                        recurring_transaction.destination_account)
   end
 
   # Same idea for the merchant: a detected one may no longer be in the list
   # the user can pick from.
   def recurring_merchant_options(recurring_transaction)
-    options = Current.family.available_merchants_for(Current.user).alphabetically.to_a
-    current = recurring_transaction.merchant
-    options << current if current && options.exclude?(current)
-    options
+    with_current_option(Current.family.available_merchants_for(Current.user).alphabetically,
+                        recurring_transaction.merchant)
   end
 
   def frequency_preset_options(recurring_transaction)
@@ -72,4 +72,11 @@ module RecurringTransactionsHelper
   def frequency_month_options
     t("date.month_names").compact.each_with_index.map { |name, index| [ name, index + 1 ] }
   end
+
+  private
+    def with_current_option(scope, current)
+      options = scope.to_a
+      options << current if current && options.exclude?(current)
+      options
+    end
 end

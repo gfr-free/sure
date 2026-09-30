@@ -24,6 +24,7 @@ de:
       merchant_label: Händler
       merchant_blank: "(keiner)"
     create:
+      success_transfer: Wiederkehrende Umbuchung angelegt
       destination_invalid: Wähle ein Zielkonto, auf das du schreiben darfst, oder lass das Feld leer
     identify_patterns: Muster erkennen
     cleanup_stale: Alte Einträge bereinigen

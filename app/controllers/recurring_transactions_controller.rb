@@ -154,11 +154,18 @@ class RecurringTransactionsController < ApplicationController
     @recurring_transaction = build_declared_bill
 
     if @recurring_transaction.errors.none? && save_declared_bill
-      flash[:notice] = @recurring_transaction.typed_income? ? t(".success_income") : t(".success")
+      flash[:notice] =
+        if @recurring_transaction.typed_income? then t(".success_income")
+        elsif @recurring_transaction.transfer? then t(".success_transfer")
+        else t(".success")
+        end
 
+      # The overview lists only what is owed; a savings transfer shows up
+      # under All.
+      destination = @recurring_transaction.transfer? ? bills_path(view: "all") : bills_path
       respond_to do |format|
-        format.html { redirect_to bills_path }
-        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, bills_path) }
+        format.html { redirect_to destination }
+        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, destination) }
       end
     else
       render :new, status: :unprocessable_entity, layout: dialog_layout
@@ -394,11 +401,22 @@ class RecurringTransactionsController < ApplicationController
     # merchant or destination can collide with a sibling series on the
     # dedup indexes; that is a form error, not a crash.
     def save_with_tags
-      tag_ids = params.dig(:recurring_transaction, :tag_ids)
+      tag_ids = params.require(:recurring_transaction).permit(tag_ids: [])[:tag_ids]&.compact_blank
+      # Kept for the form in case the save fails, so the choice is not lost.
+      @recurring_transaction.pending_tag_ids = tag_ids
+
+      # The dedup indexes all key on account_id and cannot see a duplicate
+      # without one; same check as DeclaredBill.save.
+      if @recurring_transaction.account_id.nil? &&
+          (@recurring_transaction.will_save_change_to_merchant_id? || @recurring_transaction.will_save_change_to_destination_account_id?) &&
+          RecurringTransaction::DeclaredBill.account_less_duplicate?(@recurring_transaction)
+        @recurring_transaction.errors.add(:base, t("recurring_transactions.create.already_exists"))
+        return false
+      end
 
       RecurringTransaction.transaction do
         saved = @recurring_transaction.save
-        @recurring_transaction.tags = Current.family.tags.where(id: Array(tag_ids).compact_blank) if saved && !tag_ids.nil?
+        @recurring_transaction.tags = Current.family.tags.where(id: tag_ids) if saved && !tag_ids.nil?
         saved
       end
     rescue ActiveRecord::RecordNotUnique
@@ -509,7 +527,7 @@ class RecurringTransactionsController < ApplicationController
       elsif (destination = Current.family.accounts.writable_by(Current.user).find_by(id: attrs[:destination_account_id]))
         @recurring_transaction.destination_account = destination
       else
-        @recurring_transaction.errors.add(:destination_account, :invalid)
+        @recurring_transaction.errors.add(:base, t("recurring_transactions.create.destination_invalid"))
       end
     end
 

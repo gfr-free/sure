@@ -98,6 +98,11 @@ class RecurringTransaction
           idempotency_key: idempotency_key(occurrence)
         ).create
 
+        # Rules must not replace the series' tags on either leg.
+        if series.tag_ids.any?
+          [ transfer.outflow_transaction, transfer.inflow_transaction ].each { |leg| leg.lock_attr!(:tag_ids) }
+        end
+
         transfer.outflow_transaction.entry
       end
 

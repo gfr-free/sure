@@ -1251,6 +1251,28 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ tags(:one) ], @recurring_transaction.tags.to_a
   end
 
+  test "a failed update keeps the chosen tags in the form" do
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { payment_url: "javascript:alert(1)", tag_ids: [ "", tags(:two).id ] }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "[data-tag-id='#{tags(:two).id}'][aria-selected='true']"
+    assert_empty @recurring_transaction.reload.tags
+  end
+
+  test "a new recurring transfer lands on the all-bills view" do
+    post recurring_transactions_url, params: {
+      recurring_transaction: {
+        name: "Savings plan", amount: "100", account_id: accounts(:depository).id,
+        destination_account_id: accounts(:credit_card).id,
+        first_due_on: 5.days.from_now.to_date.to_s, frequency_preset: "monthly"
+      }
+    }
+
+    assert_redirected_to bills_path(view: "all")
+  end
+
   test "update turns a bill into a transfer and back" do
     patch recurring_transaction_url(@recurring_transaction), params: {
       recurring_transaction: { destination_account_id: accounts(:credit_card).id }

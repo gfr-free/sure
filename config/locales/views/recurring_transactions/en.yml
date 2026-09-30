@@ -83,6 +83,7 @@ en:
     create:
       success: Bill added
       success_income: Income added
+      success_transfer: Recurring transfer added
       due_date_required: "Enter the bill's next due date"
       amount_invalid: "Enter the amount as a plain number"
       account_invalid: "Pick an account you can add bills to, or leave it blank"

@@ -34,6 +34,25 @@ class Transactions::ReadsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes unread_ids, @card.id
   end
 
+  test "with entry ids marks only those unread entries read" do
+    post transactions_read_url, params: { entry_ids: [ @checking.id ] }
+
+    assert_response :no_content
+    unread_ids = @user.unread_entries.pluck(:id)
+    assert_not_includes unread_ids, @checking.id
+    assert_includes unread_ids, @card.id
+  end
+
+  test "entry ids from accounts the user cannot access are ignored" do
+    hidden = create_transaction(account: accounts(:connected), external_id: "r-hidden", source: "plaid")
+    sign_in users(:family_member)
+
+    assert_no_difference -> { EntryRead.count } do
+      post transactions_read_url, params: { entry_ids: [ hidden.id ] }
+    end
+    assert_response :no_content
+  end
+
   test "an account the user cannot access is not found" do
     sign_in users(:family_member)
 

@@ -1,9 +1,14 @@
-# "Mark all as read" for the unread dots. On an account page it covers that
+# "Mark all as read" for the unread dots, plus marking specific rows read once
+# a prefetched list is displayed. On an account page it covers that
 # account; on the transactions page it covers the active filters, or
 # everything when no filter is set.
 class Transactions::ReadsController < ApplicationController
   def create
-    if params[:account_id].present?
+    # Sent by the unread-marker Stimulus controller when a prefetched list is shown.
+    if params[:entry_ids].present?
+      Current.user.mark_entries_read!(Current.user.unread_entries.where(id: Array(params[:entry_ids])).pluck(:id))
+      head :no_content
+    elsif params[:account_id].present?
       account = Current.user.accessible_accounts.find(params[:account_id])
       Current.user.mark_all_transactions_read!(account.entries)
       redirect_back_or_to account_path(account), notice: t(".success")

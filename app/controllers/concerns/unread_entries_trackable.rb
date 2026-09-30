@@ -11,8 +11,15 @@ module UnreadEntriesTrackable
       entry_ids = entries.map(&:id)
       @unread_entry_ids = entry_ids.any? ? Current.user.unread_entries.where(id: entry_ids).pluck(:id).to_set : Set.new
 
-      # Turbo hover-prefetches links; the user has not seen that response yet.
-      Current.user.mark_entries_read!(@unread_entry_ids) unless prefetch_request?
+      # Turbo hover-prefetches links and, if the user then clicks, shows that
+      # prefetched response. It was not seen when it was fetched, so instead of
+      # marking here the page marks its rows itself once it is displayed
+      # (EntriesHelper#unread_marker_tag).
+      if prefetch_request?
+        @unread_entry_ids_to_mark_on_display = @unread_entry_ids
+      else
+        Current.user.mark_entries_read!(@unread_entry_ids)
+      end
     end
 
     # Turbo sends X-Sec-Purpose (the fetch spec forbids setting Sec-Purpose

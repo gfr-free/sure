@@ -8,6 +8,18 @@ module EntriesHelper
     @unread_entry_ids&.include?(entry.id) || false
   end
 
+  # Only present on responses to Turbo hover-prefetches: marks the rows read
+  # from the browser when the page is actually shown.
+  def unread_marker_tag
+    return if @unread_entry_ids_to_mark_on_display.blank?
+
+    tag.div hidden: true, data: {
+      controller: "unread-marker",
+      unread_marker_url_value: transactions_read_path,
+      unread_marker_entry_ids_value: @unread_entry_ids_to_mark_on_display.to_a
+    }
+  end
+
   def group_split_entries(entries, split_parents)
     return entries if split_parents.blank?
 

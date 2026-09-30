@@ -1652,6 +1652,14 @@ end
     get transactions_url, headers: { "X-Sec-Purpose" => "prefetch" }
 
     assert_includes @user.unread_entries.pluck(:id), entry.id
+    # The page marks the rows itself once it is displayed.
+    assert_select "[data-controller=unread-marker][data-unread-marker-entry-ids-value*=?]", entry.id
+  end
+
+  test "index renders no client-side marker for regular requests" do
+    get transactions_url
+
+    assert_select "[data-controller=unread-marker]", count: 0
   end
 
   test "paging through the unread filter shows every unread transaction" do

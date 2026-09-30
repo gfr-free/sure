@@ -54,8 +54,13 @@ class ContractDocument < ApplicationRecord
 
       # The upload takes a while; the contract may have moved to another
       # family or been opted out meanwhile. Then the fresh copy goes again.
-      if ContractDocument.joins(:contract).where(id: id, ai_searchable: true, contracts: { family_id: family.id }).exists?
-        update_columns(family_document_id: document.id, updated_at: Time.current)
+      # One conditional write, so an opt-out or move landing between a check
+      # and the write cannot slip through.
+      attached = ContractDocument.where(id: id, ai_searchable: true, family_document_id: nil)
+                                 .where(contract_id: Contract.where(family_id: family.id).select(:id))
+                                 .update_all(family_document_id: document.id, updated_at: Time.current)
+      if attached == 1
+        self.family_document_id = document.id
       else
         ContractDocumentUnindexJob.perform_later(document)
       end

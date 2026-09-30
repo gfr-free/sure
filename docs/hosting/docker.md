@@ -329,7 +329,7 @@ The defaults (1 Puma process x 3 threads, 3 Sidekiq job threads) are sized for t
 
 - Extra threads are cheap, extra Puma processes are not: `WEB_CONCURRENCY` above `1` switches Puma to cluster mode, and each process adds a large share of the web container's memory (the app is preloaded, so some memory is shared). Watch memory after raising it. More processes also help CPU-bound pages, since threads within one process share Ruby's global VM lock.
 - `SIDEKIQ_CONCURRENCY` is independent of the web settings. When it is unset, the worker falls back to `RAILS_MAX_THREADS`, so existing setups keep their previous behavior.
-- The database connection pool follows these values automatically (per web process: `RAILS_MAX_THREADS`; worker: the larger of `RAILS_MAX_THREADS` and `SIDEKIQ_CONCURRENCY`). Make sure PostgreSQL allows enough connections: `max_connections` (default `100`) must be at least `WEB_CONCURRENCY x RAILS_MAX_THREADS + SIDEKIQ_CONCURRENCY` per worker, plus a few for migrations and consoles.
+- The database connection pool follows these values automatically (per web process: `RAILS_MAX_THREADS`; worker: the larger of `RAILS_MAX_THREADS` and `SIDEKIQ_CONCURRENCY`). Make sure PostgreSQL allows enough connections: `max_connections` (default `100`) must be at least `WEB_CONCURRENCY x RAILS_MAX_THREADS` per web container plus `max(RAILS_MAX_THREADS, SIDEKIQ_CONCURRENCY)` per worker, plus a few for migrations and consoles.
 
 With Docker Compose, variables from your `.env` file only reach the containers when they are listed under `environment:`. `SIDEKIQ_CONCURRENCY` is already passed to the `worker` service in `compose.example.yml`; for the web settings, uncomment `WEB_CONCURRENCY` and `RAILS_MAX_THREADS` under the `web` service.
 

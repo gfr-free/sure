@@ -1261,6 +1261,17 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty @recurring_transaction.reload.tags
   end
 
+  test "a refused merchant keeps the chosen tags in the form" do
+    foreign = families(:empty).merchants.create!(name: "Foreign Shop")
+
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { merchant_id: foreign.id, tag_ids: [ "", tags(:two).id ] }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "[data-tag-id='#{tags(:two).id}'][aria-selected='true']"
+  end
+
   test "a new recurring transfer lands on the all-bills view" do
     post recurring_transactions_url, params: {
       recurring_transaction: {

@@ -189,6 +189,9 @@ class RecurringTransactionsController < ApplicationController
     apply_editable_identity
     ensure_auto_post_destination_writable
     apply_frequency_preset
+    # Kept for the form in case the update fails, so the choice is not lost.
+    @recurring_transaction.pending_tag_ids =
+      params.require(:recurring_transaction).permit(tag_ids: [])[:tag_ids]&.compact_blank
 
     if @recurring_transaction.typed_installment? && @recurring_transaction.end_after_count.present?
       @recurring_transaction.end_mode = "after_count"
@@ -401,9 +404,7 @@ class RecurringTransactionsController < ApplicationController
     # merchant or destination can collide with a sibling series on the
     # dedup indexes; that is a form error, not a crash.
     def save_with_tags
-      tag_ids = params.require(:recurring_transaction).permit(tag_ids: [])[:tag_ids]&.compact_blank
-      # Kept for the form in case the save fails, so the choice is not lost.
-      @recurring_transaction.pending_tag_ids = tag_ids
+      tag_ids = @recurring_transaction.pending_tag_ids
 
       # The dedup indexes all key on account_id and cannot see a duplicate
       # without one; same check as DeclaredBill.save.

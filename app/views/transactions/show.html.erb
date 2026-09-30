@@ -419,6 +419,8 @@
                   </div>
                   <% if allocation.allocation_suggested? %>
                     <span class="text-xs text-warning"><%= t(".applied_to_unreviewed") %></span>
+                  <% elsif allocation.from_auto_posted? %>
+                    <span class="text-xs text-secondary"><%= t(".applied_to_auto_posted") %></span>
                   <% end %>
                 </div>
               <% end %>

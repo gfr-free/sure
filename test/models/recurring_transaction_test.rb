@@ -70,6 +70,15 @@ class RecurringTransactionTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 10, 3), series.reload.auto_post_from
   end
 
+  test "a series whose account was linked later still saves unrelated changes" do
+    series = build_recurring(auto_post: true)
+    series.save!
+    series.update_columns(account_id: accounts(:connected).id)
+
+    assert series.reload.update(matcher_hints: { "name_aliases" => [ "NETFLIX.COM" ] }),
+      "background updates must not fail; the poster switches auto-posting off"
+  end
+
   test "an installment plan can auto-post" do
     series = build_recurring(bill_type: "installment", auto_post: true)
 

@@ -154,6 +154,9 @@ class AccountsController < ApplicationController
       Set.new
     end
 
+    # Bills are a preview feature, and so is the marker for what they posted.
+    @auto_posted_entry_ids = RecurringAllocation.auto_posted_entry_ids(entry_ids) if preview_features_enabled?
+
     # Load split parent entries for grouped display (only when grouping is enabled)
     @split_parents = if Current.user.show_split_grouped?
       split_parent_ids = @entries.filter_map(&:parent_entry_id).uniq

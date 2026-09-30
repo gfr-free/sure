@@ -21,6 +21,7 @@ en:
               manual_account_required: "is only available when every account on this bill is a manual account"
               fixed_amount_required: "needs a fixed amount"
               account_currency_required: "needs the bill to use the account's currency"
+              destination_not_writable: "needs write access to the destination account"
             payment_url:
               invalid_scheme: "must be a valid http:// or https:// address"
             anchor_date:

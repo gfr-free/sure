@@ -21,6 +21,14 @@
         <% end %>
         &middot; <%= t("recurring_transactions.status.#{@series.status}") %>
       </p>
+      <% if @series.auto_post? %>
+        <p class="text-sm text-secondary flex items-center gap-1">
+          <%= icon "repeat", size: "sm" %>
+          <%= t("bills.show.auto_posting_since", date: l(@series.auto_post_from, format: :long)) %>
+        </p>
+      <% elsif @series.auto_post_from.present? && !@series.auto_post_accounts_manual? %>
+        <p class="text-sm text-warning"><%= t("bills.show.auto_posting_stopped_linked") %></p>
+      <% end %>
     </div>
 
     <div class="flex items-center gap-2 shrink-0">
@@ -40,6 +48,14 @@
                icon: "sparkles",
                href: smart_configuration_bill_path(@series),
                data: { turbo_frame: :modal }) %>
+        <% end %>
+        <% if @series.amount_fixed? && (@series.auto_post? || @series.auto_post_accounts_manual?) %>
+          <% menu.with_item(
+               variant: "button",
+               text: @series.auto_post? ? t("bills.show.auto_post_off") : t("bills.show.auto_post_on"),
+               icon: "repeat",
+               href: toggle_auto_post_recurring_transaction_path(@series),
+               method: :post) %>
         <% end %>
         <% menu.with_item(
              variant: "button",
@@ -97,6 +113,7 @@
           current_occurrence: @current_occurrence,
           history: @history,
           upcoming: @upcoming,
+          upcoming_occurrences: @upcoming_occurrences,
           analytics: @analytics,
           payment_history: @payment_history,
           yearly_metrics: @yearly_metrics,

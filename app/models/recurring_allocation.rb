@@ -28,6 +28,14 @@ class RecurringAllocation < ApplicationRecord
 
   before_validation :default_paid_on
 
+  # Which of these entries Sure posted by itself, in one query for a whole
+  # transaction list.
+  def self.auto_posted_entry_ids(entry_ids)
+    return Set.new if entry_ids.empty?
+
+    from_auto_posted.where(entry_id: entry_ids).distinct.pluck(:entry_id).to_set
+  end
+
   private
     def currency_matches_occurrence
       return if recurring_occurrence.nil? || currency == recurring_occurrence.currency

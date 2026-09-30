@@ -58,7 +58,7 @@ class RecurringTransaction < ApplicationRecord
   validate :anchor_required_for_intervals
   validate :end_mode_fields_consistent
   validate :bill_type_matches_shape
-  validate :auto_post_requirements, if: :auto_post?
+  validate :auto_post_requirements, if: :auto_post_requirements_changed?
 
   normalizes :payment_url, with: ->(url) { normalize_payment_url(url) }
 
@@ -277,6 +277,14 @@ class RecurringTransaction < ApplicationRecord
       .where(auto_posted_at: nil)
       .where(due_on: auto_post_from..today)
       .order(:due_on)
+  end
+
+  # Checked when auto-posting is switched on or what it depends on is edited,
+  # not on every save: linking a bank to the account changes no column here,
+  # and background updates to such a series (matcher hints, cleanup) must not
+  # start failing validation. The Poster switches it off on its next run.
+  def auto_post_requirements_changed?
+    auto_post? && (%w[auto_post account_id destination_account_id amount_strategy currency] & changes_to_save.keys).any?
   end
 
   def auto_post_requirements

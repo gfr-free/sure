@@ -13,3 +13,4 @@ de:
               manual_account_required: ist nur möglich, wenn alle Konten dieser Rechnung manuell geführt werden
               fixed_amount_required: braucht einen festen Betrag
               account_currency_required: braucht dieselbe Währung wie das Konto
+              destination_not_writable: braucht Schreibrechte auf dem Zielkonto

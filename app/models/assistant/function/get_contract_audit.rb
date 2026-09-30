@@ -78,7 +78,8 @@ class Assistant::Function::GetContractAudit < Assistant::Function
     end
 
     def possible_duplicates(contracts)
-      contracts.group_by { |contract| [ contract.kind, contract.provider_display_name.to_s.downcase ] }
+      contracts.select { |contract| contract.merchant_id.present? }
+               .group_by { |contract| [ contract.kind, contract.provider_display_name.to_s.downcase ] }
                .values
                .select { |group| group.size > 1 }
                .map { |group| group.map { |contract| { id: contract.id, name: contract.name } } }

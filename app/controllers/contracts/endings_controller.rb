@@ -6,6 +6,9 @@ class Contracts::EndingsController < Contracts::BaseController
 
   def new
     @ends_on = @contract.ends_on || @contract.notice_schedule.earliest_end_on || Date.current
+    @ends_bills = RecurringTransaction.writable_by(Current.user)
+                                      .where(contract_id: @contract.id, status: %w[active inactive paused])
+                                      .exists?
     render layout: dialog_layout
   end
 

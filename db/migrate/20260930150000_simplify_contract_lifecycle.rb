@@ -4,22 +4,20 @@
 # merchant of that name.
 class SimplifyContractLifecycle < ActiveRecord::Migration[8.1]
   def up
+    # Providers match merchants the way the app does: trimmed and ignoring
+    # case. Only names with no match become new merchants.
+    link_providers_to_merchants
+
     execute <<~SQL
       INSERT INTO merchants (id, type, family_id, name, color, created_at, updated_at)
-      SELECT gen_random_uuid(), 'FamilyMerchant', family_id, provider_name, '#6471eb', NOW(), NOW()
-      FROM (SELECT DISTINCT family_id, provider_name FROM contracts
-            WHERE merchant_id IS NULL AND provider_name IS NOT NULL) providers
+      SELECT gen_random_uuid(), 'FamilyMerchant', family_id, name, '#6471eb', NOW(), NOW()
+      FROM (SELECT DISTINCT ON (family_id, LOWER(BTRIM(provider_name))) family_id, BTRIM(provider_name) AS name
+            FROM contracts
+            WHERE merchant_id IS NULL AND BTRIM(COALESCE(provider_name, '')) <> '') providers
       ON CONFLICT (family_id, name) WHERE ((type)::text = 'FamilyMerchant'::text) DO NOTHING
     SQL
 
-    execute <<~SQL
-      UPDATE contracts SET merchant_id = merchants.id
-      FROM merchants
-      WHERE contracts.merchant_id IS NULL
-        AND merchants.type = 'FamilyMerchant'
-        AND merchants.family_id = contracts.family_id
-        AND merchants.name = contracts.provider_name
-    SQL
+    link_providers_to_merchants
 
     # A cancelled contract ends; without a stored end date the cancellation
     # dates stand in, so no reminders start again for it.
@@ -50,4 +48,17 @@ class SimplifyContractLifecycle < ActiveRecord::Migration[8.1]
                          "status IN ('active','cancellation_sent','cancelled','ended')",
                          name: "chk_contracts_status"
   end
+
+  private
+
+    def link_providers_to_merchants
+      execute <<~SQL
+        UPDATE contracts SET merchant_id = merchants.id
+        FROM merchants
+        WHERE contracts.merchant_id IS NULL
+          AND merchants.type = 'FamilyMerchant'
+          AND merchants.family_id = contracts.family_id
+          AND LOWER(merchants.name) = LOWER(BTRIM(contracts.provider_name))
+      SQL
+    end
 end

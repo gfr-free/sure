@@ -37,6 +37,18 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     assert bill.reload.ends_never?
   end
 
+  test "the ending dialog mentions only bills the user may end" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @contract, account: accounts(:loan)) # an account not shared with the member
+    @contract.contract_shares.find_by!(user: @member).update!(permission: "read_write")
+    sign_in @member
+
+    get new_contract_ending_url(@contract)
+
+    assert_response :success
+    assert_not_includes response.body, I18n.t("contracts.endings.new.bills_hint")
+  end
+
   test "ending needs a date and cannot end before the start" do
     post contract_ending_url(@contract), params: { ending: { ends_on: "" } }
     assert_response :unprocessable_entity

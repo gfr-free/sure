@@ -155,6 +155,15 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert result[:upcoming_deadlines].any? { |row| row[:id] == @insurance.id }
   end
 
+  test "the audit does not flag contracts without a merchant as duplicates" do
+    @admin.family.contracts.create!(owner: @admin, name: "Home insurance", kind: "insurance")
+    @admin.family.contracts.create!(owner: @admin, name: "Travel insurance", kind: "insurance")
+
+    result = call(Assistant::Function::GetContractAudit, @admin)
+
+    assert_empty result[:possible_duplicates]
+  end
+
   test "contract tools respect the family's bills switch" do
     @admin.family.update!(recurring_transactions_disabled: true)
 

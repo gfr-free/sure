@@ -136,6 +136,32 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_empty result[:results]
   end
 
+  test "drops unknown hits while a contract upload is unfinished" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-known")
+    document = contracts(:phone_plan).contract_documents.new(ai_searchable: true) # uploaded, but no local record yet
+    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "plan.pdf", content_type: "application/pdf")
+    document.save!
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "private plan", filename: "plan.pdf", score: 0.9, file_id: "file-orphan" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-known" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "plan")
+
+    assert_equal [ "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
 

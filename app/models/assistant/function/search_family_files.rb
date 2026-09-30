@@ -157,7 +157,8 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
     # are dropped here; everything else keeps its family-wide visibility.
     # A contract file whose contract document is already deleted or opted out
     # of search (its removal from the store may still be pending) is dropped
-    # as well.
+    # as well. While a contract upload is unfinished, its copy may already be
+    # in the store without a local record, so unknown hits are dropped too.
     def results_visible_to_user(results)
       file_ids = results.filter_map { |result| result[:file_id] }.uniq
       return results if file_ids.empty?
@@ -170,6 +171,11 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
       contract_files = family.family_documents.where(provider_file_id: file_ids)
                                               .where("metadata ->> 'type' = ?", "contract")
                                               .pluck(:provider_file_id)
+      known_files = family.family_documents.where(provider_file_id: file_ids).pluck(:provider_file_id).to_set
+      pending_contract_upload = ContractDocument.joins(:contract)
+                                                .where(contracts: { family_id: family.id }, ai_searchable: true, family_document_id: nil)
+                                                .exists?
+      results = results.select { |result| result[:file_id].blank? || known_files.include?(result[:file_id]) } if pending_contract_upload
       return results if contract_by_file.empty? && contract_files.empty?
 
       visible = family.contracts.accessible_by(user).where(id: contract_by_file.values.uniq).pluck(:id).to_set

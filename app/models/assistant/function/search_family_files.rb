@@ -111,14 +111,16 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
 
     Rails.logger.debug("[SearchFamilyFiles] #{results.size} chunk(s) returned")
 
+    # Filtered before logging, so hits from private contract documents never
+    # reach the logs; no content preview either.
+    results = results_visible_to_user(results)
+
     results.each_with_index do |r, i|
       Rails.logger.debug(
         "[SearchFamilyFiles] chunk[#{i}] score=#{r[:score]} file=#{r[:filename].inspect} " \
-        "content_length=#{r[:content]&.length} preview=#{r[:content]&.truncate(10).inspect}"
+        "content_length=#{r[:content]&.length}"
       )
     end
-
-    results = results_visible_to_user(results)
 
     mapped = results.map do |result|
       { content: result[:content], filename: result[:filename], score: result[:score] }

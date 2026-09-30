@@ -4,6 +4,13 @@ class Entry < ApplicationRecord
   TRUTHY_VALUES = [ true, "true", "1", 1 ].freeze
   private_constant :TRUTHY_VALUES
 
+  # Attributes that only describe an entry. Balance materialization and
+  # transfer matching never read them, so an edit limited to them doesn't need
+  # an account sync. Reports and budgets pick such edits up through
+  # Family#entries_cache_version, which the save itself bumps.
+  DESCRIPTIVE_ATTRIBUTES = %w[name notes updated_at].freeze
+  DESCRIPTIVE_TRANSACTION_ATTRIBUTES = %w[category_id merchant_id updated_at].freeze
+
   attr_accessor :unsplitting
 
   monetize :amount
@@ -301,13 +308,6 @@ class Entry < ApplicationRecord
     sync_start_date = [ date_previously_was, date ].compact.min unless destroyed?
     account.sync_later(window_start_date: sync_start_date)
   end
-
-  # Attributes that only describe an entry. Balance materialization and
-  # transfer matching never read them, so an edit limited to them doesn't need
-  # an account sync. Reports and budgets pick such edits up through
-  # Family#entries_cache_version, which the save itself bumps.
-  DESCRIPTIVE_ATTRIBUTES = %w[name notes updated_at].freeze
-  DESCRIPTIVE_TRANSACTION_ATTRIBUTES = %w[category_id merchant_id updated_at].freeze
 
   # Whether the last save changed anything a sync depends on. Call it right
   # after the save, before any follow-up write resets saved_changes.

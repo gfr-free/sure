@@ -32,6 +32,7 @@ class EntryTest < ActiveSupport::TestCase
 
     assert_not_nil category.reload.last_used_at
   end
+
   test "descriptive edits do not affect balances" do
     entry = create_transaction(account: accounts(:depository), amount: 100)
     entry = Entry.find(entry.id)

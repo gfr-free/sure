@@ -17,7 +17,7 @@ class RecurringAllocation < ApplicationRecord
 
   enum :state, { suggested: "suggested", confirmed: "confirmed" }, prefix: :allocation
   enum :source, { auto_matched: "auto_matched", user_confirmed: "user_confirmed",
-                  user_created: "user_created" }, prefix: :from
+                  user_created: "user_created", auto_posted: "auto_posted" }, prefix: :from
 
   validates :allocated_amount, presence: true, numericality: { greater_than: 0 }
   validates :currency, presence: true

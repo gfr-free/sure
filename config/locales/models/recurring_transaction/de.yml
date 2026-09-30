@@ -1,7 +1,15 @@
 ---
 de:
   activerecord:
+    attributes:
+      recurring_transaction:
+        auto_post: Automatisch buchen
     errors:
       models:
         recurring_transaction:
           merchant_or_name_required: Entweder Händler oder Name muss angegeben sein
+          attributes:
+            auto_post:
+              manual_account_required: ist nur möglich, wenn alle Konten dieser Rechnung manuell geführt werden
+              fixed_amount_required: braucht einen festen Betrag
+              account_currency_required: braucht dieselbe Währung wie das Konto

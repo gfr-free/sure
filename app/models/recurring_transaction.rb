@@ -58,10 +58,12 @@ class RecurringTransaction < ApplicationRecord
   validate :anchor_required_for_intervals
   validate :end_mode_fields_consistent
   validate :bill_type_matches_shape
+  validate :auto_post_requirements, if: :auto_post?
 
   normalizes :payment_url, with: ->(url) { normalize_payment_url(url) }
 
   before_validation :derive_transfer_bill_type
+  before_save :start_auto_posting_today, if: -> { auto_post? && will_save_change_to_auto_post? }
 
   # Columns whose change reshapes the occurrence stream. Amount is absent on
   # purpose: open occurrences inherit it at read time.
@@ -257,6 +259,40 @@ class RecurringTransaction < ApplicationRecord
     destination_account_id.present?
   end
 
+  # Auto-posting writes real entries, so it is limited to accounts no bank
+  # feeds: on a linked account the posted entry would sit beside the bank's
+  # own copy of the same payment. A transfer needs both ends manual.
+  def auto_post_accounts_manual?
+    account.present? && account.manual? && (!transfer? || destination_account&.manual?)
+  end
+
+  # Open dates from the start date through `today` that have not posted yet.
+  # A date that already posted never qualifies again, even after its entry is
+  # deleted and the occurrence reopens.
+  def auto_postable_occurrences(today)
+    return recurring_occurrences.none if auto_post_from.blank?
+
+    recurring_occurrences
+      .open_status
+      .where(auto_posted_at: nil)
+      .where(due_on: auto_post_from..today)
+      .order(:due_on)
+  end
+
+  def auto_post_requirements
+    errors.add(:auto_post, :manual_account_required) unless auto_post_accounts_manual?
+    errors.add(:auto_post, :fixed_amount_required) unless amount_fixed?
+    if account.present? && currency != account.currency
+      errors.add(:auto_post, :account_currency_required)
+    end
+  end
+
+  # Switching auto-posting on never backfills the past: only dates from today
+  # on post. Re-enabling restarts from the new day.
+  def start_auto_posting_today
+    self.auto_post_from = Date.current
+  end
+
   scope :for_family, ->(family) { where(family: family) }
   scope :expected_soon, -> { active.where("next_expected_date <= ?", 1.month.from_now) }
 
@@ -285,6 +321,8 @@ class RecurringTransaction < ApplicationRecord
   # The bills that want an action from you. Autopay bills still belong on the
   # list, but they are not tasks.
   scope :needs_action, -> { where(autopay: false) }
+
+  scope :auto_posting, -> { active.where(auto_post: true) }
 
   # Derived rather than read from the stored `next_expected_date`, which can sit
   # a cycle too far out when a payment posts earlier than the expected day.

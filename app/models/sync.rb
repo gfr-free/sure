@@ -26,10 +26,18 @@ class Sync < ApplicationRecord
   # sync_later stops piggybacking new requests onto a dying sync.
   scope :visible, -> { incomplete.where("syncs.created_at > ?", VISIBLE_FOR.ago).where(cancel_requested_at: nil) }
   # Syncs a new sync_later request can piggyback on: the visible ones, plus
-  # pending syncs of any age. A pending sync may be waiting (SyncJob retrying)
+  # older pending syncs whose SyncJob is still retrying. Such a sync is waiting
   # for a long-running sync of the same syncable to release its lock; without
   # this every later trigger would queue yet another full sync behind it.
-  scope :joinable, -> { visible.or(where(status: "pending", cancel_requested_at: nil)) }
+  # SyncJob stamps last_attempted_at on every attempt, so a pending sync whose
+  # job was lost stops attracting requests and the next trigger enqueues anew.
+  JOINABLE_ATTEMPT_WINDOW = 5.minutes
+  scope :joinable, -> {
+    visible.or(
+      where(status: "pending", cancel_requested_at: nil)
+        .where("syncs.last_attempted_at > ?", JOINABLE_ATTEMPT_WINDOW.ago)
+    )
+  }
 
   after_commit :update_family_sync_timestamp, on: [ :create, :update ]
 

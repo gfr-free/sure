@@ -23,6 +23,9 @@ class SyncJob < ApplicationJob
       Rails.logger.warn("SyncJob: failed to attach balances_only? flag: #{e.class} - #{e.message}")
     end
 
+    # Heartbeat for Sync.joinable: shows this pending sync still has a live job.
+    sync.update_column(:last_attempted_at, Time.current) if sync.pending?
+
     begin
       sync.perform
     rescue Sync::ConcurrentSyncError

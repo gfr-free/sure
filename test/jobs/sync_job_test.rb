@@ -21,6 +21,16 @@ class SyncJobTest < ActiveJob::TestCase
     end
   end
 
+  test "stamps each attempt on a pending sync so later requests can join it" do
+    sync = accounts(:depository).syncs.create!
+    sync.expects(:perform).raises(Sync::ConcurrentSyncError)
+
+    freeze_time do
+      SyncJob.perform_now(sync)
+      assert_equal Time.current, sync.reload.last_attempted_at
+    end
+  end
+
   test "reports a sync that has waited on another sync for over an hour" do
     sync = accounts(:depository).syncs.create!(created_at: 2.hours.ago)
     sync.stubs(:perform).raises(Sync::ConcurrentSyncError)

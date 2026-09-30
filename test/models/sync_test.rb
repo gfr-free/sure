@@ -456,6 +456,7 @@ class SyncTest < ActiveSupport::TestCase
   test "sync_later piggybacks on a pending sync older than VISIBLE_FOR" do
     syncable = accounts(:depository)
     waiting_sync = Sync.create!(syncable: syncable, created_at: Sync::VISIBLE_FOR.ago - 10.minutes,
+                                last_attempted_at: 30.seconds.ago,
                                 window_start_date: 2.days.ago.to_date, window_end_date: 2.days.ago.to_date)
 
     assert_no_difference "Sync.count" do
@@ -467,6 +468,20 @@ class SyncTest < ActiveSupport::TestCase
     assert_equal 5.days.ago.to_date, waiting_sync.reload.window_start_date
     assert_equal Date.current, waiting_sync.window_end_date
     refute_includes Sync.visible, waiting_sync, "the UI window is unchanged"
+  end
+
+  test "sync_later does not piggyback on an old pending sync whose job is no longer retrying" do
+    syncable = accounts(:depository)
+    [ nil, Sync::JOINABLE_ATTEMPT_WINDOW.ago - 1.minute ].each do |last_attempted_at|
+      lost_sync = Sync.create!(syncable: syncable, created_at: Sync::VISIBLE_FOR.ago - 10.minutes,
+                               last_attempted_at: last_attempted_at)
+
+      assert_enqueued_with(job: SyncJob) do
+        refute_equal lost_sync, syncable.sync_later
+      end
+
+      Sync.where(syncable: syncable).where.not(id: lost_sync.id).delete_all
+    end
   end
 
   test "runs once the other worker has released the syncable" do

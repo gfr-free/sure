@@ -157,6 +157,18 @@ class Portfolio::PerformanceTest < ActiveSupport::TestCase
     assert_equal 1100, without_currency_effect.end_value
   end
 
+  test "days before the first rate in range use the last earlier rate" do
+    eur = create_investment_account("Depot EUR", currency: "EUR")
+    balances(eur, @start - 1 => 1000, @start + 30 => 1000)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: @start - 60, rate: 1.0)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: @start + 30, rate: 1.1)
+
+    result = performance(@start, @start + 30, accounts: [ eur ]).result
+
+    assert_equal 1000, result.start_value
+    assert_in_delta 0.10, result.time_weighted_return, 0.0001
+  end
+
   test "leaves out accounts whose currency has no rate and says so" do
     chf = create_investment_account("Depot CHF", currency: "CHF")
     balances(chf, @start - 1 => 5000, @start + 9 => 1)

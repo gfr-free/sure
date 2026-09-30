@@ -279,9 +279,19 @@ class Portfolio::Performance
         family.build_cache_key("portfolio_performance", invalidate_on_data_updates: true),
         family.entries_cache_version,
         Digest::MD5.hexdigest(accounts.map(&:id).sort.join(",")),
-        start_date, end_date, currency, @fixed_rates
+        start_date, end_date, currency, @fixed_rates,
+        exchange_rates_version
       ]
 
       Rails.cache.fetch(key, expires_in: 1.day, &block)
+    end
+
+    # Rate imports do not touch the family's cache key, so a new or corrected
+    # rate for one of the accounts' currencies has to expire the result itself.
+    def exchange_rates_version
+      foreign = accounts.map(&:currency).uniq - [ currency ]
+      return nil if foreign.empty?
+
+      ExchangeRate.where(from_currency: foreign, to_currency: currency).maximum(:updated_at)&.to_f
     end
 end

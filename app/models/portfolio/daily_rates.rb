@@ -52,13 +52,15 @@ class Portfolio::DailyRates
           .order(:date)
           .pluck(:date, :rate)
 
-        rows = latest_before_range(from) if rows.empty?
+        # The last rate before the lookback carries into early days even when
+        # the range has rates of its own, so those days are not converted at
+        # a later rate.
+        rows = latest_before_range(from) + rows
         rows.map { |date, rate| [ date, rate.to_d ] }
       end
     end
 
-    # A pair whose stored rates all predate the range still has a usable rate:
-    # the last one known.
+    # The last rate known before the lookback window, if any.
     def latest_before_range(from)
       ExchangeRate
         .where(from_currency: from, to_currency: to)

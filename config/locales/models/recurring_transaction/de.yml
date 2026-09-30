@@ -4,6 +4,9 @@ de:
     attributes:
       recurring_transaction:
         auto_post: Automatisch buchen
+        destination_account: Zielkonto
+        merchant: Händler
+        tags: Tags
     errors:
       models:
         recurring_transaction:
@@ -14,3 +17,7 @@ de:
               fixed_amount_required: braucht einen festen Betrag
               account_currency_required: braucht dieselbe Währung wie das Konto
               destination_not_writable: braucht Schreibrechte auf dem Zielkonto
+            destination_account:
+              same_as_source: darf nicht dasselbe Konto wie das Quellkonto sein
+            merchant:
+              invalid: steht dir nicht zur Verfügung

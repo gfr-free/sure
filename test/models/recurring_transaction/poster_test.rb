@@ -179,6 +179,29 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert occurrence.paid?
   end
 
+  test "posts the series' tags and locks them against rules" do
+    @rent.update!(tags: [ tags(:one), tags(:two) ])
+
+    post!
+
+    transaction = @account.entries.find_by(name: "Rent").transaction
+    assert_equal [ tags(:one), tags(:two) ].sort_by(&:id), transaction.tags.sort_by(&:id)
+    assert transaction.locked?(:tag_ids)
+  end
+
+  test "tags both legs of a posted transfer" do
+    transfer_series = travel_to(@today) do
+      create_series(name: "Savings plan", amount: 100, destination_account: accounts(:credit_card), tags: [ tags(:one) ])
+    end
+    occurrence_on(transfer_series, @today)
+
+    post!
+
+    transfer = Transfer.order(:created_at).last
+    assert_equal [ tags(:one) ], transfer.outflow_transaction.tags.to_a
+    assert_equal [ tags(:one) ], transfer.inflow_transaction.tags.to_a
+  end
+
   test "the matcher leaves a posted entry alone" do
     post!
     entry = @account.entries.find_by(name: "Rent")

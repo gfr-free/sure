@@ -19,6 +19,25 @@ module RecurringTransactionsHelper
     accounts.reorder(nil).manual.pluck(:id)
   end
 
+  # Writable accounts only, since a posted transfer writes into the
+  # destination too. The current destination stays listed even when the user
+  # could not pick it, so saving the form does not silently clear it.
+  def recurring_destination_options(recurring_transaction)
+    options = Current.family.accounts.writable_by(Current.user).visible.alphabetically.to_a
+    current = recurring_transaction.destination_account
+    options << current if current && options.exclude?(current)
+    options
+  end
+
+  # Same idea for the merchant: a detected one may no longer be in the list
+  # the user can pick from.
+  def recurring_merchant_options(recurring_transaction)
+    options = Current.family.available_merchants_for(Current.user).alphabetically.to_a
+    current = recurring_transaction.merchant
+    options << current if current && options.exclude?(current)
+    options
+  end
+
   def frequency_preset_options(recurring_transaction)
     options = RecurringTransaction::FrequencyPreset::PRESETS.map do |preset|
       [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]

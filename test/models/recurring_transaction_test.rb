@@ -24,6 +24,33 @@ class RecurringTransactionTest < ActiveSupport::TestCase
       "a destination outside the family is not this family's obligation"
   end
 
+  test "tags must belong to the family" do
+    foreign_tag = families(:empty).tags.create!(name: "Foreign")
+    series = @family.recurring_transactions.new(
+      name: "Gym", account: @account, amount: 30, currency: "USD",
+      expected_day_of_month: 5, status: "active", manual: true
+    )
+
+    series.tags = [ tags(:one) ]
+    assert series.valid?
+
+    series.tags = [ foreign_tag ]
+    assert_not series.valid?
+    assert series.errors.added?(:tags, :invalid)
+  end
+
+  test "deleting a tag removes it from the series" do
+    series = @family.recurring_transactions.create!(
+      name: "Gym", account: @account, amount: 30, currency: "USD",
+      expected_day_of_month: 5, last_occurrence_date: Date.current,
+      next_expected_date: 1.month.from_now.to_date, status: "active", manual: true, tags: [ tags(:one) ]
+    )
+
+    tags(:one).destroy!
+
+    assert_empty series.reload.tags
+  end
+
   test "auto-posting is allowed on a manual account with a fixed amount" do
     series = build_recurring(auto_post: true)
 

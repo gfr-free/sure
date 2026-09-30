@@ -18,6 +18,13 @@ de:
       auto_post_hint: Sure legt die Buchung am Fälligkeitstag selbst im Konto an.
       income_auto_post_hint: Sure legt den Eingang am Zahltag selbst im Konto an.
       auto_post_manual_only: Nur für manuell geführte Konten. Ein verknüpftes Konto bekommt diese Buchung schon von der Bank.
+      destination_label: Geld verschieben auf
+      destination_blank: "(keins, das ist eine Rechnung)"
+      destination_hint: Wähle ein Konto, um daraus eine wiederkehrende Umbuchung zu machen, etwa einen Sparplan oder eine Kartenzahlung.
+      merchant_label: Händler
+      merchant_blank: "(keiner)"
+    create:
+      destination_invalid: Wähle ein Zielkonto, auf das du schreiben darfst, oder lass das Feld leer
     identify_patterns: Muster erkennen
     cleanup_stale: Alte Einträge bereinigen
     settings:

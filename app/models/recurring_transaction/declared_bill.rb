@@ -51,6 +51,7 @@ class RecurringTransaction
         manual: true,
         occurrence_count: 0
       )
+      recurring.tags = family.tags.where(id: Array(attrs[:tag_ids]).compact_blank)
       recurring.frequency_preset = attrs[:frequency_preset]
       recurring.frequency_interval = attrs[:frequency_interval]
       recurring.frequency_interval_unit = attrs[:frequency_interval_unit]
@@ -62,6 +63,25 @@ class RecurringTransaction
       if attrs[:account_id].present? && account.nil?
         recurring.errors.add(:base, I18n.t("recurring_transactions.create.account_invalid"))
         return recurring
+      end
+
+      # Same rule as the account: a merchant this user cannot see, or a
+      # destination they cannot write, is refused rather than dropped.
+      if attrs[:merchant_id].present?
+        recurring.merchant = family.available_merchants_for(user).find_by(id: attrs[:merchant_id])
+        if recurring.merchant.nil?
+          recurring.errors.add(:merchant, :invalid)
+          return recurring
+        end
+      end
+
+      # A paycheck has no destination; only bills can become transfers.
+      if attrs[:destination_account_id].present? && !is_income
+        recurring.destination_account = family.accounts.writable_by(user).find_by(id: attrs[:destination_account_id])
+        if recurring.destination_account.nil?
+          recurring.errors.add(:base, I18n.t("recurring_transactions.create.destination_invalid"))
+          return recurring
+        end
       end
 
       if amount.nil?

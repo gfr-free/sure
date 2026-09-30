@@ -20,6 +20,10 @@ class RecurringTransaction < ApplicationRecord
   has_many :recurring_occurrences, dependent: :destroy
   has_many :recurring_match_rejections, dependent: :destroy
   has_many :recurring_price_changes, dependent: :destroy
+  # Tags the posted entries carry. Same polymorphic join Transaction uses, so
+  # deleting or replacing a tag reaches these rows too.
+  has_many :taggings, as: :taggable, dependent: :destroy
+  has_many :tags, through: :taggings
 
   monetize :amount
   monetize :expected_amount_min, allow_nil: true
@@ -51,6 +55,7 @@ class RecurringTransaction < ApplicationRecord
             allow_nil: true
   validate :merchant_or_name_present
   validate :category_belongs_to_family
+  validate :tags_belong_to_family
   validate :accounts_belong_to_family
   validate :amount_variance_consistency
   validate :transfer_endpoints_consistent
@@ -138,6 +143,14 @@ class RecurringTransaction < ApplicationRecord
     unless Category.where(id: category_id, family_id: family_id).exists?
       errors.add(:category_id, :invalid)
     end
+  end
+
+  # tag_ids= looks tags up without a family scope, so a crafted id would
+  # otherwise attach another family's tag.
+  def tags_belong_to_family
+    return if family_id.blank?
+
+    errors.add(:tags, :invalid) if tags.any? { |tag| tag.family_id != family_id }
   end
 
   # account_id and destination_account_id are mass-assignable like category_id,

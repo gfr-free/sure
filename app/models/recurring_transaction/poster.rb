@@ -20,7 +20,7 @@ class RecurringTransaction
       posted = 0
       sync_from = {}
 
-      family.recurring_transactions.auto_posting.includes(:account, :destination_account).find_each do |series|
+      family.recurring_transactions.auto_posting.includes(:account, :destination_account, :tags).find_each do |series|
         unless series.auto_post_accounts_manual?
           stop_auto_posting!(series)
           next
@@ -78,11 +78,12 @@ class RecurringTransaction
           notes: series.notes,
           user_modified: true,
           idempotency_key: idempotency_key(occurrence),
-          entryable: Transaction.new(category_id: series.category_id, merchant_id: series.merchant_id)
+          entryable: Transaction.new(category_id: series.category_id, merchant_id: series.merchant_id, tag_ids: series.tag_ids)
         )
         # Rules may fill empty fields later, but never overwrite what the
-        # series set.
+        # series set. Tags live in a join table, so saved_changes misses them.
         entry.lock_saved_attributes!
+        entry.transaction.lock_attr!(:tag_ids) if series.tag_ids.any?
         entry
       end
 
@@ -93,6 +94,7 @@ class RecurringTransaction
           destination_account_id: series.destination_account_id,
           date: occurrence.effective_due_on,
           amount: occurrence.resolved_expected_amount,
+          tag_ids: series.tag_ids,
           idempotency_key: idempotency_key(occurrence)
         ).create
 

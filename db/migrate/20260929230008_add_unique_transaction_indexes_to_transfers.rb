@@ -14,7 +14,7 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
   #   - its fee transactions (normally none on auto-matched transfers) are kept
   #     as standalone transactions: transactions.transfer_id is set to NULL;
   #   - each of its inflow/outflow transactions that is no longer part of any
-  #     transfer is reset the way Transfer#destroy! resets it: kind becomes
+  #     remaining transfer (on either side) is reset the way Transfer#destroy! resets it: kind becomes
   #     "standard" and the entry's idempotency_key is cleared;
   #   - the transaction it shares with the kept transfer is left untouched.
   # Deleted pairs are not recorded as rejected, so the next sync may match a
@@ -91,16 +91,29 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
         execute("DELETE FROM transfers WHERE id IN (#{quoted_list(loser_ids)})")
 
         if freed_ids.any?
+          # A freed id can still be the other-side endpoint of a surviving
+          # transfer outside the conflicting groups (inflow here, outflow
+          # there); only reset transactions no remaining transfer references.
+          unreferenced = <<~SQL.squish
+            NOT EXISTS (
+              SELECT 1 FROM transfers r
+              WHERE r.inflow_transaction_id = transactions.id OR r.outflow_transaction_id = transactions.id
+            )
+          SQL
+
           execute(<<~SQL.squish)
             UPDATE transactions SET kind = 'standard', updated_at = NOW()
-            WHERE id IN (#{quoted_list(freed_ids)})
+            WHERE id IN (#{quoted_list(freed_ids)}) AND #{unreferenced}
           SQL
 
           execute(<<~SQL.squish)
             UPDATE entries SET idempotency_key = NULL, updated_at = NOW()
-            WHERE entryable_type = 'Transaction'
-              AND entryable_id IN (#{quoted_list(freed_ids)})
-              AND idempotency_key IS NOT NULL
+            FROM transactions
+            WHERE entries.entryable_type = 'Transaction'
+              AND entries.entryable_id = transactions.id
+              AND transactions.id IN (#{quoted_list(freed_ids)})
+              AND entries.idempotency_key IS NOT NULL
+              AND #{unreferenced}
           SQL
         end
       end

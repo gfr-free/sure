@@ -40,6 +40,7 @@ class ContractDocument < ApplicationRecord
   # Brings the vector store in line with the opt-in. The uploaded copy carries
   # the contract id, so search results can be filtered to contracts the asking
   # user may see.
+  # Returns false when an opt-out could not be removed from the store yet.
   def sync_search_index!
     family = contract.family
 
@@ -49,9 +50,23 @@ class ContractDocument < ApplicationRecord
         filename: file.filename.to_s,
         metadata: { "type" => "contract", "contract_id" => contract_id, "contract_document_id" => id }
       )
-      update_columns(family_document_id: document.id, updated_at: Time.current) if document
+      return true unless document
+
+      # The upload takes a while; the contract may have moved to another
+      # family or been opted out meanwhile. Then the fresh copy goes again.
+      if ContractDocument.joins(:contract).where(id: id, ai_searchable: true, contracts: { family_id: family.id }).exists?
+        update_columns(family_document_id: document.id, updated_at: Time.current)
+      else
+        ContractDocumentUnindexJob.perform_later(document)
+      end
+      true
     elsif !ai_searchable? && family_document.present?
-      update_columns(family_document_id: nil, updated_at: Time.current) if family.remove_document(family_document)
+      return false unless family.remove_document(family_document)
+
+      update_columns(family_document_id: nil, updated_at: Time.current)
+      true
+    else
+      true
     end
   end
 

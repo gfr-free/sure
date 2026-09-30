@@ -453,6 +453,10 @@ class User < ApplicationRecord
   # new family stays searchable to the old one. The owner opts in again in the
   # new family if they want the assistant to read the document.
   def unindex_moved_contract_documents!(contract_ids)
+    # Also documents whose upload is still running: it sees the reset opt-in
+    # when it finishes and removes its copy again.
+    ContractDocument.where(contract_id: contract_ids, family_document_id: nil)
+                    .update_all(ai_searchable: false, updated_at: Time.current)
     ContractDocument.where(contract_id: contract_ids).where.not(family_document_id: nil)
                     .includes(:family_document).find_each do |document|
       family_document = document.family_document

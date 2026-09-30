@@ -333,6 +333,9 @@ class ContractTest < ActiveSupport::TestCase
     document.save!
     family_document = @family.family_documents.create!(filename: "policy.pdf", status: "ready", provider_file_id: "file-move-1")
     document.update!(ai_searchable: true, family_document: family_document)
+    uploading = owned.contract_documents.new(ai_searchable: true) # upload still running
+    uploading.file.attach(io: StringIO.new("%PDF-1.4"), filename: "terms.pdf", content_type: "application/pdf")
+    uploading.save!
 
     @member.transfer_to_family!(new_family)
 
@@ -350,6 +353,7 @@ class ContractTest < ActiveSupport::TestCase
     assert_nil document.family_document_id
     assert_not document.ai_searchable?
     assert_enqueued_with(job: ContractDocumentUnindexJob, args: [ family_document ])
+    assert_not uploading.reload.ai_searchable?, "an upload still running is opted out too"
   end
 
   test "bills can only link contracts of their family" do

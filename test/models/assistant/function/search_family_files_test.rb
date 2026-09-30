@@ -110,6 +110,32 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_equal [ "tax return" ], result[:results].map { |r| r[:content] }
   end
 
+  test "drops hits from contract documents opted out of search" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family_document = family.family_documents.create!(
+      filename: "opted-out.pdf", status: "ready", provider_file_id: "file-opted-out",
+      metadata: { "type" => "contract", "contract_id" => contracts(:phone_plan).id }
+    )
+    document = contracts(:phone_plan).contract_documents.new(family_document: family_document, ai_searchable: false)
+    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "opted-out.pdf", content_type: "application/pdf")
+    document.save!
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [ { content: "opted out", filename: "opted-out.pdf", score: 0.9, file_id: "file-opted-out" } ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "plan")
+
+    assert_empty result[:results]
+  end
+
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
 

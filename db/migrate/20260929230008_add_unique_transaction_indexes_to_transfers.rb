@@ -20,8 +20,6 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
   # Deleted pairs are not recorded as rejected, so the next sync may match a
   # freed transaction again, now protected by these indexes.
   def up
-    resolve_duplicate_transfers
-
     replace_index :inflow_transaction_id, unique: true
     replace_index :outflow_transaction_id, unique: true
   end
@@ -33,11 +31,22 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
   end
 
   private
+    # Builds the replacement index under a temporary name before touching the
+    # existing one, so the column is never left without a valid index: if a
+    # concurrent sync inserts a duplicate and the unique build fails, only the
+    # temporary index is INVALID and the old index keeps serving queries. A re-run
+    # drops that leftover and tries again. Duplicates are resolved immediately
+    # before each unique build to keep that window as small as possible.
     def replace_index(column, unique:)
       name = "index_transfers_on_#{column}"
-      # if_exists also clears an INVALID index left by an interrupted run.
+      temp_name = "#{name}_new"
+
+      resolve_duplicate_transfers if unique
+
+      remove_index :transfers, name: temp_name, if_exists: true, algorithm: :concurrently
+      add_index :transfers, column, name: temp_name, unique: unique, algorithm: :concurrently
       remove_index :transfers, name: name, if_exists: true, algorithm: :concurrently
-      add_index :transfers, column, name: name, unique: unique, algorithm: :concurrently
+      rename_index :transfers, temp_name, name
     end
 
     def resolve_duplicate_transfers

@@ -136,18 +136,20 @@ module Family::AutoTransferMatchable
           outflow_transaction_id: match.outflow_transaction_id,
         )
       end
-    rescue ActiveRecord::RecordNotUnique
-      # A unique index rejected the insert because a concurrent sync committed a
-      # transfer between our find and our insert: either this exact (inflow, outflow)
-      # pair, or a different pairing that claimed one of the two transactions (each
-      # transaction is unique per side). Return the committed row for this exact pair;
-      # otherwise nil, so the caller skips rather than marking a transaction with no
-      # Transfer behind it.
-      existing_transfer(match)
     rescue ActiveRecord::RecordNotFound
-      # find_or_create_by! falls back to create_or_find_by!, which rescues the
-      # RecordNotUnique itself and then raises RecordNotFound when the conflicting
-      # row is a different pairing. Skip, same as above.
+      # A unique index rejected the insert because a concurrent sync committed a
+      # transfer between our find and our insert. In Rails 8.1 find_or_create_by! is
+      # `find_by || create_or_find_by!`, and create_or_find_by! rescues that
+      # RecordNotUnique itself and re-reads the row with find_by!. That returns the
+      # committed row when it is this exact (inflow, outflow) pair, but raises
+      # RecordNotFound when a different pairing claimed one of the two transactions
+      # (each transaction is unique per side). Look again and return nil in that
+      # case, so the caller skips rather than marking a transaction with no Transfer
+      # behind it.
+      existing_transfer(match)
+    rescue ActiveRecord::RecordNotUnique
+      # Defensive: covers a find_or_create_by! that lets the unique violation escape
+      # (as it did before create_or_find_by! became its fallback). Same handling.
       existing_transfer(match)
     rescue ActiveRecord::RecordInvalid => e
       # The same race surfaces through the per-column uniqueness validation. Re-raise

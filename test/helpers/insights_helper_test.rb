@@ -193,6 +193,27 @@ class InsightsHelperTest < ActionView::TestCase
     end
   end
 
+  test "exchange rate jump warns, shows the move and the pair, and renders in German" do
+    insight = build_insight(
+      "exchange_rate_jump",
+      priority: "high",
+      metadata: { "from_currency" => "EUR", "to_currency" => "USD", "direction" => "down" },
+      facts: { "name" => "EUR/USD", "change_pct" => "−13.6", "date" => "September 29, 2026" }
+    )
+
+    assert_equal :warning, insight_sentiment(insight)
+    assert_equal [ "−13.6%", "September 29, 2026" ], insight_key_figure(insight)
+    assert_nil insight_action(insight)
+
+    I18n.with_locale(:de) do
+      assert_equal "Wechselkurs · EUR/USD", insight_meta_line(insight)
+    end
+
+    %w[types titles templates].each do |scope|
+      assert I18n.exists?("insights.#{scope}.exchange_rate_jump", :de, fallback: false)
+    end
+  end
+
   private
     def build_insight(insight_type, priority: "medium", metadata: {}, facts: {}, period_start: nil, period_end: nil)
       Insight.new(

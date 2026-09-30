@@ -10,7 +10,8 @@ module InsightsHelper
     "budget_on_track" => "circle-check",
     # Same shield the reserve panel uses on the goal page, so the two read as
     # the same object seen from two places.
-    "maintained_goal_depleted" => "shield-alert"
+    "maintained_goal_depleted" => "shield-alert",
+    "exchange_rate_jump" => "arrow-left-right"
   }.freeze
 
   def insight_icon_key(insight)
@@ -81,6 +82,8 @@ module InsightsHelper
     when "budget_on_track"
       # Still the right figure here, where overall usage *is* the subject.
       facts["budget_spent_pct"] && [ "#{facts["budget_spent_pct"]}%", t("insights.figures.of_budget") ]
+    when "exchange_rate_jump"
+      facts["change_pct"] && [ "#{facts["change_pct"]}%", facts["date"] ]
     end
   end
 
@@ -158,7 +161,7 @@ module InsightsHelper
       metadata["direction"] == "below" ? :positive : :warning
     when "cash_flow_warning"
       metadata["negative"] ? :negative : :warning
-    when "budget_at_risk", "maintained_goal_depleted"
+    when "budget_at_risk", "maintained_goal_depleted", "exchange_rate_jump"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

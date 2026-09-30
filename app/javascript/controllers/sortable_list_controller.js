@@ -303,12 +303,32 @@ export default class extends Controller {
       .reduceRight((value, key) => ({ [key]: value }), order);
   }
 
-  async saveOrder() {
-    const order = this.itemTargets.map((item) => item.dataset.sortableListId);
+  // Saves run one at a time. A change made while a save is in flight is sent
+  // once it finishes, with the latest order only, so an older request can
+  // never land after a newer one and restore an earlier order.
+  saveOrder() {
+    this.pendingOrder = this.itemTargets.map(
+      (item) => item.dataset.sortableListId,
+    );
+    if (!this.saving) this.flushSaves();
+  }
 
+  async flushSaves() {
+    this.saving = true;
+    while (this.pendingOrder) {
+      const order = this.pendingOrder;
+      this.pendingOrder = null;
+      await this.sendOrder(order);
+    }
+    this.saving = false;
+  }
+
+  async sendOrder(order) {
     // The meta tag is missing when forgery protection is off (e.g. in tests);
     // the server still rejects requests without a valid token when it is on.
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const csrfToken = document.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
     const headers = { "Content-Type": "application/json" };
     if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
@@ -328,6 +348,7 @@ export default class extends Controller {
         );
         // Show the order that is actually saved instead of the unsaved one,
         // e.g. when the list changed in another tab.
+        this.pendingOrder = null;
         Turbo.visit(window.location.href, { action: "replace" });
       }
     } catch (error) {

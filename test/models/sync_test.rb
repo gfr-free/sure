@@ -439,8 +439,8 @@ class SyncTest < ActiveSupport::TestCase
 
   test "does not run while another worker is syncing the same syncable" do
     syncable = accounts(:depository)
-    running_sync = Sync.create!(syncable: syncable, created_at: 10.minutes.ago)
-    # Past VISIBLE_FOR, so sync_later no longer dedupes and creates a second sync
+    running_sync = Sync.create!(syncable: syncable, status: :syncing, created_at: 10.minutes.ago)
+    # A syncing sync past VISIBLE_FOR no longer dedupes, so a second sync is created
     duplicate_sync = syncable.sync_later
     refute_equal running_sync, duplicate_sync
 
@@ -451,6 +451,22 @@ class SyncTest < ActiveSupport::TestCase
     end
 
     assert_equal "pending", duplicate_sync.reload.status
+  end
+
+  test "sync_later piggybacks on a pending sync older than VISIBLE_FOR" do
+    syncable = accounts(:depository)
+    waiting_sync = Sync.create!(syncable: syncable, created_at: Sync::VISIBLE_FOR.ago - 10.minutes,
+                                window_start_date: 2.days.ago.to_date, window_end_date: 2.days.ago.to_date)
+
+    assert_no_difference "Sync.count" do
+      assert_no_enqueued_jobs(only: SyncJob) do
+        assert_equal waiting_sync, syncable.sync_later(window_start_date: 5.days.ago.to_date, window_end_date: Date.current)
+      end
+    end
+
+    assert_equal 5.days.ago.to_date, waiting_sync.reload.window_start_date
+    assert_equal Date.current, waiting_sync.window_end_date
+    refute_includes Sync.visible, waiting_sync, "the UI window is unchanged"
   end
 
   test "runs once the other worker has released the syncable" do

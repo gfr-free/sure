@@ -25,6 +25,11 @@ class Sync < ApplicationRecord
   # Cancel-requested syncs are excluded so spinners clear immediately and
   # sync_later stops piggybacking new requests onto a dying sync.
   scope :visible, -> { incomplete.where("syncs.created_at > ?", VISIBLE_FOR.ago).where(cancel_requested_at: nil) }
+  # Syncs a new sync_later request can piggyback on: the visible ones, plus
+  # pending syncs of any age. A pending sync may be waiting (SyncJob retrying)
+  # for a long-running sync of the same syncable to release its lock; without
+  # this every later trigger would queue yet another full sync behind it.
+  scope :joinable, -> { visible.or(where(status: "pending", cancel_requested_at: nil)) }
 
   after_commit :update_family_sync_timestamp, on: [ :create, :update ]
 

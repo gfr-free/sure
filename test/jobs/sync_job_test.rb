@@ -20,4 +20,47 @@ class SyncJobTest < ActiveJob::TestCase
       SyncJob.perform_now(sync, balances_only: true)
     end
   end
+
+  test "reports a sync that has waited on another sync for over an hour" do
+    sync = accounts(:depository).syncs.create!(created_at: 2.hours.ago)
+    sync.stubs(:perform).raises(Sync::ConcurrentSyncError)
+
+    job = SyncJob.new(sync)
+    job.executions = SyncJob::LONG_WAIT_REPORT_EVERY - 1
+
+    assert_difference "DebugLogEntry.count", 1 do
+      job.perform_now
+    end
+
+    entry = DebugLogEntry.order(:created_at).last
+    assert_equal "sync", entry.category
+    assert_equal "warn", entry.level
+    assert_equal "SyncJob", entry.source
+    assert_equal accounts(:depository).family, entry.family
+    assert_equal sync.id, entry.metadata["sync_id"]
+  end
+
+  test "does not report long waits on every retry" do
+    sync = accounts(:depository).syncs.create!(created_at: 2.hours.ago)
+    sync.stubs(:perform).raises(Sync::ConcurrentSyncError)
+
+    job = SyncJob.new(sync)
+    job.executions = SyncJob::LONG_WAIT_REPORT_EVERY
+
+    assert_no_difference "DebugLogEntry.count" do
+      job.perform_now
+    end
+  end
+
+  test "does not report a sync that has only waited briefly" do
+    sync = accounts(:depository).syncs.create!
+    sync.stubs(:perform).raises(Sync::ConcurrentSyncError)
+
+    job = SyncJob.new(sync)
+    job.executions = SyncJob::LONG_WAIT_REPORT_EVERY - 1
+
+    assert_no_difference "DebugLogEntry.count" do
+      job.perform_now
+    end
+  end
 end

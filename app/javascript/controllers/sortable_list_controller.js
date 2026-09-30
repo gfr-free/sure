@@ -306,20 +306,16 @@ export default class extends Controller {
   async saveOrder() {
     const order = this.itemTargets.map((item) => item.dataset.sortableListId);
 
-    // Safely obtain CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]');
-    if (!csrfToken) {
-      console.error("[Sortable List] CSRF token not found. Cannot save order.");
-      return;
-    }
+    // The meta tag is missing when forgery protection is off (e.g. in tests);
+    // the server still rejects requests without a valid token when it is on.
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const headers = { "Content-Type": "application/json" };
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
     try {
       const response = await fetch(this.urlValue, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken.content,
-        },
+        headers,
         body: JSON.stringify(this.buildBody(order)),
       });
 

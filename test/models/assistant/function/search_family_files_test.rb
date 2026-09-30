@@ -84,6 +84,32 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_equal [ "shared plan", "tax return" ], result[:results].map { |r| r[:content] }
   end
 
+  test "drops hits from contract files whose contract document is gone" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family.family_documents.create!(
+      filename: "orphan.pdf", status: "ready", provider_file_id: "file-orphan",
+      metadata: { "type" => "contract", "contract_id" => contracts(:phone_plan).id }
+    )
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "deleted policy", filename: "orphan.pdf", score: 0.9, file_id: "file-orphan" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-other" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "policy")
+
+    assert_equal [ "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
 

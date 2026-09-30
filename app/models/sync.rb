@@ -50,7 +50,7 @@ class Sync < ApplicationRecord
     end
 
     # Marks a sync that never completed within the expected time window
-    event :mark_stale do
+    event :mark_stale, after_commit: :broadcast_held_back_toast do
       transitions from: %i[pending syncing], to: :stale
     end
   end
@@ -381,6 +381,17 @@ class Sync < ApplicationRecord
       if window_start_date && window_end_date && window_start_date > window_end_date
         errors.add(:window_end_date, "must be greater than window_start_date")
       end
+    end
+
+    # A cancelled sync skips post-sync, so it never sends the refresh toast.
+    # Syncs that finished while it was still visible held theirs back for it,
+    # so send it now unless something else is still running. Rows swept up by
+    # `clean` long after VISIBLE_FOR held nothing back and stay silent.
+    def broadcast_held_back_toast
+      return unless family
+      return unless cancel_requested_at? || created_at > VISIBLE_FOR.ago
+
+      Family::SyncCompleteEvent.new(family).broadcast_toast_if_idle
     end
 
     def update_family_sync_timestamp

@@ -15,11 +15,12 @@ class Family::SyncCompleteEvent
     # This avoids wiping in-progress form state when a background sync fires.
     # The partial contains no user-scoped data (Current.user is nil here), so
     # each browser re-fetches the page on its own authenticated request.
-    family.broadcast_replace_to(
-      family,
-      target: "sync-toast",
-      partial: "shared/notifications/sync_toast"
-    )
+    #
+    # Syncing several connections (or "Sync all") finishes one sync after
+    # another, and every one of them lands here. Only the last one to finish
+    # sends the toast, so the page refreshes once instead of once per sync;
+    # account rows are already replaced in place as each sync completes.
+    broadcast_toast_if_idle
 
     # The accounts page's own sync toolbar (refresh icon + "Cancel sync") is
     # plain server-rendered HTML from whatever request last loaded the page,
@@ -43,4 +44,32 @@ class Family::SyncCompleteEvent
       Rails.logger.error("Family::SyncCompleteEvent recurring transaction identification failed: #{e.message}\n#{e.backtrace&.join("\n")}")
     end
   end
+
+  # Sends the toast unless another sync of the family is still running; that
+  # sync sends it when it finishes (or ends stale, see Sync#mark_stale).
+  # The check runs after commit: this is called inside the finalizing sync's
+  # locked transaction, and two syncs finishing concurrently would otherwise
+  # each see the other's uncommitted "syncing" row and both stay silent.
+  def broadcast_toast_if_idle
+    ActiveRecord.after_all_transactions_commit do
+      broadcast_sync_toast unless other_syncs_in_progress?
+    rescue => e
+      Rails.logger.error("Family::SyncCompleteEvent sync toast broadcast failed: #{e.message}")
+    end
+  end
+
+  private
+    def broadcast_sync_toast
+      family.broadcast_replace_to(
+        family,
+        target: "sync-toast",
+        partial: "shared/notifications/sync_toast"
+      )
+    end
+
+    # Sync.visible ignores syncs started more than Sync::VISIBLE_FOR ago, so a
+    # hung sync only holds back the toast for syncs finishing within that window.
+    def other_syncs_in_progress?
+      Sync.for_family(family).visible.exists?
+    end
 end

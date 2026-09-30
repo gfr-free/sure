@@ -27,6 +27,7 @@ class Category < ApplicationRecord
   validates :name, exclusion: { in: [ UNCATEGORIZED_FILTER_VALUE ] }
 
   validate :category_level_limit
+  validate :parent_belongs_to_family
 
   before_save :inherit_color_from_parent
 
@@ -410,6 +411,10 @@ class Category < ApplicationRecord
       if (subcategory? && parent&.subcategory?) || (parent? && subcategory?)
         errors.add(:parent, "can't have more than 2 levels of subcategories")
       end
+    end
+
+    def parent_belongs_to_family
+      errors.add(:parent, :invalid) if parent && parent.family_id != family_id
     end
 
     def monetizable_currency

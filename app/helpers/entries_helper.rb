@@ -1,6 +1,13 @@
 module EntriesHelper
   SplitGroup = Data.define(:parent, :children)
 
+  # True for rows the current list render flagged as unread (see
+  # UnreadEntriesTrackable). Renders outside those lists (turbo stream
+  # replacements, broadcasts) have no set and show no dot.
+  def unread_entry?(entry)
+    @unread_entry_ids&.include?(entry.id) || false
+  end
+
   def group_split_entries(entries, split_parents)
     return entries if split_parents.blank?
 

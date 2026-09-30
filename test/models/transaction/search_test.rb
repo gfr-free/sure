@@ -1009,4 +1009,38 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal 1, totals.count, "a single transaction tagged with all three must be counted once"
     assert_equal Money.new(42, "USD"), totals.expense_money
   end
+
+  test "unread status filter returns only the user's unread synced transactions" do
+    user = users(:family_admin)
+    user.update_column(:transactions_read_before, 1.hour.ago)
+    unread = create_transaction(account: @checking_account, external_id: "unread-1", source: "simplefin")
+    read = create_transaction(account: @checking_account, external_id: "read-1", source: "simplefin")
+    manual = create_transaction(account: @checking_account)
+    user.mark_entries_read!([ read.id ])
+
+    search = Transaction::Search.new(@family, filters: { status: [ "unread" ] }, user: user)
+    ids = search.transactions_scope.pluck("entries.id")
+
+    assert_equal [ unread.id ], ids
+    assert_equal 1, search.totals.count
+    assert_not_includes ids, manual.id
+  end
+
+  test "unread status combines with pending and confirmed" do
+    user = users(:family_admin)
+    user.update_column(:transactions_read_before, 1.hour.ago)
+    unread = create_transaction(account: @checking_account, external_id: "unread-2", source: "simplefin")
+
+    search = Transaction::Search.new(@family, filters: { status: [ "confirmed", "unread" ] }, user: user)
+
+    assert_equal [ unread.id ], search.transactions_scope.pluck("entries.id")
+  end
+
+  test "unread status is ignored without a user" do
+    entry = create_transaction(account: @checking_account)
+
+    search = Transaction::Search.new(@family, filters: { status: [ "unread" ] })
+
+    assert_includes search.transactions_scope.pluck("entries.id"), entry.id
+  end
 end

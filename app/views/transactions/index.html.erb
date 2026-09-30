@@ -16,6 +16,16 @@
           <% end %>
         <% end %>
 
+        <% if @has_unread %>
+          <%= render DS::Button.new(
+            text: t(".mark_all_read"),
+            icon: "check-check",
+            variant: "outline",
+            href: transactions_read_path(q: @q.presence),
+            method: :post
+          ) %>
+        <% end %>
+
         <div class="hidden md:flex">
           <%= render DS::Link.new(
             text: t(".import"),

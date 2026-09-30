@@ -3,6 +3,18 @@
     <div class="flex items-center justify-between mb-4" data-testid="activity-menu">
       <%= tag.h2 t("accounts.show.activity.title"), class: "font-medium text-lg" %>
 
+      <% if has_unread %>
+        <%= render DS::Button.new(
+          text: t("accounts.show.activity.mark_all_read"),
+          icon: "check-check",
+          variant: "outline",
+          href: helpers.transactions_read_path(account_id: account.id),
+          method: :post,
+          class: "ml-auto mr-2",
+          data: { turbo_frame: "_top" }
+        ) %>
+      <% end %>
+
       <%# Show menu if: manual (can add balance) OR non-crypto (can add transactions) %>
       <%# This hides the menu only for linked crypto accounts who have no actions %>
       <% if !account.linked? || !account.crypto? %>

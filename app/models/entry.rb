@@ -191,7 +191,10 @@ class Entry < ApplicationRecord
 
       # Handle exact match - auto-exclude only if exactly ONE candidate (high confidence)
       # Multiple candidates = ambiguous = skip to avoid excluding wrong entry
-      if exact_candidates.size == 1
+      # The posted match must also be unambiguous the other way round: two
+      # same-amount pendings would otherwise both be excluded against one booking,
+      # hiding the one that has not booked yet (#2013).
+      if exact_candidates.size == 1 && sole_pending_for?(exact_candidates.first, date_window: date_window)
         posted_match = exact_candidates.first
         detail = {
           pending_id: pending_entry.id,
@@ -287,6 +290,20 @@ class Entry < ApplicationRecord
 
     stats
   end
+
+  # True when no other live pending could claim this posted entry: the same
+  # amount/currency lookup Account::ProviderImportAdapter#find_pending_transaction
+  # runs at import time, seen from the posted side.
+  def self.sole_pending_for?(posted_entry, date_window:)
+    posted_entry.account.entries.pending
+      .where(excluded: false)
+      .where(currency: posted_entry.currency)
+      .where(amount: posted_entry.amount)
+      .where(date: (posted_entry.date - date_window.days)..posted_entry.date)
+      .limit(2)
+      .count == 1
+  end
+  private_class_method :sole_pending_for?
 
   def classification
     amount.negative? ? "income" : "expense"

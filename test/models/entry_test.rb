@@ -32,4 +32,34 @@ class EntryTest < ActiveSupport::TestCase
 
     assert_not_nil category.reload.last_used_at
   end
+
+  test "reconcile_pending_duplicates excludes a pending with one unambiguous booked match" do
+    account = accounts(:depository)
+    pending = create_pending(account, date: 3.days.ago.to_date, amount: 25)
+    create_transaction(account: account, date: 1.day.ago.to_date, amount: 25)
+
+    Entry.reconcile_pending_duplicates(account: account)
+
+    assert pending.reload.excluded?
+  end
+
+  test "reconcile_pending_duplicates keeps both same-amount pendings when only one booked" do
+    account = accounts(:depository)
+    first = create_pending(account, date: 3.days.ago.to_date, amount: 20)
+    second = create_pending(account, date: 2.days.ago.to_date, amount: 20)
+    create_transaction(account: account, date: 1.day.ago.to_date, amount: 20)
+
+    Entry.reconcile_pending_duplicates(account: account)
+
+    assert_not first.reload.excluded?
+    assert_not second.reload.excluded?
+  end
+
+  private
+    def create_pending(account, date:, amount:)
+      create_transaction(
+        account: account, date: date, amount: amount,
+        entryable: Transaction.new(extra: { "simplefin" => { "pending" => true } })
+      )
+    end
 end

@@ -224,9 +224,48 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_equal 50000.0, loan_account.reload.cash_balance
   end
 
+  test "keeps stale pending entries without a booked twin" do
+    # Age-based exclusion is not run for Enable Banking: an ASPSP that keeps the
+    # same id when the pending books would leave the booked entry excluded.
+    stale = create_pending_entry(external_id: "eb_stale_pending", date: 10.days.ago.to_date, amount: 42)
+
+    EnableBankingAccount::Processor.new(@enable_banking_account).process
+
+    assert_not stale.reload.excluded?
+  end
+
+  test "excludes a pending entry once its booked twin exists" do
+    pending = create_pending_entry(external_id: "eb_pending", date: 3.days.ago.to_date, amount: 25)
+    @account.entries.create!(
+      name: "Coffee", date: 1.day.ago.to_date, amount: 25, currency: @account.currency,
+      external_id: "eb_booked", source: "enable_banking",
+      entryable: Transaction.new(extra: { "enable_banking" => { "pending" => false } })
+    )
+
+    EnableBankingAccount::Processor.new(@enable_banking_account).process
+
+    assert pending.reload.excluded?
+  end
+
+  test "pending cleanup failure does not fail processing" do
+    Entry.stubs(:reconcile_pending_duplicates).raises(StandardError, "boom")
+
+    assert_nothing_raised do
+      EnableBankingAccount::Processor.new(@enable_banking_account).process
+    end
+  end
+
   private
     def relink_provider_to(account)
       AccountProvider.find_by(provider: @enable_banking_account)&.destroy
       AccountProvider.create!(account: account, provider: @enable_banking_account)
+    end
+
+    def create_pending_entry(external_id:, date:, amount:)
+      @account.entries.create!(
+        name: "Pending #{external_id}", date: date, amount: amount, currency: @account.currency,
+        external_id: external_id, source: "enable_banking",
+        entryable: Transaction.new(extra: { "enable_banking" => { "pending" => true } })
+      )
     end
 end

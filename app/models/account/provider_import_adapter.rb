@@ -816,7 +816,7 @@ class Account::ProviderImportAdapter
   # @param currency [String] Currency code
   # @param source [String] Provider name (e.g., "simplefin")
   # @param date_window [Integer] Days to search around the posted date (default: 8)
-  # @return [Entry, nil] The pending entry or nil if not found
+  # @return [Entry, nil] The pending entry, or nil when none or several match
   def find_pending_transaction(date:, amount:, currency:, source:, date_window: 8)
     date = Date.parse(date.to_s) unless date.is_a?(Date)
 
@@ -836,9 +836,15 @@ class Account::ProviderImportAdapter
       .where(currency: currency)
       .where(date: (date - date_window.days)..date) # Pending must be ON or BEFORE posted date
       .where(PENDING_LOOKUP_SQL)
-      .order(date: :desc) # Prefer most recent pending transaction
+      .where(excluded: false)
+      .limit(2)
+      .to_a
 
-    candidates.first
+    # Amount, currency and date alone cannot tell two same-amount pendings apart,
+    # so only claim when the match is unambiguous (#2013). Otherwise the posted
+    # transaction is imported as a new entry and the pendings stay for the
+    # stale-pending cleanup.
+    candidates.size == 1 ? candidates.first : nil
   end
 
   # Finds a pending transaction using fuzzy amount matching for tip adjustments

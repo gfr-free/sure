@@ -2,6 +2,7 @@ require "test_helper"
 
 class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCase
   setup do
+    travel_to Time.zone.local(2026, 9, 30, 12)
     @family = families(:dylan_family)
     @family.update!(currency: "USD")
   end
@@ -16,7 +17,7 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
     insight = insights.first
     assert_equal "exchange_rate_jump", insight.insight_type
     assert_equal "high", insight.priority
-    assert_equal "exchange_rate_jump:EUR:USD:#{1.day.ago.to_date.iso8601}", insight.dedup_key
+    assert_equal "exchange_rate_jump:EUR:USD:#{(Date.current - 1).iso8601}", insight.dedup_key
     assert_equal "up", insight.metadata[:direction]
     assert_equal 1.1, insight.metadata[:previous_rate]
     assert_equal 1.25, insight.metadata[:rate]
@@ -40,7 +41,7 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
 
     insights = generate
 
-    assert_equal [ 2.days.ago.to_date.iso8601 ], insights.map { |i| i.metadata[:date] }
+    assert_equal [ (Date.current - 2).iso8601 ], insights.map { |i| i.metadata[:date] }
   end
 
   test "keeps small rates readable" do
@@ -82,7 +83,7 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
 
     insights = generate
 
-    assert_equal [ (window - 1).days.ago.to_date.iso8601 ], insights.map { |i| i.metadata[:date] }
+    assert_equal [ (Date.current - (window - 1)).iso8601 ], insights.map { |i| i.metadata[:date] }
   end
 
   test "writes the insight in German" do
@@ -112,7 +113,7 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
     # { days_ago => rate }
     def rates(from, to, by_days_ago)
       by_days_ago.each do |days_ago, rate|
-        ExchangeRate.create!(from_currency: from, to_currency: to, date: days_ago.days.ago.to_date, rate: rate)
+        ExchangeRate.create!(from_currency: from, to_currency: to, date: Date.current - days_ago, rate: rate)
       end
     end
 end

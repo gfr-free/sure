@@ -36,6 +36,10 @@ class EnableBankingItem::Importer
   # mirroring BALANCE_TYPE_PRIORITY's own XPCD/CLAV/ITAV entries above.
   FRESHNESS_BALANCE_TYPES = %w[xpcd expected clav closingavailable itav interimavailable].freeze
 
+  # Two same-type balances within this distance of each other (or of an expected
+  # value) are treated as equal when breaking a tie (see resolve_same_type_balances).
+  BALANCE_TIEBREAK_TOLERANCE = BigDecimal("0.01")
+
   NETWORK_ERRORS = [
     ::SocketError,
     ::Errno::ECONNREFUSED,
@@ -126,8 +130,6 @@ class EnableBankingItem::Importer
 
     linked_accounts_query.each do |enable_banking_account|
       begin
-        balances_failed += 1 unless fetch_and_update_balance(enable_banking_account)
-
         result = fetch_and_store_transactions(enable_banking_account)
         if result[:success]
           transactions_imported += result[:transactions_count]
@@ -140,6 +142,12 @@ class EnableBankingItem::Importer
         @sync_error = promote_session_invalid(@sync_error, handle_sync_error(e))
         Rails.logger.error "EnableBankingItem::Importer - Failed to process account #{enable_banking_account.uid}: #{e.message}"
       end
+
+      # Runs after the transaction fetch so a same-type balance tie can be checked
+      # against this sync's booked transactions (see resolve_same_type_balances).
+      # fetch_and_update_balance handles its own errors, so a failed transaction
+      # fetch above never skips the balance refresh.
+      balances_failed += 1 unless fetch_and_update_balance(enable_banking_account)
     end
 
     result = {
@@ -232,7 +240,7 @@ class EnableBankingItem::Importer
         return false
       end
 
-      balance = select_current_balance(balances)
+      balance, tiebreak_stage = select_current_balance(balances, enable_banking_account)
 
       unless balance.present?
         mark_balance_unavailable(enable_banking_account)
@@ -256,7 +264,8 @@ class EnableBankingItem::Importer
 
       enable_banking_account.update!(
         current_balance: parsed_amount,
-        currency: currency.presence || enable_banking_account.currency
+        currency: currency.presence || enable_banking_account.currency,
+        balance_unambiguous: tiebreak_stage.nil? || tiebreak_stage == :currency
       )
 
       true
@@ -274,23 +283,198 @@ class EnableBankingItem::Importer
       false
     end
 
-    def select_current_balance(balances)
-      by_type = balances.index_by { |balance| normalize_balance_type(balance[:balance_type]) }
+    # Returns [balance, tiebreak_stage]. tiebreak_stage is nil unless the chosen
+    # type was reported more than once (see resolve_same_type_balances).
+    def select_current_balance(balances, enable_banking_account)
+      by_type = balances.group_by { |balance| normalize_balance_type(balance[:balance_type]) }
 
       BALANCE_TYPE_PRIORITY.each do |type|
         normalized_type = normalize_balance_type(type)
-        balance = by_type[normalized_type]
-        next unless balance.present?
+        candidates = by_type[normalized_type]
+        next if candidates.blank?
+
+        balance, tiebreak_stage = resolve_same_type_balances(candidates, enable_banking_account)
 
         if PERIOD_BOUNDARY_TYPES.include?(normalized_type)
           fresher = fresher_balance(balance, balances)
-          return fresher if fresher
+          return [ fresher, nil ] if fresher
         end
 
-        return balance
+        return [ balance, tiebreak_stage ]
       end
 
-      balances.first
+      [ balances.first, nil ]
+    end
+
+    # Some ASPSPs report the same balance_type twice with different amounts, e.g.
+    # two CLBD entries where one includes the arranged overdraft (#3188). Stages,
+    # strongest evidence first:
+    #   :currency                   only one candidate is in the account currency
+    #   :last_committed_transaction candidates point to different bookings; newest wins
+    #   :credit_limit               (depository) gap equals the credit limit; lower wins
+    #   :anchor / :anchor_timestamp (depository) closest to the previous anchor minus
+    #                               booked flows since, if that anchor was unambiguous
+    #   :lowest                     (depository) an included overdraft only ever raises it
+    #   :first                      (other accounts) first entry in response order
+    def resolve_same_type_balances(candidates, enable_banking_account)
+      return [ candidates.first, nil ] if candidates.one?
+
+      usable = candidates.select { |balance| signed_balance_amount(balance) }
+      return [ candidates.first, nil ] if usable.empty?
+      return [ usable.first, nil ] if usable.one?
+
+      balance, stage = tiebreak_same_type_balances(usable, enable_banking_account)
+      capture_balance_tiebreak_debug_log(enable_banking_account, candidates, balance, stage)
+      [ balance, stage ]
+    end
+
+    def tiebreak_same_type_balances(candidates, enable_banking_account)
+      in_account_currency = candidates.select { |balance| balance_currency(balance) == enable_banking_account.currency }
+      return [ in_account_currency.first, :currency ] if in_account_currency.one?
+      candidates = in_account_currency if in_account_currency.any?
+
+      winner = balance_by_last_committed_transaction(candidates, enable_banking_account)
+      return [ winner, :last_committed_transaction ] if winner
+
+      account = enable_banking_account.current_account
+      return [ candidates.first, :first ] unless account&.accountable_type == "Depository"
+
+      winner = balance_by_credit_limit(candidates, enable_banking_account)
+      return [ winner, :credit_limit ] if winner
+
+      winner, stage = balance_by_anchor(candidates, enable_banking_account, account)
+      return [ winner, stage ] if winner
+
+      [ candidates.min_by { |balance| signed_balance_amount(balance) }, :lowest ]
+    end
+
+    # last_committed_transaction is the entry_reference of the last booking the
+    # balance includes. Only decides when every candidate points to a different,
+    # known booking; equal references say nothing about which amount is right.
+    def balance_by_last_committed_transaction(candidates, enable_banking_account)
+      references = candidates.map { |balance| balance[:last_committed_transaction].presence }
+      return nil if references.any?(&:nil?) || references.uniq.size != references.size
+
+      booking_dates = booked_raw_transactions(enable_banking_account)
+        .each_with_object({}) do |tx, dates|
+          reference = tx[:entry_reference].presence
+          date = parse_reference_date(tx[:booking_date])
+          dates[reference] = date if reference && date
+        end
+
+      dated = candidates.zip(references.map { |reference| booking_dates[reference] })
+      return nil if dated.any? { |_, date| date.nil? }
+
+      latest = dated.map(&:last).max
+      newest = dated.select { |_, date| date == latest }
+      newest.one? ? newest.first.first : nil
+    end
+
+    # An arranged overdraft counted into one of the balances shifts it up by the
+    # credit limit, so a gap matching the limit identifies the lower one as real.
+    def balance_by_credit_limit(candidates, enable_banking_account)
+      credit_limit = enable_banking_account.credit_limit
+      return nil unless credit_limit.present? && credit_limit.positive?
+
+      amounts = candidates.map { |balance| signed_balance_amount(balance) }
+      return nil unless ((amounts.max - amounts.min) - credit_limit).abs <= BALANCE_TIEBREAK_TOLERANCE
+
+      candidates.min_by { |balance| signed_balance_amount(balance) }
+    end
+
+    # Expected balance = previous anchor minus booked flows since (asset account,
+    # positive amount = outflow, mirroring Balance::ForwardCalculator). Skipped
+    # unless the previous balance was chosen without a tiebreak: an anchor that
+    # already came from the wrong candidate would otherwise confirm itself.
+    def balance_by_anchor(candidates, enable_banking_account, account)
+      return nil unless enable_banking_account.balance_unambiguous? && account.has_current_anchor?
+
+      anchor_date = account.current_anchor_date
+      flows = booked_raw_transactions(enable_banking_account).sum do |tx|
+        date = parse_reference_date(tx[:booking_date])
+        date && date > anchor_date && date <= Date.current ? signed_transaction_amount(tx) : 0
+      end
+      expected = account.current_anchor_balance - flows
+
+      ranked = candidates.map { |balance| [ balance, (signed_balance_amount(balance) - expected).abs ] }.sort_by(&:last)
+      closest = ranked.select { |_, distance| distance - ranked.first.last <= BALANCE_TIEBREAK_TOLERANCE }.map(&:first)
+      return [ closest.first, :anchor ] if closest.one?
+
+      latest = closest.filter_map { |balance| [ balance, parse_balance_timestamp(balance[:last_change_date_time]) ] }
+        .select { |_, time| time }
+      return nil unless latest.size == closest.size
+
+      newest_time = latest.map(&:last).max
+      newest = latest.select { |_, time| time == newest_time }
+      newest.one? ? [ newest.first.first, :anchor_timestamp ] : nil
+    end
+
+    def booked_raw_transactions(enable_banking_account)
+      enable_banking_account.raw_transactions_payload.to_a.map(&:with_indifferent_access).select do |tx|
+        tx[:status] != "PDNG" && !tx[:_pending] && !tx.dig(:extra, :enable_banking, :pending)
+      end
+    end
+
+    # Same sign convention as EnableBankingEntry::Processor#amount_value:
+    # DBIT (outflow) positive, CRDT (inflow) negative.
+    def signed_transaction_amount(tx)
+      amount = tx.dig(:transaction_amount, :amount) || tx[:amount]
+      absolute = BigDecimal(amount.to_s).abs
+      tx[:credit_debit_indicator] == "CRDT" ? -absolute : absolute
+    rescue ArgumentError, TypeError
+      0
+    end
+
+    def signed_balance_amount(balance)
+      amount = balance.dig(:balance_amount, :amount) || balance[:amount]
+      return nil if amount.blank?
+
+      parsed = BigDecimal(amount.to_s)
+      balance[:credit_debit_indicator].to_s.upcase == "DBIT" ? -parsed : parsed
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def balance_currency(balance)
+      balance.dig(:balance_amount, :currency) || balance[:currency]
+    end
+
+    def parse_balance_timestamp(value)
+      return nil if value.blank?
+      Time.zone.parse(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def capture_balance_tiebreak_debug_log(enable_banking_account, candidates, chosen, stage)
+      DebugLogEntry.capture(
+        category: "provider_sync_warning",
+        level: "warn",
+        message: "Enable Banking reported the same balance type more than once; resolved by #{stage}",
+        source: self.class.name,
+        provider_key: "enable_banking",
+        family: enable_banking_item.family,
+        account_provider: enable_banking_account.account_provider,
+        metadata: {
+          enable_banking_item_id: enable_banking_item.id,
+          enable_banking_account_id: enable_banking_account.id,
+          balance_type: chosen[:balance_type],
+          stage: stage.to_s,
+          chosen_index: candidates.index(chosen),
+          previous_balance_unambiguous: enable_banking_account.balance_unambiguous?,
+          credit_limit: enable_banking_account.credit_limit&.to_s("F"),
+          candidates: candidates.map do |balance|
+            {
+              amount: balance.dig(:balance_amount, :amount) || balance[:amount],
+              currency: balance_currency(balance),
+              credit_debit_indicator: balance[:credit_debit_indicator],
+              last_change_date_time: balance[:last_change_date_time],
+              reference_date: balance[:reference_date],
+              last_committed_transaction: balance[:last_committed_transaction].present?
+            }
+          end
+        }
+      )
     end
 
     # Guards the OPBD/PRCD priority (see BALANCE_TYPE_PRIORITY) against picking a

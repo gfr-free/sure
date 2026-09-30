@@ -3,10 +3,11 @@
 # provider value (see we-promise/sure#1381), and it silently skews every
 # converted balance and report, so this is a warning rather than a nudge.
 #
-# Only foreign currencies the family actually holds or books in are checked,
-# each against the family's primary currency — the direction balances and
-# reports convert in. Gap-filled days (weekends, holidays) carry the previous
-# rate forward, so they never register as a jump themselves.
+# Only foreign currencies the family actually holds or books in on visible
+# accounts are checked, each against the family's primary currency — the
+# direction balances and reports convert in. Gap-filled days (weekends,
+# holidays) carry the previous rate forward, so they never register as a jump
+# themselves.
 class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
   produces "exchange_rate_jump"
 
@@ -96,10 +97,13 @@ class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
     end
 
     def foreign_currencies
-      @foreign_currencies ||= (
-        family.accounts.distinct.pluck(:currency) +
-        family.entries.distinct.pluck(:currency)
-      ).compact.uniq - [ primary_currency ]
+      @foreign_currencies ||= begin
+        accounts = family.accounts.visible
+        (
+          accounts.distinct.pluck(:currency) +
+          Entry.where(account_id: accounts.select(:id)).distinct.pluck(:currency)
+        ).compact.uniq - [ primary_currency ]
+      end
     end
 
     def format_rate(value)

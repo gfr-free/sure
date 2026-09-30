@@ -66,6 +66,13 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
     assert_empty generate
   end
 
+  test "ignores currencies held only in disabled accounts" do
+    eur_account.update!(status: "disabled")
+    rates("EUR", "USD", 1 => 1.10, 0 => 1.25)
+
+    assert_empty generate
+  end
+
   test "only looks at jumps inside the lookback window" do
     eur_account
     window = Insight::Generators::ExchangeRateJumpGenerator::LOOKBACK_DAYS

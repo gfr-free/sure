@@ -488,7 +488,81 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     ).import_provider_rates
   end
 
+  test "logs a debug entry when a provider rate jumps more than the threshold" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
+
+    import_usd_pln_rates(1.day.ago.to_date => 4.2, Date.current => 4.21)
+
+    # Jumps are only reported, never rejected
+    assert_equal 4.2, ExchangeRate.find_by!(from_currency: "USD", to_currency: "PLN", date: 1.day.ago.to_date).rate
+
+    entry = DebugLogEntry.sole
+    assert_equal "provider_sync", entry.category
+    assert_equal "info", entry.level
+    assert_equal "ExchangeRate::Importer", entry.source
+    assert_nil entry.family_id
+    assert_equal "USD", entry.metadata["from"]
+    assert_equal "PLN", entry.metadata["to"]
+    assert_equal 10, entry.metadata["threshold_percent"]
+    assert_equal 1, entry.metadata["jump_count"]
+
+    jump = entry.metadata["jumps"].sole
+    assert_equal 1.day.ago.to_date.iso8601, jump["date"]
+    assert_equal 3.7, jump["previous_rate"].to_d
+    assert_equal 4.2, jump["rate"].to_d
+    assert_equal 13.51, jump["change_percent"]
+  end
+
+  test "does not log rate changes within the threshold" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
+
+    import_usd_pln_rates(1.day.ago.to_date => 4.0, Date.current => 3.9)
+
+    assert_equal 0, DebugLogEntry.count
+  end
+
+  test "logs all jumps of one import in a single debug entry" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
+
+    import_usd_pln_rates(1.day.ago.to_date => 4.5, Date.current => 3.7)
+
+    entry = DebugLogEntry.sole
+    assert_equal 2, entry.metadata["jump_count"]
+    assert_equal [ 1.day.ago.to_date.iso8601, Date.current.iso8601 ], entry.metadata["jumps"].map { |j| j["date"] }
+    assert_equal(-17.78, entry.metadata["jumps"].last["change_percent"])
+  end
+
   private
+    def import_usd_pln_rates(rates_by_date)
+      provider_response = provider_success_response(
+        rates_by_date.map { |date, rate| OpenStruct.new(from: "USD", to: "PLN", date:, rate:) }
+      )
+
+      @provider.expects(:fetch_exchange_rates)
+               .with(from: "USD", to: "PLN", start_date: get_provider_fetch_start_date(rates_by_date.keys.min), end_date: Date.current)
+               .returns(provider_response)
+
+      ExchangeRate::Importer.new(
+        exchange_rate_provider: @provider,
+        from: "USD",
+        to: "PLN",
+        start_date: 3.days.ago.to_date,
+        end_date: Date.current
+      ).import_provider_rates
+    end
+
     def get_provider_fetch_start_date(start_date)
       start_date - ExchangeRate::Importer::PROVISIONAL_LOOKBACK_DAYS.days
     end

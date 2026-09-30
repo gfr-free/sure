@@ -4,6 +4,12 @@ class ExchangeRate::Importer
 
   PROVISIONAL_LOOKBACK_DAYS = 5
 
+  # Day-over-day change of a provider rate above which the import is flagged
+  # for review. Large moves are legitimate (devaluations, hyperinflation), so
+  # they are only logged, never rejected.
+  RATE_JUMP_THRESHOLD = 0.10
+  MAX_LOGGED_RATE_JUMPS = 20
+
   def initialize(exchange_rate_provider:, from:, to:, start_date:, end_date:, clear_cache: false)
     @exchange_rate_provider = exchange_rate_provider
     @from = from
@@ -52,6 +58,8 @@ class ExchangeRate::Importer
       return
     end
 
+    rate_jumps = []
+
     # Gapfill with LOCF strategy (last observation carried forward):
     # when the provider returns nothing for weekends/holidays, carry the previous rate.
     gapfilled_rates = loop_start_date.upto(end_date).map do |date|
@@ -59,6 +67,8 @@ class ExchangeRate::Importer
       provider_rate_value = provider_rates[date]&.rate
 
       chosen_rate = if provider_rate_value.present? && provider_rate_value.to_f > 0
+        jump = rate_jump(date:, previous_rate: prev_rate_value, rate: provider_rate_value)
+        rate_jumps << jump if jump
         provider_rate_value
       elsif db_rate_value.present? && db_rate_value.to_f > 0
         db_rate_value
@@ -77,6 +87,7 @@ class ExchangeRate::Importer
     end
 
     upsert_rows(gapfilled_rates)
+    log_rate_jumps(rate_jumps) if rate_jumps.any?
 
     # Compute and upsert inverse rates (e.g., EUR→USD from USD→EUR) to avoid
     # separate API calls for the reverse direction.
@@ -107,6 +118,41 @@ class ExchangeRate::Importer
 
   private
     attr_reader :exchange_rate_provider, :from, :to, :start_date, :end_date, :clear_cache
+
+    def rate_jump(date:, previous_rate:, rate:)
+      previous = previous_rate.to_d
+      return if previous <= 0
+
+      change = (rate.to_d - previous) / previous
+      return if change.abs <= RATE_JUMP_THRESHOLD
+
+      {
+        date: date.iso8601,
+        previous_rate: previous.to_s,
+        rate: rate.to_d.to_s,
+        change_percent: (change * 100).round(2).to_f
+      }
+    end
+
+    # One entry per import and pair, so a broken provider response cannot
+    # flood the debug log with one row per day.
+    def log_rate_jumps(rate_jumps)
+      DebugLogEntry.capture(
+        category: "provider_sync",
+        level: "info",
+        message: "#{from}->#{to}: #{rate_jumps.size} provider rate(s) changed more than " \
+                 "#{(RATE_JUMP_THRESHOLD * 100).to_i}% from the previous day",
+        source: self.class.name,
+        provider_key: current_provider_name,
+        metadata: {
+          from: from,
+          to: to,
+          threshold_percent: (RATE_JUMP_THRESHOLD * 100).to_i,
+          jump_count: rate_jumps.size,
+          jumps: rate_jumps.first(MAX_LOGGED_RATE_JUMPS)
+        }
+      )
+    end
 
     # Resolves the provider name the same way as ExchangeRate::Provided.provider:
     # ENV takes precedence over the DB Setting to stay consistent in env-configured deployments.

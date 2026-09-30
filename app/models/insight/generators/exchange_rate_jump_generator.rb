@@ -21,25 +21,32 @@ class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
   end
 
   private
-    # One query for every pair. The window reaches one day further back than
-    # the lookback so a jump on its first day still has a predecessor.
+    # One query for every pair. The window reaches two days further back than
+    # the lookback so a jump on its first day still has a predecessor, and a
+    # recovery on its first day can still be recognised as one.
     # Newest first, largest move first within a day, so the pick is stable.
     def jumps
       return [] if foreign_currencies.empty?
 
       rates = ExchangeRate
         .where(from_currency: foreign_currencies, to_currency: primary_currency)
-        .where(date: (window_start - 1)..Date.current)
+        .where(date: (window_start - 2)..Date.current)
         .order(:from_currency, :date)
         .pluck(:from_currency, :date, :rate)
 
       rates.group_by(&:first).flat_map do |from, rows|
-        rows.each_cons(2).filter_map do |(_, _, previous_rate), (_, date, rate)|
-          next if date < window_start || previous_rate.to_d.zero?
+        rows.each_index.filter_map do |i|
+          next if i.zero?
+
+          _, date, rate = rows[i]
+          previous_rate = rows[i - 1].last
+          next if date < window_start
+          next unless jump?(previous_rate, rate)
+          # A bad value followed by a return to normal is one incident, not
+          # two: flag the spike, not the day the rate recovered.
+          next if i >= 2 && jump?(rows[i - 2].last, previous_rate) && !jump?(rows[i - 2].last, rate)
 
           change = (rate.to_d - previous_rate.to_d) / previous_rate.to_d
-          next if change.abs <= JUMP_THRESHOLD
-
           Jump.new(from:, to: primary_currency, date:, previous_rate:, rate:, change:)
         end
       end.sort_by { |jump| [ -jump.date.jd, -jump.change.abs ] }
@@ -66,12 +73,18 @@ class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
           from_currency: jump.from,
           to_currency: jump.to,
           date: jump.date.iso8601,
-          previous_rate: round(jump.previous_rate, 6),
-          rate: round(jump.rate, 6),
+          previous_rate: jump.previous_rate.to_f,
+          rate: jump.rate.to_f,
           direction: jump.change.positive? ? "up" : "down"
         },
         dedup_key: "exchange_rate_jump:#{jump.from}:#{jump.to}:#{jump.date.iso8601}"
       )
+    end
+
+    def jump?(previous_rate, rate)
+      return false if previous_rate.to_d.zero?
+
+      ((rate.to_d - previous_rate.to_d) / previous_rate.to_d).abs > JUMP_THRESHOLD
     end
 
     def window_start
@@ -91,7 +104,7 @@ class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
 
     def format_rate(value)
       ActiveSupport::NumberHelper.number_to_rounded(
-        value.to_d, precision: 4, strip_insignificant_zeros: true, locale: I18n.locale
+        value.to_d, precision: 4, significant: true, strip_insignificant_zeros: true, locale: I18n.locale
       )
     end
 

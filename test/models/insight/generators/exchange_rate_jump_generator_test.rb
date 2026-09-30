@@ -34,6 +34,25 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
     assert_equal "−13.6", insight.facts[:change_pct]
   end
 
+  test "a spike and its recovery are one insight, on the spike day" do
+    eur_account
+    rates("EUR", "USD", 3 => 1.10, 2 => 1.50, 1 => 1.10, 0 => 1.10)
+
+    insights = generate
+
+    assert_equal [ 2.days.ago.to_date.iso8601 ], insights.map { |i| i.metadata[:date] }
+  end
+
+  test "keeps small rates readable" do
+    @family.accounts.create!(name: "Rupiah", balance: 1_000_000, currency: "IDR", accountable: Depository.new)
+    rates("IDR", "USD", 1 => 0.000051, 0 => 0.000062)
+
+    insight = generate.first
+
+    assert_equal "0.000051", insight.facts[:previous_rate]
+    assert_equal "0.000062", insight.facts[:rate]
+  end
+
   test "ignores moves at or below the threshold" do
     eur_account
     rates("EUR", "USD", 2 => 1.00, 1 => 1.10, 0 => 1.05)

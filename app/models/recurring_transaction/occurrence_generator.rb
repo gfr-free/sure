@@ -34,12 +34,14 @@ class RecurringTransaction
     end
 
     # After a schedule edit: drop the re-generatable future and rebuild it under
-    # the new rules. Rows with payments or closed state are kept as they were.
+    # the new rules. Rows with payments, closed state or an auto-post stamp are
+    # kept as they were.
     def regenerate_future!(through: nil)
       series.recurring_occurrences
             .open_status
             .where("due_on >= ?", Date.current)
             .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
+            .where(auto_posted_at: nil) # a posted date must stay posted, even after its entry is deleted
             .delete_all
 
       generate!(through: through)

@@ -25,13 +25,14 @@ class RecurringTransaction
           stop_auto_posting!(series)
           next
         end
+        next unless series.auto_post_accounts_active?
 
         series.auto_postable_occurrences(today).each do |occurrence|
           next unless post_occurrence!(series, occurrence)
 
           posted += 1
           unless series.transfer?
-            sync_from[series.account] = [ sync_from[series.account], occurrence.due_on ].compact.min
+            sync_from[series.account] = [ sync_from[series.account], occurrence.effective_due_on ].compact.min
           end
         end
       rescue => e
@@ -70,7 +71,7 @@ class RecurringTransaction
 
         amount = occurrence.resolved_expected_amount
         entry = series.account.entries.create!(
-          date: occurrence.due_on,
+          date: occurrence.effective_due_on,
           name: series.display_name,
           amount: series.amount.negative? ? -amount : amount,
           currency: series.currency,
@@ -90,7 +91,7 @@ class RecurringTransaction
           family: family,
           source_account_id: series.account_id,
           destination_account_id: series.destination_account_id,
-          date: occurrence.due_on,
+          date: occurrence.effective_due_on,
           amount: occurrence.resolved_expected_amount,
           idempotency_key: idempotency_key(occurrence)
         ).create

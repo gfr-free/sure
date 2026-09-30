@@ -190,6 +190,42 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_empty next_month.reload.allocations
   end
 
+  test "a snoozed date waits for its snooze and posts on that day" do
+    @occurrence.snooze!(@today + 4)
+
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+
+    post!(today: @today + 4)
+    assert_equal @today + 4, @account.entries.find_by(name: "Rent").date
+  end
+
+  test "does not post into a disabled account and keeps auto-posting on" do
+    @account.disable!
+
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+
+    assert @rent.reload.auto_post?
+    assert @occurrence.reload.scheduled?
+  end
+
+  test "rebuilding the schedule keeps a posted date whose entry was deleted" do
+    post!
+    @account.entries.find_by(name: "Rent").destroy!
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      RecurringTransaction::OccurrenceGenerator.new(@rent).regenerate_future!
+    end
+
+    assert RecurringOccurrence.exists?(@occurrence.id), "the stamped row must survive regeneration"
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+  end
+
   test "a failing series is logged and does not stop the others" do
     transfer_series = travel_to(@today) do
       create_series(name: "Card payment", amount: 200, destination_account: accounts(:credit_card))

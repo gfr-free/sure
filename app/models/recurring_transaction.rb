@@ -268,15 +268,23 @@ class RecurringTransaction < ApplicationRecord
 
   # Open dates from the start date through `today` that have not posted yet.
   # A date that already posted never qualifies again, even after its entry is
-  # deleted and the occurrence reopens.
+  # deleted and the occurrence reopens. A snoozed date waits for its snooze:
+  # GREATEST ignores a NULL snoozed_until, matching effective_due_on.
   def auto_postable_occurrences(today)
     return recurring_occurrences.none if auto_post_from.blank?
 
     recurring_occurrences
       .open_status
       .where(auto_posted_at: nil)
-      .where(due_on: auto_post_from..today)
+      .where("recurring_occurrences.due_on >= ?", auto_post_from)
+      .where("GREATEST(recurring_occurrences.due_on, recurring_occurrences.snoozed_until) <= ?", today)
       .order(:due_on)
+  end
+
+  # Disabled accounts and ones being deleted take no new entries; the series
+  # simply waits instead of switching itself off.
+  def auto_post_accounts_active?
+    account&.active? && (!transfer? || destination_account&.active?)
   end
 
   # Checked when auto-posting is switched on or what it depends on is edited,

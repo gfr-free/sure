@@ -241,13 +241,18 @@ services:
     ports:
       - "8080:8080"
     environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
+      # Existing installs keep the Ollama URL saved in Open WebUI's database.
+      # If models stop loading after upgrading, set the connection to
+      # http://ollama:11434 under Admin Settings > Connections.
       - OLLAMA_BASE_URLS=http://ollama:11434 #comma separated ollama hosts
       - ENV=dev
       # Open WebUI asks you to create an admin account on first visit.
       - WEBUI_AUTH=True
       - WEBUI_NAME=AI
       - WEBUI_URL=http://localhost:8080
-      # Leave empty to let Open WebUI generate and persist a random key.
+      # Leave empty to let Open WebUI generate a random key. It is stored in
+      # the data volume so it survives container recreation.
+      - WEBUI_SECRET_KEY_FILE=/app/backend/data/.webui_secret_key
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
       - NO_PROXY=host.docker.internal
     extra_hosts:

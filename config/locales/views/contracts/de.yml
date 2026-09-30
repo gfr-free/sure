@@ -105,7 +105,6 @@ de:
       documents: "Dokumente"
       empty: "Keine offenen Verträge."
     show:
-      cancellation_letter: "Kündigungsschreiben"
       owned_by: "Verwaltet von %{name}"
       edit: Bearbeiten
       share: Teilen
@@ -199,17 +198,6 @@ de:
       success: "Die verknüpften Rechnungen enden mit dem Vertrag."
     mark_ended:
       success: Vertrag als beendet markiert
-    cancellation_letter:
-      subject: "Kündigung %{name}"
-      address_placeholder: "[Deine Anschrift]"
-      provider_address_placeholder: "[Anschrift des Anbieters]"
-      place_date: "[Ort], %{date}"
-      salutation: "Sehr geehrte Damen und Herren,"
-      body_with_date: "hiermit kündige ich den oben genannten Vertrag fristgerecht zum %{date}, hilfsweise zum nächstmöglichen Zeitpunkt."
-      body_next_possible: "hiermit kündige ich den oben genannten Vertrag zum nächstmöglichen Zeitpunkt."
-      confirmation_request: "Bitte bestätigen Sie mir die Kündigung und das Vertragsende schriftlich."
-      no_further_debits: "Bitte buchen Sie nach Vertragsende keine weiteren Beträge von meinem Konto ab."
-      closing: "Mit freundlichen Grüßen"
     cancellations:
       new:
         title: "%{name} kündigen"

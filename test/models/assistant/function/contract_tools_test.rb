@@ -24,7 +24,6 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
       call(Assistant::Function::GetContractDetails, @admin, "contract_id" => @phone.id),
       call(Assistant::Function::GetContractDetails, @admin, "contract_id" => @insurance.id),
       call(Assistant::Function::GetContractAudit, @admin),
-      call(Assistant::Function::GetCancellationLetter, @admin, "contract_id" => @phone.id),
       call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "name" => "Phone plan")
     ].map(&:to_json)
 
@@ -123,12 +122,6 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "ends_on" => "")
     assert_nil result[:error]
     assert_nil @phone.reload.ends_on, "an explicit empty string still clears the date"
-  end
-
-  test "the cancellation letter is a link, never the letter" do
-    result = call(Assistant::Function::GetCancellationLetter, @admin, "contract_id" => @phone.id)
-
-    assert_equal Rails.application.routes.url_helpers.cancellation_letter_contract_path(@phone), result[:url]
   end
 
   test "the audit finds upcoming deadlines and unconfirmed cancellations" do

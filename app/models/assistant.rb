@@ -39,8 +39,7 @@ module Assistant
     Function::GetContractDetails,
     Function::GetContractAudit,
     Function::CreateContract,
-    Function::UpdateContract,
-    Function::GetCancellationLetter
+    Function::UpdateContract
   ].freeze
 
   class << self

@@ -6,8 +6,8 @@ class ContractsController < ApplicationController
   include RecurringFeatureGuardable
 
   before_action :ensure_recurring_enabled
-  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills cancellation_letter]
-  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills cancellation_letter]
+  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills]
+  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills]
   before_action :require_manageable, only: %i[destroy]
 
   def index
@@ -96,16 +96,6 @@ class ContractsController < ApplicationController
   def destroy
     @contract.destroy!
     redirect_to contracts_path, notice: t(".success")
-  end
-
-  # A cancellation letter filled from a fixed template on the server, so the
-  # contract and customer numbers never pass through an LLM. Sure does not
-  # send it; the user prints or copies it.
-  def cancellation_letter
-    schedule = @contract.notice_schedule
-    @end_date = schedule.notice_deadline ? schedule.term_ends_on : schedule.earliest_end_on
-
-    render layout: "print"
   end
 
   def mark_ended

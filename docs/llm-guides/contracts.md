@@ -15,7 +15,7 @@ Out of scope, on purpose:
   stay `Investment` accounts and can be linked as the related account.
 - No sending of cancellations, tariff switching, bill negotiation or insurance
   needs analysis. These are commission or brokerage businesses (and in Germany
-  §34d GewO applies). Sure fills a letter; the user sends it.
+  §34d GewO applies). Sure records a cancellation; the user writes and sends it.
 - Contracts never touch the balance sheet, net worth, budgets or bill detection.
 
 ## Key files
@@ -26,7 +26,7 @@ Out of scope, on purpose:
 | Controllers | `app/controllers/contracts_controller.rb`, `app/controllers/contracts/{base,cancellations,sharings,documents}_controller.rb` |
 | Views | `app/views/contracts/`, `app/views/bills/_contract_line.html.erb`, `app/views/bills/_view_switcher.html.erb`, `app/views/reports/_contracts.html.erb` |
 | Reminders | `app/models/insight/generators/contract_generator.rb`, `app/jobs/contract_notice_reminders_job.rb`, `app/mailers/contract_mailer.rb`, `app/controllers/bills_feeds_controller.rb` |
-| Assistant | `app/models/assistant/function/contracts_support.rb`, `get_contracts.rb`, `get_contract_details.rb`, `get_contract_audit.rb`, `create_contract.rb`, `update_contract.rb`, `get_cancellation_letter.rb`, `search_family_files.rb` |
+| Assistant | `app/models/assistant/function/contracts_support.rb`, `get_contracts.rb`, `get_contract_details.rb`, `get_contract_audit.rb`, `create_contract.rb`, `update_contract.rb`, `search_family_files.rb` |
 | Search index | `app/jobs/contract_document_index_job.rb`, `contract_document_unindex_job.rb` |
 | Stimulus | `app/javascript/controllers/contract_defaults_controller.js`, `contract_kind_fields_controller.js` |
 | Locales | `config/locales/views/contracts/`, `config/locales/models/contract/`, `config/locales/mailers/contract_mailer/` (`en` and `de`) |
@@ -144,9 +144,6 @@ Rules, enforced by `test/models/assistant/function/contract_tools_test.rb`:
    re-check the Bills gates and contract access themselves.
 3. The static system prompt is untouched; contracts are reached through tools.
 
-- `get_cancellation_letter` returns a link. The letter itself is rendered by
-  `ContractsController#cancellation_letter` from a fixed template, with the
-  numbers filled in on the server for editors only.
 - PDF imports classified as `contract` keep the readable terms in
   `extracted_data["contract"]` (the prompts forbid numbers). The import page
   offers "Create contract from this document"; `Contract::DocumentPrefill`
@@ -193,7 +190,7 @@ Rules, enforced by `test/models/assistant/function/contract_tools_test.rb`:
 | Visibility | Owner plus explicit shares, no admin override | Same as accounts; privacy inside the household |
 | Account link grants access | No | One rule |
 | Documents | One `ContractDocument` row per file | Per-document AI opt-in |
-| AI and numbers | Never sent; letters filled server-side from a template | No redaction layer before LLM calls |
+| AI and numbers | Never sent to the model | No redaction layer before LLM calls |
 | Documents in AI search | Opt-in per document, filtered per user | Policies are full of personal data; the store is per family |
 | Contract insights | Addressed to the owner (`insights.user_id`) | A family-wide card would name private contracts |
 | Languages | `en` and `de` | Others fall back to English |

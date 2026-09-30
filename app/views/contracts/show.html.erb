@@ -28,7 +28,6 @@
           <% menu.with_item(variant: "link", text: t(".share"), icon: "share-2", href: contract_sharing_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
         <% if @contract.active? && @contract.open? %>
-          <% menu.with_item(variant: "link", text: t(".cancellation_letter"), icon: "printer", href: cancellation_letter_contract_path(@contract), target: "_blank") %>
           <% menu.with_item(variant: "link", text: t(".record_cancellation"), icon: "file-signature", href: new_contract_cancellation_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
         <% unless @contract.ended? %>

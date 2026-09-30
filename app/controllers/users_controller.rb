@@ -72,11 +72,7 @@ class UsersController < ApplicationController
   end
 
   def rule_prompt_settings
-    attrs = rule_prompt_settings_params
-    dismiss_today = ActiveModel::Type::Boolean.new.cast(attrs.delete(:rule_prompt_dismiss_today))
-    attrs[:rule_prompt_dismissed_at] = dismiss_today ? Time.current : nil
-
-    @user.update!(attrs)
+    @user.update!(rule_prompt_settings_params)
     redirect_back_or_to settings_profile_path
   end
 
@@ -112,7 +108,7 @@ class UsersController < ApplicationController
     end
 
     def rule_prompt_settings_params
-      params.require(:user).permit(:rule_prompt_dismiss_today, :rule_prompts_disabled)
+      params.require(:user).permit(:rule_prompt_dismissed_at, :rule_prompts_disabled)
     end
 
     def user_params

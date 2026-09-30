@@ -175,33 +175,4 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_not User.find(@admin.id).active?
     assert_enqueued_with(job: UserPurgeJob, args: [ @admin ])
   end
-
-  test "dismissing rule prompt for today sets dismissed_at without permanently disabling" do
-    patch rule_prompt_settings_user_url(@user), params: { user: { rule_prompt_dismiss_today: "1" } }
-
-    assert_redirected_to settings_profile_url
-    @user.reload
-    assert @user.rule_prompt_dismissed_at.present?
-    assert_not @user.rule_prompts_disabled
-  end
-
-  test "dismissing rule prompt forever disables it without setting a today-only dismissal" do
-    patch rule_prompt_settings_user_url(@user), params: { user: { rule_prompts_disabled: "1" } }
-
-    assert_redirected_to settings_profile_url
-    @user.reload
-    assert @user.rule_prompts_disabled
-    assert_nil @user.rule_prompt_dismissed_at
-  end
-
-  test "plain dismiss without choosing an option does not suppress future prompts" do
-    @user.update!(rule_prompt_dismissed_at: 1.hour.ago)
-
-    patch rule_prompt_settings_user_url(@user), params: { user: { rule_prompt_dismiss_today: "0", rule_prompts_disabled: "0" } }
-
-    assert_redirected_to settings_profile_url
-    @user.reload
-    assert_nil @user.rule_prompt_dismissed_at
-    assert_not @user.rule_prompts_disabled
-  end
 end

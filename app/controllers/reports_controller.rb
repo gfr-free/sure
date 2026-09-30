@@ -548,6 +548,7 @@ class ReportsController < ApplicationController
       # The rates the proceeds conversion needs, in one query rather than one
       # per foreign disposal.
       Trade.preload_exchange_rates(sell_trades)
+      Trade.preload_split_factors(sell_trades)
 
       trades_by_treatment = sell_trades.group_by { |t| t.entry.account.tax_treatment || :taxable }
 

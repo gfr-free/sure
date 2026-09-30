@@ -327,6 +327,11 @@ class Provider::YahooFinance < Provider
     end
   end
 
+  # The chart's `close` is split-adjusted (only `adjclose` also removes dividends).
+  def split_adjusted_prices?
+    true
+  end
+
   def fetch_security_prices(symbol:, exchange_operating_mic: nil, start_date:, end_date:)
     with_provider_response do
       symbol = normalize_symbol(symbol, exchange_operating_mic)
@@ -375,6 +380,51 @@ class Provider::YahooFinance < Provider
 
       sorted_prices = prices.sort_by(&:date)
       sorted_prices
+    rescue JSON::ParserError => e
+      raise Error, "Invalid response format: #{e.message}"
+    end
+  end
+
+  # Stock splits between the two dates, from the chart's split events. Monthly
+  # bars keep the response small; the events are reported in full regardless.
+  def fetch_security_splits(symbol:, exchange_operating_mic: nil, start_date:, end_date:)
+    with_provider_response do
+      symbol = normalize_symbol(symbol, exchange_operating_mic)
+      # No lookback limit here, unlike prices: a split from long ago still
+      # changes how many shares an old trade counts as today.
+      start_date = start_date.to_date
+      end_date = end_date.to_date
+      raise Error, "Start date cannot be after end date" if start_date > end_date
+
+      throttle_request
+      data = fetch_authenticated_chart(symbol, {
+        "period1" => start_date.to_time.utc.to_i,
+        "period2" => end_date.end_of_day.to_time.utc.to_i,
+        "interval" => "1mo",
+        "events" => "split"
+      })
+
+      chart_data = data.dig("chart", "result", 0)
+      raise Error, "No chart data found for #{symbol}" unless chart_data
+
+      events = chart_data.dig("events", "splits")
+      events = events.values if events.is_a?(Hash)
+
+      Array(events).filter_map do |event|
+        numerator = event["numerator"].to_d
+        denominator = event["denominator"].to_d
+        next unless event["date"].present? && numerator.positive? && denominator.positive?
+        next if numerator == denominator
+
+        Split.new(
+          symbol: symbol,
+          # Same UTC conversion as the price bars, so a split lands on the same
+          # day as the first price quoted on its new basis.
+          date: Time.at(event["date"].to_i).utc.to_date,
+          ratio_from: denominator,
+          ratio_to: numerator
+        )
+      end.sort_by(&:date)
     rescue JSON::ParserError => e
       raise Error, "Invalid response format: #{e.message}"
     end

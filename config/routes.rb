@@ -530,6 +530,8 @@ Rails.application.routes.draw do
       post :reset_security
       post :sync_prices
     end
+
+    resources :splits, only: %i[create destroy], controller: "holding_splits"
   end
   resources :trades, only: %i[show new create update destroy] do
     member do

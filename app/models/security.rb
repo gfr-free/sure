@@ -88,6 +88,7 @@ class Security < ApplicationRecord
 
   has_many :trades, dependent: :nullify, class_name: "Trade"
   has_many :prices, dependent: :destroy
+  has_many :splits, dependent: :destroy
 
   validates :ticker, presence: true
   validates :ticker, uniqueness: { scope: :exchange_operating_mic, case_sensitive: false }

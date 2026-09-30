@@ -1,0 +1,8 @@
+---
+de:
+  holding_splits:
+    not_permitted: Um Splits zu ändern, brauchst du Bearbeitungsrechte für alle Konten mit diesem Wertpapier.
+    create:
+      success: Aktiensplit gespeichert. Deine Bestände werden neu berechnet.
+    destroy:
+      success: Aktiensplit gelöscht. Deine Bestände werden neu berechnet.

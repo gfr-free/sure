@@ -1,0 +1,17 @@
+---
+de:
+  activerecord:
+    attributes:
+      security/split:
+        date: Gültig ab
+        ratio_from: Alte Stücke
+        ratio_to: Neue Stücke
+    errors:
+      models:
+        security/split:
+          attributes:
+            date:
+              in_future: darf nicht in der Zukunft liegen
+              taken: hat für dieses Wertpapier schon einen Split
+            ratio_to:
+              same_as_ratio_from: muss sich von den alten Stücken unterscheiden

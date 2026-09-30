@@ -207,6 +207,11 @@ class Provider::TwelveData < Provider
     end
   end
 
+  # time_series adjusts for splits unless asked not to (`adjust` defaults to "splits").
+  def split_adjusted_prices?
+    true
+  end
+
   def fetch_security_prices(symbol:, exchange_operating_mic: nil, start_date:, end_date:)
     with_provider_response do
       throttle_request

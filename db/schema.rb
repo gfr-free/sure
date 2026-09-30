@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2305,6 +2305,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.string "price_provider"
     t.string "region"
     t.string "sector"
+    t.datetime "splits_checked_at"
     t.string "ticker", null: false
     t.datetime "updated_at", null: false
     t.string "website_url"
@@ -2330,6 +2331,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.datetime "updated_at", null: false
     t.index ["security_id", "date", "currency"], name: "index_security_prices_on_security_id_and_date_and_currency", unique: true
     t.index ["security_id"], name: "index_security_prices_on_security_id"
+  end
+
+  create_table "security_splits", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.uuid "family_id"
+    t.decimal "ratio_from", precision: 19, scale: 8, null: false
+    t.decimal "ratio_to", precision: 19, scale: 8, null: false
+    t.uuid "security_id", null: false
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.index ["family_id"], name: "index_security_splits_on_family_id"
+    t.index ["security_id", "date"], name: "index_security_splits_on_provider_split", unique: true, where: "(family_id IS NULL)"
+    t.index ["security_id", "family_id", "date"], name: "index_security_splits_on_family_split", unique: true, where: "(family_id IS NOT NULL)"
+    t.check_constraint "ratio_from > 0::numeric AND ratio_to > 0::numeric", name: "chk_security_splits_positive_ratio"
+    t.check_constraint "source::text = ANY (ARRAY['provider'::character varying, 'manual'::character varying]::text[])", name: "chk_security_splits_source"
   end
 
   create_table "sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3075,6 +3092,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   add_foreign_key "rule_runs", "rules"
   add_foreign_key "rules", "families"
   add_foreign_key "security_prices", "securities"
+  add_foreign_key "security_splits", "families", on_delete: :cascade
+  add_foreign_key "security_splits", "securities", on_delete: :cascade
   add_foreign_key "sessions", "impersonation_sessions", column: "active_impersonator_session_id", on_delete: :nullify
   add_foreign_key "sessions", "users"
   add_foreign_key "simplefin_accounts", "simplefin_items"

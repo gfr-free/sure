@@ -12,6 +12,8 @@ class HoldingsController < ApplicationController
 
   def show
     @last_price_updated = @holding.security.prices.maximum(:updated_at)
+    @splits = @holding.security.splits.visible_to(Current.family).order(date: :desc)
+    @can_manage_splits = Security::Split.manageable_by?(user: Current.user, family: Current.family, security: @holding.security)
   end
 
   def update

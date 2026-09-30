@@ -24,11 +24,14 @@ class MarketDataImporter
 
     # Import all securities that aren't marked as "offline" (i.e. they're available from the provider)
     Security.online.find_each do |security|
+      start_date = get_first_required_price_date(security)
+
       security.import_provider_prices(
-        start_date: get_first_required_price_date(security),
+        start_date: start_date,
         end_date: end_date,
         clear_cache: clear_cache
       )
+      security.import_provider_splits(start_date: start_date)
 
       security.import_provider_details(clear_cache: clear_cache)
     end

@@ -634,6 +634,58 @@ class Provider::YahooFinanceTest < ActiveSupport::TestCase
     assert_instance_of Provider::YahooFinance::Error, response.error
   end
 
+  test "fetch_security_splits reads split events from the chart" do
+    chart_response = mock
+    chart_response.stubs(:body).returns({
+      chart: {
+        result: [ {
+          meta: { exchangeName: "NMS" },
+          events: {
+            splits: {
+              "1598880600" => { date: 1598880600, numerator: 4, denominator: 1, splitRatio: "4:1" },
+              "1402320600" => { date: 1402320600, numerator: 7, denominator: 1, splitRatio: "7:1" },
+              "1700000000" => { date: 1700000000, numerator: 1, denominator: 1, splitRatio: "1:1" }
+            }
+          }
+        } ]
+      }
+    }.to_json)
+    chart_client = mock
+    chart_client.expects(:get).with(regexp_matches(%r{/v8/finance/chart/AAPL$})).returns(chart_response)
+    @provider.stubs(:client).returns(chart_client)
+    @provider.stubs(:throttle_request)
+
+    response = @provider.fetch_security_splits(
+      symbol: "AAPL",
+      exchange_operating_mic: "XNAS",
+      start_date: Date.new(2010, 1, 1),
+      end_date: Date.new(2024, 1, 1)
+    )
+
+    assert response.success?, response.error&.message
+    assert_equal [ Date.new(2014, 6, 9), Date.new(2020, 8, 31) ], response.data.map(&:date)
+    assert_equal [ 1, 7 ], [ response.data.first.ratio_from, response.data.first.ratio_to ]
+    assert_equal [ 1, 4 ], [ response.data.last.ratio_from, response.data.last.ratio_to ]
+  end
+
+  test "fetch_security_splits returns no splits when the chart has none" do
+    chart_response = mock
+    chart_response.stubs(:body).returns({ chart: { result: [ { meta: {} } ] } }.to_json)
+    chart_client = mock
+    chart_client.stubs(:get).returns(chart_response)
+    @provider.stubs(:client).returns(chart_client)
+    @provider.stubs(:throttle_request)
+
+    response = @provider.fetch_security_splits(symbol: "MSFT", start_date: Date.new(2024, 1, 1), end_date: Date.new(2024, 2, 1))
+
+    assert response.success?
+    assert_empty response.data
+  end
+
+  test "reports split-adjusted prices" do
+    assert @provider.split_adjusted_prices?
+  end
+
   test "fetch_security_prices uses the Colombian Yahoo suffix once and COP fallback" do
     date = Date.new(2024, 1, 15)
     chart_response = mock

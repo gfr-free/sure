@@ -82,7 +82,9 @@ class Trade < ApplicationRecord
     current_price = security.current_price
     return nil if current_price.nil?
 
-    current_value = current_price * qty.abs
+    # A buy from before a split is worth today's price times the shares it
+    # became, not times the shares bought.
+    current_value = current_price * (qty.abs * split_factor)
     cost_basis = price_money * qty.abs
 
     Trend.new(current: current_value, previous: cost_basis)
@@ -156,6 +158,25 @@ class Trade < ApplicationRecord
     basis_holding&.currency
   end
 
+  # How many of today's shares one share of this trade has become through
+  # later stock splits (1 when there were none). See Security::SplitSchedule.
+  def split_factor
+    @split_factor ||= Security::SplitSchedule
+      .load(security_ids: [ security_id ], family_id: entry.account.family_id)
+      .factor_after(security_id, entry.date)
+  end
+
+  # One query per family for every split a set of trades can need, instead of
+  # one per trade.
+  def self.preload_split_factors(trades)
+    trades.group_by { |trade| trade.entry.account.family_id }.each do |family_id, family_trades|
+      schedule = Security::SplitSchedule.load(security_ids: family_trades.map(&:security_id).uniq, family_id: family_id)
+      family_trades.each do |trade|
+        trade.instance_variable_set(:@split_factor, schedule.factor_after(trade.security_id, trade.entry.date))
+      end
+    end
+  end
+
   # Calculates realized gain/loss for sell trades based on avg_cost at time of sale
   # Returns nil for buy trades or when cost basis cannot be determined
   def realized_gain_loss
@@ -217,7 +238,11 @@ class Trade < ApplicationRecord
 
       return nil unless holding&.avg_cost
 
-      cost_basis = holding.avg_cost * qty.abs
+      # Calculated holdings carry their cost per share on today's basis, so a
+      # sale from before a split relieves the shares those sold shares have
+      # since become. A provider's snapshot is on the basis of its own day.
+      basis_qty = holding.account_provider_id.present? ? qty.abs : qty.abs * split_factor
+      cost_basis = holding.avg_cost * basis_qty
       sale_proceeds = converted_to_basis_currency(price_money * qty.abs, cost_basis.currency)
 
       # No rate for that day means the gain is unknown, not zero and not the

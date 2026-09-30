@@ -1,0 +1,50 @@
+<%# locals: (holding:, splits:, can_manage:) %>
+<div class="px-3 py-2 space-y-4">
+  <p class="text-xs text-secondary"><%= t(".description") %></p>
+
+  <% if splits.any? %>
+    <ul class="space-y-2">
+      <% splits.each do |split| %>
+        <li id="<%= dom_id(split) %>" class="flex items-center justify-between gap-2 text-sm">
+          <div>
+            <p class="text-primary"><%= t(".ratio", from: format_quantity(split.ratio_from, exact: true), to: format_quantity(split.ratio_to, exact: true)) %></p>
+            <p class="text-xs text-secondary">
+              <%= l(split.date, format: :long) %> · <%= t(".sources.#{split.source}") %>
+            </p>
+          </div>
+          <% if can_manage && split.manual? && split.family_id == Current.family.id %>
+            <%= render DS::Button.new(
+                  variant: :icon,
+                  icon: "trash-2",
+                  href: holding_split_path(holding, split),
+                  method: :delete,
+                  aria_label: t(".delete"),
+                  confirm: CustomConfirm.for_resource_deletion(t(".delete_confirm_resource"))
+                ) %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-sm text-secondary"><%= t(".empty") %></p>
+  <% end %>
+
+  <% if can_manage %>
+    <%= styled_form_with model: Security::Split.new(ratio_from: 1),
+          scope: :security_split,
+          url: holding_splits_path(holding),
+          method: :post,
+          class: "space-y-2 pt-2 border-t border-tertiary",
+          data: { turbo: false } do |f| %>
+      <%= f.date_field :date, label: t(".date_label"), max: Date.current, required: true %>
+      <div class="grid grid-cols-2 gap-2">
+        <%= f.number_field :ratio_from, label: t(".ratio_from_label"), min: 0, step: "any", required: true %>
+        <%= f.number_field :ratio_to, label: t(".ratio_to_label"), min: 0, step: "any", required: true %>
+      </div>
+      <p class="text-xs text-secondary"><%= t(".ratio_hint") %></p>
+      <div class="flex justify-end">
+        <%= render DS::Button.new(text: t(".add"), type: :submit, variant: :secondary) %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

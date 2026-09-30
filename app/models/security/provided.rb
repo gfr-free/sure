@@ -296,6 +296,56 @@ module Security::Provided
     nil
   end
 
+  # Providers are asked for splits at most this often per security; splits are
+  # rare and every check costs a request against the provider's rate limit.
+  SPLIT_CHECK_INTERVAL = 1.day
+
+  # Stores the splits the price provider reports since `start_date` (or since
+  # the first trade in the security, if earlier). Returns how many splits were
+  # added or changed. Providers without split data are skipped; users can
+  # still enter splits by hand.
+  def import_provider_splits(start_date:)
+    provider = price_data_provider
+    return 0 if offline? || start_date.blank? || start_date > Date.current
+    return 0 unless provider.respond_to?(:fetch_security_splits)
+    return 0 if splits_checked_at.present? && splits_checked_at > SPLIT_CHECK_INTERVAL.ago
+
+    # Always reach back to the first trade: a split before it changes nothing,
+    # but one after it does, even when that trade was imported only today.
+    first_trade_date = Trade.with_entry.where(security_id: id).minimum("entries.date")
+    start_date = [ start_date, first_trade_date ].compact.min
+
+    response = provider.fetch_security_splits(
+      symbol: ticker,
+      exchange_operating_mic: exchange_operating_mic,
+      start_date: start_date,
+      end_date: Date.current
+    )
+
+    unless response.success?
+      DebugLogEntry.capture(
+        category: "security_splits_fetch",
+        level: "warn",
+        message: "Failed to fetch stock splits",
+        source: self.class.name,
+        provider: provider,
+        metadata: { security_id: id, ticker: ticker, provider_error: response.error&.message }
+      )
+      return 0
+    end
+
+    changed_dates = response.data.filter_map { |provider_split| store_provider_split(provider_split, provider) }
+    update_column(:splits_checked_at, Time.current)
+
+    # One recalculation for the whole batch, from the earliest change: the first
+    # check of a security can find several historical splits at once.
+    if changed_dates.any?
+      SecuritySplitAppliedJob.perform_later(security_id: id, family_id: nil, split_date: changed_dates.min.iso8601)
+    end
+
+    changed_dates.size
+  end
+
   def import_provider_prices(start_date:, end_date:, clear_cache: false)
     unless price_data_provider.present?
       Rails.logger.warn("No provider configured for Security.import_provider_prices")
@@ -311,4 +361,31 @@ module Security::Provided
     )
     [ importer.import_provider_prices, importer.provider_error ]
   end
+
+  private
+    # Saves one provider split and returns the earliest date it affects, or nil
+    # when nothing changed. A provider split already stored a few days away is
+    # the same split with a corrected date, so it is moved rather than doubled.
+    def store_provider_split(provider_split, provider)
+      split = splits.where(family_id: nil).find_by(date: provider_split.date) ||
+        splits.where(family_id: nil, date: (provider_split.date - Security::SplitSchedule::BROKER_SPLIT_WINDOW)..(provider_split.date + Security::SplitSchedule::BROKER_SPLIT_WINDOW)).first ||
+        splits.new(family_id: nil)
+      previous_date = split.date
+
+      split.assign_attributes(source: "provider", date: provider_split.date, ratio_from: provider_split.ratio_from, ratio_to: provider_split.ratio_to)
+      return nil unless split.new_record? || split.changed?
+
+      split.skip_apply_job = true
+      return [ previous_date, split.date ].compact.min if split.save
+
+      DebugLogEntry.capture(
+        category: "security_splits_fetch",
+        level: "warn",
+        message: "Skipped invalid stock split from provider",
+        source: self.class.name,
+        provider: provider,
+        metadata: { security_id: id, ticker: ticker, date: provider_split.date.iso8601, errors: split.errors.full_messages }
+      )
+      nil
+    end
 end

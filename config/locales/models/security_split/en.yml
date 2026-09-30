@@ -1,0 +1,17 @@
+---
+en:
+  activerecord:
+    attributes:
+      security/split:
+        date: Effective date
+        ratio_from: Old shares
+        ratio_to: New shares
+    errors:
+      models:
+        security/split:
+          attributes:
+            date:
+              in_future: can't be in the future
+              taken: already has a split for this security
+            ratio_to:
+              same_as_ratio_from: must differ from old shares

@@ -1,0 +1,8 @@
+---
+en:
+  holding_splits:
+    not_permitted: You need edit access to every account holding this security to change its splits.
+    create:
+      success: Stock split saved. Your holdings are being recalculated.
+    destroy:
+      success: Stock split deleted. Your holdings are being recalculated.

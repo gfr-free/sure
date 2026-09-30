@@ -245,6 +245,9 @@
         </div>
       </div>
     <% end %>
+    <% dialog.with_section(title: t(".splits"), open: @splits.any?) do %>
+      <%= render "holdings/splits", holding: @holding, splits: @splits, can_manage: @can_manage_splits %>
+    <% end %>
     <% if @holding.cost_basis_locked? || (@holding.security_remapped? && @holding.account.linked?) || @holding.account.can_delete_holdings? || !@holding.security.offline? || @holding.security.provider_status == :provider_unavailable %>
       <% dialog.with_section(title: t(".settings"), open: true) do %>
         <div class="pb-4">

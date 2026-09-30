@@ -104,6 +104,7 @@ class Account::MarketDataImporter
       end
 
       security.import_provider_prices(start_date: start_dates[security_id], end_date: end_date)
+      security.import_provider_splits(start_date: start_dates[security_id])
       security.import_provider_details
     end
   end

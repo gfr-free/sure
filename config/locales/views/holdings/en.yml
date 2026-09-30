@@ -1,6 +1,20 @@
 ---
 en:
   holdings:
+    splits:
+      add: Add split
+      date_label: Effective date
+      delete: Delete split
+      delete_confirm_resource: stock split
+      description: Holdings before a split are counted on today's share basis, so value and cost stay correct. Splits from your price provider are added automatically.
+      empty: No stock splits recorded.
+      ratio: "%{from} : %{to}"
+      ratio_from_label: Old shares
+      ratio_hint: For a 1-for-4 split enter 1 and 4; for a 10-to-1 reverse split enter 10 and 1.
+      ratio_to_label: New shares
+      sources:
+        manual: Entered by you
+        provider: From price provider
     cash:
       brokerage_cash: Brokerage cash
     destroy:
@@ -66,6 +80,7 @@ en:
       delete_title: Delete holding
       edit_security: Edit security
       history: History
+      splits: Stock splits
       no_trade_history: No trade history available for this holding.
       overview: Overview
       portfolio_weight_label: Portfolio Weight

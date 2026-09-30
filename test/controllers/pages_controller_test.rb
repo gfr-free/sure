@@ -14,6 +14,13 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "dashboard shows the return of the investment accounts" do
+    get root_path
+
+    assert_response :ok
+    assert_select "#investment-summary", text: /#{Regexp.escape(I18n.t("pages.dashboard.investment_summary.money_weighted_return"))}/
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 

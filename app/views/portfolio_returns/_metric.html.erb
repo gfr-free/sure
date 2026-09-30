@@ -1,0 +1,15 @@
+<%# locals: (label:, value:, value_class: "text-primary", large: false, help: nil, notes: []) %>
+<%# One figure tile of the returns block. notes: [{ text:, class: }], shown
+    small under the figure; pass "privacy-sensitive" in class for amounts. %>
+<div class="bg-container-inset rounded-lg p-4 space-y-1">
+  <div class="flex items-center gap-1">
+    <span class="text-sm text-secondary"><%= label %></span>
+    <%= render DS::Tooltip.new(text: help) if help %>
+  </div>
+  <p class="<%= large ? "text-2xl" : "text-xl" %> font-semibold privacy-sensitive <%= value_class %>">
+    <%= value %>
+  </p>
+  <% notes.each do |note| %>
+    <p class="text-xs <%= note[:class] || "text-secondary" %>"><%= note[:text] %></p>
+  <% end %>
+</div>

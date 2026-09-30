@@ -1,0 +1,13 @@
+---
+en:
+  portfolio_returns:
+    money_weighted: Your return
+    money_weighted_help: What your money earned, taking into account when you paid in and took out (money-weighted return, XIRR).
+    time_weighted: How your investments did
+    time_weighted_help: How your investments performed, regardless of when you paid in. Use this one to compare with an index (time-weighted return, TWR).
+    per_year: per year
+    in_period: in this period
+    without_currency_effect: "without exchange rate effects: %{value}"
+    ambiguous: These deposits and withdrawals allow more than one return. How your investments did is the more reliable figure here.
+    missing_rates: Some accounts are left out because there is no exchange rate for their currency.
+    no_data: "-"

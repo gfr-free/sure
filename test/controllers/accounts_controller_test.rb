@@ -434,6 +434,21 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-frame##{dom_id(trade_entry)}"
   end
 
+  test "investment account shows its returns for the chart period" do
+    get account_url(accounts(:investment))
+
+    assert_response :success
+    assert_match I18n.t("portfolio_returns.money_weighted"), response.body
+    assert_match I18n.t("portfolio_returns.time_weighted"), response.body
+  end
+
+  test "non-investment account shows no returns" do
+    get account_url(accounts(:depository))
+
+    assert_response :success
+    assert_no_match I18n.t("portfolio_returns.money_weighted"), response.body
+  end
+
   test "renders investment account with gains chart view" do
     get account_url(accounts(:investment), chart_view: "gains")
 

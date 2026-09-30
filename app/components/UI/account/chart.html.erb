@@ -43,6 +43,12 @@
       <%= render partial: "shared/trend_change", locals: { trend: trend, comparison_label: comparison_label } %>
     </div>
 
+    <% if returns_result %>
+      <div class="px-4 my-2 space-y-2">
+        <%= render "portfolio_returns/summary", result: returns_result %>
+      </div>
+    <% end %>
+
     <% if loan_chart? %>
       <%# The loan balance chart: recorded balance, original schedule and
           projection on one axis, with the figures the projection produces beside

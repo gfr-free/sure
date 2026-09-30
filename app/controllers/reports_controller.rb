@@ -493,13 +493,17 @@ class ReportsController < ApplicationController
       return { has_investments: false } unless investment_accounts.any?
 
       period_totals = investment_statement.totals(period: @period)
+      history = investment_statement.performance_history
       {
         has_investments: true,
         portfolio_value: investment_statement.portfolio_value_money,
         unrealized_trend: investment_statement.unrealized_gains_trend,
-        period_return_trend: investment_statement.period_return_trend(period: @period),
-        period_contributions: period_totals.contributions,
-        period_withdrawals: period_totals.withdrawals,
+        performance: investment_statement.performance(period: @period).result,
+        performance_without_currency_effect: (investment_statement.performance(period: @period, fixed_rates: true).result if investment_statement.foreign_currency_accounts?),
+        monthly_returns: history&.monthly_returns || {},
+        yearly_returns: history&.yearly_returns || {},
+        period_buys: period_totals.contributions,
+        period_sells: period_totals.withdrawals,
         top_holdings: investment_statement.top_holdings(limit: 5),
         accounts: investment_accounts.to_a,
         gains_by_tax_treatment: build_gains_by_tax_treatment(investment_statement)

@@ -35,6 +35,7 @@ en:
       exchange: Exchange
       fee: Fee
       other: Other
+      tax: Tax
       reinvestment: Reinvestment
       sweep_in: Sweep in
       sweep_out: Sweep out

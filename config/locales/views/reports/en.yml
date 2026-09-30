@@ -143,9 +143,18 @@ en:
       title: Investment Performance
       portfolio_value: Portfolio Value
       total_return: Total Return
-      period_return: Period Return
-      contributions: Period Contributions
-      withdrawals: Period Withdrawals
+      buys: Period Buys
+      sells: Period Sells
+      returns: Returns
+      gain: Gain
+      net_flows: Deposits minus withdrawals
+      net_flows_detail: "%{deposits} in, %{withdrawals} out"
+      income: Dividends and interest
+      costs: Costs and taxes
+      returns_by_month: Performance by month and year
+      returns_by_month_help: How your investments did in each month and year, regardless of when you paid in. Each year is the months of that year chained together.
+      year: Year
+      year_total: Total
       top_holdings: Top Holdings
       holding: Holding
       weight: Weight
@@ -170,7 +179,7 @@ en:
       and_more: "+%{count} more"
     investment_flows:
       title: Investment Flows
-      description: Track money flowing into and out of your investment accounts through contributions and withdrawals.
+      description: Money you moved into and out of your investment accounts. Entries without an investment label count as deposits or withdrawals.
       contributions: Contributions
       contributions_description: Money added to investments
       withdrawals: Withdrawals
@@ -230,9 +239,9 @@ en:
         title: Investments
         portfolio_value: Portfolio Value
         total_return: Total Return
-        period_return: Period Return
-        contributions: Contributions
-        withdrawals: Withdrawals
+        money_weighted_return: Your Return
+        buys: Buys
+        sells: Sells
         this_period: this period
         top_holdings: Top Holdings
         holding: Holding

@@ -740,6 +740,33 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/#{Regexp.escape(I18n.t("reports.investment_performance.sells_count", count: 2))}/, response.body)
   end
 
+  test "investment section shows returns, buys and sells, and returns by month" do
+    account = @family.accounts.create!(name: "Brokerage", balance: 1100, currency: "USD", accountable: Investment.new)
+    account.balances.create!(date: 40.days.ago.to_date, balance: 1000, currency: "USD", start_non_cash_balance: 1000)
+    account.balances.create!(date: Date.current, balance: 1100, currency: "USD", start_non_cash_balance: 1100)
+
+    get reports_path(period_type: :custom, start_date: 30.days.ago.to_date, end_date: Date.current)
+    assert_response :success
+
+    assert_match I18n.t("portfolio_returns.money_weighted"), response.body
+    assert_match I18n.t("portfolio_returns.time_weighted"), response.body
+    assert_match I18n.t("reports.investment_performance.buys"), response.body
+    assert_match I18n.t("reports.investment_performance.sells"), response.body
+    assert_match I18n.t("reports.investment_performance.returns_by_month"), response.body
+    assert_match "+10.0%", response.body
+  end
+
+  test "print view shows the return of the investment accounts" do
+    account = @family.accounts.create!(name: "Brokerage", balance: 1100, currency: "USD", accountable: Investment.new)
+    account.balances.create!(date: 40.days.ago.to_date, balance: 1000, currency: "USD", start_non_cash_balance: 1000)
+
+    get print_reports_path(period_type: :custom, start_date: 30.days.ago.to_date, end_date: Date.current)
+    assert_response :success
+
+    assert_match I18n.t("reports.print.investments.money_weighted_return"), response.body
+    assert_match I18n.t("reports.print.investments.buys"), response.body
+  end
+
   private
     # n EUR-priced disposals in a USD account, each on its own date with its
     # own rate row, so every one needs a distinct lookup.

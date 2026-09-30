@@ -83,6 +83,19 @@ class UI::Account::Chart < ApplicationComponent
     end
   end
 
+  # Returns of an investment account over the chart's period, in the account's
+  # own currency (so without currency effects against the family currency).
+  def returns_result
+    return nil if loan_chart? || !account.supports_trades?
+
+    @returns_result ||= Portfolio::Performance.new(
+      accounts: [ account ],
+      start_date: period.start_date,
+      end_date: period.end_date,
+      currency: account.currency
+    ).result
+  end
+
   def holdings_value_money
     account.balance_money - account.cash_balance_money
   end

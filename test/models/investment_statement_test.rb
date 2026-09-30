@@ -405,49 +405,42 @@ class InvestmentStatementTest < ActiveSupport::TestCase
     assert_in_delta 3980, trend.previous.amount, 0.001
   end
 
-  test "period_return_trend returns nil when no balance data in period" do
-    period = Period.custom(start_date: 10.years.ago.to_date, end_date: 9.years.ago.to_date)
-    assert_nil @statement.period_return_trend(period: period)
+  test "performance covers the investment accounts in family currency" do
+    account = create_investment_account(balance: 1100)
+    period = Period.custom(start_date: 10.days.ago.to_date, end_date: Date.current)
+    account.balances.create!(date: period.start_date - 1, balance: 1000, currency: "USD", start_non_cash_balance: 1000)
+    account.balances.create!(date: period.end_date, balance: 1100, currency: "USD", start_non_cash_balance: 1100)
+
+    result = @statement.performance(period: period).result
+
+    assert_equal "USD", result.currency
+    assert_equal 100, result.gain
+    assert_in_delta 0.10, result.time_weighted_return, 0.0001
+    assert_in_delta 0.10, result.money_weighted_return, 0.0001
   end
 
-  test "period_return_trend returns nil when start portfolio value is zero" do
-    account = create_investment_account(balance: 5000)
-    period = Period.custom(start_date: Date.current.beginning_of_month, end_date: Date.current)
-    # Balance only inside the period — nothing strictly before period_start means start_value = 0
-    account.balances.create!(
-      date: period.date_range.begin,
-      balance: 5000,
-      currency: @family.currency,
-      net_market_flows: 200
-    )
-    assert_nil @statement.period_return_trend(period: period)
+  test "foreign_currency_accounts? is true only with accounts in another currency" do
+    create_investment_account(balance: 100)
+    assert_not @statement.foreign_currency_accounts?
+
+    create_investment_account(balance: 100, currency: "EUR")
+    assert InvestmentStatement.new(@family, user: nil).foreign_currency_accounts?
   end
 
-  test "period_return_trend returns Trend with correct absolute and percent return" do
-    account = create_investment_account(balance: 10_500)
-    period = Period.custom(start_date: Date.current.beginning_of_month, end_date: Date.current)
+  test "performance_history is nil without balances" do
+    create_investment_account(balance: 100)
 
-    # Pre-period row: start_non_cash_balance drives end_balance (virtual stored column)
-    account.balances.create!(
-      date: period.date_range.begin - 1.day,
-      balance: 10_000,
-      currency: @family.currency,
-      start_non_cash_balance: 10_000,
-      net_market_flows: 0
-    )
-    # In-period row: 500 of market gains
-    account.balances.create!(
-      date: period.date_range.begin,
-      balance: 10_500,
-      currency: @family.currency,
-      start_non_cash_balance: 10_000,
-      net_market_flows: 500
-    )
+    assert_nil @statement.performance_history
+  end
 
-    trend = @statement.period_return_trend(period: period)
-    assert_not_nil trend
-    assert_in_delta 500, trend.value.amount, 1
-    assert_in_delta 5.0, trend.percent, 0.1
+  test "performance_history starts after the first stored balance" do
+    account = create_investment_account(balance: 1000)
+    account.balances.create!(date: 40.days.ago.to_date, balance: 1000, currency: "USD", start_non_cash_balance: 1000)
+
+    history = @statement.performance_history
+
+    assert_equal 39.days.ago.to_date, history.start_date
+    assert_equal Date.current, history.end_date
   end
 
   test "totals skips cache when there are no investment accounts" do

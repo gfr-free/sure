@@ -1,0 +1,38 @@
+<%# locals: (result:, result_without_currency_effect: nil) %>
+<%# The two returns of Portfolio::Performance, worded for people who do not
+    know the terms: "your return" (money-weighted, XIRR) is the headline, "how
+    your investments did" (time-weighted, TWR) sits beside it. The terms only
+    appear in the info tooltips. %>
+<%
+  basis = { text: portfolio_return_basis(result) }
+  money_weighted_notes = [ basis ]
+  time_weighted_notes = [ basis ]
+
+  if result_without_currency_effect
+    money_weighted_notes << { text: t("portfolio_returns.without_currency_effect", value: format_portfolio_return(result_without_currency_effect.money_weighted_return)), class: "text-secondary privacy-sensitive" }
+    time_weighted_notes << { text: t("portfolio_returns.without_currency_effect", value: format_portfolio_return(result_without_currency_effect.time_weighted_return)), class: "text-secondary privacy-sensitive" }
+  end
+
+  money_weighted_notes << { text: t("portfolio_returns.ambiguous"), class: "text-warning" } if result.ambiguous
+%>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  <%= render "portfolio_returns/metric",
+        label: t("portfolio_returns.money_weighted"),
+        help: t("portfolio_returns.money_weighted_help"),
+        value: format_portfolio_return(result.money_weighted_return),
+        value_class: portfolio_return_color_class(result.money_weighted_return),
+        large: true,
+        notes: money_weighted_notes %>
+
+  <%= render "portfolio_returns/metric",
+        label: t("portfolio_returns.time_weighted"),
+        help: t("portfolio_returns.time_weighted_help"),
+        value: format_portfolio_return(result.time_weighted_return),
+        value_class: portfolio_return_color_class(result.time_weighted_return),
+        large: true,
+        notes: time_weighted_notes %>
+</div>
+
+<% if result.missing_rates %>
+  <p class="text-xs text-warning"><%= t("portfolio_returns.missing_rates") %></p>
+<% end %>

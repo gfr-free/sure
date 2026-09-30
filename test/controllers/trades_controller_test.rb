@@ -38,6 +38,7 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
       "Sell" => "Verkaufen",
       "Sweep In" => "Sweep In",
       "Sweep Out" => "Sweep Out",
+      "Tax" => "Steuer",
       "Transfer" => "Überweisung",
       "Withdrawal" => "Entnahme"
     }

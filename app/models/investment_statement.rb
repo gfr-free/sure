@@ -167,75 +167,31 @@ class InvestmentStatement
     )
   end
 
-  def period_return_trend(period: Period.current_month)
-    currency = family.currency
-    account_ids = investment_account_ids
-    return nil if account_ids.empty?
-
-    absolute_return = ActiveRecord::Base.connection.select_value(
-      ActiveRecord::Base.sanitize_sql_array([
-        <<~SQL.squish,
-          SELECT COALESCE(SUM(b.net_market_flows * COALESCE(er.rate, 1)), 0)
-          FROM balances b
-          JOIN accounts a ON a.id = b.account_id
-          LEFT JOIN exchange_rates er ON (
-            er.date = b.date
-            AND er.from_currency = b.currency
-            AND er.to_currency = :currency
-          )
-          WHERE a.id IN (:account_ids)
-            AND a.family_id = :family_id
-            AND a.status IN ('draft', 'active')
-            AND b.date BETWEEN :start_date AND :end_date
-        SQL
-        {
-          currency: currency,
-          account_ids: account_ids,
-          family_id: family.id,
-          start_date: period.date_range.begin,
-          end_date: period.date_range.end
-        }
-      ])
-    ).to_d
-
-    period_start = period.date_range.begin
-
-    # Single query for all accounts' most recent pre-period balance (strict < to avoid
-    # double-counting the first day's net_market_flows in both the denominator and absolute_return).
-    # FX conversion is done in SQL (matching absolute_return) so balance rows whose currency
-    # differs from the account's current currency (e.g. after a currency change) are still picked up.
-    start_value = ActiveRecord::Base.connection.select_value(
-      ActiveRecord::Base.sanitize_sql_array([
-        <<~SQL.squish,
-          SELECT COALESCE(SUM(b.end_balance * COALESCE(er.rate, 1)), 0)
-          FROM accounts a
-          INNER JOIN balances b ON b.account_id = a.id
-          LEFT JOIN exchange_rates er ON (
-            er.date = :period_start
-            AND er.from_currency = b.currency
-            AND er.to_currency = :currency
-          )
-          INNER JOIN (
-            SELECT b2.account_id, MAX(b2.date) AS max_date
-            FROM balances b2
-            WHERE b2.account_id IN (:account_ids)
-              AND b2.date < :period_start
-            GROUP BY b2.account_id
-          ) latest ON latest.account_id = b.account_id AND b.date = latest.max_date
-          WHERE a.id IN (:account_ids)
-            AND a.family_id = :family_id
-            AND a.status IN ('draft', 'active')
-        SQL
-        { account_ids: account_ids, period_start: period_start, family_id: family.id, currency: currency }
-      ])
-    ).to_d
-
-    return nil if start_value.zero?
-
-    Trend.new(
-      current: Money.new(start_value + absolute_return, currency),
-      previous: Money.new(start_value, currency)
+  # Return of the investment accounts over a period, in family currency.
+  # fixed_rates: true converts at one rate so currency movements drop out.
+  def performance(period:, fixed_rates: false)
+    Portfolio::Performance.new(
+      accounts: investment_accounts.to_a,
+      start_date: period.start_date,
+      end_date: period.end_date,
+      currency: family.currency,
+      fixed_rates: fixed_rates
     )
+  end
+
+  # Whether a return without currency effects differs from the one in family
+  # currency, which is the case only with accounts held in another currency.
+  def foreign_currency_accounts?
+    investment_accounts.any? { |account| account.currency != family.currency }
+  end
+
+  # Performance over the whole history of the investment accounts, for the
+  # table of returns by month and year.
+  def performance_history
+    first_date = Balance.where(account_id: investment_account_ids).minimum(:date)
+    return nil if first_date.nil? || first_date >= Date.current
+
+    performance(period: Period.custom(start_date: first_date + 1, end_date: Date.current))
   end
 
   # Day change across portfolio, summed in family currency

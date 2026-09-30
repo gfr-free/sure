@@ -62,13 +62,14 @@ de:
       investment_summary:
         title: Investments
         total_return: "Gesamtrendite"
+        money_weighted_return: "Deine Rendite"
         holding: "Position"
         weight: "Gewicht"
         value: "Wert"
         return: "Rendite"
         period_activity: "%{period} Aktivität"
-        contributions: "Einlagen"
-        withdrawals: "Entnahmen"
+        buys: "Käufe"
+        sells: "Verkäufe"
         trades: "Trades"
         no_investments: "Keine Anlagekonten"
         add_investment: "Füge ein Anlagekonto hinzu, um dein Portfolio zu verfolgen"

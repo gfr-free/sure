@@ -22,6 +22,16 @@
             </span>
           </div>
         <% end %>
+
+        <% performance = investment_statement.performance(period: period).result %>
+        <div class="flex items-center gap-2 text-sm">
+          <span class="text-secondary"><%= t(".money_weighted_return") %>:</span>
+          <span class="font-medium privacy-sensitive <%= portfolio_return_color_class(performance.money_weighted_return) %>">
+            <%= format_portfolio_return(performance.money_weighted_return) %>
+          </span>
+          <span class="text-secondary"><%= portfolio_return_basis(performance) %></span>
+          <%= render DS::Tooltip.new(text: t("portfolio_returns.money_weighted_help")) %>
+        </div>
       </div>
     </div>
 
@@ -96,7 +106,7 @@
                 <%= icon "trending-up", size: "sm", color: "green" %>
               </div>
               <div>
-                <p class="text-xs text-secondary"><%= t(".contributions") %></p>
+                <p class="text-xs text-secondary"><%= t(".buys") %></p>
                 <p class="font-medium text-primary privacy-sensitive"><%= format_money(totals.contributions) %></p>
               </div>
             </div>
@@ -105,7 +115,7 @@
                 <%= icon "trending-down", size: "sm", color: "orange" %>
               </div>
               <div>
-                <p class="text-xs text-secondary"><%= t(".withdrawals") %></p>
+                <p class="text-xs text-secondary"><%= t(".sells") %></p>
                 <p class="font-medium text-primary privacy-sensitive"><%= format_money(totals.withdrawals) %></p>
               </div>
             </div>

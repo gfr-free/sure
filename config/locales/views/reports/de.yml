@@ -113,8 +113,18 @@ de:
       title: Anlageperformance
       portfolio_value: Portfoliowert
       total_return: Gesamtrendite
-      contributions: Einlagen im Zeitraum
-      withdrawals: Entnahmen im Zeitraum
+      buys: Käufe im Zeitraum
+      sells: Verkäufe im Zeitraum
+      returns: Rendite
+      gain: Gewinn
+      net_flows: Einzahlungen minus Auszahlungen
+      net_flows_detail: "%{deposits} eingezahlt, %{withdrawals} ausgezahlt"
+      income: Dividenden und Zinsen
+      costs: Kosten und Steuern
+      returns_by_month: Entwicklung nach Monat und Jahr
+      returns_by_month_help: So haben sich deine Anlagen in jedem Monat und Jahr entwickelt, unabhängig davon, wann du eingezahlt hast. Jedes Jahr ergibt sich aus seinen Monaten.
+      year: Jahr
+      year_total: Gesamt
       top_holdings: Top-Positionen
       holding: Position
       weight: Gewicht
@@ -137,10 +147,9 @@ de:
       holdings: Positionen
       sell_trades: Verkaufstrades
       and_more: "+%{count} weitere"
-      period_return: Rendite im Zeitraum
     investment_flows:
       title: Anlageflüsse
-      description: Verfolge Geldflüsse in und aus deinen Anlagekonten
+      description: Geld, das du in deine Anlagekonten eingezahlt oder daraus entnommen hast. Buchungen ohne Anlage-Label zählen als Ein- oder Auszahlung.
       contributions: Einlagen
       withdrawals: Entnahmen
       net_flow: Nettozufluss
@@ -240,8 +249,9 @@ de:
         title: Anlagen
         portfolio_value: Portfoliowert
         total_return: Gesamtrendite
-        contributions: Einlagen
-        withdrawals: Entnahmen
+        money_weighted_return: Deine Rendite
+        buys: Käufe
+        sells: Verkäufe
         this_period: dieser Zeitraum
         top_holdings: Top-Positionen
         holding: Position

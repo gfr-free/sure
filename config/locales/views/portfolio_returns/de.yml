@@ -1,0 +1,13 @@
+---
+de:
+  portfolio_returns:
+    money_weighted: Deine Rendite
+    money_weighted_help: Was dein Geld verdient hat, unter Berücksichtigung, wann du ein- und ausgezahlt hast (geldgewichtete Rendite, XIRR).
+    time_weighted: Entwicklung deiner Anlagen
+    time_weighted_help: So haben sich deine Anlagen entwickelt, unabhängig davon, wann du eingezahlt hast. Diese Zahl eignet sich zum Vergleich mit einem Index (zeitgewichtete Rendite, TWR).
+    per_year: pro Jahr
+    in_period: im Zeitraum
+    without_currency_effect: "ohne Wechselkurseffekt: %{value}"
+    ambiguous: Bei diesen Ein- und Auszahlungen gibt es mehr als eine mögliche Rendite. Die Entwicklung deiner Anlagen ist hier aussagekräftiger.
+    missing_rates: Einige Konten fehlen in der Rechnung, weil für ihre Währung kein Wechselkurs vorliegt.
+    no_data: "-"

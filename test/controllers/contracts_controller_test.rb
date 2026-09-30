@@ -50,7 +50,7 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "admins do not see contracts that are not shared with them" do
-    private_contract = @family.contracts.create!(name: "Bike insurance", provider_name: "Insurer", owner: @member)
+    private_contract = @family.contracts.create!(name: "Bike insurance", owner: @member)
     private_contract.contract_shares.delete_all
 
     get contract_url(private_contract)
@@ -119,7 +119,6 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
       post contracts_url, params: {
         contract: {
           name: "Home contents",
-          provider_name: "Allianz",
           kind: "insurance",
           contract_number: "HR-1",
           notice_period_value: 3,
@@ -149,16 +148,13 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, I18n.t("contracts.insurance_lines.liability")
   end
 
-  test "overview prints open contracts with masked numbers unless asked" do
-    get overview_contracts_url
+  test "overview prints open contracts with numbers always masked" do
+    get overview_contracts_url(numbers: 1)
 
     assert_response :success
     assert_includes response.body, @insurance.name
     assert_includes response.body, "•••• 4711"
     assert_not_includes response.body, "LV-2024-004711"
-
-    get overview_contracts_url(numbers: 1)
-    assert_includes response.body, "LV-2024-004711"
   end
 
   test "overview never reveals numbers to a read-only share" do
@@ -199,11 +195,22 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[name='contract[name]'][value=?]", "Home contents"
     assert_select "input[name='contract[pdf_import_id]'][value=?]", pdf_import.id
+    assert_includes response.body, ERB::Util.html_escape(I18n.t("contracts.form.suggested_merchant", name: "Allianz")),
+                    "no merchant matches, so the form names the provider to add"
 
-    post contracts_url, params: { contract: { name: "Home contents", provider_name: "Allianz", kind: "insurance", pdf_import_id: pdf_import.id } }
+    post contracts_url, params: { contract: { name: "Home contents", kind: "insurance", pdf_import_id: pdf_import.id } }
 
     contract = @family.contracts.find_by!(name: "Home contents")
     assert_equal [ "policy.pdf" ], contract.contract_documents.map { |document| document.file.filename.to_s }
+  end
+
+  test "a document's provider picks the matching merchant" do
+    pdf_import = @family.imports.create!(type: "PdfImport", document_type: "contract",
+                                         extracted_data: { "contract" => { "name" => "Streaming", "provider" => "NETFLIX", "kind" => "streaming" } })
+
+    get new_contract_url(pdf_import_id: pdf_import.id)
+
+    assert_select "input[type=hidden][name='contract[merchant_id]'][value=?]", merchants(:netflix).id
   end
 
   test "saving the form keeps an account and successor the editor cannot see" do
@@ -246,7 +253,7 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     other_account = families(:empty).accounts.create!(name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
 
     assert_no_difference -> { Contract.count } do
-      post contracts_url, params: { contract: { name: "Sneaky", provider_name: "X", account_id: other_account.id } }
+      post contracts_url, params: { contract: { name: "Sneaky", account_id: other_account.id } }
     end
 
     assert_response :unprocessable_entity
@@ -282,12 +289,64 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert RecurringTransaction.exists?(bill.id)
   end
 
-  test "mark ended" do
-    patch mark_ended_contract_url(@insurance)
+  test "the payments dialog lists linkable bills and ticks the merchant's while none are linked" do
+    @phone.update!(merchant: merchants(:netflix))
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(merchant: merchants(:netflix), contract: nil)
 
-    assert_redirected_to contract_url(@insurance)
-    assert @insurance.reload.ended?
-    assert_equal Date.current, @insurance.ends_on
+    get payments_contract_url(@phone)
+
+    assert_response :success
+    assert_select "input[type=checkbox][name='contract[recurring_transaction_ids][]'][value='#{bill.id}'][checked]"
+
+    patch contract_url(@phone), params: { contract: { recurring_transaction_ids: [ bill.id, "" ] } }
+    assert_equal @phone, bill.reload.contract
+  end
+
+  test "adding a payment from a contract links the new bill and returns to the contract" do
+    assert_difference -> { @phone.recurring_transactions.count }, 1 do
+      post recurring_transactions_url, params: {
+        contract_id: @phone.id,
+        recurring_transaction: { name: "Phone bill", amount: "29.99", account_id: accounts(:depository).id,
+                                 first_due_on: Date.current.iso8601, frequency_preset: "monthly" }
+      }
+    end
+
+    assert_redirected_to contract_url(@phone)
+  end
+
+  test "adding a payment for a contract the user cannot edit saves the bill unlinked" do
+    sign_in @member
+
+    post recurring_transactions_url, params: {
+      contract_id: @phone.id,
+      recurring_transaction: { name: "Phone bill", amount: "29.99", account_id: accounts(:depository).id,
+                               first_due_on: Date.current.iso8601, frequency_preset: "monthly" }
+    }
+
+    assert_redirected_to bills_url
+    assert_not @phone.recurring_transactions.exists?(name: "Phone bill")
+  end
+
+  test "the form offers merchants from the user's transactions and can pick one" do
+    get edit_contract_url(@phone)
+    assert_select "[data-controller='merchant-select']"
+
+    patch contract_url(@phone), params: { contract: { merchant_id: merchants(:amazon).id } }
+    assert_equal merchants(:amazon), @phone.reload.merchant
+  end
+
+  test "the printed overview shows cost, deadline, owner and paying account" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @phone)
+    cost, = @phone.annual_cost_for(@admin)
+
+    get overview_contracts_url
+
+    assert_response :success
+    assert_includes response.body, ERB::Util.html_escape(@admin.display_name)
+    assert_includes response.body, ERB::Util.html_escape(bill.account.name)
+    assert_includes response.body, ActionController::Base.helpers.strip_tags(ApplicationController.helpers.format_money(cost))
   end
 
   test "index and show are localized in German" do

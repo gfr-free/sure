@@ -88,10 +88,11 @@ class Contract::NoticeScheduleTest < ActiveSupport::TestCase
     assert_nil result.notice_deadline
   end
 
-  test "a cancelled or fixed-term contract has nothing to miss" do
+  test "an ended or fixed-term contract has nothing to miss" do
     cancelled = build(started_on: Date.new(2024, 1, 1), minimum_term_months: 12, renewal_period_months: 12,
                       notice: [ 3, "months" ], anchor: "end_of_term")
-    cancelled.status = "cancellation_sent"
+    cancelled.status = "ended"
+    cancelled.ends_on = Date.new(2026, 12, 31)
     fixed = build(notice: [ 1, "months" ], anchor: "end_of_term")
     fixed.ends_on = Date.new(2026, 12, 31)
 
@@ -132,7 +133,7 @@ class Contract::NoticeScheduleTest < ActiveSupport::TestCase
 
     def build(started_on: nil, minimum_term_months: nil, renewal_period_months: nil, renewal_anchor_on: nil, notice: nil, anchor: nil)
       @family.contracts.new(
-        name: "Test", provider_name: "Provider", owner: users(:family_admin), status: "active",
+        name: "Test", owner: users(:family_admin), status: "active",
         started_on: started_on, minimum_term_months: minimum_term_months,
         renewal_period_months: renewal_period_months, renewal_anchor_on: renewal_anchor_on,
         notice_period_value: notice&.first, notice_period_unit: notice&.last, notice_anchor: anchor

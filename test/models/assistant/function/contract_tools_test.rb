@@ -67,6 +67,16 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     assert_equal @admin, contract.owner
     assert_equal contract, bill.reload.contract
     assert_equal [ bill.display_name ], result[:linked_bills]
+    assert_equal @admin.family.merchants.find_by!(name: "FitX"), contract.merchant, "an unknown provider becomes a family merchant"
+  end
+
+  test "create_contract maps the provider to an existing merchant" do
+    result = nil
+    assert_no_difference -> { Merchant.count } do
+      result = call(Assistant::Function::CreateContract, @admin, "name" => "Streaming", "provider" => "netflix", "kind" => "streaming")
+    end
+
+    assert_equal merchants(:netflix), Contract.find(result[:contract][:id]).merchant
   end
 
   test "create_contract does not take a bill from a contract the user cannot edit" do
@@ -95,9 +105,9 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
     RecurringTransaction.any_instance.stubs(:update!).raises(ActiveRecord::RecordInvalid.new(bill))
 
     result = nil
-    assert_no_difference -> { Contract.count } do
+    assert_no_difference [ -> { Contract.count }, -> { Merchant.count } ] do
       result = call(Assistant::Function::CreateContract, @admin,
-                    "name" => "Streaming", "provider" => "Netflix", "kind" => "streaming", "bill_ids" => [ bill.id ])
+                    "name" => "Streaming", "provider" => "New Streamer", "kind" => "streaming", "bill_ids" => [ bill.id ])
     end
 
     assert result[:error].present?
@@ -112,26 +122,24 @@ class Assistant::Function::ContractToolsTest < ActiveSupport::TestCase
   end
 
   test "update_contract rejects a malformed date instead of clearing the stored one" do
-    @phone.update!(ends_on: Date.new(2027, 2, 28))
+    @phone.update!(renewal_anchor_on: Date.new(2027, 2, 28))
 
-    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "ends_on" => "2027-13-45")
+    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "renewal_anchor_on" => "2027-13-45")
 
-    assert_includes result[:error], "ends_on"
-    assert_equal Date.new(2027, 2, 28), @phone.reload.ends_on
+    assert_includes result[:error], "renewal_anchor_on"
+    assert_equal Date.new(2027, 2, 28), @phone.reload.renewal_anchor_on
 
-    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "ends_on" => "")
+    result = call(Assistant::Function::UpdateContract, @admin, "contract_id" => @phone.id, "renewal_anchor_on" => "")
     assert_nil result[:error]
-    assert_nil @phone.reload.ends_on, "an explicit empty string still clears the date"
+    assert_nil @phone.reload.renewal_anchor_on, "an explicit empty string still clears the date"
   end
 
-  test "the audit finds upcoming deadlines and unconfirmed cancellations" do
+  test "the audit finds upcoming deadlines" do
     travel_to Date.new(2026, 9, 1)
-    @phone.update!(status: "cancellation_sent", cancelled_on: Date.new(2026, 8, 1))
 
     result = call(Assistant::Function::GetContractAudit, @admin)
 
     assert result[:upcoming_deadlines].any? { |row| row[:id] == @insurance.id }
-    assert result[:unconfirmed_cancellations].any? { |row| row[:id] == @phone.id }
   end
 
   test "contract tools respect the family's bills switch" do

@@ -9,72 +9,61 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     ensure_tailwind_build
   end
 
-  test "records a cancellation without ending bills by default" do
-    bill = recurring_transactions(:netflix_subscription)
-    bill.update!(contract: @contract)
-
-    post contract_cancellation_url(@contract), params: {
-      cancellation: { sent_on: Date.current.iso8601, ends_on: 2.months.from_now.to_date.iso8601, end_linked_bills: "0" }
-    }
-
-    assert_redirected_to contract_url(@contract)
-    assert @contract.reload.cancellation_sent?
-    assert bill.reload.ends_never?
-  end
-
-  test "can end linked bills with the cancellation" do
+  test "ending a contract ends its linked bills on the same date" do
     bill = recurring_transactions(:netflix_subscription)
     bill.update!(contract: @contract)
     ends_on = 2.months.from_now.to_date
 
-    post contract_cancellation_url(@contract), params: {
-      cancellation: { sent_on: Date.current.iso8601, ends_on: ends_on.iso8601, end_linked_bills: "1" }
-    }
+    get new_contract_ending_url(@contract)
+    assert_response :success
 
+    post contract_ending_url(@contract), params: { ending: { ends_on: ends_on.iso8601 } }
+
+    assert_redirected_to contract_url(@contract)
+    assert @contract.reload.ended?
+    assert_equal ends_on, @contract.ends_on
     assert_equal ends_on, bill.reload.end_on
   end
 
-  test "a read-write share ends only the bills it may change, and sees no offer for hidden ones" do
+  test "a read-write share ends only the bills it may change" do
     bill = recurring_transactions(:netflix_subscription)
     bill.update!(contract: @contract, account: accounts(:loan)) # an account not shared with the member
     @contract.contract_shares.find_by!(user: @member).update!(permission: "read_write")
     sign_in @member
 
-    get new_contract_cancellation_url(@contract)
-    assert_response :success
-    assert_select "input[name='cancellation[end_linked_bills]']", count: 0
+    post contract_ending_url(@contract), params: { ending: { ends_on: 2.months.from_now.to_date.iso8601 } }
 
-    post contract_cancellation_url(@contract), params: {
-      cancellation: { sent_on: Date.current.iso8601, ends_on: 2.months.from_now.to_date.iso8601, end_linked_bills: "1" }
-    }
-
-    assert @contract.reload.cancellation_sent?
+    assert @contract.reload.ended?
     assert bill.reload.ends_never?
   end
 
-  test "rejects an end before the cancellation was sent" do
-    post contract_cancellation_url(@contract), params: {
-      cancellation: { sent_on: Date.current.iso8601, ends_on: 1.day.ago.to_date.iso8601 }
-    }
-
+  test "ending needs a date and cannot end before the start" do
+    post contract_ending_url(@contract), params: { ending: { ends_on: "" } }
     assert_response :unprocessable_entity
+
+    post contract_ending_url(@contract), params: { ending: { ends_on: (@contract.started_on - 1.day).iso8601 } }
+    assert_response :unprocessable_entity
+
     assert @contract.reload.active?
   end
 
-  test "confirms and withdraws a cancellation" do
-    @contract.record_cancellation!(sent_on: Date.current)
+  test "removing the end reopens the contract and its bills" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @contract)
+    @contract.end_contract!(on: 2.months.from_now.to_date)
 
-    patch contract_cancellation_url(@contract)
-    assert @contract.reload.cancelled?
+    delete contract_ending_url(@contract)
 
-    delete contract_cancellation_url(@contract)
+    assert_redirected_to contract_url(@contract)
     assert @contract.reload.active?
+    assert_nil @contract.ends_on
+    assert bill.reload.ends_never?
   end
 
-  test "read-only shares cannot record a cancellation" do
+  test "read-only shares cannot end a contract" do
     sign_in @member
 
-    post contract_cancellation_url(@contract), params: { cancellation: { sent_on: Date.current.iso8601 } }
+    post contract_ending_url(@contract), params: { ending: { ends_on: Date.current.iso8601 } }
 
     assert_response :not_found
     assert @contract.reload.active?

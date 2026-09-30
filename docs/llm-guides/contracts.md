@@ -23,7 +23,7 @@ Out of scope, on purpose:
 | Area | Files |
 |---|---|
 | Models | `app/models/contract.rb`, `contract_share.rb`, `contract_document.rb`, `contract/detailable.rb`, `contract/notice_schedule.rb`, `contract/legal_defaults.rb`, `contract/cost_report.rb`, `contract/document_prefill.rb` |
-| Controllers | `app/controllers/contracts_controller.rb`, `app/controllers/contracts/{base,cancellations,sharings,documents}_controller.rb` |
+| Controllers | `app/controllers/contracts_controller.rb`, `app/controllers/contracts/{base,endings,sharings,documents}_controller.rb` |
 | Views | `app/views/contracts/`, `app/views/bills/_contract_line.html.erb`, `app/views/bills/_view_switcher.html.erb`, `app/views/reports/_contracts.html.erb` |
 | Reminders | `app/models/insight/generators/contract_generator.rb`, `app/jobs/contract_notice_reminders_job.rb`, `app/mailers/contract_mailer.rb`, `app/controllers/bills_feeds_controller.rb` |
 | Assistant | `app/models/assistant/function/contracts_support.rb`, `get_contracts.rb`, `get_contract_details.rb`, `get_contract_audit.rb`, `create_contract.rb`, `update_contract.rb`, `search_family_files.rb` |
@@ -44,12 +44,11 @@ Out of scope, on purpose:
 ## Data model
 
 - `contracts`: `family`, `owner` (user), optional `account` (related account,
-  grants nothing), optional `merchant`, optional `replaced_by` (successor);
-  `name`, `provider_name`, `kind`, `status`; encrypted `contract_number` and
+  grants nothing), optional `merchant` (the provider; there is no free-text
+  provider), optional `replaced_by` (successor); `name`, `kind`, `status`; encrypted `contract_number` and
   `customer_number`; terms (`started_on`, `minimum_term_months`,
   `notice_period_value` + `notice_period_unit`, `notice_anchor`,
-  `renewal_period_months`, `renewal_anchor_on`, `ends_on`); cancellation
-  (`cancelled_on`, `cancellation_confirmed_on`); contacts (`portal_url`,
+  `renewal_period_months`, `renewal_anchor_on`, `ends_on`); contacts (`portal_url`,
   `service_phone`, `service_email`, `claims_phone`); `document_links` (URLs,
   e.g. Paperless-ngx); `details` (kind-specific, see `Contract::Detailable`);
   `email_reminders`, `notice_reminders_sent`; `notes`.
@@ -68,17 +67,23 @@ migration mirror the enums.
 ## Lifecycle
 
 ```text
-active --cancel--> cancellation_sent --confirm--> cancelled --ends_on passes--> ended
-  ^                     |
-  +----- withdraw ------+   (retention offer accepted)
+active --end (date)--> ended: shows "ends on <date>" until the date, "ended" after
+  ^                      |
+  +------ reopen --------+   (retention offer accepted)
 ```
 
-- The user moves the status (`record_cancellation!`, `confirm_cancellation!`,
-  `withdraw_cancellation!`, `mark_ended!`). A passed `ends_on` shows the
-  contract as ended (`effectively_ended?`) without a job.
-- Recording a cancellation offers "End linked bills at contract end",
-  **off by default**. Because of that default, the bill pane flags a bill that
-  still expects payments after its contract ended, with an action to end it.
+- One step, whether the contract was cancelled or runs out: `end_contract!`
+  records `ends_on` and sets the status to `ended`; `reopen!` takes it back.
+  `display_status` is `active`, `ending` (end recorded, not reached) or
+  `ended`. A passed `ends_on` ends the contract without a job.
+- Ending a contract ends its linked bills on the same date (the ones the
+  acting user may change), so Bills stops expecting payments; reopening
+  restores the bills that ended on that date. Past payments stay linked as
+  history. The bill pane still flags a bill that runs past the end (one the
+  user could not change, or one reopened by hand), with an action to end it.
+- Creating from a bill or a document maps the provider name to an existing
+  merchant (`Contract.merchant_named`); the assistant creates a family
+  merchant when none matches.
 
 ## Visibility and permissions
 
@@ -113,7 +118,8 @@ Same model as accounts, with **no admin override**:
   past its minimum term runs indefinitely and has no deadline to miss.
 - `end_of_month` and `any_day` only have a deadline while a minimum term is
   still running.
-- A cancelled contract or one with a fixed `ends_on` and no renewal has none.
+- An ended contract (end recorded) or one with a fixed `ends_on` and no
+  renewal has none.
 
 `Contract::LegalDefaults` offers typical German terms per kind, only when
 `families.country` is `DE`, only on the user's click, labelled "not legal
@@ -124,8 +130,7 @@ advice".
 - `Insight::Generators::ContractGenerator` (nightly, preview families):
   `contract_notice_deadline` (within 60 days, high within 14),
   `contract_price_increase` (special-termination hint for insurance, telecoms,
-  energy), `contract_charges_after_end`, `contract_cancellation_unconfirmed`
-  (after 14 days). All carry `user_id: owner_id`; feeds, the badge, the API,
+  energy), `contract_charges_after_end`. All carry `user_id: owner_id`; feeds, the badge, the API,
   `get_insights`, push delivery and the per-user Turbo stream honour it.
 - `ContractNoticeRemindersJob` (daily) emails the owner 30, 7 and 1 day(s)
   before a deadline, once per stage, recorded in `notice_reminders_sent`.

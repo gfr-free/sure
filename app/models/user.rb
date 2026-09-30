@@ -418,7 +418,8 @@ class User < ApplicationRecord
 
   # A member's contracts follow them to the new family. Everything that ties a
   # contract to the old household is cut: its shares, links to bills that stay
-  # behind, a family merchant (the provider name survives as text), a related
+  # behind, a family merchant (a merchant of the same name in the new family
+  # takes its place), a related
   # account that did not move with them, and the successor chain.
   def move_owned_contracts!(from:, to:, moved_account_ids:)
     # Contracts that stay behind must not point at an account that left.
@@ -439,8 +440,7 @@ class User < ApplicationRecord
       attrs = { family_id: to.id, replaced_by_id: nil, updated_at: Time.current }
       attrs[:account_id] = nil unless moved_account_ids.include?(contract.account_id)
       if contract.merchant.is_a?(FamilyMerchant)
-        attrs[:merchant_id] = nil
-        attrs[:provider_name] = contract.provider_name.presence || contract.merchant.name
+        attrs[:merchant_id] = to.merchants.find_or_create_by!(name: contract.merchant.name).id
       end
       Contract.where(id: contract.id).update_all(attrs)
     end

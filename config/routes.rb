@@ -594,11 +594,11 @@ Rails.application.routes.draw do
     end
 
     member do
-      patch :mark_ended
+      get :payments
       post :end_linked_bills
     end
 
-    resource :cancellation, only: %i[new create update destroy], controller: "contracts/cancellations"
+    resource :ending, only: %i[new create destroy], controller: "contracts/endings"
     resource :sharing, only: %i[show update], controller: "contracts/sharings"
     resources :documents, only: %i[show create update destroy], controller: "contracts/documents"
   end

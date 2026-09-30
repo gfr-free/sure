@@ -13,8 +13,8 @@ class Assistant::Function::GetContracts < Assistant::Function
         deadline, yearly cost (from the bills linked to it) and status.
 
         notice_deadline is the last day notice can be given for the contract to end on
-        term_ends_on; it is null when the contract can be cancelled at any time, is
-        already cancelled, or its terms are not recorded. Contract and customer numbers
+        term_ends_on; it is null when the contract can be cancelled at any time, has
+        an end recorded, or its terms are not recorded. Contract and customer numbers
         are never available to you; do not ask for them.
 
         Use this for questions like "which contracts can I cancel this month?", "what
@@ -31,7 +31,7 @@ class Assistant::Function::GetContracts < Assistant::Function
     build_schema(
       properties: {
         kind: { type: "string", enum: Contract.kinds.keys, description: "Only contracts of this kind." },
-        status: { type: "string", enum: %w[open active cancellation_sent cancelled ended], description: "open = everything not ended (default)." }
+        status: { type: "string", enum: %w[open active ending ended], description: "open = everything not ended (default). ending = an end date is recorded but not reached." }
       }
     )
   end

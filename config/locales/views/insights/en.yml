@@ -28,7 +28,6 @@ en:
       contract_notice_deadline: Contract
       contract_price_increase: Contract
       contract_charges_after_end: Contract
-      contract_cancellation_unconfirmed: Contract
       spending_anomaly: Spending
       cash_flow_warning: Cash flow
       net_worth_milestone: Net worth
@@ -79,7 +78,6 @@ en:
       contract_notice_deadline: "Notice deadline for %{name}"
       contract_price_increase: "%{name} got more expensive"
       contract_charges_after_end: "%{name} is still charging you"
-      contract_cancellation_unconfirmed: "No confirmation for cancelling %{name}"
       spending_anomaly:
         above: "%{category} spending is trending up"
         below: "%{category} spending is trending down"
@@ -103,7 +101,6 @@ en:
         special: "%{name} went from %{previous_amount} to %{new_amount} on %{effective_on}. A price increase often gives you a special right to cancel; check the letter that announced it."
         plain: "%{name} went from %{previous_amount} to %{new_amount} on %{effective_on}."
       contract_charges_after_end: "%{name} ended on %{ends_on}, but %{count} payments totalling %{amount} were still made, the last on %{latest_on}. You may be owed a refund."
-      contract_cancellation_unconfirmed: "You cancelled %{name} on %{sent_on} and the provider has not confirmed it yet. Ask for a written confirmation."
       spending_anomaly:
         above: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% more than your recent monthly average of %{baseline_spend}.
         below: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% less than your recent monthly average of %{baseline_spend}.

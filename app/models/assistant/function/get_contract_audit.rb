@@ -3,7 +3,6 @@ class Assistant::Function::GetContractAudit < Assistant::Function
 
   DEADLINE_WINDOW_DAYS = 90
   PRICE_WINDOW_DAYS = 365
-  CONFIRMATION_WAIT_DAYS = 14
 
   class << self
     def name
@@ -21,7 +20,6 @@ class Assistant::Function::GetContractAudit < Assistant::Function
         - overlapping_subscriptions: more than one open streaming contract
         - without_payments: open contracts with no linked bill, so their cost is unknown
         - charges_after_end: payments made after a contract's end date
-        - unconfirmed_cancellations: cancellations sent more than #{CONFIRMATION_WAIT_DAYS} days ago without confirmation
 
         Present findings as suggestions; never state that a special termination right
         definitely applies, and never give legal or tax advice.
@@ -47,9 +45,7 @@ class Assistant::Function::GetContractAudit < Assistant::Function
       possible_duplicates: possible_duplicates(open),
       overlapping_subscriptions: overlapping_subscriptions(open),
       without_payments: without_payments(open),
-      charges_after_end: charges_after_end(contracts, today),
-      unconfirmed_cancellations: open.select { |contract| contract.cancellation_sent? && contract.cancelled_on && contract.cancelled_on <= today - CONFIRMATION_WAIT_DAYS }
-                                     .map { |contract| { id: contract.id, name: contract.name, sent_on: contract.cancelled_on.iso8601 } }
+      charges_after_end: charges_after_end(contracts, today)
     }
   end
 

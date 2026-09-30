@@ -10,7 +10,6 @@ de:
     attributes:
       contract:
         name: Name
-        provider_name: Anbieter
         kind: Art
         status: Status
         contract_number: Vertragsnummer
@@ -23,8 +22,6 @@ de:
         renewal_period_months: Verlängert sich um
         renewal_anchor_on: Hauptfälligkeit
         ends_on: Vertragsende
-        cancelled_on: Kündigung verschickt
-        cancellation_confirmed_on: Kündigung bestätigt
         portal_url: Kundenportal
         service_phone: Service-Telefon
         service_email: Service-E-Mail

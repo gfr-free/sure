@@ -88,18 +88,8 @@ class Insight::Generators::ContractGeneratorTest < ActiveSupport::TestCase
     assert_equal @owner.id, insight.user_id
   end
 
-  test "an unconfirmed cancellation is flagged after two weeks" do
-    @phone.update!(status: "cancellation_sent", cancelled_on: 20.days.ago.to_date)
-
-    assert generated.any? { |i| i.insight_type == "contract_cancellation_unconfirmed" && i.metadata[:contract_id] == @phone.id }
-
-    @phone.update!(cancelled_on: 3.days.ago.to_date)
-    assert_not generated.any? { |i| i.insight_type == "contract_cancellation_unconfirmed" }
-  end
-
   test "nothing when the family switched bills off" do
     @family.update!(recurring_transactions_disabled: true)
-    @phone.update!(status: "cancellation_sent", cancelled_on: 20.days.ago.to_date)
 
     assert_empty generated
   end

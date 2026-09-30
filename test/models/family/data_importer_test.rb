@@ -670,19 +670,33 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal [ restored_new ], @family.recurring_transactions.where.not(contract_id: nil).map(&:contract)
   end
 
-  test "keeps a contract whose merchant did not come across under its provider name" do
+  test "a contract whose merchant did not come across finds the family merchant of that name" do
+    merchant = @family.merchants.create!(name: "FitX")
     ndjson = build_ndjson([
-      {
-        type: "Contract",
-        data: { id: "c-1", name: "Gym", kind: "fitness", merchant_id: "missing-merchant", merchant_name: "FitX" }
-      }
+      { type: "Contract", data: { id: "c-1", name: "Gym", kind: "fitness", merchant_id: "missing-merchant", merchant_name: "fitx" } },
+      { type: "Contract", data: { id: "c-2", name: "Pool", kind: "fitness", provider_name: "Unknown Pool" } }
+    ])
+
+    assert_no_difference -> { Merchant.count } do
+      Family::DataImporter.new(@family, ndjson).import!
+    end
+
+    assert_equal merchant, @family.contracts.find_by!(name: "Gym").merchant
+    assert_nil @family.contracts.find_by!(name: "Pool").merchant_id
+  end
+
+  test "an older export's cancellation becomes an end" do
+    ndjson = build_ndjson([
+      { type: "Contract", data: { id: "c-1", name: "Gym", kind: "fitness", status: "cancelled", ends_on: "2026-12-31" } },
+      { type: "Contract", data: { id: "c-2", name: "Pool", kind: "fitness", status: "cancellation_sent" } }
     ])
 
     Family::DataImporter.new(@family, ndjson).import!
 
-    contract = @family.contracts.find_by!(name: "Gym")
-    assert_nil contract.merchant_id
-    assert_equal "FitX", contract.provider_name
+    gym = @family.contracts.find_by!(name: "Gym")
+    assert gym.ended?
+    assert_equal Date.new(2026, 12, 31), gym.ends_on
+    assert @family.contracts.find_by!(name: "Pool").active?, "no end date, so nothing ended yet"
   end
 
   test "records a source mapping for contracts imported in a session" do

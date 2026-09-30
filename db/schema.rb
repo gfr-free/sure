@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -593,8 +593,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_210000) do
 
   create_table "contracts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "account_id"
-    t.date "cancellation_confirmed_on"
-    t.date "cancelled_on"
     t.string "claims_phone"
     t.text "contract_number"
     t.datetime "created_at", null: false
@@ -615,7 +613,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_210000) do
     t.jsonb "notice_reminders_sent", default: {}, null: false
     t.uuid "owner_id", null: false
     t.string "portal_url"
-    t.string "provider_name"
     t.date "renewal_anchor_on"
     t.integer "renewal_period_months"
     t.uuid "replaced_by_id"
@@ -636,7 +633,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_210000) do
     t.check_constraint "notice_anchor IS NULL OR (notice_anchor::text = ANY (ARRAY['end_of_term'::character varying, 'end_of_month'::character varying, 'any_day'::character varying]::text[]))", name: "chk_contracts_notice_anchor"
     t.check_constraint "notice_period_unit IS NULL OR (notice_period_unit::text = ANY (ARRAY['days'::character varying, 'weeks'::character varying, 'months'::character varying]::text[]))", name: "chk_contracts_notice_period_unit"
     t.check_constraint "replaced_by_id IS NULL OR replaced_by_id <> id", name: "chk_contracts_not_replaced_by_self"
-    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'cancellation_sent'::character varying, 'cancelled'::character varying, 'ended'::character varying]::text[])", name: "chk_contracts_status"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'ended'::character varying]::text[])", name: "chk_contracts_status"
   end
 
   create_table "credit_cards", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

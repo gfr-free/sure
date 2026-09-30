@@ -12,7 +12,7 @@ class ContractsTest < ApplicationSystemTestCase
     @bill = recurring_transactions(:netflix_subscription)
   end
 
-  test "record a contract from a bill, cancel it, and end the bill it outlived" do
+  test "record a contract from a bill, then end it together with the bill" do
     visit bill_url(@bill)
     click_on I18n.t("bills.contract_line.record")
 
@@ -27,22 +27,15 @@ class ContractsTest < ApplicationSystemTestCase
     assert_equal contract, @bill.reload.contract
     assert_text "NF-123456"
 
-    # Record the cancellation; the linked bill keeps running by default.
-    visit new_contract_cancellation_url(contract)
-    fill_in "cancellation[ends_on]", with: 3.days.from_now.to_date.strftime("%m/%d/%Y")
-    click_button I18n.t("contracts.cancellations.new.submit")
+    # One step ends the contract, and the linked bill with it.
+    ends_on = 3.days.from_now.to_date
+    visit new_contract_ending_url(contract)
+    fill_in "ending[ends_on]", with: ends_on.strftime("%m/%d/%Y")
+    click_button I18n.t("contracts.endings.new.submit")
 
-    assert_text I18n.t("contracts.cancellations.create.success")
-    assert contract.reload.cancellation_sent?
-    assert @bill.reload.ends_never?
-
-    # Once the contract has ended, the bill page says the bill outlived it.
-    travel_to 5.days.from_now
-    visit bill_url(@bill)
-    assert_text I18n.t("bills.contract_line.ended_on", date: I18n.l(contract.ends_on, format: :long))
-    click_on I18n.t("bills.contract_line.end_bill")
-
-    assert_text I18n.t("contracts.end_linked_bills.success")
-    assert_equal contract.ends_on, @bill.reload.end_on
+    assert_text I18n.t("contracts.endings.create.success")
+    assert_text I18n.t("contracts.end_notice.ends", date: I18n.l(ends_on, format: :long))
+    assert contract.reload.ended?
+    assert_equal ends_on, @bill.reload.end_on
   end
 end

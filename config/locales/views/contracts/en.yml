@@ -14,6 +14,7 @@ en:
       other: Other
     details:
       title: "%{kind} details"
+      cold_rent: "Base rent (bill minus prepayment)"
       possibly_deductible: "Premiums for this kind of insurance may count as provident expenses in a German tax return (the liability share only, for car insurance). Not tax advice."
       fields:
         insurance_line: "Line of insurance"
@@ -31,6 +32,7 @@ en:
         meter_number: "Meter number"
         landlord: "Landlord"
         deposit: "Deposit"
+        operating_costs_advance: "of which operating-costs prepayment"
         plan: "Plan"
     insurance_lines:
       liability: "Personal liability"
@@ -49,10 +51,8 @@ en:
       other: "Other"
     statuses:
       active: Active
-      cancellation_sent: Cancellation sent
-      cancelled: Cancelled
       ended: Ended
-    status_until: "Cancelled for %{date}"
+    status_until: "Ends on %{date}"
     notice_anchors:
       end_of_term: to the end of the term
       end_of_month: to the end of a month
@@ -84,8 +84,7 @@ en:
     shared_with_you: Shared with you
     shared: Shared
     index:
-      print_overview: "Print emergency overview"
-      print_overview_with_numbers: "With contract numbers"
+      print_overview: "Print contract overview"
       title: Contracts
       preview: Preview
       add_contract: Add contract
@@ -100,20 +99,25 @@ en:
     overview:
       title: "Contracts overview"
       generated_on: "Generated on %{date}"
-      intro: "Every open contract you can see, with who to call. Keep a printed copy with your important papers."
+      intro: "Every open contract you can see, with costs, deadlines and who to call. Contract numbers are shortened so the printout can sit with your papers."
+      cost: "Cost per year"
+      term: "Term"
+      term_ends: "Term ends %{date}"
+      earliest_end: "Can end %{date} at the earliest"
+      managed_by: "Managed by"
+      paid_from: "Paid from"
       contacts: "Contacts"
       documents: "Documents"
       empty: "No open contracts."
     show:
+      cost_unknown_hint: Only active bills count. The linked ones are paused, inactive or ended.
       owned_by: "Managed by %{name}"
       edit: Edit
       share: Share
-      record_cancellation: Record cancellation
-      mark_ended: Mark as ended
-      confirm_mark_ended: "Mark %{name} as ended?"
+      end_contract: End contract
       delete: Delete
       confirm_delete: "Delete %{name}? Its payments stay in Bills; its documents are removed."
-      possible_duplicate: "This may duplicate %{names}: same provider and contract number."
+      possible_duplicate: "This may duplicate %{names}: same merchant and contract number."
       contract_section: Contract
       renewal: Renewal
       notice_deadline: "Notice deadline"
@@ -150,17 +154,28 @@ en:
         not_searchable: The assistant can no longer search this document.
       destroy:
         success: Document deleted
+    bill_picker:
+      from_merchant: "Bills from %{name}"
+      other: Other bills
+      none: No bills to link yet. Add the payment with "Add payment".
+    payments:
+      title: "Payments for %{name}"
+      intro: Pick the bills that pay for this contract. Sure works out the yearly cost from them.
+      save: Save
     new:
       title: New contract
     edit:
       title: "Edit %{name}"
     form:
+      merchant_hint: The merchant you have the contract with. Not in the list? Type the name in the search and add it right there.
+      suggested_merchant: "The source names the provider as \"%{name}\". Pick the matching merchant or add it from the search."
+      notice_hint: "Notice period: how long before the contract ends your cancellation must reach the provider, for example 3 months to the end of the term. Sure works out the last day to cancel from it."
+      renewal_anchor_hint: "Main due date: the day the contract year starts and the contract renews, for insurance often the policy start or 1 January. The notice period counts back from it."
+      email_reminders_hint: 30, 7 and 1 day before the last day to cancel. Only works when this instance has email (SMTP) set up.
       from_document: "Prefilled from %{filename}. Check every value against the document; contract numbers are not read, add them yourself."
       document_premium: "The document states a premium of %{amount} (%{frequency}). Link or add the bill that pays it below."
       name_placeholder: e.g. Private liability insurance
       no_merchant: No merchant
-      provider_placeholder: e.g. HUK24
-      provider_hint: Pick a merchant for its logo, or type the provider's name.
       no_account: No related account
       term_section: Term and notice
       minimum_term_label: Minimum term (months)
@@ -175,7 +190,6 @@ en:
       encryption_warning: This instance has no encryption keys configured, so contract and customer numbers are stored as plain text. Ask your administrator to configure Active Record encryption.
       contacts_section: Contacts
       payments_section: Payments
-      no_bills: No bills to link yet. Add the payment in Bills first.
       links_section: Document links
       link_url: Document link
       link_label: Label
@@ -196,33 +210,24 @@ en:
       success: Contract deleted
     end_linked_bills:
       success: "The linked bills end with the contract."
-    mark_ended:
-      success: Contract marked as ended
-    cancellations:
+    endings:
       new:
-        title: "Cancel %{name}"
-        intro: Record when you sent the cancellation and when the contract ends. Sure does not send anything to the provider.
-        sent_on: Cancellation sent on
+        title: "End %{name}"
+        intro: Enter when the contract ends, whether you cancelled it or it runs out. It keeps running until then. Sure does not send anything to the provider.
         ends_on: Contract ends on
-        end_linked_bills: End the linked bills when the contract ends
-        end_linked_bills_hint: Off by default. Left on, Bills stops expecting payments after the end date.
-        submit: Record cancellation
+        bills_hint: The linked bills end on the same day. After that, Sure expects no more payments for this contract.
+        submit: End contract
       create:
-        success: Cancellation recorded
-        ends_before_sent: The contract cannot end before the cancellation was sent.
-      update:
-        success: Cancellation confirmed
+        success: Contract end saved
+        date_required: Enter when the contract ends.
+        ends_before_start: The contract cannot end before it starts.
       destroy:
-        success: Cancellation withdrawn
-    cancellation_notice:
-      sent: "Cancellation sent on %{date}."
-      ends: "Ends on %{date}."
-      awaiting_confirmation: Waiting for the provider to confirm.
-      confirm: Confirmation received
-      withdraw: Withdraw
-      withdraw_confirm_title: Withdraw the cancellation?
-      withdraw_confirm_body: The contract goes back to active, for example after accepting a retention offer.
-      confirmed: "Cancellation confirmed on %{date}."
+        success: Contract end removed
+    end_notice:
+      ends: "This contract ends on %{date}."
+      reopen: Remove end
+      reopen_confirm_title: Remove the contract end?
+      reopen_confirm_body: The contract runs on, for example after accepting a retention offer. Bills that were set to end with it run on too.
       bills_still_running: "The contract has ended but these bills are still running: %{names}. End them in Bills if the payments have stopped."
     sharings:
       show:

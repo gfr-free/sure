@@ -695,14 +695,26 @@ class Family::DataImporter
         merchant_id = mapped_id(:merchants, data["merchant_id"], record_type: "Contract", required: false) if data["merchant_id"].present?
         account_id = mapped_id(:accounts, data["account_id"], record_type: "Contract", required: false) if data["account_id"].present?
 
+        # A merchant that did not come across, or the free-text provider of an
+        # older export, finds the family merchant of that name when there is
+        # one. None is created: the import restores what was exported.
+        if merchant_id.blank?
+          provider = (data["merchant_name"].presence || data["provider_name"].presence).to_s.strip.downcase
+          merchant_id = @family.merchants.where("LOWER(name) = ?", provider).pick(:id) if provider.present?
+        end
+
+        ends_on = parse_import_date(data["ends_on"])
+        # Older exports record cancellations as their own statuses; a contract
+        # with an end, cancelled or not, is ended now.
+        ended = data["status"].to_s.in?(%w[ended cancelled cancellation_sent]) && (ends_on.present? || data["status"] == "ended")
+        ends_on ||= parse_import_date(data["cancelled_on"]) || Date.current if ended
+
         contract.assign_attributes(
           account_id: account_id,
           merchant_id: merchant_id,
-          # A merchant that did not come across leaves its name as the provider.
-          provider_name: data["provider_name"].presence || (data["merchant_name"] if merchant_id.blank?),
           name: data["name"],
           kind: imported_enum_value(data["kind"], Contract.kinds, "other"),
-          status: imported_enum_value(data["status"], Contract.statuses, "active"),
+          status: ended ? "ended" : "active",
           contract_number: data["contract_number"],
           customer_number: data["customer_number"],
           started_on: parse_import_date(data["started_on"]),
@@ -712,9 +724,7 @@ class Family::DataImporter
           notice_anchor: data["notice_anchor"].to_s.in?(Contract.notice_anchors.keys) ? data["notice_anchor"] : nil,
           renewal_period_months: data["renewal_period_months"],
           renewal_anchor_on: parse_import_date(data["renewal_anchor_on"]),
-          ends_on: parse_import_date(data["ends_on"]),
-          cancelled_on: parse_import_date(data["cancelled_on"]),
-          cancellation_confirmed_on: parse_import_date(data["cancellation_confirmed_on"]),
+          ends_on: ends_on,
           portal_url: data["portal_url"],
           service_phone: data["service_phone"],
           service_email: data["service_email"],

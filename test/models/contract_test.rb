@@ -16,13 +16,25 @@ class ContractTest < ActiveSupport::TestCase
     assert @phone.valid?
   end
 
-  test "needs a provider name or a merchant" do
+  test "the provider is the merchant, and a contract can do without one" do
     contract = @family.contracts.new(name: "Gym", owner: @admin)
-    assert_not contract.valid?
-    assert contract.errors.added?(:provider_name, :blank)
+    assert contract.valid?
+    assert_nil contract.provider_display_name
 
     contract.merchant = merchants(:netflix)
-    assert contract.valid?
+    assert_equal "Netflix", contract.provider_display_name
+  end
+
+  test "an end needs a date" do
+    @insurance.status = "ended"
+    assert_not @insurance.valid?
+    assert @insurance.errors.added?(:ends_on, :blank)
+  end
+
+  test "merchant_named matches the family's merchants regardless of case" do
+    assert_equal merchants(:netflix), Contract.merchant_named(@family, @admin, " netflix ")
+    assert_nil Contract.merchant_named(@family, @admin, "Nobody GmbH")
+    assert_nil Contract.merchant_named(@family, @admin, "")
   end
 
   test "notice period needs both value and unit" do
@@ -94,13 +106,13 @@ class ContractTest < ActiveSupport::TestCase
   test "owner defaults to the current user" do
     Current.stubs(:user).returns(@member)
 
-    contract = @family.contracts.create!(name: "Gym", provider_name: "FitX", kind: "fitness")
+    contract = @family.contracts.create!(name: "Gym", kind: "fitness")
 
     assert_equal @member, contract.owner
   end
 
   test "visibility is owner plus explicit shares, with no admin override" do
-    private_to_member = @family.contracts.create!(name: "Member's own", provider_name: "Insurer", owner: @member)
+    private_to_member = @family.contracts.create!(name: "Member's own", owner: @member)
     private_to_member.contract_shares.delete_all
 
     assert_includes Contract.accessible_by(@admin), @insurance
@@ -139,7 +151,7 @@ class ContractTest < ActiveSupport::TestCase
   test "new contracts are shared with the family when it shares by default" do
     @family.update!(default_account_sharing: "shared")
 
-    contract = @family.contracts.create!(name: "Internet", provider_name: "Vodafone", kind: "internet", owner: @admin)
+    contract = @family.contracts.create!(name: "Internet", kind: "internet", owner: @admin)
 
     assert_equal "read_write", contract.contract_shares.find_by(user: @member)&.permission
   end
@@ -147,7 +159,7 @@ class ContractTest < ActiveSupport::TestCase
   test "new contracts stay private when the family does not share by default" do
     @family.update!(default_account_sharing: "private")
 
-    contract = @family.contracts.create!(name: "Internet", provider_name: "Vodafone", kind: "internet", owner: @admin)
+    contract = @family.contracts.create!(name: "Internet", kind: "internet", owner: @admin)
 
     assert_empty contract.contract_shares
   end
@@ -203,31 +215,44 @@ class ContractTest < ActiveSupport::TestCase
     assert_equal "ended", @insurance.display_status
   end
 
-  test "cancellation lifecycle" do
-    @insurance.record_cancellation!(sent_on: Date.current, ends_on: Date.current.end_of_year)
-    assert @insurance.cancellation_sent?
-    assert_equal Date.current, @insurance.cancelled_on
+  test "ending shows the contract as ending until the date, then ended" do
+    ends_on = Date.current.end_of_year
+    @insurance.end_contract!(on: ends_on)
 
-    @insurance.confirm_cancellation!(confirmed_on: Date.current)
-    assert @insurance.cancelled?
+    assert @insurance.ended?
+    assert @insurance.open?
+    assert_equal "ending", @insurance.display_status
+    assert_nil @insurance.notice_deadline, "an ended contract has nothing left to cancel"
 
-    @insurance.withdraw_cancellation!
-    assert @insurance.active?
-    assert_nil @insurance.cancelled_on
-    assert_nil @insurance.cancellation_confirmed_on
+    travel_to ends_on + 1.day do
+      assert_equal "ended", @insurance.display_status
+      assert_not @insurance.open?
+    end
   end
 
-  test "cancelling leaves linked bills running unless asked" do
+  test "ending a contract ends its linked bills on the same date, and reopening restores them" do
     bill = recurring_transactions(:netflix_subscription)
     bill.update!(contract: @phone)
     ends_on = 2.months.from_now.to_date
 
-    @phone.record_cancellation!(sent_on: Date.current, ends_on: ends_on)
-    assert bill.reload.ends_never?
-
-    @phone.record_cancellation!(sent_on: Date.current, ends_on: ends_on, end_linked_bills: true)
+    @phone.end_contract!(on: ends_on)
     assert bill.reload.ends_on_date?
     assert_equal ends_on, bill.end_on
+    assert_equal @phone.id, bill.contract_id, "past payments stay with the contract"
+
+    @phone.reopen!
+    assert @phone.active?
+    assert_nil @phone.ends_on
+    assert bill.reload.ends_never?
+  end
+
+  test "ending only touches the bills passed in" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @phone)
+
+    @phone.end_contract!(on: 1.month.from_now.to_date, bills: RecurringTransaction.none)
+
+    assert bill.reload.ends_never?
   end
 
   test "running bills after end lists active bills once the contract ended" do
@@ -240,11 +265,15 @@ class ContractTest < ActiveSupport::TestCase
     assert_includes @phone.running_bills_after_end, bill
   end
 
-  test "possible duplicates match provider and number" do
-    twin = @family.contracts.create!(name: "Liability (old)", provider_name: "huk24",
+  test "possible duplicates match merchant and number" do
+    @insurance.update!(merchant: merchants(:one))
+    twin = @family.contracts.create!(name: "Liability (old)", merchant: merchants(:one),
                                      contract_number: "lv-2024-004711", owner: @admin)
+    other_merchant = @family.contracts.create!(name: "Liability (other)", merchant: merchants(:amazon),
+                                               contract_number: "lv-2024-004711", owner: @admin)
 
     assert_includes @insurance.possible_duplicates, twin
+    assert_not_includes @insurance.possible_duplicates, other_merchant
     assert_not_includes @phone.possible_duplicates, twin
   end
 
@@ -257,19 +286,14 @@ class ContractTest < ActiveSupport::TestCase
     assert_nil bill.reload.contract_id
   end
 
-  test "deleting a merchant keeps the contract and its provider name" do
+  test "deleting a merchant keeps the contract" do
     merchant = @family.merchants.create!(name: "Insurer Inc")
     @insurance.update!(merchant: merchant)
-    merchant_only = @family.contracts.create!(name: "Gym", kind: "fitness", merchant: merchant, owner: @admin)
 
     merchant.destroy!
 
     assert_nil @insurance.reload.merchant_id
-    assert_equal "HUK24", @insurance.provider_name
-    merchant_only.reload
-    assert_nil merchant_only.merchant_id
-    assert_equal "Insurer Inc", merchant_only.provider_name, "the merchant name must survive as text or the contract fails validation"
-    assert merchant_only.valid?
+    assert @insurance.valid?
   end
 
   test "merging merchants moves contracts to the target" do
@@ -284,7 +308,7 @@ class ContractTest < ActiveSupport::TestCase
 
   test "a deleted owner's contracts pass to another member" do
     @family.update!(default_account_sharing: "shared")
-    owned = @family.contracts.create!(name: "Bike insurance", provider_name: "Insurer", owner: @member)
+    owned = @family.contracts.create!(name: "Bike insurance", owner: @member)
     assert owned.contract_shares.exists?(user: @admin)
 
     @member.destroy!
@@ -314,8 +338,7 @@ class ContractTest < ActiveSupport::TestCase
 
     owned.reload
     assert_equal new_family, owned.family
-    assert_nil owned.merchant_id
-    assert_equal "Bike Insurer", owned.provider_name
+    assert_equal new_family.merchants.find_by!(name: "Bike Insurer"), owned.merchant
     assert_nil owned.account_id
     assert_empty owned.contract_shares
     assert_nil bill.reload.contract_id
@@ -330,7 +353,7 @@ class ContractTest < ActiveSupport::TestCase
   end
 
   test "bills can only link contracts of their family" do
-    other = families(:empty).contracts.create!(name: "Elsewhere", provider_name: "X", owner: users(:empty))
+    other = families(:empty).contracts.create!(name: "Elsewhere", owner: users(:empty))
     bill = recurring_transactions(:netflix_subscription)
 
     bill.contract = other

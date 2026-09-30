@@ -1,4 +1,4 @@
-<%# locals: (contract:) %>
+<%# locals: (contract:, annual_cost: nil) %>
 <% fields = contract.detail_fields.select { |key, _| contract.detail(key).present? } %>
 <% if fields.any? %>
   <%= render DS::Card.new(class: "space-y-3") do %>
@@ -7,12 +7,15 @@
       <% fields.each do |key, type| %>
         <% value = case type
              when :insurance_line then t("contracts.insurance_lines.#{contract.detail(key)}")
-             when :decimal then key.in?(%w[sum_insured deductible advance_payment deposit]) ? format_money(Money.new(contract.typed_detail(key), Current.family.currency)) : number_with_delimiter(contract.typed_detail(key))
+             when :decimal then key.in?(%w[sum_insured deductible advance_payment deposit operating_costs_advance]) ? format_money(Money.new(contract.typed_detail(key), Current.family.currency)) : number_with_delimiter(contract.typed_detail(key))
              when :date then (d = contract.typed_detail(key)) ? l(d, format: :long) : contract.detail(key)
              else contract.detail(key)
            end %>
         <%= render DS::DetailRow.new(label: t("contracts.details.fields.#{key}"), value: value,
                                      value_class: ("privacy-sensitive" if type == :decimal || key == "phone_number")) %>
+      <% end %>
+      <% if (cold_rent = contract_cold_rent(contract, annual_cost)) %>
+        <%= render DS::DetailRow.new(label: t("contracts.details.cold_rent"), value: format_money(cold_rent), value_class: "privacy-sensitive") %>
       <% end %>
       <% if contract.possibly_tax_deductible? %>
         <p class="text-xs text-secondary"><%= t("contracts.details.possibly_deductible") %></p>

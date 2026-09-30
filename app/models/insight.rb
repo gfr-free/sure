@@ -33,7 +33,6 @@ class Insight < ApplicationRecord
     contract_notice_deadline
     contract_price_increase
     contract_charges_after_end
-    contract_cancellation_unconfirmed
   ].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)

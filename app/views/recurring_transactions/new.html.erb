@@ -8,7 +8,7 @@
         </p>
         <div class="max-h-44 overflow-y-auto rounded-lg shadow-border-xs divide-y divide-divider">
           <% @candidates.each do |candidate| %>
-            <%= link_to new_recurring_transaction_path(entry_id: candidate[:entry_id], income: params[:income].presence),
+            <%= link_to new_recurring_transaction_path(entry_id: candidate[:entry_id], **bill_dialog_params),
                   class: "flex items-center justify-between gap-3 px-3 py-2 hover:bg-surface-inset" do %>
               <div class="min-w-0">
                 <p class="text-sm text-primary truncate"><%= candidate[:name] %></p>
@@ -33,7 +33,7 @@
         <%= render DS::Link.new(
               text: t(".pick_different"),
               variant: :default,
-              href: new_recurring_transaction_path(picker: 1, income: params[:income].presence)
+              href: new_recurring_transaction_path(picker: 1, **bill_dialog_params)
             ) %>
         <%# Smart-fill needs the picked transaction as its evidence anchor, so
             it only exists on this variant: with no anchor it would guess.
@@ -44,7 +44,7 @@
                 text: t(".smart_fill"),
                 icon: "sparkles",
                 variant: :default,
-                href: smart_fill_recurring_transactions_path(entry_id: params[:entry_id], income: params[:income].presence),
+                href: smart_fill_recurring_transactions_path(entry_id: params[:entry_id], **bill_dialog_params),
                 method: :post,
                 frame: :modal
               ) %>
@@ -54,7 +54,7 @@
         <%= render DS::Link.new(
               text: t(".search_all_cta"),
               variant: :default,
-              href: new_recurring_transaction_path(picker: 1, income: params[:income].presence)
+              href: new_recurring_transaction_path(picker: 1, **bill_dialog_params)
             ) %>
       <% end %>
     </div>

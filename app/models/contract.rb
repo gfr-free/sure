@@ -44,14 +44,15 @@ class Contract < ApplicationRecord
   end
 
   enum :kind, KIND_ICONS.keys.index_with(&:itself), validate: true
-  enum :status, { active: "active", cancellation_sent: "cancellation_sent",
-                  cancelled: "cancelled", ended: "ended" }, validate: true
+  # "ended" means the user recorded an end date (cancelled or ended, one
+  # step). Until that date the contract still runs and shows as ending.
+  enum :status, { active: "active", ended: "ended" }, validate: true
   enum :notice_period_unit, { days: "days", weeks: "weeks", months: "months" },
        prefix: :notice_in, validate: { allow_nil: true }
   enum :notice_anchor, { end_of_term: "end_of_term", end_of_month: "end_of_month", any_day: "any_day" },
        prefix: :notice_to, validate: { allow_nil: true }
 
-  normalizes :contract_number, :customer_number, :provider_name, :service_phone, :claims_phone,
+  normalizes :contract_number, :customer_number, :service_phone, :claims_phone,
              :service_email, :portal_url, with: ->(value) { value.strip.presence }
 
   before_validation :assign_default_owner, on: :create
@@ -61,7 +62,7 @@ class Contract < ApplicationRecord
   validates :minimum_term_months, :notice_period_value,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :renewal_period_months, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
-  validate :provider_present
+  validates :ends_on, presence: true, if: :ended?
   validate :notice_period_complete
   validate :ends_after_start
   validate :references_belong_to_family
@@ -96,6 +97,17 @@ class Contract < ApplicationRecord
       kinds.keys.map { |kind| [ I18n.t("contracts.kinds.#{kind}"), kind ] }
     end
 
+    # The merchant a provider name stands for, among those the user can pick:
+    # the family's own merchants and the ones on their transactions. Matching
+    # ignores case and surrounding blanks. Returns nil when none matches.
+    def merchant_named(family, user, name)
+      name = name.to_s.strip
+      return if name.blank?
+
+      family.available_merchants_for(user).where("LOWER(merchants.name) = ?", name.downcase)
+            .order(Arel.sql("CASE WHEN merchants.type = 'FamilyMerchant' THEN 0 ELSE 1 END"), :created_at).first
+    end
+
     # Public: views render portal and document links only when this holds.
     def http_url?(value)
       uri = URI.parse(value.to_s)
@@ -110,7 +122,7 @@ class Contract < ApplicationRecord
   end
 
   def provider_display_name
-    merchant&.name.presence || provider_name
+    merchant&.name
   end
 
   # :owner, :full_control, :read_write, :read_only, or nil for no access.
@@ -163,15 +175,16 @@ class Contract < ApplicationRecord
     "•••• #{value.last(4)}"
   end
 
-  # Contract status is set by the user, but a fixed end date that has passed
-  # ends the contract for display whether or not anyone recorded it.
-  # The end date itself still counts as open unless the status is "ended".
+  # A contract runs through its end date and has ended from the day after.
   def effectively_ended?(on: Date.current)
-    ended? || (ends_on.present? && ends_on < on)
+    ends_on.present? && ends_on < on
   end
 
+  # "active", "ending" (an end is recorded but not reached) or "ended".
   def display_status(on: Date.current)
-    effectively_ended?(on: on) ? "ended" : status
+    return "ended" if effectively_ended?(on: on)
+
+    ended? ? "ending" : "active"
   end
 
   def open?(on: Date.current)
@@ -245,37 +258,31 @@ class Contract < ApplicationRecord
       .min_by(&:next_due_date)
   end
 
-  # Records that a cancellation went out. The caller decides whether the
-  # linked bills end with the contract; the default leaves them running and the
-  # bill pane flags them once the contract has ended.
-  # A blank ends_on preserves the recorded end date. Contract and optional bill
-  # updates share a transaction; validation failures raise ActiveRecord::RecordInvalid.
-  # Pass bills: to limit which linked bills may be ended, for example to the
-  # ones the acting user may change.
-  def record_cancellation!(sent_on:, ends_on: nil, end_linked_bills: false, bills: recurring_transactions)
+  # Records the end of the contract, whether it was cancelled or simply runs
+  # out: one date, from which nothing is owed any more. The linked bills within
+  # bills end on the same day, so Bills stops expecting payments afterwards;
+  # callers acting for a user pass the bills that user may change. Contract and
+  # bill updates share a transaction and raise ActiveRecord::RecordInvalid.
+  def end_contract!(on:, bills: recurring_transactions)
     transaction do
-      update!(status: "cancellation_sent", cancelled_on: sent_on, ends_on: ends_on.presence || self.ends_on)
-      end_linked_bills_on!(self.ends_on, bills: bills) if end_linked_bills && self.ends_on.present?
+      update!(status: "ended", ends_on: on)
+      end_linked_bills_on!(on, bills: bills)
     end
   end
 
-  # Records provider confirmation without changing the end date or linked bills.
-  # Raises ActiveRecord::RecordInvalid if validation fails.
-  def confirm_cancellation!(confirmed_on:)
-    update!(status: "cancelled", cancellation_confirmed_on: confirmed_on)
-  end
+  # Takes back a recorded end, after a retention offer for example. Bills that
+  # were ended on that date run on again.
+  def reopen!(bills: recurring_transactions)
+    previous_end = ends_on
 
-  # A retention offer was accepted, or the cancellation was sent in error.
-  # Clears cancellation dates and restores active status, preserving ends_on
-  # and linked bill end dates. Raises ActiveRecord::RecordInvalid on validation failure.
-  def withdraw_cancellation!
-    update!(status: "active", cancelled_on: nil, cancellation_confirmed_on: nil)
-  end
+    transaction do
+      update!(status: "active", ends_on: nil)
+      next if previous_end.nil?
 
-  # Marks the contract ended, using ended_on only when no end date is recorded.
-  # Leaves linked bills unchanged; raises ActiveRecord::RecordInvalid on validation failure.
-  def mark_ended!(ended_on: Date.current)
-    update!(status: "ended", ends_on: ends_on.presence || ended_on)
+      bills.where(contract_id: id, end_mode: "on_date", end_on: previous_end).find_each do |recurring|
+        recurring.update!(end_mode: "never", end_on: nil)
+      end
+    end
   end
 
   # Linked, still-running bills whose contract has already ended. The bill
@@ -283,7 +290,7 @@ class Contract < ApplicationRecord
   def running_bills_after_end
     return RecurringTransaction.none unless effectively_ended?
 
-    end_date = ends_on || updated_at.to_date
+    end_date = ends_on
     recurring_transactions.where(status: "active")
                           .where("recurring_transactions.end_mode <> 'on_date' OR recurring_transactions.end_on IS NULL OR recurring_transactions.end_on > ?", end_date)
   end
@@ -304,8 +311,9 @@ class Contract < ApplicationRecord
   def possible_duplicates
     return Contract.none if contract_number.blank?
 
-    candidates = family.contracts.where.not(id: id)
-    candidates = merchant_id.present? ? candidates.where(merchant_id: merchant_id) : candidates.where("LOWER(provider_name) = ?", provider_name.to_s.downcase)
+    return Contract.none if merchant_id.blank?
+
+    candidates = family.contracts.where.not(id: id).where(merchant_id: merchant_id)
     ids = candidates.select { |other| other.contract_number.to_s.casecmp?(contract_number.to_s) }.map(&:id)
     family.contracts.where(id: ids)
   end
@@ -353,12 +361,6 @@ class Contract < ApplicationRecord
         { "url" => url.to_s.strip, "label" => label.to_s.strip.presence }.compact
       end
       self.document_links = links
-    end
-
-    def provider_present
-      return if merchant_id.present? || provider_name.present?
-
-      errors.add(:provider_name, :blank)
     end
 
     def notice_period_complete

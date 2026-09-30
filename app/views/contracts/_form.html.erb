@@ -1,6 +1,8 @@
 <%# locals: (contract:, prefill_bill_ids: nil) %>
 <% selected_bill_ids = prefill_bill_ids || contract.recurring_transaction_ids %>
 <% bills = linkable_bills.includes(:merchant).order(:name).to_a %>
+<% merchants = Current.family.available_merchants_for(Current.user).alphabetically.to_a %>
+<% merchants.unshift(contract.merchant) if contract.merchant && merchants.none? { |merchant| merchant.id == contract.merchant_id } %>
 <% successors = Current.family.contracts.accessible_by(Current.user).where.not(id: contract.id).alphabetically %>
 
 <% legal_defaults = Contract::LegalDefaults.for_country(Current.family.country) %>
@@ -22,12 +24,17 @@
     <%= f.select :kind, contract_kind_options, { label: Contract.human_attribute_name(:kind) }, { data: { contract_defaults_target: "kind", contract_kind_fields_target: "kind", action: "change->contract-kind-fields#switch" } } %>
     <%= f.text_field :name, label: Contract.human_attribute_name(:name), placeholder: t(".name_placeholder"), required: true, autofocus: true %>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <%= f.collection_select :merchant_id, Current.family.merchants.alphabetically, :id, :name,
-            { label: Contract.human_attribute_name(:merchant), include_blank: t(".no_merchant"), searchable: true } %>
-      <%= f.text_field :provider_name, label: Contract.human_attribute_name(:provider_name), placeholder: t(".provider_placeholder") %>
-    </div>
-    <p class="text-xs text-secondary"><%= t(".provider_hint") %></p>
+    <%= render DS::MerchantSelect.new(
+          form: f,
+          method: :merchant_id,
+          merchants: merchants,
+          selected_id: contract.merchant_id,
+          include_blank: t(".no_merchant"),
+          label: Contract.human_attribute_name(:merchant)
+        ) %>
+    <p class="text-xs text-secondary">
+      <%= @suggested_merchant_name.present? ? t(".suggested_merchant", name: @suggested_merchant_name) : t(".merchant_hint") %>
+    </p>
 
     <%= f.collection_select :account_id, Current.user.accessible_accounts.visible.alphabetically, :id, :name,
           { label: Contract.human_attribute_name(:account), include_blank: t(".no_account") } %>
@@ -40,6 +47,7 @@
       <%= f.number_field :minimum_term_months, label: t(".minimum_term_label"), min: 0, step: 1,
             data: { contract_defaults_target: "field", contract_defaults_key: "minimum_term_months" } %>
     </div>
+    <p class="text-xs text-secondary"><%= t(".notice_hint") %></p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <%= f.number_field :notice_period_value, label: Contract.human_attribute_name(:notice_period_value), min: 0, step: 1,
             data: { contract_defaults_target: "field", contract_defaults_key: "notice_period_value" } %>
@@ -48,13 +56,13 @@
       <%= f.select :notice_anchor, contract_notice_anchor_options, { label: Contract.human_attribute_name(:notice_anchor), include_blank: true },
             { data: { contract_defaults_target: "field", contract_defaults_key: "notice_anchor" } } %>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <%= f.number_field :renewal_period_months, label: t(".renewal_label"), min: 1, step: 1, placeholder: t(".renewal_placeholder"),
             data: { contract_defaults_target: "field", contract_defaults_key: "renewal_period_months" } %>
       <%= f.date_field :renewal_anchor_on, label: Contract.human_attribute_name(:renewal_anchor_on) %>
-      <%= f.date_field :ends_on, label: Contract.human_attribute_name(:ends_on) %>
     </div>
     <p class="text-xs text-secondary"><%= t(".term_hint") %></p>
+    <p class="text-xs text-secondary"><%= t(".renewal_anchor_hint") %></p>
     <% if legal_defaults.any? %>
       <div class="flex flex-wrap items-center gap-2">
         <%= render DS::Button.new(text: t(".apply_defaults"), icon: "wand-sparkles", variant: :outline, size: :sm, type: :button,
@@ -62,9 +70,12 @@
         <span class="text-xs text-secondary"><%= t(".defaults_disclaimer") %></span>
       </div>
     <% end %>
-    <label class="flex items-center gap-3 text-sm text-primary cursor-pointer">
-      <%= f.check_box :email_reminders, class: "checkbox checkbox--light" %>
-      <span><%= t(".email_reminders") %></span>
+    <label class="flex items-start gap-3 text-sm text-primary cursor-pointer">
+      <%= f.check_box :email_reminders, class: "checkbox checkbox--light mt-0.5" %>
+      <span>
+        <%= t(".email_reminders") %>
+        <span class="block text-xs text-secondary"><%= t(".email_reminders_hint") %></span>
+      </span>
     </label>
   </section>
 
@@ -93,20 +104,7 @@
 
   <section class="space-y-3">
     <h3 class="text-sm font-medium text-primary"><%= t(".payments_section") %></h3>
-    <% if bills.any? %>
-      <div class="max-h-48 overflow-y-auto rounded-lg border border-secondary divide-y divide-subdued">
-        <% bills.each do |bill| %>
-          <label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer">
-            <%= check_box_tag "contract[recurring_transaction_ids][]", bill.id, selected_bill_ids.include?(bill.id), id: "contract_bill_#{bill.id}", class: "checkbox checkbox--light" %>
-            <span class="flex-1 min-w-0 truncate text-primary"><%= bill.display_name %></span>
-            <span class="text-secondary privacy-sensitive"><%= format_money(bill.amount_money.abs) %></span>
-          </label>
-        <% end %>
-      </div>
-      <%= hidden_field_tag "contract[recurring_transaction_ids][]", "" %>
-    <% else %>
-      <p class="text-sm text-secondary"><%= t(".no_bills") %></p>
-    <% end %>
+    <%= render "contracts/bill_picker", contract: contract, bills: bills, selected_ids: selected_bill_ids %>
   </section>
 
   <section class="space-y-3">

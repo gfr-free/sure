@@ -54,6 +54,7 @@ class Assistant::Function::CreateContract < Assistant::Function
     # duplicate contract behind. Returns [linked_bill_names, nil] or [nil, error_hash].
     def save_and_link_bills(contract, bill_ids)
       linked = Contract.transaction do
+        contract.merchant = family.merchants.create!(name: @new_merchant_name.first(255)) if @new_merchant_name.present?
         contract.save!
         link_bills(contract, bill_ids)
       end
@@ -67,7 +68,7 @@ class Assistant::Function::CreateContract < Assistant::Function
     def contract_properties
       {
         name: { type: "string" },
-        provider: { type: "string", description: "The company the contract is with." },
+        provider: { type: "string", description: "The company the contract is with. Matched to an existing merchant by name, or added as a new one." },
         kind: { type: "string", enum: Contract.kinds.keys },
         started_on: { type: "string", description: "YYYY-MM-DD" },
         minimum_term_months: { type: "integer", minimum: 0 },
@@ -75,8 +76,7 @@ class Assistant::Function::CreateContract < Assistant::Function
         notice_period_unit: { type: "string", enum: Contract.notice_period_units.keys },
         notice_anchor: { type: "string", enum: Contract.notice_anchors.keys, description: "end_of_term, end_of_month or any_day." },
         renewal_period_months: { type: "integer", minimum: 1, description: "Leave out when it runs on indefinitely after the minimum term." },
-        renewal_anchor_on: { type: "string", description: "Main due date, YYYY-MM-DD." },
-        ends_on: { type: "string", description: "Fixed end date, YYYY-MM-DD." }
+        renewal_anchor_on: { type: "string", description: "Main due date, YYYY-MM-DD." }
       }
     end
 
@@ -85,7 +85,8 @@ class Assistant::Function::CreateContract < Assistant::Function
     # stored date over a malformed LLM value.
     def assign_contract_attributes(contract, params)
       contract.name = params["name"] if params.key?("name")
-      contract.provider_name = params["provider"] if params.key?("provider")
+      contract.merchant = Contract.merchant_named(family, user, params["provider"]) if params["provider"].present?
+      @new_merchant_name = params["provider"].to_s.strip if params["provider"].present? && contract.merchant.nil?
       contract.kind = params["kind"] if params["kind"].in?(Contract.kinds.keys)
       %w[minimum_term_months notice_period_value renewal_period_months].each do |key|
         contract.public_send("#{key}=", params[key]) if params.key?(key)
@@ -93,7 +94,7 @@ class Assistant::Function::CreateContract < Assistant::Function
       contract.notice_period_unit = params["notice_period_unit"] if params["notice_period_unit"].in?(Contract.notice_period_units.keys)
       contract.notice_anchor = params["notice_anchor"] if params["notice_anchor"].in?(Contract.notice_anchors.keys)
 
-      %w[started_on renewal_anchor_on ends_on].filter_map do |key|
+      %w[started_on renewal_anchor_on].filter_map do |key|
         next unless params.key?(key)
 
         if params[key].blank?

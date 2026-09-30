@@ -13,11 +13,6 @@ class Merchant < ApplicationRecord
   has_many :recurring_transactions, dependent: :destroy
   has_many :contracts, dependent: :nullify
 
-  # Prepended so it runs before the nullify above: a contract recorded with
-  # only a merchant keeps its name as provider_name, or it would fail its
-  # provider-present validation on every later save.
-  before_destroy :keep_contract_provider_names, prepend: true
-
   validates :name, presence: true
   validates :name, exclusion: { in: [ NO_MERCHANT_FILTER_VALUE ] }
   validates :type, inclusion: { in: TYPES }
@@ -41,10 +36,4 @@ class Merchant < ApplicationRecord
   def filter_value
     persisted? ? name : NO_MERCHANT_FILTER_VALUE
   end
-
-  private
-
-    def keep_contract_provider_names
-      contracts.where(provider_name: nil).update_all(provider_name: name, updated_at: Time.current)
-    end
 end

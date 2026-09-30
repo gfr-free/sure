@@ -1,14 +1,13 @@
 module ContractsHelper
   STATUS_TONES = {
     "active" => :success,
-    "cancellation_sent" => :warning,
-    "cancelled" => :info,
+    "ending" => :warning,
     "ended" => :neutral
   }.freeze
 
   def contract_status_pill(contract)
     status = contract.display_status
-    label = if status == "cancelled" && contract.ends_on.present? && contract.open?
+    label = if status == "ending"
       t("contracts.status_until", date: l(contract.ends_on, format: :long))
     else
       t("contracts.statuses.#{status}")
@@ -64,6 +63,16 @@ module ContractsHelper
     return period if contract.notice_anchor.blank?
 
     t("contracts.terms.notice_with_anchor", period: period, anchor: t("contracts.notice_anchors.#{contract.notice_anchor}"))
+  end
+
+  # Rent without the operating-costs prepayment, per month, when the linked
+  # bills give the rent and the prepayment is recorded.
+  def contract_cold_rent(contract, annual_cost)
+    advance = contract.typed_detail("operating_costs_advance") if contract.rent?
+    return if advance.nil? || annual_cost.nil? || annual_cost.zero?
+
+    cold = annual_cost / 12 - Money.new(advance, annual_cost.currency)
+    cold if cold.positive?
   end
 
   def contract_annual_cost(cost)

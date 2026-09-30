@@ -7,17 +7,14 @@
 #                                     telecoms and energy that usually opens a
 #                                     special right to terminate
 #   contract_charges_after_end        payments kept coming after the end date
-#   contract_cancellation_unconfirmed a cancellation went out weeks ago and the
-#                                     provider has not confirmed it
 class Insight::Generators::ContractGenerator < Insight::Generator
   produces "contract_notice_deadline", "contract_price_increase",
-           "contract_charges_after_end", "contract_cancellation_unconfirmed"
+           "contract_charges_after_end"
 
   DEADLINE_WINDOW_DAYS = 60
   URGENT_DEADLINE_DAYS = 14
   PRICE_CHANGE_WINDOW_DAYS = 60
   CHARGES_WINDOW_DAYS = 90
-  CONFIRMATION_WAIT_DAYS = 14
   # Kinds where a price increase typically lets the customer terminate early
   # (§40 VVG for insurance, §57 TKG for telecoms, §41 EnWG for energy).
   SPECIAL_TERMINATION_KINDS = %w[insurance mobile internet energy].freeze
@@ -30,8 +27,7 @@ class Insight::Generators::ContractGenerator < Insight::Generator
 
     notice_deadlines(contracts) +
       price_increases(contracts) +
-      charges_after_end(contracts) +
-      unconfirmed_cancellations(contracts)
+      charges_after_end(contracts)
   end
 
   private
@@ -143,28 +139,6 @@ class Insight::Generators::ContractGenerator < Insight::Generator
           },
           metadata: { contract_id: contract.id, count: allocations.size, latest_on: latest.iso8601 },
           dedup_key: "contract_charges_after_end:#{contract.id}",
-          user_id: contract.owner_id
-        )
-      end
-    end
-
-    def unconfirmed_cancellations(contracts)
-      contracts.filter_map do |contract|
-        next unless contract.cancellation_sent? && contract.cancelled_on.present?
-        next if contract.cancelled_on > today - CONFIRMATION_WAIT_DAYS
-
-        build_insight(
-          insight_type: "contract_cancellation_unconfirmed",
-          priority: "medium",
-          title: I18n.t("insights.titles.contract_cancellation_unconfirmed", name: contract.name),
-          template_key: "contract_cancellation_unconfirmed",
-          facts: {
-            name: contract.name,
-            sent_on: I18n.l(contract.cancelled_on, format: :long),
-            days_since: (today - contract.cancelled_on).to_i
-          },
-          metadata: { contract_id: contract.id, sent_on: contract.cancelled_on.iso8601 },
-          dedup_key: "contract_cancellation_unconfirmed:#{contract.id}",
           user_id: contract.owner_id
         )
       end

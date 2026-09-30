@@ -10,7 +10,6 @@ en:
     attributes:
       contract:
         name: Name
-        provider_name: Provider
         kind: Type
         status: Status
         contract_number: Contract number
@@ -23,8 +22,6 @@ en:
         renewal_period_months: Renews every
         renewal_anchor_on: Main due date
         ends_on: End date
-        cancelled_on: Cancellation sent
-        cancellation_confirmed_on: Cancellation confirmed
         portal_url: Customer portal
         service_phone: Service phone
         service_email: Service email

@@ -7,7 +7,7 @@ class Assistant::Function::UpdateContract < Assistant::Function::CreateContract
     def description
       <<~INSTRUCTIONS
         Change a contract's name, provider, kind or terms. Only pass the fields being
-        changed. Numbers cannot be set here. Recording a cancellation, sharing and
+        changed. Numbers cannot be set here. Ending a contract, sharing and
         deleting stay in the app. Confirm the change with the user before calling.
 
         contract_id must be the exact id returned by get_contracts.

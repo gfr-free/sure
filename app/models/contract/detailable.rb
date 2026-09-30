@@ -42,7 +42,10 @@ module Contract::Detailable
     },
     "rent" => {
       "landlord" => :string,
-      "deposit" => :decimal
+      "deposit" => :decimal,
+      # The share of the monthly rent paid in advance for operating costs
+      # (Betriebskosten); the linked bill usually pays both in one debit.
+      "operating_costs_advance" => :decimal
     },
     "streaming" => { "plan" => :string },
     "software" => { "plan" => :string },

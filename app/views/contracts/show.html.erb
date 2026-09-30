@@ -27,12 +27,8 @@
         <% if manageable %>
           <% menu.with_item(variant: "link", text: t(".share"), icon: "share-2", href: contract_sharing_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
-        <% if @contract.active? && @contract.open? %>
-          <% menu.with_item(variant: "link", text: t(".record_cancellation"), icon: "file-signature", href: new_contract_cancellation_path(@contract), data: { turbo_frame: :modal }) %>
-        <% end %>
-        <% unless @contract.ended? %>
-          <% menu.with_item(variant: "button", text: t(".mark_ended"), icon: "ban", href: mark_ended_contract_path(@contract), method: :patch,
-                            confirm: t(".confirm_mark_ended", name: @contract.name)) %>
+        <% if @contract.active? %>
+          <% menu.with_item(variant: "link", text: t(".end_contract"), icon: "calendar-x", href: new_contract_ending_path(@contract), data: { turbo_frame: :modal }) %>
         <% end %>
         <% if manageable %>
           <% menu.with_item(variant: "button", text: t(".delete"), icon: "trash-2", href: contract_path(@contract), method: :delete, destructive: true,
@@ -42,7 +38,7 @@
     <% end %>
   </header>
 
-  <%= render "contracts/cancellation_notice", contract: @contract, editable: editable %>
+  <%= render "contracts/end_notice", contract: @contract, editable: editable %>
 
   <% if @duplicates.any? %>
     <%= render DS::Alert.new(variant: :warning, message: t(".possible_duplicate", names: @duplicates.map(&:name).to_sentence)) %>
@@ -115,18 +111,21 @@
       <% else %>
         <p class="text-sm text-secondary"><%= t(".no_payments") %></p>
       <% end %>
+      <% if @annual_cost.nil? && @visible_bills.any? %>
+        <p class="text-xs text-secondary"><%= t(".cost_unknown_hint") %></p>
+      <% end %>
       <% if @hidden_bills %>
         <p class="text-xs text-secondary"><%= t(".hidden_payments") %></p>
       <% end %>
       <% if editable %>
         <div class="flex flex-wrap gap-2">
-          <%= render DS::Link.new(text: t(".link_payments"), icon: "link", variant: "outline", size: :sm, href: edit_contract_path(@contract), frame: :modal) %>
-          <%= render DS::Link.new(text: t(".add_payment"), icon: "plus", variant: "ghost", size: :sm, href: new_recurring_transaction_path, frame: :modal) %>
+          <%= render DS::Link.new(text: t(".link_payments"), icon: "link", variant: "outline", size: :sm, href: payments_contract_path(@contract), frame: :modal) %>
+          <%= render DS::Link.new(text: t(".add_payment"), icon: "plus", variant: "ghost", size: :sm, href: new_recurring_transaction_path(contract_id: @contract.id), frame: :modal) %>
         </div>
       <% end %>
     <% end %>
 
-    <%= render "contracts/details_rows", contract: @contract %>
+    <%= render "contracts/details_rows", contract: @contract, annual_cost: @annual_cost %>
 
     <% if [ @contract.portal_url, @contract.service_phone, @contract.service_email, @contract.claims_phone ].any?(&:present?) %>
       <%= render DS::Card.new(class: "space-y-3") do %>

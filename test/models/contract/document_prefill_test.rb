@@ -17,7 +17,8 @@ class Contract::DocumentPrefillTest < ActiveSupport::TestCase
     prefill.apply_to(contract)
 
     assert_equal "Hausratversicherung", contract.name
-    assert_equal "Allianz", contract.provider_name
+    assert_equal "Allianz", prefill.provider_name
+    assert_nil contract.merchant, "the caller maps the provider to a merchant"
     assert contract.insurance?
     assert_equal Date.new(2025, 1, 1), contract.started_on
     assert_equal 3, contract.notice_period_value

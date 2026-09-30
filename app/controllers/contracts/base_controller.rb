@@ -1,4 +1,4 @@
-# Shared lookup for the contract sub-resources (cancellation, sharing,
+# Shared lookup for the contract sub-resources (ending, sharing,
 # documents). Same gates as ContractsController.
 class Contracts::BaseController < ApplicationController
   include RecurringFeatureGuardable

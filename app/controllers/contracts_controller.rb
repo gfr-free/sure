@@ -6,8 +6,8 @@ class ContractsController < ApplicationController
   include RecurringFeatureGuardable
 
   before_action :ensure_recurring_enabled
-  before_action :set_contract, only: %i[show edit update destroy mark_ended end_linked_bills]
-  before_action :require_editable, only: %i[edit update mark_ended end_linked_bills]
+  before_action :set_contract, only: %i[show edit update destroy payments end_linked_bills]
+  before_action :require_editable, only: %i[edit update payments end_linked_bills]
   before_action :require_manageable, only: %i[destroy]
 
   def index
@@ -26,14 +26,21 @@ class ContractsController < ApplicationController
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
 
-  # A printable overview of every open contract the user can see, with
-  # contacts, for the household's emergency folder. Numbers are masked unless
-  # the user asks for them, and even then only where they may see them.
+  # A printable overview of every open contract the user can see, with costs,
+  # terms and contacts, for the household's folder. Numbers are always
+  # masked: the printout is kept where others can read it.
   def overview
     @contracts = Current.family.contracts.accessible_by(Current.user).includes(:merchant, :owner, :contract_documents)
                         .alphabetically.to_a.select(&:open?)
                         .sort_by { |contract| [ Contract.kinds.keys.index(contract.kind), contract.name.downcase ] }
-    @show_numbers = params[:numbers] == "1"
+    @costs = Contract.annual_costs_for(@contracts, Current.user)
+    # The accounts the visible active bills are paid from, by contract.
+    @payment_accounts = RecurringTransaction.accessible_by(Current.user)
+                                            .where(contract_id: @contracts.map(&:id), status: "active")
+                                            .where(account_id: Current.user.accessible_accounts.select(:id))
+                                            .includes(:account)
+                                            .group_by(&:contract_id)
+                                            .transform_values { |bills| bills.map { |bill| bill.account.name }.uniq }
 
     render layout: "print"
   end
@@ -93,14 +100,22 @@ class ContractsController < ApplicationController
     end
   end
 
+  # Only the bill picker, for linking payments without the whole form. Bills
+  # of the contract's merchant come first and are ticked while the contract
+  # has no payments yet and they are not linked elsewhere.
+  def payments
+    @bills = linkable_bills.includes(:merchant).order(:name).to_a
+    @selected_bill_ids = @contract.recurring_transaction_ids
+    if @selected_bill_ids.empty? && @contract.merchant_id.present?
+      @selected_bill_ids = @bills.select { |bill| bill.merchant_id == @contract.merchant_id && bill.contract_id.nil? }.map(&:id)
+    end
+
+    render layout: dialog_layout
+  end
+
   def destroy
     @contract.destroy!
     redirect_to contracts_path, notice: t(".success")
-  end
-
-  def mark_ended
-    @contract.mark_ended!(ended_on: Date.current)
-    redirect_to contract_path(@contract), notice: t(".success")
   end
 
   # The contract has ended but its bills still expect payments. Ends the ones
@@ -132,9 +147,9 @@ class ContractsController < ApplicationController
     # read-only share never reaches the form, and this keeps it that way.
     def contract_params
       params.require(:contract).permit(
-        :name, :provider_name, :kind, :contract_number, :customer_number,
+        :name, :kind, :contract_number, :customer_number,
         :started_on, :minimum_term_months, :notice_period_value, :notice_period_unit, :notice_anchor,
-        :renewal_period_months, :renewal_anchor_on, :ends_on,
+        :renewal_period_months, :renewal_anchor_on,
         :portal_url, :service_phone, :service_email, :claims_phone, :notes, :email_reminders,
         document_links: [ :url, :label ],
         details: Contract::DETAIL_FIELDS.values.flat_map(&:keys).uniq
@@ -160,8 +175,11 @@ class ContractsController < ApplicationController
         end
       end
 
-      if attrs.key?(:merchant_id)
-        @contract.merchant = attrs[:merchant_id].presence && Current.family.merchants.find_by(id: attrs[:merchant_id])
+      # Any merchant the editor can pick: the family's own and the ones on
+      # their transactions. The current one stays even when this editor could
+      # not pick it.
+      if attrs.key?(:merchant_id) && attrs[:merchant_id].to_s != @contract.merchant_id.to_s
+        @contract.merchant = attrs[:merchant_id].presence && Current.family.available_merchants_for(Current.user).find_by(id: attrs[:merchant_id])
         @contract.errors.add(:merchant, :invalid) if attrs[:merchant_id].present? && @contract.merchant.nil?
       end
 
@@ -209,9 +227,8 @@ class ContractsController < ApplicationController
       return unless bill
 
       @contract.name = bill.display_name
-      @contract.merchant = bill.merchant if bill.merchant.is_a?(FamilyMerchant)
-      @contract.provider_name = bill.merchant&.name if @contract.merchant.nil?
-      @contract.provider_name ||= bill.display_name
+      @contract.merchant = bill.merchant || Contract.merchant_named(Current.family, Current.user, bill.display_name)
+      @suggested_merchant_name = bill.display_name if @contract.merchant.nil?
       @contract.kind = guess_kind(bill)
       @prefill_bill_ids = [ bill.id ]
     end
@@ -224,6 +241,8 @@ class ContractsController < ApplicationController
 
       prefill = Contract::DocumentPrefill.new(pdf_import)
       prefill.apply_to(@contract)
+      @contract.merchant = Contract.merchant_named(Current.family, Current.user, prefill.provider_name)
+      @suggested_merchant_name = prefill.provider_name if @contract.merchant.nil?
       @source_pdf_import = pdf_import
       @document_premium = prefill.premium
     end

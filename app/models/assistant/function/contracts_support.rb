@@ -11,7 +11,7 @@
 module Assistant::Function::ContractsSupport
   SAFE_DETAIL_KEYS = %w[
     insurance_line sum_insured deductible tariff data_volume_gb device_paid_off_on
-    bandwidth_mbit advance_payment price_guarantee_until deposit plan
+    bandwidth_mbit advance_payment price_guarantee_until deposit operating_costs_advance plan
   ].freeze
 
   private
@@ -80,8 +80,6 @@ module Assistant::Function::ContractsSupport
         notice_period: notice_period(contract),
         renewal_period_months: contract.renewal_period_months,
         ends_on: contract.ends_on&.iso8601,
-        cancelled_on: contract.cancelled_on&.iso8601,
-        cancellation_confirmed_on: contract.cancellation_confirmed_on&.iso8601,
         notice_deadline: schedule.notice_deadline&.iso8601,
         term_ends_on: schedule.term_ends_on&.iso8601,
         earliest_end_if_cancelled_today: schedule.earliest_end_on&.iso8601,

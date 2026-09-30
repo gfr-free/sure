@@ -65,6 +65,8 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
       document.save!
     end
 
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-other")
+
     adapter = mock("vector_store_adapter")
     adapter.stubs(:search).returns(
       VectorStore::Response.new(
@@ -91,6 +93,7 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
       filename: "orphan.pdf", status: "ready", provider_file_id: "file-orphan",
       metadata: { "type" => "contract", "contract_id" => contracts(:phone_plan).id }
     )
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-other")
 
     adapter = mock("vector_store_adapter")
     adapter.stubs(:search).returns(
@@ -136,13 +139,10 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_empty result[:results]
   end
 
-  test "drops unknown hits while a contract upload is unfinished" do
+  test "drops hits without a local record, such as an interrupted upload" do
     family = @user.family
     family.update!(vector_store_id: "vs_test123")
     family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-known")
-    document = contracts(:phone_plan).contract_documents.new(ai_searchable: true) # uploaded, but no local record yet
-    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "plan.pdf", content_type: "application/pdf")
-    document.save!
 
     adapter = mock("vector_store_adapter")
     adapter.stubs(:search).returns(
@@ -164,6 +164,7 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
 
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
+    @user.family.family_documents.create!(filename: "2024_tax_return.pdf", status: "ready", provider_file_id: "file-abc")
 
     mock_adapter = mock("vector_store_adapter")
     mock_adapter.stubs(:search).returns(

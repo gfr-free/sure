@@ -136,4 +136,33 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     transaction_entry.reload
     assert_equal [ new_tag.id ], transaction_entry.transaction.tag_ids
   end
+
+  test "bulk update ignores category, merchant and tag ids from another family" do
+    other_family = families(:empty)
+    foreign_category = other_family.categories.create!(name: "Foreign category")
+    foreign_merchant = FamilyMerchant.create!(family: other_family, name: "Foreign merchant")
+    foreign_tag = other_family.tags.create!(name: "Foreign tag")
+
+    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry.transaction.update!(category: categories(:food_and_drink), merchant: merchants(:netflix))
+    transaction_entry.transaction.tags = [ tags(:one) ]
+    transaction_entry.transaction.save!
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: {
+        entry_ids: [ transaction_entry.id ],
+        category_id: foreign_category.id,
+        merchant_id: foreign_merchant.id,
+        tag_ids: [ foreign_tag.id, tags(:two).id ]
+      }
+    }
+
+    assert_redirected_to transactions_url
+
+    transaction = transaction_entry.reload.transaction
+    assert_equal categories(:food_and_drink), transaction.category
+    assert_equal merchants(:netflix), transaction.merchant
+    assert_equal [ tags(:two).id ], transaction.tag_ids
+    assert_empty foreign_tag.taggings
+  end
 end

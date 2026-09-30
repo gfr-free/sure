@@ -28,7 +28,7 @@ class Transactions::CategorizesController < ApplicationController
     remaining_ids = all_entry_ids - entry_ids
 
     category = Current.family.categories.find(params[:category_id])
-    entries  = Current.accessible_entries.excluding_split_parents.where(id: entry_ids)
+    entries  = annotatable_entries.excluding_split_parents.where(id: entry_ids)
     count    = entries.bulk_update!({ category_id: category.id })
 
     if params[:create_rule] == "1"
@@ -92,13 +92,13 @@ class Transactions::CategorizesController < ApplicationController
   end
 
   def assign_entry
-    entry         = Current.accessible_entries.excluding_split_parents.find(params[:entry_id])
+    entry         = annotatable_entries.excluding_split_parents.find(params[:entry_id])
     category      = Current.family.categories.find(params[:category_id])
     position      = params[:position].to_i
     all_entry_ids = Array.wrap(params[:all_entry_ids]).reject(&:blank?)
     remaining_ids = all_entry_ids - [ entry.id.to_s ]
 
-    Current.accessible_entries.where(id: entry.id).bulk_update!({ category_id: category.id })
+    annotatable_entries.where(id: entry.id).bulk_update!({ category_id: category.id })
 
     remaining_entries = uncategorized_entries_for(remaining_ids)
     remaining_ids     = remaining_entries.map { |e| e.id.to_s }
@@ -118,6 +118,11 @@ class Transactions::CategorizesController < ApplicationController
   end
 
   private
+    # Categorizing is an annotation, so read-only account shares are excluded
+    # (same rule as TransactionsController#update for a single entry).
+    def annotatable_entries
+      Current.family.entries.joins(:account).merge(Account.annotatable_by(Current.user))
+    end
 
     def uncategorized_count
       Current.accessible_entries.uncategorized_transactions.count

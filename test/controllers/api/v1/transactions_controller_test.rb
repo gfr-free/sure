@@ -894,7 +894,115 @@ end
     assert_empty queries.grep(/SELECT "accounts"\.\* FROM "accounts" WHERE "accounts"\."id" =/)
   end
 
+  # Shared-account write permissions
+  test "member cannot update or destroy transaction on read_only shared account" do
+    entry = create_transaction(account: accounts(:credit_card), amount: 25, name: "Card purchase")
+
+    get api_v1_transaction_url(entry.transaction), headers: api_headers(member_api_key)
+    assert_response :success
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { name: "Hijacked", amount: 999 } },
+          headers: api_headers(member_api_key)
+    assert_response :forbidden
+    assert_equal "forbidden", JSON.parse(response.body)["error"]
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { notes: "Annotated" } },
+          headers: api_headers(member_api_key)
+    assert_response :forbidden
+
+    assert_no_difference("Entry.count") do
+      delete api_v1_transaction_url(entry.transaction), headers: api_headers(member_api_key)
+    end
+    assert_response :forbidden
+
+    entry.reload
+    assert_equal "Card purchase", entry.name
+    assert_equal 25, entry.amount
+    assert_nil entry.notes
+  end
+
+  test "member cannot create transaction on read_only shared account" do
+    assert_no_difference("Entry.count") do
+      post api_v1_transactions_url,
+           params: { transaction: { account_id: accounts(:credit_card).id, date: Date.current, amount: 5, name: "Nope", nature: "expense" } },
+           headers: api_headers(member_api_key)
+    end
+    assert_response :not_found
+  end
+
+  test "member cannot update or destroy transaction on unshared account" do
+    entry = create_transaction(account: accounts(:investment), amount: 10, name: "Private")
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { name: "Hijacked" } },
+          headers: api_headers(member_api_key)
+    assert_response :not_found
+
+    assert_no_difference("Entry.count") do
+      delete api_v1_transaction_url(entry.transaction), headers: api_headers(member_api_key)
+    end
+    assert_response :not_found
+    assert_equal "Private", entry.reload.name
+  end
+
+  test "member with read_write share can only annotate transactions" do
+    account = accounts(:other_asset)
+    account.share_with!(users(:family_member), permission: "read_write")
+    entry = create_transaction(account: account, amount: 10, name: "Shared")
+    category = @family.categories.first
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { notes: "Annotated", category_id: category.id } },
+          headers: api_headers(member_api_key)
+    assert_response :success
+    entry.reload
+    assert_equal "Annotated", entry.notes
+    assert_equal category, entry.transaction.category
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { amount: 500, notes: "Changed" } },
+          headers: api_headers(member_api_key)
+    assert_response :forbidden
+    assert_equal 10, entry.reload.amount
+
+    assert_no_difference("Entry.count") do
+      delete api_v1_transaction_url(entry.transaction), headers: api_headers(member_api_key)
+    end
+    assert_response :forbidden
+  end
+
+  test "member with full_control share can update and destroy transactions" do
+    entry = create_transaction(account: accounts(:depository), amount: 10, name: "Shared")
+
+    patch api_v1_transaction_url(entry.transaction),
+          params: { transaction: { name: "Renamed", amount: 20 } },
+          headers: api_headers(member_api_key)
+    assert_response :success
+    assert_equal "Renamed", entry.reload.name
+
+    assert_difference("Entry.count", -1) do
+      delete api_v1_transaction_url(entry.transaction), headers: api_headers(member_api_key)
+    end
+    assert_response :success
+  end
+
   private
+
+    def member_api_key
+      @member_api_key ||= begin
+        member = users(:family_member)
+        member.api_keys.active.destroy_all
+        ApiKey.create!(
+          user: member,
+          name: "Member Read-Write Key",
+          scopes: [ "read_write" ],
+          source: "web",
+          display_key: "test_member_rw_#{SecureRandom.hex(8)}"
+        ).tap { |key| Redis.new.del("api_rate_limit:#{key.id}") }
+      end
+    end
 
     def api_headers(api_key)
       { "X-Api-Key" => api_key.display_key }

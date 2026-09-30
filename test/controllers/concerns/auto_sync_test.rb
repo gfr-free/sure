@@ -9,6 +9,7 @@ class AutoSyncTest < ActionDispatch::IntegrationTest
     Sync.destroy_all
   end
 
+  # The former `skip "AutoSync functionality temporarily disabled"` lines were stale; these tests pass on main without them.
   test "auto-syncs family if hasn't synced" do
     assert_difference "Sync.count", 1 do
       get root_path
@@ -90,6 +91,15 @@ class AutoSyncTest < ActionDispatch::IntegrationTest
     assert_raises(RuntimeError) { get root_path }
 
     Family.any_instance.expects(:sync_later).once
+    get root_path
+  end
+
+  test "still auto-syncs when the cache backend fails to record the daily claim" do
+    Rails.cache.stubs(:write).returns(false)
+    Rails.cache.stubs(:exist?).returns(false)
+    Family.any_instance.expects(:request_plaid_transactions_refreshes_later).with(source: "AutoSync").once
+    Family.any_instance.expects(:sync_later).once
+
     get root_path
   end
 

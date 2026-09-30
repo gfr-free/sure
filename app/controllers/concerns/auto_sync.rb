@@ -41,8 +41,13 @@ module AutoSync
       %w[Sec-Purpose X-Sec-Purpose Purpose].any? { |header| request.headers[header].to_s.include?("prefetch") }
     end
 
+    # A falsy write means either the key already exists (another request won)
+    # or the cache backend failed (redis_cache_store swallows errors). Only
+    # skip when the key is really there, so a cache outage never blocks sync.
     def claim_auto_sync_slot
-      Rails.cache.write(auto_sync_cache_key, true, unless_exist: true, expires_in: 1.day)
+      return true if Rails.cache.write(auto_sync_cache_key, true, unless_exist: true, expires_in: 1.day)
+
+      !Rails.cache.exist?(auto_sync_cache_key)
     end
 
     def auto_sync_cache_key

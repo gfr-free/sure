@@ -587,8 +587,9 @@ class User < ApplicationRecord
   def update_manual_account_order(group_key, account_ids)
     group_key = group_key.to_s
     return false unless Accountable::TYPES.map(&:underscore).include?(group_key)
+    return false unless account_ids.is_a?(Array)
 
-    requested_ids = Array(account_ids).map(&:to_s).uniq.first(MANUAL_ACCOUNT_ORDER_LIMIT)
+    requested_ids = account_ids.map(&:to_s).uniq.first(MANUAL_ACCOUNT_ORDER_LIMIT)
     accessible_ids = accessible_accounts.where(id: requested_ids).pluck(:id).to_set
     ordered_ids = requested_ids.select { |id| accessible_ids.include?(id) }
 

@@ -1,5 +1,8 @@
 import { Controller } from "@hotwired/stimulus";
 
+// Pending save per group, shared by the desktop and mobile sidebar lists.
+const saveChains = new Map();
+
 // Drag-and-drop ordering of the accounts inside one sidebar account group.
 // Only rendered when the user picked "Manual" as their account order.
 // Rows move by their grip handle: mouse drag, press-and-hold on touch, or
@@ -249,10 +252,19 @@ export default class extends Controller {
     });
   }
 
-  async save() {
+  // Saves run one after another per group, so a slow earlier request can
+  // never land after a newer one and overwrite the order on screen.
+  save() {
     const order = this.currentOrder();
     this.syncOtherLists(order);
 
+    const key = `${this.urlValue}:${this.groupValue}`;
+    const previous = saveChains.get(key) ?? Promise.resolve();
+    const request = previous.then(() => this.sendOrder(order));
+    saveChains.set(key, request);
+  }
+
+  async sendOrder(order) {
     // The meta tag is absent only where forgery protection is off (tests).
     const csrfToken = document.querySelector('meta[name="csrf-token"]');
 

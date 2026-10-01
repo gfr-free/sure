@@ -495,7 +495,7 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
 
-    import_usd_pln_rates(1.day.ago.to_date => 4.2, Date.current => 4.21)
+    import_usd_pln_rates({ 1.day.ago.to_date => 4.2, Date.current => 4.21 })
 
     # Jumps are only reported, never rejected
     assert_equal 4.2, ExchangeRate.find_by!(from_currency: "USD", to_currency: "PLN", date: 1.day.ago.to_date).rate
@@ -524,7 +524,7 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
 
-    import_usd_pln_rates(1.day.ago.to_date => 4.0, Date.current => 3.9)
+    import_usd_pln_rates({ 1.day.ago.to_date => 4.0, Date.current => 3.9 })
 
     assert_equal 0, DebugLogEntry.count
   end
@@ -536,7 +536,7 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
     ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
 
-    import_usd_pln_rates(1.day.ago.to_date => 4.5, Date.current => 3.7)
+    import_usd_pln_rates({ 1.day.ago.to_date => 4.5, Date.current => 3.7 })
 
     entry = DebugLogEntry.sole
     assert_equal 2, entry.metadata["jump_count"]

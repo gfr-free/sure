@@ -237,7 +237,8 @@ class Family::DataExporter
             record_id: document.id,
             extra: {
               contract_id: document.contract_id,
-              ai_searchable: document.ai_searchable
+              ai_searchable: document.ai_searchable,
+              role: document.role
             }
           )
         end
@@ -738,6 +739,7 @@ class Family::DataExporter
         claims_phone: contract.claims_phone,
         document_links: contract.document_links,
         email_reminders: contract.email_reminders,
+        notice_not_required: contract.notice_not_required,
         notice_reminders_sent: contract.notice_reminders_sent,
         details: contract.details,
         notes: contract.notes,

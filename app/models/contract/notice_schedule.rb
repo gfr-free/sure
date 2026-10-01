@@ -34,6 +34,9 @@ class Contract::NoticeSchedule
     # (an end date next to a renewal period is contradictory input; the end
     # date wins once it has passed).
     return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: nil) if !contract.active? || contract.effectively_ended?(on: today)
+    # Nothing to give notice for: the contract ends on its own or cannot be
+    # cancelled at all.
+    return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: contract.ends_on) if contract.notice_not_required?
     return Result.new(term_ends_on: contract.ends_on, notice_deadline: nil, earliest_end_on: contract.ends_on) if fixed_end?
 
     case anchor

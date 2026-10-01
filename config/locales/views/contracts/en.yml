@@ -67,6 +67,7 @@ en:
         one: "Renews every month"
         other: "Renews every %{count} months"
       unknown: Not recorded
+      not_required: No notice needed
       notice_units:
         days:
           one: "%{count} day"
@@ -96,6 +97,12 @@ en:
       active_count_label: Active contracts
       annual_cost_label: Cost per year
       monthly_cost_label: Average per month
+      savings:
+        one: "Saved by 1 ended contract (12 months):"
+        other: "Saved by %{count} ended contracts (12 months):"
+      extra_cost:
+        one: "Extra cost after 1 ended contract (12 months):"
+        other: "Extra cost after %{count} ended contracts (12 months):"
       ended:
         one: "Ended contract (%{count})"
         other: "Ended contracts (%{count})"
@@ -146,6 +153,16 @@ en:
       empty: No documents yet.
       choose: "Choose PDFs or images (up to %{size} MB each)"
       upload: Upload
+      upload_role: Type of the uploaded documents
+      role_label: "Type of %{name}"
+      roles:
+        contract: Contract / policy
+        terms: Terms and conditions
+        amendment: Amendment
+        price_change: Price change
+        invoice: Invoice
+        cancellation: Cancellation / confirmation
+        other: Other
       create:
         success:
           one: Document uploaded
@@ -156,6 +173,7 @@ en:
         ai_disabled: Turn on the assistant in your settings to make documents searchable.
         searchable: The assistant can now search this document.
         not_searchable: The assistant can no longer search this document.
+        role_updated: Document type saved
       destroy:
         success: Document deleted
     bill_picker:
@@ -175,7 +193,7 @@ en:
       suggested_merchant: "The source names the provider as \"%{name}\". Pick the matching merchant or add it from the search."
       notice_hint: "Notice period: how long before the contract ends your cancellation must reach the provider, for example 3 months to the end of the term. Sure works out the last day to cancel from it."
       renewal_anchor_hint: "Main due date: the day the contract year starts and the contract renews, for insurance often the policy start or 1 January. The notice period counts back from it."
-      email_reminders_hint: 30, 7 and 1 day before the last day to cancel. Only works when this instance has email (SMTP) set up.
+      email_reminders_hint: 30, 7 and 1 day before the last day to cancel and, for energy, before the price guarantee ends. Only works when this instance has email (SMTP) set up.
       from_document: "Prefilled from %{filename}. Check every value against the document; contract numbers are not read, add them yourself."
       document_premium: "The document states a premium of %{amount} (%{frequency}). Link or add the bill that pays it below."
       name_placeholder: e.g. Private liability insurance
@@ -198,6 +216,13 @@ en:
       link_url: Document link
       link_label: Label
       links_hint: Link documents stored elsewhere, for example in Paperless-ngx.
+      link_role: Document type
+      link_role_blank: Type
+      predecessor: Replaces contract
+      no_predecessor: Replaces no contract
+      predecessor_hint: The contract this one takes over from, for example your old electricity supplier. Sure shows what you save compared with it.
+      notice_not_required: No notice needed
+      notice_not_required_hint: The contract ends on its own or cannot be cancelled, for example the broadcasting fee or a lifetime membership. It gets no notice deadline and no reminders.
       no_successor: No successor
       create: Save contract
       update: Save changes
@@ -220,11 +245,16 @@ en:
         intro: Enter when the contract ends, whether you cancelled it or it runs out. It keeps running until then. Sure does not send anything to the provider.
         ends_on: Contract ends on
         bills_hint: The linked bills end on the same day. After that, Sure expects no more payments for this contract.
+        successor: Replaced by
+        no_successor: No successor
+        new_successor: Add a new contract
+        successor_hint: Pick the contract that takes over, or add it right after ending this one. The savings on the contracts page compare the two.
         submit: End contract
       create:
         success: Contract end saved
         date_required: Enter when the contract ends.
         ends_before_start: The contract cannot end before it starts.
+        successor_invalid: Pick a successor from the list.
       destroy:
         success: Contract end removed
     end_notice:

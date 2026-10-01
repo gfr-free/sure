@@ -28,6 +28,7 @@ en:
       contract_notice_deadline: Contract
       contract_price_increase: Contract
       contract_charges_after_end: Contract
+      contract_price_guarantee_ending: Contract
       spending_anomaly: Spending
       cash_flow_warning: Cash flow
       net_worth_milestone: Net worth
@@ -78,6 +79,7 @@ en:
       contract_notice_deadline: "Notice deadline for %{name}"
       contract_price_increase: "%{name} got more expensive"
       contract_charges_after_end: "%{name} is still charging you"
+      contract_price_guarantee_ending: "Price guarantee for %{name} is ending"
       spending_anomaly:
         above: "%{category} spending is trending up"
         below: "%{category} spending is trending down"
@@ -101,6 +103,7 @@ en:
         special: "%{name} went from %{previous_amount} to %{new_amount} on %{effective_on}. A price increase often gives you a special right to cancel; check the letter that announced it."
         plain: "%{name} went from %{previous_amount} to %{new_amount} on %{effective_on}."
       contract_charges_after_end: "%{name} ended on %{ends_on}, but %{count} payments totalling %{amount} were still made, the last on %{latest_on}. You may be owed a refund."
+      contract_price_guarantee_ending: "The price guarantee for %{name} ends on %{guarantee_until}. After that the provider may raise the price, so it is a good time to compare offers."
       spending_anomaly:
         above: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% more than your recent monthly average of %{baseline_spend}.
         below: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% less than your recent monthly average of %{baseline_spend}.

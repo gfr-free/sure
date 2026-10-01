@@ -174,6 +174,108 @@ class ContractTest < ActiveSupport::TestCase
     assert_equal "read_write", @insurance.contract_shares.find_by(user: newcomer).permission
   end
 
+  test "document links keep a known role and drop an unknown one" do
+    @insurance.update!(document_links: [
+      { "url" => "https://paperless.example.com/documents/42", "role" => "terms" },
+      { "url" => "https://paperless.example.com/documents/43", "role" => "bogus" }
+    ])
+
+    assert_equal [
+      { "url" => "https://paperless.example.com/documents/42", "role" => "terms" },
+      { "url" => "https://paperless.example.com/documents/43" }
+    ], @insurance.document_links
+  end
+
+  test "a contract that needs no notice keeps no notice terms and has no deadline" do
+    @insurance.update!(notice_not_required: true)
+
+    assert_nil @insurance.notice_period_value
+    assert_nil @insurance.notice_period_unit
+    assert_nil @insurance.notice_anchor
+    assert_nil @insurance.notice_deadline
+    assert_nil @insurance.notice_schedule.earliest_end_on
+    assert_equal 12, @insurance.renewal_period_months, "the term itself stays"
+  end
+
+  test "price guarantee is read for energy contracts only" do
+    contract = @family.contracts.create!(name: "Power", kind: "energy", owner: @admin,
+                                         details: { "price_guarantee_until" => "2027-03-31" })
+    assert_equal Date.new(2027, 3, 31), contract.price_guarantee_until
+
+    assert_nil @phone.price_guarantee_until
+  end
+
+  test "savings count the yearly cost of contracts ended in the last twelve months" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    @phone.end_contract!(on: 1.month.ago.to_date)
+    @insurance.end_contract!(on: 13.months.ago.to_date)
+
+    total, count = Contract.annual_savings_for([ @phone, @insurance ], @admin)
+
+    assert_equal 1, count
+    assert_in_delta netflix.monthly_equivalent_amount.amount.abs * 12, total.amount, 0.01
+  end
+
+  test "savings subtract what the successor costs" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    successor = @family.contracts.create!(name: "New phone", kind: "mobile", owner: @admin)
+    cheaper = @family.recurring_transactions.create!(
+      name: "New phone bill", amount: 5, currency: "USD", expected_day_of_month: 3,
+      last_occurrence_date: 1.month.ago.to_date, next_expected_date: 3.days.from_now.to_date,
+      status: "active", contract: successor
+    )
+    @phone.update!(replaced_by: successor)
+    @phone.end_contract!(on: 1.month.ago.to_date)
+
+    total, = Contract.annual_savings_for([ @phone, successor ], @admin)
+
+    expected = (netflix.monthly_equivalent_amount.amount.abs - cheaper.monthly_equivalent_amount.amount.abs) * 12
+    assert_in_delta expected, total.amount, 0.01
+  end
+
+  test "savings count a shared successor once and a chain from its first contract" do
+    bundle = @family.contracts.create!(name: "Bundle", kind: "internet", owner: @admin)
+    bill_for(bundle, 50)
+    bill_for(@phone, 40)
+    bill_for(@insurance, 20)
+    [ @phone, @insurance ].each do |contract|
+      contract.update!(replaced_by: bundle)
+      contract.end_contract!(on: 1.month.ago.to_date)
+    end
+
+    total, count = Contract.annual_savings_for([ @phone, @insurance, bundle ], @admin)
+    assert_equal 2, count
+    assert_in_delta (40 + 20 - 50) * 12, total.amount, 0.01
+
+    # Phone -> interim -> bundle, phone and interim both ended: phone against bundle.
+    @insurance.update_columns(replaced_by_id: nil, ends_on: 2.years.ago.to_date)
+    interim = @family.contracts.create!(name: "Interim", kind: "mobile", owner: @admin)
+    bill_for(interim, 45)
+    @phone.update_columns(replaced_by_id: interim.id)
+    interim.update!(replaced_by: bundle)
+    interim.end_contract!(on: 1.week.ago.to_date)
+
+    total, count = Contract.annual_savings_for([ @phone, @insurance, interim, bundle ], @admin)
+    assert_equal 2, count
+    assert_in_delta (40 - 50) * 12, total.amount, 0.01
+  end
+
+  test "a bill still running after the contract ended is not saved" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    @phone.end_contract!(on: 1.month.ago.to_date, bills: RecurringTransaction.none)
+
+    total, count = Contract.annual_savings_for([ @phone ], @admin)
+    assert_equal 1, count
+    assert_equal 0, total.amount
+  end
+
+  test "savings are unknown without a recently ended contract" do
+    assert_equal [ nil, 0 ], Contract.annual_savings_for([ @phone, @insurance ], @admin)
+  end
+
   test "annual cost covers only active bills the viewer can see" do
     netflix = recurring_transactions(:netflix_subscription)
     netflix.update!(contract: @phone)
@@ -435,4 +537,13 @@ class ContractTest < ActiveSupport::TestCase
     assert_not bill.valid?
     assert bill.errors.added?(:contract, :wrong_family)
   end
+
+  private
+    def bill_for(contract, amount)
+      @family.recurring_transactions.create!(
+        name: "#{contract.name} bill", amount: amount, currency: "USD", expected_day_of_month: 3,
+        last_occurrence_date: 1.month.ago.to_date, next_expected_date: 3.days.from_now.to_date,
+        status: "active", contract: contract
+      )
+    end
 end

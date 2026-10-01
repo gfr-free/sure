@@ -41,8 +41,19 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap justify-end gap-2">
-      <%= render DS::Link.new(text: t(".print_overview"), icon: "printer", variant: "outline", size: :sm, href: overview_contracts_path, target: "_blank") %>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <% if @annual_savings %>
+        <p class="flex items-center gap-2 text-sm text-secondary">
+          <%= icon "piggy-bank", size: "sm" %>
+          <span>
+            <%= t(@annual_savings.negative? ? ".extra_cost" : ".savings", count: @savings_count) %>
+            <span class="font-medium text-primary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(@annual_savings.abs)) %></span>
+          </span>
+        </p>
+      <% end %>
+      <div class="ml-auto">
+        <%= render DS::Link.new(text: t(".print_overview"), icon: "printer", variant: "outline", size: :sm, href: overview_contracts_path, target: "_blank") %>
+      </div>
     </div>
 
     <% @groups.each do |kind, contracts| %>

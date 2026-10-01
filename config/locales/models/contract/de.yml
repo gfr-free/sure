@@ -32,6 +32,7 @@ de:
         merchant: Händler
         owner: Eigentümer
         replaced_by: Nachfolger
+        notice_not_required: Keine Kündigung nötig
       contract_share:
         user: Mitglied
         permission: Berechtigung
@@ -40,6 +41,7 @@ de:
     errors:
       models:
         contract:
+          invalid_predecessor: "Wähle den ersetzten Vertrag aus der Liste."
           attributes:
             notice_period_value:
               incomplete: "braucht eine Zahl und eine Einheit"

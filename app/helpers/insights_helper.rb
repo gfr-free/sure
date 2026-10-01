@@ -13,7 +13,8 @@ module InsightsHelper
     "maintained_goal_depleted" => "shield-alert",
     "contract_notice_deadline" => "calendar-clock",
     "contract_price_increase" => "trending-up",
-    "contract_charges_after_end" => "receipt"
+    "contract_charges_after_end" => "receipt",
+    "contract_price_guarantee_ending" => "lock-open"
   }.freeze
 
   def insight_icon_key(insight)
@@ -90,6 +91,8 @@ module InsightsHelper
       facts["new_amount"] && [ facts["new_amount"], t("insights.figures.was", amount: facts["previous_amount"]) ]
     when "contract_charges_after_end"
       facts["amount"] && [ facts["amount"], t("insights.figures.payments", count: facts["count"].to_i) ]
+    when "contract_price_guarantee_ending"
+      facts["days_left"] && [ facts["guarantee_until"], t("insights.figures.days_left", count: facts["days_left"].to_i) ]
     end
   end
 
@@ -126,7 +129,7 @@ module InsightsHelper
     when "maintained_goal_depleted"
       goal = insight.family.goals.find_by(id: metadata["goal_id"])
       goal && { text: t("insights.actions.maintained_goal_depleted"), href: goal_path(goal) }
-    when "contract_notice_deadline", "contract_price_increase", "contract_charges_after_end"
+    when "contract_notice_deadline", "contract_price_increase", "contract_charges_after_end", "contract_price_guarantee_ending"
       contract = insight.family.contracts.find_by(id: metadata["contract_id"])
       contract && { text: t("insights.actions.contract"), href: contract_path(contract) }
     end
@@ -172,7 +175,8 @@ module InsightsHelper
       metadata["negative"] ? :negative : :warning
     when "contract_charges_after_end"
       :negative
-    when "budget_at_risk", "maintained_goal_depleted", "contract_notice_deadline", "contract_price_increase"
+    when "budget_at_risk", "maintained_goal_depleted", "contract_notice_deadline", "contract_price_increase",
+         "contract_price_guarantee_ending"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

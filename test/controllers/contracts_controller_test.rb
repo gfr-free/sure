@@ -52,6 +52,55 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_select "span[title=?]", I18n.t("contracts.price_increased_on", date: I18n.l(change.effective_on, format: :short))
   end
 
+  test "index shows what contracts ended in the last year save" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    @phone.end_contract!(on: 1.month.ago.to_date)
+
+    get contracts_url
+
+    assert_response :success
+    assert_select "p", text: /#{Regexp.escape(I18n.t("contracts.index.savings", count: 1))}/
+  end
+
+  test "a contract that needs no notice saves without notice terms" do
+    patch contract_url(@insurance), params: { contract: { notice_not_required: "1", notice_period_value: 3, notice_period_unit: "months" } }
+
+    assert_redirected_to contract_url(@insurance)
+    @insurance.reload
+    assert @insurance.notice_not_required?
+    assert_nil @insurance.notice_period_value
+
+    get contract_url(@insurance)
+    assert_select "dd", text: I18n.t("contracts.terms.not_required")
+  end
+
+  test "a new contract cannot replace one the user may not change" do
+    hidden = @family.contracts.create!(name: "Member's", kind: "mobile", owner: @member)
+    hidden.contract_shares.delete_all
+
+    assert_no_difference -> { @family.contracts.count } do
+      post contracts_url, params: { contract: { name: "Mine", kind: "mobile", predecessor_id: hidden.id } }
+    end
+    assert_response :unprocessable_entity
+    assert_nil hidden.reload.replaced_by
+  end
+
+  test "a contract that is already replaced is not offered as the one a new contract replaces" do
+    @phone.update!(replaced_by: @insurance)
+
+    post contracts_url, params: { contract: { name: "Another phone", kind: "mobile", predecessor_id: @phone.id } }
+
+    assert_response :unprocessable_entity
+    assert_equal @insurance, @phone.reload.replaced_by
+  end
+
+  test "document links keep their role" do
+    patch contract_url(@insurance), params: { contract: { document_links: { "0" => { url: "https://paperless.example.com/documents/7", label: "AVB", role: "terms" } } } }
+
+    assert_equal [ { "url" => "https://paperless.example.com/documents/7", "label" => "AVB", "role" => "terms" } ], @insurance.reload.document_links
+  end
+
   test "show lists the price changes of the linked bills" do
     netflix = recurring_transactions(:netflix_subscription)
     netflix.update!(contract: @phone)

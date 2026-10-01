@@ -7,11 +7,16 @@ class ContractDocument < ApplicationRecord
   # same kind of paper.
   MAX_FILE_SIZE = Transaction::MAX_ATTACHMENT_SIZE
   ALLOWED_CONTENT_TYPES = Transaction::ALLOWED_CONTENT_TYPES
+  # What a document is to the contract. Document links on the contract use the
+  # same roles.
+  ROLES = %w[contract terms amendment price_change invoice cancellation other].freeze
 
   belongs_to :contract
   belongs_to :family_document, optional: true
 
   has_one_attached :file, dependent: :purge_later
+
+  enum :role, ROLES.index_with(&:itself), validate: true
 
   validate :file_attached
   validate :file_constraints, if: -> { file.attached? }
@@ -19,6 +24,10 @@ class ContractDocument < ApplicationRecord
 
   scope :ai_searchable, -> { where(ai_searchable: true) }
   scope :ordered, -> { order(created_at: :desc) }
+
+  def self.role_options
+    ROLES.map { |role| [ I18n.t("contracts.documents.roles.#{role}"), role ] }
+  end
 
   delegate :filename, :byte_size, :content_type, to: :file
 

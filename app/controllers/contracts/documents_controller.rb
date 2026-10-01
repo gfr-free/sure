@@ -1,5 +1,5 @@
-# Uploading and removing contract documents, and the per-document opt-in to
-# the assistant's document search.
+# Uploading and removing contract documents, their role (policy, terms,
+# invoice ...), and the per-document opt-in to the assistant's document search.
 class Contracts::DocumentsController < Contracts::BaseController
   before_action :require_editable, except: :show
   before_action :set_document, only: %i[show update destroy]
@@ -21,10 +21,11 @@ class Contracts::DocumentsController < Contracts::BaseController
       return redirect_to contract_path(@contract), alert: t(".too_many", max: ContractDocument::MAX_PER_CONTRACT)
     end
 
+    role = params.dig(:contract_document, :role).to_s.presence_in(ContractDocument::ROLES) || "other"
     errors = []
     ContractDocument.transaction do
       files.each do |file|
-        document = @contract.contract_documents.new
+        document = @contract.contract_documents.new(role: role)
         document.file.attach(file)
         errors.concat(document.errors.full_messages) unless document.save
       end
@@ -39,6 +40,10 @@ class Contracts::DocumentsController < Contracts::BaseController
   end
 
   def update
+    if (role = params.dig(:contract_document, :role)).present?
+      return update_role(role)
+    end
+
     searchable = ActiveModel::Type::Boolean.new.cast(params.dig(:contract_document, :ai_searchable))
 
     if searchable && !Current.user.ai_enabled?
@@ -55,6 +60,14 @@ class Contracts::DocumentsController < Contracts::BaseController
   end
 
   private
+
+    def update_role(role)
+      if @document.update(role: role.to_s.presence_in(ContractDocument::ROLES))
+        redirect_to contract_path(@contract), notice: t(".role_updated")
+      else
+        redirect_to contract_path(@contract), alert: @document.errors.full_messages.to_sentence
+      end
+    end
 
     def set_document
       @document = @contract.contract_documents.find(params[:id])

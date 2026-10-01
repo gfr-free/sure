@@ -32,6 +32,7 @@ en:
         merchant: Merchant
         owner: Owner
         replaced_by: Successor
+        notice_not_required: No notice needed
       contract_share:
         user: Member
         permission: Permission
@@ -40,6 +41,7 @@ en:
     errors:
       models:
         contract:
+          invalid_predecessor: "Pick the replaced contract from the list."
           attributes:
             notice_period_value:
               incomplete: "needs both a number and a unit"

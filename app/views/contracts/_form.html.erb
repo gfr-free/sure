@@ -7,7 +7,7 @@
 
 <% legal_defaults = Contract::LegalDefaults.for_country(Current.family.country) %>
 <%= styled_form_with model: contract, class: "space-y-4",
-      data: { controller: "contract-defaults contract-kind-fields", contract_defaults_defaults_value: legal_defaults.to_json } do |f| %>
+      data: { controller: "contract-defaults contract-kind-fields contract-notice", contract_defaults_defaults_value: legal_defaults.to_json } do |f| %>
   <% if contract.errors.any? %>
     <%= render "shared/form_errors", model: contract %>
   <% end %>
@@ -47,8 +47,16 @@
       <%= f.number_field :minimum_term_months, label: t(".minimum_term_label"), min: 0, step: 1,
             data: { contract_defaults_target: "field", contract_defaults_key: "minimum_term_months" } %>
     </div>
-    <p class="text-xs text-secondary"><%= t(".notice_hint") %></p>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <label class="flex items-start gap-3 text-sm text-primary cursor-pointer">
+      <%= f.check_box :notice_not_required, class: "checkbox checkbox--light mt-0.5",
+            data: { contract_notice_target: "toggle", action: "contract-notice#switch" } %>
+      <span>
+        <%= t(".notice_not_required") %>
+        <span class="block text-xs text-secondary"><%= t(".notice_not_required_hint") %></span>
+      </span>
+    </label>
+    <p class="text-xs text-secondary" data-contract-notice-target="field"><%= t(".notice_hint") %></p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" data-contract-notice-target="field">
       <%= f.number_field :notice_period_value, label: Contract.human_attribute_name(:notice_period_value), min: 0, step: 1,
             data: { contract_defaults_target: "field", contract_defaults_key: "notice_period_value" } %>
       <%= f.select :notice_period_unit, contract_notice_unit_options, { label: Contract.human_attribute_name(:notice_period_unit), include_blank: true },
@@ -64,7 +72,7 @@
     <p class="text-xs text-secondary"><%= t(".term_hint") %></p>
     <p class="text-xs text-secondary"><%= t(".renewal_anchor_hint") %></p>
     <% if legal_defaults.any? %>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2" data-contract-notice-target="field">
         <%= render DS::Button.new(text: t(".apply_defaults"), icon: "wand-sparkles", variant: :outline, size: :sm, type: :button,
                                   data: { action: "contract-defaults#apply" }) %>
         <span class="text-xs text-secondary"><%= t(".defaults_disclaimer") %></span>
@@ -111,17 +119,26 @@
     <h3 class="text-sm font-medium text-primary"><%= t(".links_section") %></h3>
     <% links = contract.document_links + [ {} ] * [ 2 - contract.document_links.size, 1 ].max %>
     <% links.each_with_index do |link, index| %>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div class="sm:col-span-2">
           <%= text_field_tag "contract[document_links][#{index}][url]", link["url"], placeholder: "https://", class: "form-field__input", autocomplete: "off", "aria-label": t(".link_url") %>
         </div>
         <%= text_field_tag "contract[document_links][#{index}][label]", link["label"], placeholder: t(".link_label"), class: "form-field__input", autocomplete: "off", "aria-label": t(".link_label") %>
+        <%= select_tag "contract[document_links][#{index}][role]", options_for_select(ContractDocument.role_options, link["role"]),
+              include_blank: t(".link_role_blank"), class: "form-field__input", "aria-label": t(".link_role") %>
       </div>
     <% end %>
     <p class="text-xs text-secondary"><%= t(".links_hint") %></p>
   </section>
 
-  <% if successors.any? %>
+  <% if contract.new_record? %>
+    <% predecessors = predecessor_options.alphabetically.to_a %>
+    <% if predecessors.any? %>
+      <%= f.select :predecessor_id, predecessors.map { |predecessor| [ predecessor.name, predecessor.id ] },
+            { label: t(".predecessor"), include_blank: t(".no_predecessor"), selected: @predecessor&.id } %>
+      <p class="text-xs text-secondary"><%= t(".predecessor_hint") %></p>
+    <% end %>
+  <% elsif successors.any? %>
     <%= f.collection_select :replaced_by_id, successors, :id, :name,
           { label: Contract.human_attribute_name(:replaced_by), include_blank: t(".no_successor") } %>
   <% end %>

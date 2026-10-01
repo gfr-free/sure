@@ -78,6 +78,7 @@ module Assistant::Function::ContractsSupport
         started_on: contract.started_on&.iso8601,
         minimum_term_months: contract.minimum_term_months,
         notice_period: notice_period(contract),
+        no_notice_needed: contract.notice_not_required? || nil,
         renewal_period_months: contract.renewal_period_months,
         ends_on: contract.ends_on&.iso8601,
         notice_deadline: schedule.notice_deadline&.iso8601,

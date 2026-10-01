@@ -24,6 +24,7 @@ class ContractsController < ApplicationController
     # A related account grants nothing: its name shows only to users who can see it.
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id).to_set
     @total_annual_cost, @unconvertible_count = total_annual_cost(@open_contracts)
+    @annual_savings, @savings_count = Contract.annual_savings_for(contracts, Current.user, costs: @costs)
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
 
@@ -61,6 +62,7 @@ class ContractsController < ApplicationController
     @contract = Current.family.contracts.new(kind: "other", owner: Current.user)
     prefill_from_bill(params[:recurring_transaction_id]) if params[:recurring_transaction_id].present?
     prefill_from_document(params[:pdf_import_id]) if params[:pdf_import_id].present?
+    prefill_from_predecessor(params[:predecessor_id]) if params[:predecessor_id].present?
     render layout: dialog_layout
   end
 
@@ -152,8 +154,8 @@ class ContractsController < ApplicationController
         :name, :kind, :contract_number, :customer_number,
         :started_on, :minimum_term_months, :notice_period_value, :notice_period_unit, :notice_anchor,
         :renewal_period_months, :renewal_anchor_on,
-        :portal_url, :service_phone, :service_email, :claims_phone, :notes, :email_reminders,
-        document_links: [ :url, :label ],
+        :portal_url, :service_phone, :service_email, :claims_phone, :notes, :email_reminders, :notice_not_required,
+        document_links: [ :url, :label, :role ],
         details: Contract::DETAIL_FIELDS.values.flat_map(&:keys).uniq
       ).tap do |permitted|
         permitted[:document_links] = permitted[:document_links].to_h.values if permitted[:document_links].is_a?(ActionController::Parameters)
@@ -185,6 +187,13 @@ class ContractsController < ApplicationController
         @contract.errors.add(:merchant, :invalid) if attrs[:merchant_id].present? && @contract.merchant.nil?
       end
 
+      # A new contract can name the one it replaces; that one, which the user
+      # must be able to change, then points to it as its successor.
+      if @contract.new_record? && attrs[:predecessor_id].present?
+        @predecessor = predecessor_options.find_by(id: attrs[:predecessor_id])
+        @contract.errors.add(:base, :invalid_predecessor) if @predecessor.nil?
+      end
+
       if attrs.key?(:replaced_by_id)
         successor_scope = Current.family.contracts.accessible_by(Current.user).where.not(id: @contract.id)
         hidden_successor = @contract.replaced_by_id.present? && !successor_scope.exists?(id: @contract.replaced_by_id)
@@ -200,6 +209,11 @@ class ContractsController < ApplicationController
     def save_with_bills
       Contract.transaction do
         next false unless @contract.save
+
+        if @predecessor && !@predecessor.update(replaced_by: @contract)
+          @contract.errors.add(:base, :invalid_predecessor)
+          raise ActiveRecord::Rollback
+        end
 
         if params[:contract].key?(:recurring_transaction_ids)
           selectable = linkable_bills
@@ -235,6 +249,20 @@ class ContractsController < ApplicationController
       @prefill_bill_ids = [ bill.id ]
     end
 
+    # The contracts a new one may replace: those the user can change that are
+    # not replaced yet, so no existing successor link is overwritten.
+    def predecessor_options
+      Current.family.contracts.editable_by(Current.user).where(replaced_by_id: nil)
+    end
+    helper_method :predecessor_options
+
+    # "Add the new contract" after ending one: same kind, and the ended one is
+    # preselected as the contract it replaces.
+    def prefill_from_predecessor(predecessor_id)
+      @predecessor = predecessor_options.find_by(id: predecessor_id)
+      @contract.kind = @predecessor.kind if @predecessor
+    end
+
     # "Create contract from this document" on a PDF import the processor
     # classified as a contract.
     def prefill_from_document(pdf_import_id)
@@ -260,7 +288,7 @@ class ContractsController < ApplicationController
       pdf_import = source_pdf_import(params.dig(:contract, :pdf_import_id))
       return unless pdf_import&.pdf_file&.attached?
 
-      document = @contract.contract_documents.new
+      document = @contract.contract_documents.new(role: "contract")
       document.file.attach(pdf_import.pdf_file.blob)
       flash[:alert] = t("contracts.create.document_not_attached") unless document.save
     end

@@ -57,6 +57,7 @@ module ContractsHelper
 
   # "3 months to the end of the term"
   def contract_notice(contract)
+    return t("contracts.terms.not_required") if contract.notice_not_required?
     return t("contracts.terms.unknown") if contract.notice_period_value.blank?
 
     period = t("contracts.terms.notice_units.#{contract.notice_period_unit}", count: contract.notice_period_value)

@@ -731,6 +731,7 @@ class Family::DataImporter
           claims_phone: data["claims_phone"],
           document_links: Array(data["document_links"]),
           email_reminders: boolean_import_value(data, "email_reminders", default: true),
+          notice_not_required: boolean_import_value(data, "notice_not_required", default: false),
           # Which reminder stages already went out, so a restore does not
           # re-send them. Absent in older exports.
           notice_reminders_sent: data["notice_reminders_sent"].is_a?(Hash) ? data["notice_reminders_sent"] : {},

@@ -51,11 +51,16 @@ Out of scope, on purpose:
   `renewal_period_months`, `renewal_anchor_on`, `ends_on`); contacts (`portal_url`,
   `service_phone`, `service_email`, `claims_phone`); `document_links` (URLs,
   e.g. Paperless-ngx); `details` (kind-specific, see `Contract::Detailable`);
-  `email_reminders`, `notice_reminders_sent`; `notes`.
+  `notice_not_required` (ends on its own or cannot be cancelled: no notice
+  terms, no deadline, no reminders); `email_reminders`, `notice_reminders_sent`
+  (stages sent per deadline, and per `price_guarantee:<date>`); `notes`.
+  Document links carry an optional `role`, like documents.
 - `contract_shares`: `contract`, `user`, `permission`
   (`full_control`, `read_write`, `read_only`).
-- `contract_documents`: one row per uploaded file, with `ai_searchable` and the
-  `family_document` copy in the assistant's document store.
+- `contract_documents`: one row per uploaded file, with `role`
+  (`ContractDocument::ROLES`: contract/policy, terms, amendment, price change,
+  invoice, cancellation, other), `ai_searchable` and the `family_document` copy
+  in the assistant's document store.
 - `recurring_transactions.contract_id`: the bills that pay for a contract. A
   contract has many bills; its yearly cost comes only from them.
   The list shows that cost per year and as an average per month (yearly / 12),
@@ -85,6 +90,15 @@ active --end (date)--> ended: shows "ends on <date>" until the date, "ended" aft
   restores the bills that ended on that date. Past payments stay linked as
   history. The bill pane still flags a bill that runs past the end (one the
   user could not change, or one reopened by hand), with an action to end it.
+- A successor can be named in the end dialog (an existing contract, or "add a
+  new contract", whose form opens with the ended one preselected under
+  "Replaces contract"), in a new contract's form, or later in the edit form.
+- The list shows the savings of contracts ended in the last 12 months
+  (`Contract.annual_savings_for`): the last yearly cost of the bills that
+  ended with them, less what the open contract at the end of each
+  replacement chain costs (counted once, even when it replaced several);
+  negative totals read as extra cost. A new contract can only name a
+  predecessor that is not replaced yet.
 - Creating from a bill or a document maps the provider name to an existing
   merchant (`Contract.merchant_named`); the assistant creates a family
   merchant when none matches.
@@ -122,8 +136,8 @@ Same model as accounts, with **no admin override**:
   past its minimum term runs indefinitely and has no deadline to miss.
 - `end_of_month` and `any_day` only have a deadline while a minimum term is
   still running.
-- An ended contract (end recorded) or one with a fixed `ends_on` and no
-  renewal has none.
+- An ended contract (end recorded), one with a fixed `ends_on` and no
+  renewal, or one marked `notice_not_required` has none.
 
 `Contract::LegalDefaults` offers typical German terms per kind, only when
 `families.country` is `DE`, only on the user's click, labelled "not legal
@@ -134,10 +148,12 @@ advice".
 - `Insight::Generators::ContractGenerator` (nightly, preview families):
   `contract_notice_deadline` (within 60 days, high within 14),
   `contract_price_increase` (special-termination hint for insurance, telecoms,
-  energy), `contract_charges_after_end`. All carry `user_id: owner_id`; feeds, the badge, the API,
+  energy), `contract_charges_after_end`, `contract_price_guarantee_ending`
+  (an energy contract's `price_guarantee_until` within 60 days). All carry `user_id: owner_id`; feeds, the badge, the API,
   `get_insights`, push delivery and the per-user Turbo stream honour it.
 - `ContractNoticeRemindersJob` (daily) emails the owner 30, 7 and 1 day(s)
-  before a deadline, once per stage, recorded in `notice_reminders_sent`.
+  before a deadline and before an energy price guarantee ends, once per
+  stage, recorded in `notice_reminders_sent`.
   `email_reminders` switches it off per contract.
 - The bills calendar feed adds each visible contract's deadline with a
   `VALARM` a week ahead.
@@ -203,4 +219,6 @@ Rules, enforced by `test/models/assistant/function/contract_tools_test.rb`:
 | Documents in AI search | Opt-in per document, filtered per user | Policies are full of personal data; the store is per family |
 | Contract insights | Addressed to the owner (`insights.user_id`) | A family-wide card would name private contracts |
 | Languages | `en` and `de` | Others fall back to English |
+| Special termination after a price increase | Hint only, no own deadline | Rarely relevant (Gerald, 2026-10-01) |
+| Price guarantee reminder | Energy only, insight + email like the notice deadline | Gerald, 2026-10-01 |
 | Later | API v1, mobile app, demo data, change history, Paperless-ngx API, ntfy/Gotify/webhook reminders | Not needed for the first release |

@@ -54,6 +54,8 @@
                   <% if schedule.term_ends_on %><br><small><%= t(".term_ends", date: l(schedule.term_ends_on, format: :long)) %></small><% end %>
                 <% elsif schedule.earliest_end_on %>
                   <%= t(".earliest_end", date: l(schedule.earliest_end_on, format: :long)) %>
+                <% elsif contract.notice_not_required? %>
+                  <%= t("contracts.terms.not_required") %>
                 <% else %>
                   –
                 <% end %>

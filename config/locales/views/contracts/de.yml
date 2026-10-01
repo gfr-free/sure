@@ -67,6 +67,7 @@ de:
         one: "Verlängert sich um einen Monat"
         other: "Verlängert sich um %{count} Monate"
       unknown: Nicht erfasst
+      not_required: Keine Kündigung nötig
       notice_units:
         days:
           one: "%{count} Tag"
@@ -96,6 +97,12 @@ de:
       active_count_label: Aktive Verträge
       annual_cost_label: Kosten pro Jahr
       monthly_cost_label: Ø pro Monat
+      savings:
+        one: "Ersparnis durch 1 beendeten Vertrag (12 Monate):"
+        other: "Ersparnis durch %{count} beendete Verträge (12 Monate):"
+      extra_cost:
+        one: "Mehrkosten nach 1 beendeten Vertrag (12 Monate):"
+        other: "Mehrkosten nach %{count} beendeten Verträgen (12 Monate):"
       ended:
         one: "Beendeter Vertrag (%{count})"
         other: "Beendete Verträge (%{count})"
@@ -146,6 +153,16 @@ de:
       empty: Noch keine Dokumente.
       choose: "PDFs oder Bilder auswählen (je bis %{size} MB)"
       upload: Hochladen
+      upload_role: Art der hochgeladenen Dokumente
+      role_label: "Art von %{name}"
+      roles:
+        contract: Vertrag / Police
+        terms: Bedingungen
+        amendment: Nachtrag
+        price_change: Preisänderung
+        invoice: Rechnung
+        cancellation: Kündigung / Bestätigung
+        other: Sonstiges
       create:
         success:
           one: Dokument hochgeladen
@@ -156,6 +173,7 @@ de:
         ai_disabled: Schalte den Assistenten in deinen Einstellungen ein, um Dokumente durchsuchbar zu machen.
         searchable: Der Assistent kann dieses Dokument jetzt durchsuchen.
         not_searchable: Der Assistent kann dieses Dokument nicht mehr durchsuchen.
+        role_updated: Dokumentart gespeichert
       destroy:
         success: Dokument gelöscht
     bill_picker:
@@ -175,7 +193,7 @@ de:
       suggested_merchant: "Laut Vorlage ist der Anbieter „%{name}“. Wähl den passenden Händler oder leg ihn über die Suche an."
       notice_hint: "Kündigungsfrist: wie lange vor dem Vertragsende deine Kündigung spätestens beim Anbieter sein muss, zum Beispiel 3 Monate zum Laufzeitende. Sure berechnet daraus den letzten Kündigungstag."
       renewal_anchor_hint: "Hauptfälligkeit: der Tag, an dem das Vertragsjahr beginnt und sich der Vertrag verlängert, bei Versicherungen oft der Beginn der Police oder der 1. Januar. Ab diesem Tag zählt die Kündigungsfrist."
-      email_reminders_hint: 30, 7 und 1 Tag vor dem letzten Kündigungstag. Klappt nur, wenn auf dieser Instanz ein E-Mail-Versand (SMTP) eingerichtet ist.
+      email_reminders_hint: 30, 7 und 1 Tag vor dem letzten Kündigungstag, bei Energie auch vor dem Ende der Preisgarantie. Klappt nur, wenn auf dieser Instanz ein E-Mail-Versand (SMTP) eingerichtet ist.
       from_document: "Vorausgefüllt aus %{filename}. Prüfe jeden Wert am Dokument; Vertragsnummern werden nicht ausgelesen, trage sie selbst ein."
       document_premium: "Das Dokument nennt einen Beitrag von %{amount} (%{frequency}). Verknüpfe unten die Rechnung, die ihn zahlt, oder lege sie an."
       name_placeholder: z. B. Privathaftpflicht
@@ -198,6 +216,13 @@ de:
       link_url: Dokument-Link
       link_label: Bezeichnung
       links_hint: Verlinke Dokumente, die anderswo liegen, zum Beispiel in Paperless-ngx.
+      link_role: Dokumentart
+      link_role_blank: Art
+      predecessor: Ersetzt Vertrag
+      no_predecessor: Ersetzt keinen Vertrag
+      predecessor_hint: Der Vertrag, den dieser ablöst, zum Beispiel dein alter Stromanbieter. Sure zeigt dann, was du im Vergleich sparst.
+      notice_not_required: Keine Kündigung nötig
+      notice_not_required_hint: Der Vertrag endet von selbst oder ist nicht kündbar, zum Beispiel Rundfunkbeitrag oder eine Mitgliedschaft auf Lebenszeit. Er bekommt keinen Kündigungstag und keine Erinnerungen.
       no_successor: Kein Nachfolger
       create: Vertrag speichern
       update: Änderungen speichern
@@ -220,11 +245,16 @@ de:
         intro: Trag ein, wann der Vertrag endet, egal ob du gekündigt hast oder er ausläuft. Bis dahin läuft er weiter. Sure schickt nichts an den Anbieter.
         ends_on: Vertrag endet am
         bills_hint: Die verknüpften Rechnungen enden am selben Tag. Danach erwartet Sure keine Zahlungen mehr für diesen Vertrag.
+        successor: Ersetzt durch
+        no_successor: Kein Nachfolger
+        new_successor: Neuen Vertrag anlegen
+        successor_hint: Wähle den Vertrag, der übernimmt, oder lege ihn direkt nach dem Beenden an. Die Ersparnis auf der Vertragsseite vergleicht beide.
         submit: Vertrag beenden
       create:
         success: Vertragsende gespeichert
         date_required: Gib an, wann der Vertrag endet.
         ends_before_start: Der Vertrag kann nicht vor seinem Beginn enden.
+        successor_invalid: Wähle einen Nachfolger aus der Liste.
       destroy:
         success: Vertragsende aufgehoben
     end_notice:

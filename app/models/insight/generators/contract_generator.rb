@@ -7,9 +7,11 @@
 #                                     telecoms and energy that usually opens a
 #                                     special right to terminate
 #   contract_charges_after_end        payments kept coming after the end date
+#   contract_price_guarantee_ending   an energy contract's price guarantee runs
+#                                     out soon, so the price may go up
 class Insight::Generators::ContractGenerator < Insight::Generator
   produces "contract_notice_deadline", "contract_price_increase",
-           "contract_charges_after_end"
+           "contract_charges_after_end", "contract_price_guarantee_ending"
 
   DEADLINE_WINDOW_DAYS = 60
   URGENT_DEADLINE_DAYS = 14
@@ -27,7 +29,8 @@ class Insight::Generators::ContractGenerator < Insight::Generator
 
     notice_deadlines(contracts) +
       price_increases(contracts) +
-      charges_after_end(contracts)
+      charges_after_end(contracts) +
+      price_guarantees_ending(contracts)
   end
 
   private
@@ -101,6 +104,33 @@ class Insight::Generators::ContractGenerator < Insight::Generator
             user_id: contract.owner_id
           )
         end
+      end
+    end
+
+    def price_guarantees_ending(contracts)
+      contracts.filter_map do |contract|
+        # A contract with a recorded end is on its way out, like the email
+        # reminders, which only go to active contracts.
+        next unless contract.active? && contract.open?(on: today)
+
+        guarantee_until = contract.price_guarantee_until
+        next if guarantee_until.nil? || guarantee_until < today || guarantee_until > today + DEADLINE_WINDOW_DAYS
+
+        days_left = (guarantee_until - today).to_i
+        build_insight(
+          insight_type: "contract_price_guarantee_ending",
+          priority: days_left <= URGENT_DEADLINE_DAYS ? "high" : "medium",
+          title: I18n.t("insights.titles.contract_price_guarantee_ending", name: contract.name),
+          template_key: "contract_price_guarantee_ending",
+          facts: {
+            name: contract.name,
+            guarantee_until: I18n.l(guarantee_until, format: :long),
+            days_left: days_left
+          },
+          metadata: { contract_id: contract.id, guarantee_until: guarantee_until.iso8601 },
+          dedup_key: "contract_price_guarantee_ending:#{contract.id}:#{guarantee_until.iso8601}",
+          user_id: contract.owner_id
+        )
       end
     end
 

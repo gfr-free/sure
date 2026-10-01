@@ -29,6 +29,9 @@ class Contract < ApplicationRecord
   # How far back a linked bill's price change still shows on the contract.
   PRICE_CHANGE_WINDOW = 12.months
 
+  # How far back an ended contract still counts towards the savings.
+  SAVINGS_WINDOW = 12.months
+
   belongs_to :family
   belongs_to :owner, class_name: "User"
   belongs_to :account, optional: true
@@ -60,6 +63,7 @@ class Contract < ApplicationRecord
 
   before_validation :assign_default_owner, on: :create
   before_validation :normalize_document_links
+  before_validation :clear_notice_terms, if: :notice_not_required?
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :minimum_term_months, :notice_period_value,
@@ -205,6 +209,11 @@ class Contract < ApplicationRecord
     notice_schedule(today: today).notice_deadline
   end
 
+  # The end of the price guarantee an energy contract records, or nil.
+  def price_guarantee_until
+    typed_detail(:price_guarantee_until) if energy?
+  end
+
   # The linked bills this user may see. Bills keep their own visibility, so a
   # shared contract never reveals a payment from an account the viewer cannot
   # reach.
@@ -252,6 +261,64 @@ class Contract < ApplicationRecord
       [ contract.id, [ total, unconvertible ] ]
     end
   end
+
+  # What the contracts that ended in the last twelve months cost per year, less
+  # what replaced them: [money_or_nil, count]. Pass every contract the user can
+  # see (successors are looked up among them) and, when at hand, their
+  # annual_costs_for result.
+  #
+  # A chain of replacements counts once, from its first contract that ended in
+  # the window to the open contract at its end, and several contracts replaced
+  # by one (phone and internet by a bundle) share that one successor's cost.
+  # An ended contract counts the bills that ended with it (the last amount, as
+  # the bills have ended too); a bill still running is not saved money. The
+  # total is negative when the successors cost more. nil when no contract
+  # ended in the window.
+  def self.annual_savings_for(contracts, user, costs: nil, today: Date.current)
+    since = today - SAVINGS_WINDOW
+    ended = contracts.select { |contract| contract.ends_on.present? && contract.ends_on < today && contract.ends_on >= since }
+    return [ nil, 0 ] if ended.empty?
+
+    target = ended.first.family.currency
+    by_id = contracts.index_by(&:id)
+    # A contract that replaced another one ended in the window is part of that
+    # chain, not a saving of its own.
+    replacements = ended.filter_map(&:replaced_by_id).to_set
+    roots = ended.reject { |contract| replacements.include?(contract.id) }
+
+    finals = roots.filter_map { |contract| final_successor(contract, by_id, today) }.uniq
+    costs ||= annual_costs_for(finals, user)
+    successor_cost = finals.sum(Money.new(0, target)) { |contract| costs.dig(contract.id, 0) || Money.new(0, target) }
+
+    [ ended_bills_cost(roots, user, target) - successor_cost, ended.size ]
+  end
+
+  def self.final_successor(contract, by_id, today)
+    seen = Set.new
+    current = by_id[contract.replaced_by_id]
+    while current && seen.add?(current.id)
+      return current if current.open?(on: today)
+
+      current = by_id[current.replaced_by_id]
+    end
+  end
+  private_class_method :final_successor
+
+  def self.ended_bills_cost(contracts, user, target)
+    ends_on = contracts.to_h { |contract| [ contract.id, contract.ends_on ] }
+
+    RecurringTransaction.accessible_by(user)
+                        .where(contract_id: ends_on.keys)
+                        .where.not(end_on: nil)
+                        .includes(:recurrence_rules)
+                        .select { |recurring| recurring.end_on >= ends_on.fetch(recurring.contract_id).prev_month }
+                        .sum(Money.new(0, target)) do |recurring|
+      (recurring.monthly_equivalent_amount.abs * 12).exchange_to(target)
+    rescue Money::ConversionError
+      Money.new(0, target)
+    end
+  end
+  private_class_method :ended_bills_cost
 
   # Price changes of the linked bills the user can see, newest first, from the
   # last twelve months by default. Bills keep their own visibility, so a shared
@@ -392,11 +459,21 @@ class Contract < ApplicationRecord
       links = Array(document_links).filter_map do |link|
         url = link.is_a?(Hash) ? link["url"] || link[:url] : link
         label = link.is_a?(Hash) ? link["label"] || link[:label] : nil
+        role = link.is_a?(Hash) ? (link["role"] || link[:role]).to_s : ""
         next if url.to_s.strip.blank?
 
-        { "url" => url.to_s.strip, "label" => label.to_s.strip.presence }.compact
+        { "url" => url.to_s.strip, "label" => label.to_s.strip.presence,
+          "role" => role.presence_in(ContractDocument::ROLES) }.compact
       end
       self.document_links = links
+    end
+
+    # A contract that needs no notice keeps no notice terms, so no deadline or
+    # reminder can come from a period left over from before.
+    def clear_notice_terms
+      self.notice_period_value = nil
+      self.notice_period_unit = nil
+      self.notice_anchor = nil
     end
 
     def notice_period_complete

@@ -128,6 +128,78 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     assert_not ContractDocument.exists?(document.id)
   end
 
+  test "documents carry a role from the upload, which can be changed" do
+    post contract_documents_url(@contract), params: { contract_document: { files: [ fixture_file_upload("test.txt", "application/pdf") ], role: "terms" } }
+
+    document = @contract.contract_documents.last
+    assert_equal "terms", document.role
+
+    get contract_url(@contract)
+    assert_select "button[aria-label=?]", I18n.t("contracts.documents.role_label", name: document.filename.to_s), text: /#{I18n.t("contracts.documents.roles.terms")}/
+
+    patch contract_document_url(@contract, document), params: { contract_document: { role: "price_change" } }
+    assert_redirected_to contract_url(@contract)
+    assert_equal "price_change", document.reload.role
+
+    patch contract_document_url(@contract, document), params: { contract_document: { role: "bogus" } }
+    assert_equal "price_change", document.reload.role
+  end
+
+  test "ending can name an existing successor" do
+    successor = @contract.family.contracts.create!(name: "New phone", kind: "mobile", owner: @admin)
+
+    post contract_ending_url(@contract), params: { ending: { ends_on: 2.months.from_now.to_date.iso8601, replaced_by_id: successor.id } }
+
+    assert_redirected_to contract_url(@contract)
+    assert_equal successor, @contract.reload.replaced_by
+  end
+
+  test "ending can go on to add the successor, which links back" do
+    post contract_ending_url(@contract), params: { ending: { ends_on: 2.months.from_now.to_date.iso8601, replaced_by_id: "new" } }
+
+    assert_redirected_to new_contract_url(predecessor_id: @contract.id)
+    assert @contract.reload.ended?
+
+    get new_contract_url(predecessor_id: @contract.id)
+    assert_response :success
+    assert_select "select[name='contract[predecessor_id]'] option[selected][value=?]", @contract.id
+    assert_select "select[name='contract[kind]'] option[selected][value='mobile']"
+
+    post contracts_url, params: { contract: { name: "New phone", kind: "mobile", predecessor_id: @contract.id } }
+
+    successor = @contract.family.contracts.find_by!(name: "New phone")
+    assert_equal successor, @contract.reload.replaced_by
+  end
+
+  test "ending with no successor clears the one recorded" do
+    successor = @contract.family.contracts.create!(name: "New phone", kind: "mobile", owner: @admin)
+    @contract.update!(replaced_by: successor)
+
+    post contract_ending_url(@contract), params: { ending: { ends_on: 2.months.from_now.to_date.iso8601, replaced_by_id: "" } }
+
+    assert_nil @contract.reload.replaced_by
+  end
+
+  test "a date error keeps the chosen successor" do
+    successor = @contract.family.contracts.create!(name: "New phone", kind: "mobile", owner: @admin)
+
+    post contract_ending_url(@contract), params: { ending: { ends_on: "", replaced_by_id: successor.id } }
+
+    assert_response :unprocessable_entity
+    assert_select "select[name='ending[replaced_by_id]'] option[selected][value=?]", successor.id
+  end
+
+  test "ending rejects a successor the user cannot see" do
+    hidden = @contract.family.contracts.create!(name: "Member's", kind: "mobile", owner: @member)
+    hidden.contract_shares.delete_all
+
+    post contract_ending_url(@contract), params: { ending: { ends_on: 2.months.from_now.to_date.iso8601, replaced_by_id: hidden.id } }
+
+    assert_response :unprocessable_entity
+    assert_not @contract.reload.ended?
+    assert_nil @contract.replaced_by
+  end
+
   test "rejects unsupported document types" do
     file = fixture_file_upload("test.txt", "text/plain")
 

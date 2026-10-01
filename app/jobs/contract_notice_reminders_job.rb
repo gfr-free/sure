@@ -1,7 +1,7 @@
-# Emails a contract's owner ahead of its notice deadline: 30, 7 and 1 day(s)
-# before. Each stage goes out once per deadline, recorded on the contract, so
-# a missed nightly run catches up with the most urgent stage instead of
-# sending all of them.
+# Emails a contract's owner ahead of its notice deadline, and ahead of the end
+# of an energy contract's price guarantee: 30, 7 and 1 day(s) before. Each
+# stage goes out once per date, recorded on the contract, so a missed nightly
+# run catches up with the most urgent stage instead of sending all of them.
 class ContractNoticeRemindersJob < ApplicationJob
   queue_as :scheduled
 
@@ -31,19 +31,42 @@ class ContractNoticeRemindersJob < ApplicationJob
       return unless owner.active? && owner.preview_features_enabled?
 
       today = contract.family.current_date
-      schedule = contract.notice_schedule(today: today)
-      deadline = schedule.notice_deadline
-      return if deadline.nil?
+      sent = contract.notice_reminders_sent.to_h
+      # Only the current deadline's and price guarantee's history is kept;
+      # older ones have passed.
+      kept = {}
 
-      days_left = (deadline - today).to_i
+      schedule = contract.notice_schedule(today: today)
+      if (deadline = schedule.notice_deadline)
+        kept[deadline.iso8601] = remind_once(sent, deadline.iso8601, deadline, today) do
+          ContractMailer.notice_reminder(contract: contract, deadline: deadline, term_ends_on: schedule.term_ends_on || deadline).deliver_later
+        end
+      end
+
+      guarantee_until = contract.price_guarantee_until
+      if guarantee_until && contract.open?(on: today)
+        key = "price_guarantee:#{guarantee_until.iso8601}"
+        kept[key] = remind_once(sent, key, guarantee_until, today) do
+          ContractMailer.price_guarantee_reminder(contract: contract, guarantee_until: guarantee_until).deliver_later
+        end
+      end
+
+      kept.compact!
+      contract.update_columns(notice_reminders_sent: kept, updated_at: Time.current) unless kept == sent
+    end
+
+    # Sends once per date for the stages that are due, catching up with the
+    # most urgent one after a missed run. Returns the stages sent for the date
+    # so far, or nil before the first stage or once the date has passed.
+    def remind_once(sent, key, date, today)
+      days_left = (date - today).to_i
+      return if days_left.negative?
+
       due = STAGES.select { |stage| days_left <= stage }
       return if due.empty?
 
-      sent = Array(contract.notice_reminders_sent[deadline.iso8601])
-      return if (due - sent).empty?
-
-      ContractMailer.notice_reminder(contract: contract, deadline: deadline, term_ends_on: schedule.term_ends_on || deadline).deliver_later
-      # Only this deadline's history is kept; older ones have passed.
-      contract.update_columns(notice_reminders_sent: { deadline.iso8601 => (sent | due).sort.reverse }, updated_at: Time.current)
+      already = Array(sent[key])
+      yield unless (due - already).empty?
+      (already | due).sort.reverse
     end
 end

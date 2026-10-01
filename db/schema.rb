@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -574,9 +574,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_150000) do
     t.uuid "contract_id", null: false
     t.datetime "created_at", null: false
     t.uuid "family_document_id"
+    t.string "role", default: "other", null: false
     t.datetime "updated_at", null: false
     t.index ["contract_id"], name: "index_contract_documents_on_contract_id"
     t.index ["family_document_id"], name: "index_contract_documents_on_family_document_id"
+    t.check_constraint "role::text = ANY (ARRAY['contract'::character varying, 'terms'::character varying, 'amendment'::character varying, 'price_change'::character varying, 'invoice'::character varying, 'cancellation'::character varying, 'other'::character varying]::text[])", name: "chk_contract_documents_role"
   end
 
   create_table "contract_shares", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -608,6 +610,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_150000) do
     t.string "name", null: false
     t.text "notes"
     t.string "notice_anchor"
+    t.boolean "notice_not_required", default: false, null: false
     t.string "notice_period_unit"
     t.integer "notice_period_value"
     t.jsonb "notice_reminders_sent", default: {}, null: false

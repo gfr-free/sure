@@ -26,6 +26,39 @@ class Insight::Generators::ContractGeneratorTest < ActiveSupport::TestCase
     assert_not_includes insight.facts.values.map(&:to_s).join, "LV-2024-004711", "contract numbers never reach insight facts"
   end
 
+  test "reminds the owner when an energy contract's price guarantee runs out" do
+    travel_to Date.new(2026, 9, 20)
+    energy = @family.contracts.create!(name: "Power", kind: "energy", owner: @owner,
+                                       details: { "price_guarantee_until" => "2026-10-31" })
+
+    insight = generated.find { |i| i.insight_type == "contract_price_guarantee_ending" }
+
+    assert insight
+    assert_equal energy.id, insight.metadata[:contract_id]
+    assert_equal @owner.id, insight.user_id
+    assert_equal "medium", insight.priority
+    assert_equal 41, insight.facts[:days_left]
+  end
+
+  test "no price guarantee insight when it is far off, has passed or the contract ended" do
+    travel_to Date.new(2026, 9, 20)
+    far = @family.contracts.create!(name: "Far", kind: "energy", owner: @owner, details: { "price_guarantee_until" => "2027-06-30" })
+    passed = @family.contracts.create!(name: "Passed", kind: "energy", owner: @owner, details: { "price_guarantee_until" => "2026-09-01" })
+    ended = @family.contracts.create!(name: "Ended", kind: "energy", owner: @owner, details: { "price_guarantee_until" => "2026-10-15" },
+                                      status: "ended", ends_on: Date.new(2026, 9, 1))
+
+    ids = generated.select { |i| i.insight_type == "contract_price_guarantee_ending" }.map { |i| i.metadata[:contract_id] }
+
+    assert_empty ids & [ far.id, passed.id, ended.id ]
+  end
+
+  test "a contract that needs no notice gets no deadline insight" do
+    travel_to Date.new(2026, 9, 20)
+    @insurance.update!(notice_not_required: true)
+
+    assert_empty generated.select { |i| i.insight_type == "contract_notice_deadline" && i.metadata[:contract_id] == @insurance.id }
+  end
+
   test "a far-off deadline is not yet an insight" do
     travel_to Date.new(2026, 5, 1)
 

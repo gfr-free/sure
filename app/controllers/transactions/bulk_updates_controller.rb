@@ -6,6 +6,8 @@ class Transactions::BulkUpdatesController < ApplicationController
     # Skip split parents from bulk update - update children instead
     updated = Current.family
                      .entries
+                     .joins(:account)
+                     .merge(Account.annotatable_by(Current.user))
                      .excluding_split_parents
                      .where(id: bulk_update_params[:entry_ids])
                      .includes(:entryable)

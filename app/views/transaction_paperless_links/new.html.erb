@@ -1,0 +1,50 @@
+<%= render DS::Dialog.new(width: "lg") do |dialog| %>
+  <% dialog.with_header(title: t(".title"), subtitle: t(".subtitle", name: @entry.name, date: l(@entry.date, format: :long))) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with url: new_transaction_paperless_link_path(@entry), method: :get,
+                         class: "space-y-3", data: { turbo_frame: :modal } do |form| %>
+      <%= form.text_field :text, value: @text, label: t(".text_label"), placeholder: t(".text_placeholder"),
+                                 autocomplete: "off", autofocus: true %>
+      <div class="grid grid-cols-2 gap-3">
+        <%= form.date_field :created_from, value: @created_from, label: t(".created_from_label") %>
+        <%= form.date_field :created_to, value: @created_to, label: t(".created_to_label") %>
+      </div>
+      <div class="flex justify-end">
+        <%= render DS::Button.new(text: t(".search"), icon: "search", variant: :secondary, type: :submit) %>
+      </div>
+    <% end %>
+
+    <div class="mt-4 space-y-2">
+      <% if @search_error %>
+        <%= render DS::Alert.new(variant: :error, title: t(".search_failed"), message: @search_error) %>
+      <% elsif @documents.empty? %>
+        <%= render DS::EmptyState.new(icon: "file-search", title: t(".no_results"), description: t(".no_results_hint")) %>
+      <% else %>
+        <ul class="space-y-2">
+          <% @documents.each do |document| %>
+            <li class="flex items-center justify-between gap-3 p-3 border border-primary rounded-lg bg-container">
+              <div class="flex items-center gap-3 min-w-0">
+                <%= image_tag paperless_document_thumb_path(document[:id]), alt: "", loading: "lazy",
+                              class: "w-10 h-12 object-cover rounded border border-primary shrink-0" %>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-primary truncate"><%= document[:title].presence || t(".untitled", id: document[:id]) %></p>
+                  <p class="text-xs text-secondary truncate">
+                    <%= [ document[:correspondent_name], (l(document[:created_on], format: :long) if document[:created_on]) ].compact.join(" · ") %>
+                  </p>
+                </div>
+              </div>
+              <% if @linked_document_ids.include?(document[:id]) %>
+                <span class="text-xs text-secondary shrink-0"><%= t(".already_linked") %></span>
+              <% else %>
+                <%= render DS::Button.new(text: t(".link"), icon: "link", variant: :outline, size: :sm,
+                                          href: transaction_paperless_links_path(@entry), method: :post,
+                                          params: { document_id: document[:id] },
+                                          data: { turbo_frame: "_top" }) %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

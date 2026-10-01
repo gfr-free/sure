@@ -1,0 +1,6 @@
+admin_connection:
+  family: dylan_family
+  user: family_admin
+  base_url: https://paperless.example.com
+  api_token: test-paperless-token
+  verify_ssl: true

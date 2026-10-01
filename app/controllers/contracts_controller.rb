@@ -20,6 +20,7 @@ class ContractsController < ApplicationController
     @open_contracts, @ended_contracts = contracts.partition(&:open?)
     @groups = @open_contracts.group_by(&:kind).sort_by { |kind, _| Contract.kinds.keys.index(kind) }
     @costs = Contract.annual_costs_for(contracts, Current.user)
+    @price_increases = Contract.recent_price_increases_for(@open_contracts, Current.user)
     # A related account grants nothing: its name shows only to users who can see it.
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id).to_set
     @total_annual_cost, @unconvertible_count = total_annual_cost(@open_contracts)
@@ -49,6 +50,7 @@ class ContractsController < ApplicationController
     @visible_bills = @contract.visible_recurring_transactions_for(Current.user).includes(:merchant).order(:next_expected_date)
     @hidden_bills = @contract.hidden_recurring_transactions_for?(Current.user)
     @annual_cost, @unconvertible_count = @contract.annual_cost_for(Current.user)
+    @price_changes = @contract.price_changes_for(Current.user).includes(:recurring_transaction).limit(10).to_a
     @schedule = @contract.notice_schedule
     @documents = @contract.contract_documents.with_attached_file.ordered
     @duplicates = @contract.editable_by?(Current.user) ? @contract.possible_duplicates.accessible_by(Current.user) : Contract.none

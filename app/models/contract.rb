@@ -26,6 +26,9 @@ class Contract < ApplicationRecord
 
   MAX_DOCUMENT_LINKS = 10
 
+  # How far back a linked bill's price change still shows on the contract.
+  PRICE_CHANGE_WINDOW = 12.months
+
   belongs_to :family
   belongs_to :owner, class_name: "User"
   belongs_to :account, optional: true
@@ -248,6 +251,36 @@ class Contract < ApplicationRecord
 
       [ contract.id, [ total, unconvertible ] ]
     end
+  end
+
+  # Price changes of the linked bills the user can see, newest first, from the
+  # last twelve months by default. Bills keep their own visibility, so a shared
+  # contract never reveals a price from an account the viewer cannot reach.
+  def self.price_changes_for(contracts, user, since: PRICE_CHANGE_WINDOW.ago.to_date)
+    RecurringPriceChange.joins(:recurring_transaction)
+                        .merge(RecurringTransaction.accessible_by(user))
+                        .where(recurring_transactions: { contract_id: Array(contracts).map(&:id) })
+                        .where(effective_on: since..Date.current)
+                        .order("recurring_price_changes.effective_on DESC, recurring_price_changes.created_at DESC")
+  end
+
+  # Returns a hash of contract IDs to the latest price change of their visible
+  # active bills, for contracts whose latest change was an increase. A price
+  # that went up and back down again carries no badge. Amounts compare as
+  # absolute values, like the contract_price_increase insight.
+  def self.recent_price_increases_for(contracts, user)
+    return {} if contracts.empty?
+
+    price_changes_for(contracts, user)
+      .where(recurring_transactions: { status: "active" })
+      .includes(:recurring_transaction)
+      .group_by { |change| change.recurring_transaction.contract_id }
+      .transform_values(&:first)
+      .select { |_, change| change.new_amount.abs > change.previous_amount.abs }
+  end
+
+  def price_changes_for(user)
+    self.class.price_changes_for([ self ], user)
   end
 
   # Sorted by next_due_date, because the stored next_expected_date is only a

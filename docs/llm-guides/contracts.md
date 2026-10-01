@@ -58,6 +58,10 @@ Out of scope, on purpose:
   `family_document` copy in the assistant's document store.
 - `recurring_transactions.contract_id`: the bills that pay for a contract. A
   contract has many bills; its yearly cost comes only from them.
+  The list shows that cost per year and as an average per month (yearly / 12),
+  and a "price up" badge when the latest price change of a visible active bill
+  in the last 12 months was an increase (`Contract.recent_price_increases_for`);
+  the detail page lists those changes (`Contract#price_changes_for`).
 - `insights.user_id`: an insight addressed to one member. Nil keeps an insight
   family-wide, as all other insights are.
 

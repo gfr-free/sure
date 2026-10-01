@@ -81,6 +81,8 @@ de:
     cancel_by: "Kündigen bis %{date}"
     cost_unknown: Kosten unbekannt
     per_year: "%{amount} / Jahr"
+    per_month: "%{amount} / Monat"
+    price_increased_on: "Teurer seit %{date}"
     shared_with_you: Mit dir geteilt
     shared: Geteilt
     index:
@@ -93,6 +95,7 @@ de:
       from_bill: Aus Rechnung anlegen
       active_count_label: Aktive Verträge
       annual_cost_label: Kosten pro Jahr
+      monthly_cost_label: Ø pro Monat
       ended:
         one: "Beendeter Vertrag (%{count})"
         other: "Beendete Verträge (%{count})"
@@ -110,6 +113,7 @@ de:
       documents: "Dokumente"
       empty: "Keine offenen Verträge."
     show:
+      price_changes: Preisänderungen
       cost_unknown_hint: Gezählt werden nur aktive Rechnungen. Die verknüpften sind pausiert, inaktiv oder beendet.
       owned_by: "Verwaltet von %{name}"
       edit: Bearbeiten

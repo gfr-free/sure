@@ -39,6 +39,32 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", contract_path(@phone)
   end
 
+  test "index shows the monthly average and a badge for a price increase" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    change = netflix.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 12.99,
+                                                     new_amount: 15.99, currency: "USD", source: "detected")
+
+    get contracts_url
+
+    assert_response :success
+    assert_select "p", text: I18n.t("contracts.index.monthly_cost_label")
+    assert_select "span[title=?]", I18n.t("contracts.price_increased_on", date: I18n.l(change.effective_on, format: :short))
+  end
+
+  test "show lists the price changes of the linked bills" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    netflix.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 12.99,
+                                            new_amount: 15.99, currency: "USD", source: "detected")
+
+    get contract_url(@phone)
+
+    assert_response :success
+    assert_select "p", text: I18n.t("contracts.show.price_changes")
+    assert_match "$12.99 → $15.99", response.body
+  end
+
   test "index only shows contracts owned by or shared with the user" do
     sign_in @member
 

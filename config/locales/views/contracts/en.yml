@@ -81,6 +81,8 @@ en:
     cancel_by: "Cancel by %{date}"
     cost_unknown: Cost unknown
     per_year: "%{amount} / year"
+    per_month: "%{amount} / month"
+    price_increased_on: "Price up since %{date}"
     shared_with_you: Shared with you
     shared: Shared
     index:
@@ -93,6 +95,7 @@ en:
       from_bill: Record from a bill
       active_count_label: Active contracts
       annual_cost_label: Cost per year
+      monthly_cost_label: Average per month
       ended:
         one: "Ended contract (%{count})"
         other: "Ended contracts (%{count})"
@@ -110,6 +113,7 @@ en:
       documents: "Documents"
       empty: "No open contracts."
     show:
+      price_changes: Price changes
       cost_unknown_hint: Only active bills count. The linked ones are paused, inactive or ended.
       owned_by: "Managed by %{name}"
       edit: Edit

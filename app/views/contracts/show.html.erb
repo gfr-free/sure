@@ -111,6 +111,28 @@
       <% else %>
         <p class="text-sm text-secondary"><%= t(".no_payments") %></p>
       <% end %>
+      <% if @price_changes.any? %>
+        <div class="space-y-1">
+          <p class="text-xs font-medium text-secondary uppercase"><%= t(".price_changes") %></p>
+          <ul class="bg-container-inset rounded-lg divide-y divide-subdued">
+            <% @price_changes.each do |change| %>
+              <li class="flex items-center justify-between gap-3 px-3 py-2">
+                <div class="min-w-0">
+                  <p class="text-sm text-primary"><%= l(change.effective_on, format: :long) %></p>
+                  <% if @visible_bills.size > 1 %>
+                    <p class="text-xs text-secondary truncate"><%= change.recurring_transaction.display_name %></p>
+                  <% end %>
+                </div>
+                <p class="text-sm shrink-0 privacy-sensitive <%= change.new_amount.abs > change.previous_amount.abs ? "text-warning" : "text-success" %>">
+                  <%= t("bills.detail.price_change_line",
+                        from: format_money(change.previous_amount_money),
+                        to: format_money(change.new_amount_money)) %>
+                </p>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
       <% if @annual_cost.nil? && @visible_bills.any? %>
         <p class="text-xs text-secondary"><%= t(".cost_unknown_hint") %></p>
       <% end %>

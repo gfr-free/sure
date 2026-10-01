@@ -190,6 +190,61 @@ class ContractTest < ActiveSupport::TestCase
     assert_equal [ nil, 0 ], @insurance.annual_cost_for(@admin)
   end
 
+  test "a price increase of a visible active bill shows on its contract" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    older = netflix.recurring_price_changes.create!(effective_on: 3.months.ago.to_date, previous_amount: 12.99,
+                                                    new_amount: 13.99, currency: "USD", source: "detected")
+    latest = netflix.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 13.99,
+                                                     new_amount: 15.99, currency: "USD", source: "detected")
+
+    increases = Contract.recent_price_increases_for([ @phone, @insurance ], @admin)
+
+    assert_equal({ @phone.id => latest }, increases)
+    assert_equal [ latest, older ], @phone.price_changes_for(@admin).to_a
+  end
+
+  test "no price badge when the latest change was a cut, is too old or the bill is not active" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    netflix.recurring_price_changes.create!(effective_on: 2.months.ago.to_date, previous_amount: 12.99,
+                                            new_amount: 15.99, currency: "USD", source: "detected")
+    netflix.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 15.99,
+                                            new_amount: 14.99, currency: "USD", source: "detected")
+    inactive = recurring_transactions(:inactive_subscription)
+    inactive.update!(contract: @insurance)
+    inactive.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 8.99,
+                                             new_amount: 9.99, currency: "USD", source: "detected")
+    stale = @family.recurring_transactions.create!(
+      account: accounts(:depository), name: "Old insurance", amount: 20, currency: "USD",
+      expected_day_of_month: 3, last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 3.days.from_now.to_date, status: "active", contract: @insurance
+    )
+    stale.recurring_price_changes.create!(effective_on: 13.months.ago.to_date, previous_amount: 18,
+                                          new_amount: 20, currency: "USD", source: "detected")
+
+    assert_empty Contract.recent_price_increases_for([ @phone, @insurance ], @admin)
+    assert_empty Contract.recent_price_increases_for([], @admin)
+  end
+
+  test "price changes keep their bill's visibility" do
+    @family.update!(default_account_sharing: "private")
+    private_account = @family.accounts.create!(name: "Admin only", balance: 0, currency: "USD",
+                                               accountable: Depository.new, owner: @admin)
+    private_account.account_shares.delete_all
+    bill = @family.recurring_transactions.create!(
+      account: private_account, name: "Phone bill", amount: 40, currency: "USD",
+      expected_day_of_month: 3, last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 3.days.from_now.to_date, status: "active", contract: @phone
+    )
+    change = bill.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 35,
+                                                  new_amount: 40, currency: "USD", source: "detected")
+
+    assert_equal({ @phone.id => change }, Contract.recent_price_increases_for([ @phone ], @admin))
+    assert_empty Contract.recent_price_increases_for([ @phone ], @member)
+    assert_empty @phone.price_changes_for(@member)
+  end
+
   test "linked bills keep their own visibility" do
     @family.update!(default_account_sharing: "private")
     private_account = @family.accounts.create!(name: "Admin only", balance: 0, currency: "USD",

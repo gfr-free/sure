@@ -19,7 +19,7 @@
       <% end %>
     </div>
   <% else %>
-    <div class="grid grid-cols-1 sm:grid-cols-2 bg-container rounded-xl shadow-border-xs divide-y sm:divide-y-0 sm:divide-x divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+    <div class="grid grid-cols-1 sm:grid-cols-3 bg-container rounded-xl shadow-border-xs divide-y sm:divide-y-0 sm:divide-x divide-alpha-black-100 theme-dark:divide-alpha-white-200">
       <div class="p-4 space-y-1">
         <p class="text-sm text-secondary"><%= t(".active_count_label") %></p>
         <p class="text-primary font-medium text-xl"><%= @open_contracts.size %></p>
@@ -32,6 +32,12 @@
         <% if @unconvertible_count.positive? %>
           <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: @unconvertible_count) %></p>
         <% end %>
+      </div>
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".monthly_cost_label") %></p>
+        <p class="text-primary font-medium text-xl privacy-sensitive">
+          <%= @total_annual_cost ? format_money(@total_annual_cost / 12) : "–" %>
+        </p>
       </div>
     </div>
 
@@ -49,7 +55,10 @@
             <span class="text-secondary font-normal"><%= contracts.size %></span>
           </h2>
           <% if group_total.positive? %>
-            <p class="text-sm text-secondary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(group_total)) %></p>
+            <p class="text-sm text-secondary privacy-sensitive">
+              <%= t("contracts.per_year", amount: format_money(group_total)) %>
+              <span class="hidden sm:inline">&middot; <%= t("contracts.per_month", amount: format_money(group_total / 12)) %></span>
+            </p>
           <% end %>
         </header>
         <ul class="divide-y divide-subdued">

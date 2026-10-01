@@ -16,11 +16,14 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
   end
 
   test "posts an expense on the due date with the series' details" do
+    existing_ids = @account.entries.ids
     assert_difference -> { @account.entries.count }, 1 do
       assert_equal 1, post!
     end
 
-    entry = @account.entries.order(:created_at).last
+    # Not order(:created_at).last: the post runs under travel_to, so its
+    # created_at can be older than the fixtures' when the suite runs later.
+    entry = @account.entries.where.not(id: existing_ids).sole
     assert_equal @today, entry.date
     assert_equal 800, entry.amount
     assert_equal "USD", entry.currency

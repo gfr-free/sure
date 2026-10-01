@@ -157,7 +157,9 @@ class Provider::Simplefin
       raise SimplefinError.new("SimpleFIN URL must use https", :invalid_url) if managed_mode? && uri.scheme != "https"
 
       addresses = resolve_addresses(uri.hostname)
-      raise SimplefinError.new("SimpleFIN host could not be resolved", :invalid_url) if addresses.empty?
+      # A failed lookup is usually transient DNS, so it is a network error, not
+      # a bad URL: callers treat :invalid_url as a broken connection.
+      raise SimplefinError.new("SimpleFIN host could not be resolved", :network_error) if addresses.empty?
 
       if addresses.any? { |address| disallowed_address?(address) }
         raise SimplefinError.new("SimpleFIN URL points to a disallowed network address", :invalid_url)

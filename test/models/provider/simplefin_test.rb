@@ -306,4 +306,14 @@ class Provider::SimplefinTest < ActiveSupport::TestCase
 
     assert_equal [ "1.0" ], @provider.get_info("https://example.com/simplefin")
   end
+
+  test "an unresolvable host raises a network error, not an invalid url" do
+    @provider.stubs(:resolve_addresses).with("flaky.example.test").returns([])
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_accounts("https://user:pass@flaky.example.test/simplefin")
+    end
+
+    assert_equal :network_error, error.error_type
+  end
 end

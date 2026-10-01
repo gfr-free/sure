@@ -21,9 +21,10 @@ class BalanceSheet::AccountSubgroup
   # Share of the whole classification (all assets or all debts), in percent,
   # on the same basis as the account group and account rows next to it.
   def weight
-    return 0 if account_group.total.zero?
+    classification_total = account_group.classification_total
+    return 0 if classification_total.zero?
 
-    account_group.weight * (total / account_group.total.to_d)
+    total / classification_total.to_d * 100
   end
 
   def syncing?

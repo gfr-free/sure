@@ -22,6 +22,17 @@ class AccountGroupingTest < ActiveSupport::TestCase
     assert_equal [ [ c ], [ a, b ], [ d ] ], groups.map(&:accounts)
   end
 
+  test "keeps a group literally named None apart from unset values" do
+    named = create_account(custom_group: "None")
+    unset = create_account
+
+    groups = AccountGrouping.new("custom_group", user: @user).group([ named, unset ])
+
+    assert_equal [ [ named ], [ unset ] ], groups.map(&:accounts)
+    assert_equal [ "None", I18n.t("account_grouping.none") ], groups.map(&:name)
+    assert_nil groups.last.key
+  end
+
   test "groups by connection with manual accounts in their own group" do
     groups = AccountGrouping.new("connection", user: users(:family_admin))
       .group([ accounts(:depository), accounts(:connected) ])

@@ -37,6 +37,11 @@ class BalanceSheet::AccountGroup
     accounts.reject { |a| a.respond_to?(:exclude_from_reports?) && a.exclude_from_reports? }.sum(&:converted_balance)
   end
 
+  # Total of all assets or all debts this group belongs to.
+  def classification_total
+    classification_group.total
+  end
+
   def weight
     return 0 if classification_group.total.zero?
 

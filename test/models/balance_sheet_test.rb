@@ -158,6 +158,17 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_in_delta group.weight, subgroups.sum(&:weight), 0.001
   end
 
+  test "offsetting subgroups keep their share of the classification" do
+    create_account(balance: 1000, accountable: Depository.new, custom_group: "A")
+    create_account(balance: -1000, accountable: Depository.new, custom_group: "B")
+    create_account(balance: 10000, accountable: OtherAsset.new)
+
+    group = BalanceSheet.new(@family).assets.account_groups.find { |ag| ag.key == "depository" }
+    subgroups = group.subgroups("custom_group", user: users(:empty))
+
+    assert_equal [ 10, -10 ], subgroups.map { |subgroup| subgroup.weight.round }
+  end
+
   test "subgroups are empty when every account shares one value" do
     create_account(balance: 1000, accountable: Depository.new, custom_group: "Kids")
     create_account(balance: 2000, accountable: Depository.new, custom_group: "kids")

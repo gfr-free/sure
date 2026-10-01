@@ -264,9 +264,10 @@ class Contract < ApplicationRecord
                         .order("recurring_price_changes.effective_on DESC, recurring_price_changes.created_at DESC")
   end
 
-  # Returns a hash of contract IDs to the latest price change of their visible
-  # active bills, for contracts whose latest change was an increase. A price
-  # that went up and back down again carries no badge. Amounts compare as
+  # Returns a hash of contract IDs to the newest price increase among their
+  # visible active bills. A bill counts only when its own latest change was an
+  # increase, so a price that went up and back down again carries no badge,
+  # while a cut on one bill never hides a rise on another. Amounts compare as
   # absolute values, like the contract_price_increase insight.
   def self.recent_price_increases_for(contracts, user)
     return {} if contracts.empty?
@@ -274,9 +275,11 @@ class Contract < ApplicationRecord
     price_changes_for(contracts, user)
       .where(recurring_transactions: { status: "active" })
       .includes(:recurring_transaction)
+      .to_a
+      .uniq(&:recurring_transaction_id)
+      .select { |change| change.new_amount.abs > change.previous_amount.abs }
       .group_by { |change| change.recurring_transaction.contract_id }
       .transform_values(&:first)
-      .select { |_, change| change.new_amount.abs > change.previous_amount.abs }
   end
 
   def price_changes_for(user)

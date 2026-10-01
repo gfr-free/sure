@@ -227,6 +227,22 @@ class ContractTest < ActiveSupport::TestCase
     assert_empty Contract.recent_price_increases_for([], @admin)
   end
 
+  test "a price cut on one bill does not hide a rise on another" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    rise = netflix.recurring_price_changes.create!(effective_on: 2.months.ago.to_date, previous_amount: 12.99,
+                                                   new_amount: 15.99, currency: "USD", source: "detected")
+    other = @family.recurring_transactions.create!(
+      account: accounts(:depository), name: "Data add-on", amount: 8, currency: "USD",
+      expected_day_of_month: 3, last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 3.days.from_now.to_date, status: "active", contract: @phone
+    )
+    other.recurring_price_changes.create!(effective_on: 1.month.ago.to_date, previous_amount: 10,
+                                          new_amount: 8, currency: "USD", source: "detected")
+
+    assert_equal({ @phone.id => rise }, Contract.recent_price_increases_for([ @phone ], @admin))
+  end
+
   test "price changes keep their bill's visibility" do
     @family.update!(default_account_sharing: "private")
     private_account = @family.accounts.create!(name: "Admin only", balance: 0, currency: "USD",

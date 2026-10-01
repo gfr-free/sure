@@ -197,10 +197,12 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
       create_series(name: "Savings plan", amount: 100, destination_account: accounts(:credit_card), tags: [ tags(:one) ])
     end
     occurrence_on(transfer_series, @today)
+    existing_ids = Transfer.ids
 
     post!
 
-    transfer = Transfer.order(:created_at).last
+    # Not order(:created_at).last: see the first test.
+    transfer = Transfer.where.not(id: existing_ids).sole
     assert_equal [ tags(:one) ], transfer.outflow_transaction.tags.to_a
     assert_equal [ tags(:one) ], transfer.inflow_transaction.tags.to_a
     assert transfer.outflow_transaction.locked?(:tag_ids)

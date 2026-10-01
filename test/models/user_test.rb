@@ -1308,6 +1308,12 @@ class UserTest < ActiveSupport::TestCase
     assert_equal [ accounts(:credit_card).id ], order["credit_card"]
   end
 
+  test "update_manual_account_order drops accounts from another group" do
+    @user.update_manual_account_order("depository", [ accounts(:credit_card).id, accounts(:depository).id ])
+
+    assert_equal [ accounts(:depository).id ], @user.reload.manual_account_order["depository"]
+  end
+
   test "update_manual_account_order rejects account ids that are not a list" do
     assert_not @user.update_manual_account_order("depository", { "0" => accounts(:depository).id })
     assert_equal({}, @user.reload.manual_account_order)

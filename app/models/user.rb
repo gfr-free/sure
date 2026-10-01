@@ -590,7 +590,7 @@ class User < ApplicationRecord
     return false unless account_ids.is_a?(Array)
 
     requested_ids = account_ids.map(&:to_s).uniq.first(MANUAL_ACCOUNT_ORDER_LIMIT)
-    accessible_ids = accessible_accounts.where(id: requested_ids).pluck(:id).to_set
+    accessible_ids = accessible_accounts.where(id: requested_ids, accountable_type: group_key.camelize).pluck(:id).to_set
     ordered_ids = requested_ids.select { |id| accessible_ids.include?(id) }
 
     transaction do

@@ -142,6 +142,32 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal 3000 + 5000, liability_groups.find { |ag| ag.name == OtherLiability.display_name }.total
   end
 
+  test "splits an account group into subgroups whose totals add up" do
+    create_account(balance: 1000, accountable: Depository.new, institution_name: "ING")
+    create_account(balance: 2000, accountable: Depository.new, institution_name: " ing ")
+    create_account(balance: 4000, accountable: Depository.new, institution_name: "Sparkasse")
+    create_account(balance: 8000, accountable: Depository.new)
+    create_account(balance: 15000, accountable: OtherAsset.new)
+
+    group = BalanceSheet.new(@family).assets.account_groups.find { |ag| ag.key == "depository" }
+    subgroups = group.subgroups("institution", user: users(:empty))
+
+    assert_equal [ "ING", "Sparkasse", I18n.t("account_grouping.none") ], subgroups.map(&:name)
+    assert_equal [ 3000, 4000, 8000 ], subgroups.map(&:total)
+    assert_equal group.total, subgroups.sum(&:total)
+    assert_in_delta group.weight, subgroups.sum(&:weight), 0.001
+  end
+
+  test "subgroups are empty when every account shares one value" do
+    create_account(balance: 1000, accountable: Depository.new, custom_group: "Kids")
+    create_account(balance: 2000, accountable: Depository.new, custom_group: "kids")
+
+    group = BalanceSheet.new(@family).assets.account_groups.first
+
+    assert_empty group.subgroups("custom_group", user: users(:empty))
+    assert_empty group.subgroups("unknown", user: users(:empty))
+  end
+
   private
     def create_account(attributes = {})
       account = @family.accounts.create! name: "Test", currency: "USD", **attributes

@@ -47,6 +47,20 @@ class BalanceSheet::AccountGroup
     accounts.any?(&:syncing?)
   end
 
+  # Splits the group's accounts by a second dimension (see AccountGrouping).
+  # Returns an empty array when the split would add nothing, i.e. when all
+  # accounts share one value, so views can skip the extra level.
+  def subgroups(dimension, user:)
+    return [] unless AccountGrouping.valid_dimension?(dimension)
+
+    groups = AccountGrouping.new(dimension, user: user).group(accounts)
+    return [] if groups.size < 2
+
+    groups.map do |group|
+      BalanceSheet::AccountSubgroup.new(key: group.key, name: group.name, accounts: group.accounts, account_group: self)
+    end
+  end
+
   # "asset" or "liability"
   def classification
     classification_group.classification

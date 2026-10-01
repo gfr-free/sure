@@ -224,14 +224,43 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_equal 50000.0, loan_account.reload.cash_balance
   end
 
-  test "keeps stale pending entries without a booked twin" do
-    # Age-based exclusion is not run for Enable Banking: an ASPSP that keeps the
-    # same id when the pending books would leave the booked entry excluded.
+  test "excludes pending entries older than 8 days and marks the exclusion as automatic" do
     stale = create_pending_entry(external_id: "eb_stale_pending", date: 10.days.ago.to_date, amount: 42)
+    recent = create_pending_entry(external_id: "eb_recent_pending", date: 3.days.ago.to_date, amount: 43)
 
     EnableBankingAccount::Processor.new(@enable_banking_account).process
 
-    assert_not stale.reload.excluded?
+    assert stale.reload.excluded?
+    assert stale.auto_excluded_pending?
+    assert_not recent.reload.excluded?
+  end
+
+  test "an automatically excluded pending is re-activated when the same id is delivered as booked" do
+    stale = create_pending_entry(external_id: "eb_hold", date: 10.days.ago.to_date, amount: 80)
+    EnableBankingAccount::Processor.new(@enable_banking_account).process
+    assert stale.reload.excluded?
+
+    Account::ProviderImportAdapter.new(@account).import_transaction(
+      external_id: "eb_hold", amount: 80, currency: @account.currency, date: Date.current,
+      name: "Hotel", source: "enable_banking", extra: { "enable_banking" => { "pending" => false } }
+    )
+
+    stale.reload
+    assert_not stale.excluded?
+    assert_not stale.transaction.pending?
+    assert_not stale.auto_excluded_pending?
+  end
+
+  test "a pending the user excluded stays excluded when it books" do
+    stale = create_pending_entry(external_id: "eb_user_excluded", date: 10.days.ago.to_date, amount: 81)
+    stale.update!(excluded: true)
+
+    Account::ProviderImportAdapter.new(@account).import_transaction(
+      external_id: "eb_user_excluded", amount: 81, currency: @account.currency, date: Date.current,
+      name: "Hotel", source: "enable_banking", extra: { "enable_banking" => { "pending" => false } }
+    )
+
+    assert stale.reload.excluded?
   end
 
   test "excludes a pending entry once its booked twin exists" do

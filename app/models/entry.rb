@@ -142,16 +142,36 @@ class Entry < ApplicationRecord
   # @param account [Account] The account to clean up
   # @param days [Integer] Number of days after which pending is considered stale (default: 8)
   # @return [Integer] Number of entries excluded
-  def self.auto_exclude_stale_pending(account:, days: 8)
+  AUTO_EXCLUDED_PENDING_KEY = "auto_excluded_stale_pending".freeze
+
+  # @param mark [Boolean] Remember on the transaction that the exclusion was automatic,
+  #   so an import that later books the same bank id can re-activate the entry
+  #   (see Account::ProviderImportAdapter). Entries excluded by the user carry no mark.
+  def self.auto_exclude_stale_pending(account:, days: 8, mark: false)
     stale_entries = account.entries.stale_pending(days: days).where(excluded: false)
     count = stale_entries.count
 
     if count > 0
-      stale_entries.update_all(excluded: true, updated_at: Time.current)
+      if mark
+        stale_entries.includes(:entryable).find_each do |entry|
+          next unless entry.entryable.is_a?(Transaction)
+
+          transaction = entry.entryable
+          transaction.update!(extra: (transaction.extra || {}).merge(AUTO_EXCLUDED_PENDING_KEY => true))
+          entry.update!(excluded: true)
+        end
+      else
+        stale_entries.update_all(excluded: true, updated_at: Time.current)
+      end
       Rails.logger.info("Auto-excluded #{count} stale pending transaction(s) for account #{account.id} (#{account.name})")
     end
 
     count
+  end
+
+  # True for a pending entry that auto_exclude_stale_pending(mark: true) excluded.
+  def auto_excluded_pending?
+    excluded? && entryable.is_a?(Transaction) && entryable.extra&.dig(AUTO_EXCLUDED_PENDING_KEY) == true
   end
 
   # Retroactively reconcile pending transactions that have a matching posted version

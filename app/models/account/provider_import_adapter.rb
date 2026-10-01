@@ -73,6 +73,14 @@ class Account::ProviderImportAdapter
         end
       end
 
+      # An automatically excluded stale pending (see Entry.auto_exclude_stale_pending)
+      # that the provider now delivers as booked under the same id becomes a normal
+      # entry again. Entries the user excluded are never touched.
+      if entry.persisted? && !incoming_pending && entry.auto_excluded_pending?
+        entry.transaction.update!(extra: entry.transaction.extra.except(Entry::AUTO_EXCLUDED_PENDING_KEY))
+        entry.update!(excluded: false)
+      end
+
       # === PROTECTION CHECK: Skip entries that should not be overwritten ===
       # Check persisted Transaction entries for protection flags before making changes.
       # This prevents sync from overwriting user edits, CSV imports, or excluded entries.

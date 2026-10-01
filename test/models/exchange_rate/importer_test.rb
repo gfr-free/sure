@@ -572,14 +572,32 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     assert_equal 0, DebugLogEntry.count
   end
 
+  test "uses a newer stored rate as baseline when the provider skipped that day" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 4.2)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 2.days.ago.to_date, rate: 3.7)
+
+    # Provider repeats 3 days ago in its lookback but has nothing for 2 days ago
+    import_usd_pln_rates(
+      { 3.days.ago.to_date => 4.2, 1.day.ago.to_date => 4.2, Date.current => 4.21 },
+      fetch_from: 1.day.ago.to_date
+    )
+
+    jump = DebugLogEntry.sole.metadata["jumps"].sole
+    assert_equal 1.day.ago.to_date.iso8601, jump["date"]
+    assert_equal 3.7, jump["previous_rate"].to_d
+  end
+
   private
-    def import_usd_pln_rates(rates_by_date, start_date: 3.days.ago.to_date)
+    def import_usd_pln_rates(rates_by_date, start_date: 3.days.ago.to_date, fetch_from: rates_by_date.keys.min)
       provider_response = provider_success_response(
         rates_by_date.map { |date, rate| OpenStruct.new(from: "USD", to: "PLN", date:, rate:) }
       )
 
       @provider.expects(:fetch_exchange_rates)
-               .with(from: "USD", to: "PLN", start_date: get_provider_fetch_start_date(rates_by_date.keys.min), end_date: Date.current)
+               .with(from: "USD", to: "PLN", start_date: get_provider_fetch_start_date(fetch_from), end_date: Date.current)
                .returns(provider_response)
 
       ExchangeRate::Importer.new(

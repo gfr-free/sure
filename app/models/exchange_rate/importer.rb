@@ -59,10 +59,10 @@ class ExchangeRate::Importer
     end
 
     rate_jumps = []
-    # When the loop starts on start_date, prev_rate_value may already be the
-    # provider rate for that same day, so jumps compare against the last rate
-    # strictly before the loop instead.
-    jump_baseline = latest_valid_rate_before(loop_start_date)
+    # Jumps compare against the newest rate observed before the loop, not
+    # prev_rate_value: that can already be the provider rate for the first
+    # loop day, or an older provider rate when the database has a newer one.
+    jump_baseline = latest_observed_rate_before(loop_start_date)
 
     # Gapfill with LOCF strategy (last observation carried forward):
     # when the provider returns nothing for weekends/holidays, carry the previous rate.
@@ -195,22 +195,37 @@ class ExchangeRate::Importer
         return nil
       end
 
-      latest_valid_rate_before(fill_start_date)
-    end
+      cutoff_date = fill_start_date
 
-    # Most recent positive rate strictly before `date`, from the provider
-    # response or, failing that, the database.
-    def latest_valid_rate_before(date)
-      provider_rate_value = latest_valid_provider_rate(before: date)
+      provider_rate_value = latest_valid_provider_rate(before: cutoff_date)
       return provider_rate_value if provider_rate_value.present?
 
       ExchangeRate
         .where(from_currency: from, to_currency: to)
-        .where("date < ?", date)
+        .where("date < ?", cutoff_date)
         .where("rate > 0")
         .order(date: :desc)
         .limit(1)
         .pick(:rate)
+    end
+
+    # Most recent positive rate strictly before `date`, whichever of the
+    # provider response and the database has the newer observation.
+    def latest_observed_rate_before(date)
+      provider_date, provider_rate = provider_rates
+        .select { |d, r| d < date && r.rate.present? && r.rate.to_f > 0 }
+        .max_by { |d, _| d }
+      db_date, db_rate = ExchangeRate
+        .where(from_currency: from, to_currency: to)
+        .where("date < ?", date)
+        .where("rate > 0")
+        .order(date: :desc)
+        .pick(:date, :rate)
+
+      return db_rate if provider_date.nil?
+      return provider_rate.rate if db_date.nil? || provider_date >= db_date
+
+      db_rate
     end
 
     # Scans provider_rates for the most recent entry with a positive rate,

@@ -200,6 +200,8 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     transfer = Transfer.order(:created_at).last
     assert_equal [ tags(:one) ], transfer.outflow_transaction.tags.to_a
     assert_equal [ tags(:one) ], transfer.inflow_transaction.tags.to_a
+    assert transfer.outflow_transaction.locked?(:tag_ids)
+    assert transfer.inflow_transaction.locked?(:tag_ids)
   end
 
   test "the matcher leaves a posted entry alone" do

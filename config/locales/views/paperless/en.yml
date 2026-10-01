@@ -4,6 +4,7 @@ en:
     host_guard:
       invalid_url: must be a full http(s) URL such as https://paperless.example.com
       credentials_in_url: must not contain a username or password
+      https_required: must use HTTPS so the API token is sent encrypted
       unresolvable: could not be resolved
       private_address: points to a private or local network address, which this server does not allow. The operator can allow it with PAPERLESS_ALLOW_PRIVATE_HOSTS=true.
   transactions:

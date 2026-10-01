@@ -544,8 +544,36 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     assert_equal(-17.78, entry.metadata["jumps"].last["change_percent"])
   end
 
+  test "compares the first imported day against the last rate before the import window" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    ExchangeRate.create!(from_currency: "USD", to_currency: "PLN", date: 3.days.ago.to_date, rate: 3.7)
+
+    import_usd_pln_rates(
+      { 2.days.ago.to_date => 4.2, 1.day.ago.to_date => 4.21, Date.current => 4.22 },
+      start_date: 2.days.ago.to_date
+    )
+
+    jump = DebugLogEntry.sole.metadata["jumps"].sole
+    assert_equal 2.days.ago.to_date.iso8601, jump["date"]
+    assert_equal 3.7, jump["previous_rate"].to_d
+  end
+
+  test "does not log jumps without an earlier rate to compare against" do
+    ExchangeRate.delete_all
+    DebugLogEntry.delete_all
+
+    import_usd_pln_rates(
+      { 2.days.ago.to_date => 4.2, 1.day.ago.to_date => 4.21, Date.current => 4.22 },
+      start_date: 2.days.ago.to_date
+    )
+
+    assert_equal 0, DebugLogEntry.count
+  end
+
   private
-    def import_usd_pln_rates(rates_by_date)
+    def import_usd_pln_rates(rates_by_date, start_date: 3.days.ago.to_date)
       provider_response = provider_success_response(
         rates_by_date.map { |date, rate| OpenStruct.new(from: "USD", to: "PLN", date:, rate:) }
       )
@@ -558,7 +586,7 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
         exchange_rate_provider: @provider,
         from: "USD",
         to: "PLN",
-        start_date: 3.days.ago.to_date,
+        start_date: start_date,
         end_date: Date.current
       ).import_provider_rates
     end

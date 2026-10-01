@@ -59,6 +59,10 @@ class ExchangeRate::Importer
     end
 
     rate_jumps = []
+    # When the loop starts on start_date, prev_rate_value may already be the
+    # provider rate for that same day, so jumps compare against the last rate
+    # strictly before the loop instead.
+    jump_baseline = latest_valid_rate_before(loop_start_date)
 
     # Gapfill with LOCF strategy (last observation carried forward):
     # when the provider returns nothing for weekends/holidays, carry the previous rate.
@@ -67,7 +71,7 @@ class ExchangeRate::Importer
       provider_rate_value = provider_rates[date]&.rate
 
       chosen_rate = if provider_rate_value.present? && provider_rate_value.to_f > 0
-        jump = rate_jump(date:, previous_rate: prev_rate_value, rate: provider_rate_value)
+        jump = rate_jump(date:, previous_rate: jump_baseline, rate: provider_rate_value)
         rate_jumps << jump if jump
         provider_rate_value
       elsif db_rate_value.present? && db_rate_value.to_f > 0
@@ -77,6 +81,7 @@ class ExchangeRate::Importer
       end
 
       prev_rate_value = chosen_rate
+      jump_baseline = chosen_rate
 
       {
         from_currency: from,
@@ -120,6 +125,8 @@ class ExchangeRate::Importer
     attr_reader :exchange_rate_provider, :from, :to, :start_date, :end_date, :clear_cache
 
     def rate_jump(date:, previous_rate:, rate:)
+      return if previous_rate.blank?
+
       previous = previous_rate.to_d
       return if previous <= 0
 
@@ -188,14 +195,18 @@ class ExchangeRate::Importer
         return nil
       end
 
-      cutoff_date = fill_start_date
+      latest_valid_rate_before(fill_start_date)
+    end
 
-      provider_rate_value = latest_valid_provider_rate(before: cutoff_date)
+    # Most recent positive rate strictly before `date`, from the provider
+    # response or, failing that, the database.
+    def latest_valid_rate_before(date)
+      provider_rate_value = latest_valid_provider_rate(before: date)
       return provider_rate_value if provider_rate_value.present?
 
       ExchangeRate
         .where(from_currency: from, to_currency: to)
-        .where("date < ?", cutoff_date)
+        .where("date < ?", date)
         .where("rate > 0")
         .order(date: :desc)
         .limit(1)

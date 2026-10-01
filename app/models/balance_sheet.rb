@@ -69,22 +69,18 @@ class BalanceSheet
 
       case order_key
       when "name_asc"
-        sort_by_name(accounts)
+        accounts.sort_by(&:name)
       when "name_desc"
-        sort_by_name(accounts).reverse
+        accounts.sort_by(&:name).reverse
       when "balance_asc"
-        accounts.sort_by(&:converted_balance)
+        accounts.sort_by(&:balance)
       when "balance_desc"
-        accounts.sort_by(&:converted_balance).reverse
+        accounts.sort_by(&:balance).reverse
       when "manual"
         sort_manually(accounts)
       else
         accounts
       end
-    end
-
-    def sort_by_name(accounts)
-      accounts.sort_by { |account| account.name.to_s.downcase }
     end
 
     # Accounts the user has dragged into place come first, in their saved

@@ -48,9 +48,8 @@ module AccountsHelper
       # (this partial renders with skip_digest: true, so the template digest
       # would not otherwise reflect the change).
       Current.user&.always_expanded_account_groups&.sort,
-      # Changing the account order in Settings or dragging an account must
-      # re-render the sidebar right away rather than after the 12h expiry.
-      Current.user&.default_account_order,
+      # Dragging an account must re-render the sidebar right away rather
+      # than after the 12h expiry.
       Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest(Current.user.manual_account_order.to_json) : nil
     ]
   end

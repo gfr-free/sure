@@ -70,6 +70,18 @@ class RecurringTransactionTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 10, 3), series.reload.auto_post_from
   end
 
+  test "switching auto-posting on starts from the family's local day" do
+    series = build_recurring
+    series.save!
+    series.family.update!(timezone: "Pacific/Auckland")
+
+    travel_to Time.utc(2026, 10, 2, 23, 0) do
+      series.update!(auto_post: true)
+    end
+
+    assert_equal Date.new(2026, 10, 3), series.reload.auto_post_from
+  end
+
   test "a series whose account was linked later still saves unrelated changes" do
     series = build_recurring(auto_post: true)
     series.save!

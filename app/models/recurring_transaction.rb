@@ -306,7 +306,9 @@ class RecurringTransaction < ApplicationRecord
   # Switching auto-posting on never backfills the past: only dates from today
   # on post. Re-enabling restarts from the new day.
   def start_auto_posting_today
-    self.auto_post_from = Date.current
+    # The family's calendar day, the same one the poster uses.
+    zone = ActiveSupport::TimeZone[family.timezone.to_s] || Time.zone
+    self.auto_post_from = Time.current.in_time_zone(zone).to_date
   end
 
   scope :for_family, ->(family) { where(family: family) }

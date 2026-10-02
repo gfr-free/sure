@@ -21,6 +21,18 @@ class PaperlessLinkTest < ActiveSupport::TestCase
     assert_equal users(:family_admin), link.created_by
   end
 
+  test "link! refuses to save when the address changed while the document was fetched" do
+    Provider::Paperless.any_instance.expects(:document).with("12").returns(id: 12, title: "Stromrechnung")
+    PaperlessConnection.where(id: @connection.id).update_all(base_url: "https://other.example.com")
+
+    assert_no_difference "PaperlessLink.count" do
+      error = assert_raises(Provider::Paperless::Error) do
+        PaperlessLink.link!(linkable: transactions(:one), connection: @connection, document_id: "12", user: users(:family_admin))
+      end
+      assert_equal :connection_changed, error.error_type
+    end
+  end
+
   test "a document can only be linked once to the same record" do
     PaperlessLink.create!(family: @family, linkable: transactions(:one), paperless_connection: @connection, document_id: 5)
 

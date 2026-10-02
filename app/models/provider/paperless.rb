@@ -16,10 +16,11 @@ class Provider::Paperless
   DOCUMENT_FIELDS = "id,title,created,created_date,correspondent,mime_type,original_file_name".freeze
   DEFAULT_PAGE_SIZE = 20
 
-  def initialize(base_url:, api_token:, verify_ssl: true)
+  def initialize(base_url:, api_token:, verify_ssl: true, allow_private_hosts: false)
     @base_url = base_url
     @api_token = api_token
     @verify_ssl = verify_ssl
+    @allow_private_hosts = allow_private_hosts
   end
 
   # Paperless answers every authenticated request with its version in X-Version.
@@ -70,7 +71,7 @@ class Provider::Paperless
   end
 
   private
-    attr_reader :base_url, :api_token, :verify_ssl
+    attr_reader :base_url, :api_token, :verify_ssl, :allow_private_hosts
 
     def correspondent_names(ids)
       ids = ids.uniq
@@ -104,7 +105,7 @@ class Provider::Paperless
     end
 
     def request(method, path, params, raw: false, &block)
-      pinned_ip = HostGuard.check!(base_url)
+      pinned_ip = HostGuard.check!(base_url, allow_private: allow_private_hosts)
 
       response = connection(raw: raw, pinned_ip: pinned_ip).public_send(method, path, params, &block)
       handle_status!(response)

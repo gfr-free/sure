@@ -24,7 +24,16 @@ class PaperlessConnection < ApplicationRecord
   end
 
   def client
-    Provider::Paperless.new(base_url: base_url, api_token: api_token, verify_ssl: verify_ssl)
+    Provider::Paperless.new(base_url: base_url, api_token: api_token, verify_ssl: verify_ssl, allow_private_hosts: private_hosts_allowed?)
+  end
+
+  # A private address points into the network Sure runs in, so even where the
+  # install allows them, only family admins choose one. Members may use a server
+  # an admin already connected, so a shared home Paperless keeps working.
+  def private_hosts_allowed?
+    return false unless Provider::Paperless::HostGuard.private_hosts_allowed?
+
+    owned_by_admin? || same_server_as_admin_connection?
   end
 
   # Link into the Paperless web UI. Opening it needs a login in Paperless itself.
@@ -57,6 +66,12 @@ class PaperlessConnection < ApplicationRecord
     )
   end
 
+  protected
+    # A shared connection has no user and only admins can set it up.
+    def owned_by_admin?
+      user.nil? || user.admin?
+    end
+
   private
     def detach_links
       paperless_links.update_all(paperless_connection_id: nil, updated_at: Time.current)
@@ -65,9 +80,26 @@ class PaperlessConnection < ApplicationRecord
     def base_url_must_be_allowed
       return if base_url.blank?
 
-      Provider::Paperless::HostGuard.check!(base_url)
+      Provider::Paperless::HostGuard.check!(base_url, allow_private: private_hosts_allowed?)
     rescue Provider::Paperless::HostGuard::BlockedHost => e
-      errors.add(:base_url, e.reason)
+      admin_only = e.private_network? && Provider::Paperless::HostGuard.private_hosts_allowed?
+      errors.add(:base_url, admin_only ? I18n.t("paperless.host_guard.admin_only") : e.reason)
+    end
+
+    def same_server_as_admin_connection?
+      own_server = server_of(base_url)
+      return false if own_server.nil? || family.nil?
+
+      family.paperless_connections.where.not(id: id).includes(:user).any? do |other|
+        other.owned_by_admin? && server_of(other.base_url) == own_server
+      end
+    end
+
+    def server_of(url)
+      uri = URI.parse(url.to_s)
+      [ uri.scheme, uri.host&.downcase, uri.port ] if uri.host.present?
+    rescue URI::InvalidURIError
+      nil
     end
 
     def user_must_belong_to_family

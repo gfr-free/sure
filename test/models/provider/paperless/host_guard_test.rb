@@ -47,6 +47,15 @@ class Provider::Paperless::HostGuardTest < ActiveSupport::TestCase
     end
   end
 
+  test "a caller can enforce the checks even where the install allows private hosts" do
+    with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
+      error = assert_raises(Provider::Paperless::HostGuard::BlockedHost) do
+        Provider::Paperless::HostGuard.check!("https://192.168.1.20", allow_private: false)
+      end
+      assert error.private_network?
+    end
+  end
+
   test "rejects URLs that are not http or carry credentials" do
     with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
       assert_raises(Provider::Paperless::HostGuard::BlockedHost) { Provider::Paperless::HostGuard.check!("ftp://paperless.example.com") }

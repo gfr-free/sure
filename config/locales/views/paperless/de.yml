@@ -7,6 +7,7 @@ de:
       https_required: muss HTTPS verwenden, damit das API-Token verschlüsselt übertragen wird
       unresolvable: konnte nicht aufgelöst werden
       private_address: zeigt auf eine private oder lokale Netzadresse, die dieser Server nicht erlaubt. Der Betreiber kann sie mit PAPERLESS_ALLOW_PRIVATE_HOSTS=true freigeben.
+      admin_only: ist für Mitglieder nicht erlaubt. Server im lokalen Netz oder über einfaches HTTP können nur Familien-Admins verbinden; Mitglieder können einen Server nutzen, den ein Admin schon verbunden hat, oder eine öffentliche HTTPS-Adresse.
   transactions:
     paperless_links:
       add: Aus Paperless verknüpfen

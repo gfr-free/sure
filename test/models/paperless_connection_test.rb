@@ -83,4 +83,40 @@ class PaperlessConnectionTest < ActiveSupport::TestCase
     connection.update!(base_url: "https://new-server.example.com")
     assert_nil link.reload.paperless_connection
   end
+
+  test "only admins can connect a server on the local network" do
+    with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
+      member_connection = @family.paperless_connections.new(user: @member, base_url: "http://192.168.1.20:8000", api_token: "abc")
+      assert_not member_connection.valid?
+      assert_includes member_connection.errors[:base_url], I18n.t("paperless.host_guard.admin_only")
+
+      admin_connection = paperless_connections(:admin_connection)
+      admin_connection.base_url = "http://192.168.1.20:8000"
+      assert admin_connection.valid?
+
+      shared = @family.paperless_connections.new(user: nil, base_url: "http://192.168.1.21:8000", api_token: "abc")
+      assert shared.valid?
+    end
+  end
+
+  test "a member can use the local server an admin already connected" do
+    paperless_connections(:admin_connection).update_column(:base_url, "http://192.168.1.20:8000")
+
+    with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
+      same_server = @family.paperless_connections.new(user: @member, base_url: "http://192.168.1.20:8000", api_token: "abc")
+      assert same_server.valid?
+
+      other_port = @family.paperless_connections.new(user: @member, base_url: "http://192.168.1.20:22", api_token: "abc")
+      assert_not other_port.valid?
+    end
+  end
+
+  test "a member's client checks every request against private addresses" do
+    with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
+      connection = @family.paperless_connections.new(user: @member, base_url: "http://192.168.1.20:8000", api_token: "abc")
+
+      error = assert_raises(Provider::Paperless::Error) { connection.client.server_info }
+      assert_equal :blocked_host, error.error_type
+    end
+  end
 end

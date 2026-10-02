@@ -4,14 +4,21 @@ require "resolv"
 # must not become a way to reach internal services (SSRF). Self-hosted installs
 # usually run Paperless on the same network, so private addresses are allowed
 # there by default; managed installs block them unless the operator opts in with
-# PAPERLESS_ALLOW_PRIVATE_HOSTS=true.
+# PAPERLESS_ALLOW_PRIVATE_HOSTS=true. Even then, callers decide per connection
+# whether private addresses apply (see PaperlessConnection#private_hosts_allowed?).
 class Provider::Paperless::HostGuard
   class BlockedHost < StandardError
-    attr_reader :reason
+    attr_reader :reason, :kind
 
-    def initialize(reason)
-      @reason = reason
-      super(reason)
+    def initialize(kind)
+      @kind = kind
+      @reason = I18n.t("paperless.host_guard.#{kind}")
+      super(@reason)
+    end
+
+    # Blocked only because private addresses were not allowed for this request.
+    def private_network?
+      kind.in?(%i[https_required private_address])
     end
   end
 
@@ -23,16 +30,16 @@ class Provider::Paperless::HostGuard
   class << self
     # Returns the checked IP address the request must connect to, or nil when
     # private hosts are allowed and no check is needed.
-    def check!(url)
+    def check!(url, allow_private: private_hosts_allowed?)
       uri = parse(url)
-      return if private_hosts_allowed?
+      return if allow_private
 
       # The API token travels in a header, so a public server must be reached over TLS.
-      raise BlockedHost.new(I18n.t("paperless.host_guard.https_required")) unless uri.scheme == "https"
+      raise BlockedHost.new(:https_required) unless uri.scheme == "https"
 
       addresses = resolve(uri.host)
-      raise BlockedHost.new(I18n.t("paperless.host_guard.unresolvable")) if addresses.empty?
-      raise BlockedHost.new(I18n.t("paperless.host_guard.private_address")) if addresses.any? { |ip| internal?(ip) }
+      raise BlockedHost.new(:unresolvable) if addresses.empty?
+      raise BlockedHost.new(:private_address) if addresses.any? { |ip| internal?(ip) }
 
       addresses.first.to_s
     end
@@ -47,12 +54,12 @@ class Provider::Paperless::HostGuard
     private
       def parse(url)
         uri = URI.parse(url.to_s)
-        raise BlockedHost.new(I18n.t("paperless.host_guard.invalid_url")) unless uri.is_a?(URI::HTTP) && uri.host.present?
-        raise BlockedHost.new(I18n.t("paperless.host_guard.credentials_in_url")) if uri.userinfo.present?
+        raise BlockedHost.new(:invalid_url) unless uri.is_a?(URI::HTTP) && uri.host.present?
+        raise BlockedHost.new(:credentials_in_url) if uri.userinfo.present?
 
         uri
       rescue URI::InvalidURIError
-        raise BlockedHost.new(I18n.t("paperless.host_guard.invalid_url"))
+        raise BlockedHost.new(:invalid_url)
       end
 
       def resolve(host)

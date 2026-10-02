@@ -20,19 +20,28 @@ class PaperlessLink < ApplicationRecord
   # Links a Paperless document to a record and caches its title, date and
   # correspondent from Paperless.
   def self.link!(linkable:, connection:, document_id:, user:)
+    fetched_from = connection.base_url
     document = connection.client.document(document_id)
 
-    create!(
-      family: connection.family,
-      linkable: linkable,
-      paperless_connection: connection,
-      created_by: user,
-      document_id: document[:id],
-      title: document[:title],
-      document_created_on: document[:created_on],
-      correspondent_name: document[:correspondent_name],
-      mime_type: document[:mime_type]
-    )
+    # Changing the address detaches links in the same transaction that locks the
+    # connection row, so holding that lock keeps a link from landing on a server
+    # its document id did not come from.
+    transaction do
+      connection.lock!
+      raise Provider::Paperless::Error.new("Paperless address changed, please search again", :connection_changed) if connection.base_url != fetched_from
+
+      create!(
+        family: connection.family,
+        linkable: linkable,
+        paperless_connection: connection,
+        created_by: user,
+        document_id: document[:id],
+        title: document[:title],
+        document_created_on: document[:created_on],
+        correspondent_name: document[:correspondent_name],
+        mime_type: document[:mime_type]
+      )
+    end
   end
 
   # Fetches a file (thumb, preview or download) through the connection that

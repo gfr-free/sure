@@ -12,7 +12,7 @@ class PaperlessLink < ApplicationRecord
 
   validates :linkable_type, inclusion: { in: LINKABLE_TYPES }
   validates :document_id, presence: true, numericality: { only_integer: true, greater_than: 0 }
-  validates :document_id, uniqueness: { scope: %i[linkable_type linkable_id] }
+  validates :document_id, uniqueness: { scope: %i[linkable_type linkable_id paperless_connection_id] }, if: :paperless_connection_id?
   validate :linkable_must_belong_to_family
 
   scope :recent_first, -> { order(created_at: :desc) }

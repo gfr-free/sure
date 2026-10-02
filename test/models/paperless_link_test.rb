@@ -40,6 +40,15 @@ class PaperlessLinkTest < ActiveSupport::TestCase
     assert_not duplicate.valid?
   end
 
+  test "the same document id can be linked again from another server" do
+    PaperlessLink.create!(family: @family, linkable: transactions(:one), paperless_connection: @connection, document_id: 5)
+    PaperlessLink.where(paperless_connection: @connection).update_all(paperless_connection_id: nil)
+
+    relinked = PaperlessLink.new(family: @family, linkable: transactions(:one), paperless_connection: @connection, document_id: 5)
+    assert relinked.valid?
+    assert relinked.save
+  end
+
   test "the linked record must belong to the same family" do
     link = PaperlessLink.new(family: families(:empty), linkable: transactions(:one), document_id: 5)
 

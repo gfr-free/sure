@@ -1933,7 +1933,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_200000) do
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_paperless_links_on_created_by_id"
     t.index ["family_id"], name: "index_paperless_links_on_family_id"
-    t.index ["linkable_type", "linkable_id", "document_id"], name: "index_paperless_links_on_linkable_and_document", unique: true
+    t.index ["linkable_type", "linkable_id", "paperless_connection_id", "document_id"], name: "index_paperless_links_on_linkable_and_document", unique: true
     t.index ["paperless_connection_id"], name: "index_paperless_links_on_paperless_connection_id"
   end
 

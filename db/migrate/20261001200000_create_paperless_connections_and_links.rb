@@ -36,7 +36,9 @@ class CreatePaperlessConnectionsAndLinks < ActiveRecord::Migration[8.1]
       t.string :mime_type
       t.timestamps
     end
-    add_index :paperless_links, %i[linkable_type linkable_id document_id], unique: true,
+    # Document ids are only unique per Paperless server, so the connection is part of
+    # the key; detached links (connection NULL) never block linking from a new server.
+    add_index :paperless_links, %i[linkable_type linkable_id paperless_connection_id document_id], unique: true,
               name: "index_paperless_links_on_linkable_and_document"
   end
 end

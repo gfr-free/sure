@@ -9,7 +9,7 @@ class TransactionPaperlessLinksController < ApplicationController
     @text = params[:text].to_s.strip
     @created_from = parse_date(params[:created_from]) || @entry.date - SEARCH_WINDOW_DAYS
     @created_to = parse_date(params[:created_to]) || @entry.date + SEARCH_WINDOW_DAYS
-    @linked_document_ids = @transaction.paperless_links.pluck(:document_id)
+    @linked_document_ids = @transaction.paperless_links.where(paperless_connection: @connection).pluck(:document_id)
 
     @documents = @connection.client.search_documents(text: @text, created_from: @created_from, created_to: @created_to)
   rescue Provider::Paperless::Error => e

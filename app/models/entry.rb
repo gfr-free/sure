@@ -158,6 +158,7 @@ class Entry < ApplicationRecord
 
           transaction = entry.entryable
           transaction.update!(extra: (transaction.extra || {}).merge(AUTO_EXCLUDED_PENDING_KEY => true))
+          entry.auto_excluding = true
           entry.update!(excluded: true)
         end
       else
@@ -168,6 +169,13 @@ class Entry < ApplicationRecord
 
     count
   end
+
+  # Set by auto_exclude_stale_pending so the exclusion it makes keeps its mark.
+  attr_accessor :auto_excluding
+
+  # Any other change of `excluded` (a user toggling it, a reconciliation) ends the
+  # "excluded automatically" state, so a later booking cannot override it.
+  before_save :clear_auto_excluded_pending_mark, if: :will_save_change_to_excluded?
 
   # True for a pending entry that auto_exclude_stale_pending(mark: true) excluded.
   def auto_excluded_pending?
@@ -607,6 +615,14 @@ class Entry < ApplicationRecord
   end
 
   private
+    def clear_auto_excluded_pending_mark
+      return if auto_excluding
+      return unless entryable.is_a?(Transaction) && entryable.persisted?
+      return unless entryable.extra&.key?(AUTO_EXCLUDED_PENDING_KEY)
+
+      entryable.update!(extra: entryable.extra.except(AUTO_EXCLUDED_PENDING_KEY))
+    end
+
 
     def cannot_unexclude_split_parent
       return unless excluded_changed?(from: true, to: false) && split_parent?

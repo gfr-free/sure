@@ -251,6 +251,22 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_not stale.auto_excluded_pending?
   end
 
+  test "excluding or re-including an auto-excluded pending by hand ends its automatic state" do
+    stale = create_pending_entry(external_id: "eb_toggle", date: 10.days.ago.to_date, amount: 82)
+    EnableBankingAccount::Processor.new(@enable_banking_account).process
+    assert stale.reload.auto_excluded_pending?
+
+    stale.update!(excluded: false)
+    stale.update!(excluded: true)
+
+    assert_not stale.reload.auto_excluded_pending?
+    Account::ProviderImportAdapter.new(@account).import_transaction(
+      external_id: "eb_toggle", amount: 82, currency: @account.currency, date: Date.current,
+      name: "Hotel", source: "enable_banking", extra: { "enable_banking" => { "pending" => false } }
+    )
+    assert stale.reload.excluded?
+  end
+
   test "a pending the user excluded stays excluded when it books" do
     stale = create_pending_entry(external_id: "eb_user_excluded", date: 10.days.ago.to_date, amount: 81)
     stale.update!(excluded: true)

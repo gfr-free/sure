@@ -41,8 +41,9 @@ class EnableBankingItem::Importer
   BALANCE_TIEBREAK_TOLERANCE = BigDecimal("0.01")
 
   # Tiebreak stages backed by evidence rather than a heuristic. A balance chosen
-  # this way (or without any tiebreak) is stored as balance_verified, which lets
-  # the next sync use it as a trusted anchor.
+  # this way (or without any tiebreak) is stored as balance_evidence_verified;
+  # the processor promotes that to balance_verified only once the balance has
+  # been written as the anchor, which lets the next sync trust that anchor.
   VERIFIED_TIEBREAK_STAGES = %i[currency last_committed_transaction credit_limit anchor].freeze
 
   NETWORK_ERRORS = [
@@ -275,7 +276,7 @@ class EnableBankingItem::Importer
       enable_banking_account.update!(
         current_balance: parsed_amount,
         currency: currency.presence || enable_banking_account.currency,
-        balance_verified: tiebreak_stage.nil? || VERIFIED_TIEBREAK_STAGES.include?(tiebreak_stage)
+        balance_evidence_verified: tiebreak_stage.nil? || VERIFIED_TIEBREAK_STAGES.include?(tiebreak_stage)
       )
 
       true
@@ -318,7 +319,9 @@ class EnableBankingItem::Importer
         return [ balance, tiebreak_stage ]
       end
 
-      [ balances.first, nil ]
+      # No known type: response order decides, which is no evidence once there
+      # is more than one entry.
+      [ balances.first, balances.one? ? nil : :first ]
     end
 
     # Some ASPSPs report the same balance_type twice with different amounts, e.g.
@@ -400,8 +403,8 @@ class EnableBankingItem::Importer
 
     # Expected balance = previous anchor minus booked flows since (asset account,
     # positive amount = outflow, mirroring Balance::ForwardCalculator). Skipped
-    # unless the previous balance was verified: an anchor that already came from
-    # the wrong candidate would otherwise confirm itself.
+    # unless the current anchor was verified when it was written: an anchor that
+    # already came from the wrong candidate would otherwise confirm itself.
     #
     # Bookings dated on the anchor day may or may not be in the anchor (it was
     # taken at some point that day), so the expectation is computed both ways and

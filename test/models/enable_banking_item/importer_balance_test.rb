@@ -417,6 +417,26 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert_equal 0, result[:balances_failed]
   end
 
+  test "a failed import leaves the anchor's verification untouched" do
+    link_account(Depository.create!)
+    @enable_banking_account.update!(balance_verified: false)
+
+    @enable_banking_item.stubs(:upsert_enable_banking_snapshot!)
+    @importer.stubs(:fetch_session_data).returns(accounts: [])
+    @importer.stubs(:fetch_and_store_transactions).raises(StandardError, "boom")
+    stub_balances(clbd("950.00"))
+
+    result = @importer.import
+
+    # The syncer stops before the processor whenever the import fails, so this
+    # balance never becomes the anchor and must not vouch for the old one.
+    assert_not result[:success]
+    @enable_banking_account.reload
+    assert_equal BigDecimal("950.00"), @enable_banking_account.current_balance
+    assert_not @enable_banking_account.balance_verified?
+    assert @enable_banking_account.balance_evidence_verified?
+  end
+
   test "duplicate CLBD balances without metadata pick the lower one on a depository account (#3188)" do
     link_account(Depository.create!)
     stub_balances(clbd("1234.56"), clbd("5834.56"))
@@ -427,7 +447,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
 
     @enable_banking_account.reload
     assert_equal BigDecimal("1234.56"), @enable_banking_account.current_balance
-    assert_not @enable_banking_account.balance_verified?, "a heuristic pick must not become a trusted anchor"
+    assert_not @enable_banking_account.balance_evidence_verified?, "a heuristic pick must not become a trusted anchor"
 
     entry = DebugLogEntry.order(:created_at).last
     assert_equal "provider_sync_warning", entry.category
@@ -435,14 +455,14 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert_equal 2, entry.metadata["candidates"].size
   end
 
-  test "a single balance per type marks the balance as verified and logs nothing" do
+  test "a single balance per type counts as evidence and logs nothing" do
     stub_balances(clbd("1234.56"))
 
     assert_no_difference "DebugLogEntry.count" do
       assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
     end
 
-    assert @enable_banking_account.reload.balance_verified?
+    assert @enable_banking_account.reload.balance_evidence_verified?
   end
 
   test "duplicate balances in different currencies prefer the account currency" do
@@ -453,7 +473,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
 
     @enable_banking_account.reload
     assert_equal BigDecimal("1234.56"), @enable_banking_account.current_balance
-    assert @enable_banking_account.balance_verified?
+    assert @enable_banking_account.balance_evidence_verified?
     assert_equal "currency", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
@@ -514,7 +534,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
 
     assert_equal BigDecimal("950.00"), @enable_banking_account.reload.current_balance
-    assert @enable_banking_account.balance_verified?
+    assert @enable_banking_account.balance_evidence_verified?
     assert_equal "anchor", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
@@ -591,12 +611,27 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
 
     assert_equal BigDecimal("1100.00"), @enable_banking_account.reload.current_balance
-    assert_not @enable_banking_account.balance_verified?
+    assert_not @enable_banking_account.balance_evidence_verified?
+    assert @enable_banking_account.balance_verified?, "only the processor may change the anchor's verification"
     assert_equal "anchor_timestamp", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
+  test "several balances of unknown types are not treated as evidence" do
+    @enable_banking_account.update!(balance_evidence_verified: true)
+    stub_balances(
+      { balance_type: "XYZ1", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT" },
+      { balance_type: "XYZ2", balance_amount: { amount: "900.00", currency: "EUR" }, credit_debit_indicator: "CRDT" }
+    )
+
+    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+    @enable_banking_account.reload
+    assert_equal BigDecimal("100.00"), @enable_banking_account.current_balance
+    assert_not @enable_banking_account.balance_evidence_verified?
+  end
+
   test "a fresher balance whose type is duplicated is not marked as verified" do
-    @enable_banking_account.update!(balance_verified: true)
+    @enable_banking_account.update!(balance_evidence_verified: true)
     stub_balances(
       { balance_type: "OPBD", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-01" },
       { balance_type: "ITAV", balance_amount: { amount: "200.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" },
@@ -605,7 +640,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
 
     assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
 
-    assert_not @enable_banking_account.reload.balance_verified?
+    assert_not @enable_banking_account.reload.balance_evidence_verified?
   end
 
   test "import counts a raising balance refresh as failed and keeps syncing" do

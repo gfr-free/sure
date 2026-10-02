@@ -31,7 +31,7 @@ class Transactions::CategorizesController < ApplicationController
     entries  = annotatable_entries.excluding_split_parents.where(id: entry_ids)
     count    = entries.bulk_update!({ category_id: category.id })
 
-    if params[:create_rule] == "1"
+    if params[:create_rule] == "1" && count.positive?
       rule = Rule.create_from_grouping(
         Current.family,
         params[:grouping_key],

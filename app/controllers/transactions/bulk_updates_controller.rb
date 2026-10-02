@@ -4,6 +4,8 @@ class Transactions::BulkUpdatesController < ApplicationController
 
   def create
     # Skip split parents from bulk update - update children instead
+    scoped_params = family_scoped_bulk_update_params
+
     updated = Current.family
                      .entries
                      .joins(:account)
@@ -11,7 +13,7 @@ class Transactions::BulkUpdatesController < ApplicationController
                      .excluding_split_parents
                      .where(id: bulk_update_params[:entry_ids])
                      .includes(:entryable)
-                     .bulk_update!(family_scoped_bulk_update_params, update_tags: tags_provided?)
+                     .bulk_update!(scoped_params, update_tags: scoped_params.key?(:tag_ids))
 
     redirect_back_or_to transactions_path, notice: "#{updated} transactions updated"
   end
@@ -37,16 +39,17 @@ class Transactions::BulkUpdatesController < ApplicationController
 
       if scoped.key?(:tag_ids)
         tag_ids = Array.wrap(scoped[:tag_ids]).reject(&:blank?)
-        scoped[:tag_ids] = tag_ids.any? ? Current.family.tags.where(id: tag_ids).pluck(:id) : []
+        resolved = tag_ids.any? ? Current.family.tags.where(id: tag_ids).pluck(:id) : []
+
+        # Tags were requested but none belong to this family: leave the entries'
+        # tags alone instead of wiping them. An explicit empty list still clears.
+        if tag_ids.any? && resolved.empty?
+          scoped.delete(:tag_ids)
+        else
+          scoped[:tag_ids] = resolved
+        end
       end
 
       scoped
-    end
-
-    # Check if tag_ids was explicitly provided in the request.
-    # This distinguishes between "user wants to update tags" vs "user didn't touch tags field".
-    def tags_provided?
-      bulk_update = params[:bulk_update]
-      bulk_update.respond_to?(:key?) && bulk_update.key?(:tag_ids)
     end
 end

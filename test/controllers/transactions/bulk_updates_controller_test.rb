@@ -168,6 +168,19 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     assert_empty foreign_tag.taggings
   end
 
+  test "bulk update keeps existing tags when every requested tag belongs to another family" do
+    foreign_tag = families(:empty).tags.create!(name: "Foreign tag")
+    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry.transaction.tags = [ tags(:one) ]
+    transaction_entry.transaction.save!
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ transaction_entry.id ], tag_ids: [ foreign_tag.id ] }
+    }
+
+    assert_equal [ tags(:one).id ], transaction_entry.reload.transaction.tag_ids
+  end
+
   test "bulk update skips entries from accounts the user can only read" do
     read_only_account = accounts(:credit_card) # shared read_only with family_member
     entry = create_transaction(account: read_only_account, name: "Starbucks")

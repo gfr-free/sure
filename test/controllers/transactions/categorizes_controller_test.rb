@@ -179,6 +179,25 @@ class Transactions::CategorizesControllerTest < ActionDispatch::IntegrationTest
     assert_nil entry.transaction.reload.category
   end
 
+  test "create does not create a rule when no entry could be categorized" do
+    read_only_account = accounts(:credit_card) # shared read_only with family_member
+    entry = create_transaction(account: read_only_account, name: "Starbucks")
+
+    sign_in users(:family_member)
+    assert_no_difference "Rule.count" do
+      post transactions_categorize_url,
+        params: {
+          position: 0,
+          grouping_key: "Starbucks",
+          entry_ids: [ entry.id ],
+          all_entry_ids: [ entry.id ],
+          category_id: @category.id,
+          create_rule: "1"
+        },
+        headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    end
+  end
+
   test "assign_entry does not categorize an entry from a read-only shared account" do
     read_only_account = accounts(:credit_card) # shared read_only with family_member
     entry = create_transaction(account: read_only_account, name: "Starbucks")

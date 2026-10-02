@@ -28,18 +28,17 @@ class Provider::Paperless::HostGuard
   NAT64_PREFIX = IPAddr.new("64:ff9b::/96").freeze
 
   class << self
-    # Returns the checked IP address the request must connect to, or nil when
-    # private hosts are allowed and no check is needed.
+    # Returns the checked IP address the request must connect to. It is pinned
+    # for private hosts too, so the token never follows a later DNS change.
     def check!(url, allow_private: private_hosts_allowed?)
       uri = parse(url)
-      return if allow_private
 
       # The API token travels in a header, so a public server must be reached over TLS.
-      raise BlockedHost.new(:https_required) unless uri.scheme == "https"
+      raise BlockedHost.new(:https_required) unless allow_private || uri.scheme == "https"
 
       addresses = resolve(uri.host)
       raise BlockedHost.new(:unresolvable) if addresses.empty?
-      raise BlockedHost.new(:private_address) if addresses.any? { |ip| internal?(ip) }
+      raise BlockedHost.new(:private_address) if !allow_private && addresses.any? { |ip| internal?(ip) }
 
       addresses.first.to_s
     end

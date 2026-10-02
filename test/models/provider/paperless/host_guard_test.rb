@@ -43,7 +43,11 @@ class Provider::Paperless::HostGuardTest < ActiveSupport::TestCase
 
   test "allows private addresses when the operator opts in" do
     with_env_overrides PAPERLESS_ALLOW_PRIVATE_HOSTS: "true" do
-      assert_nil Provider::Paperless::HostGuard.check!("http://192.168.1.20:8000")
+      assert_equal "192.168.1.20", Provider::Paperless::HostGuard.check!("http://192.168.1.20:8000")
+
+      Resolv.stubs(:getaddresses).with("paperless.lan").returns([ "192.168.1.30" ])
+      assert_equal "192.168.1.30", Provider::Paperless::HostGuard.check!("http://paperless.lan:8000"),
+                   "pins the resolved address for private hosts as well"
     end
   end
 

@@ -37,9 +37,19 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
     # temporary index is INVALID and the old index keeps serving queries. A re-run
     # drops that leftover and tries again. Duplicates are resolved immediately
     # before each unique build to keep that window as small as possible.
+    #
+    # If a previous run stopped after dropping the old index but before the
+    # rename, the replacement is already built and valid. The swap is finished
+    # instead of dropping it, which would leave the column without any index
+    # (and without uniqueness) while it is rebuilt.
     def replace_index(column, unique:)
       name = "index_transfers_on_#{column}"
       temp_name = "#{name}_new"
+
+      if !index_name_exists?(:transfers, name) && valid_index?(temp_name, unique: unique)
+        rename_index :transfers, temp_name, name
+        return
+      end
 
       resolve_duplicate_transfers if unique
 
@@ -117,6 +127,14 @@ class AddUniqueTransactionIndexesToTransfers < ActiveRecord::Migration[8.1]
           SQL
         end
       end
+    end
+
+    def valid_index?(name, unique:)
+      select_value(<<~SQL.squish) == true
+        SELECT i.indisvalid AND i.indisunique = #{unique ? "TRUE" : "FALSE"}
+        FROM pg_index i
+        WHERE i.indexrelid = to_regclass(#{connection.quote(name)})
+      SQL
     end
 
     def quoted_list(ids)

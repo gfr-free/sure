@@ -309,10 +309,14 @@ class EnableBankingItem::Importer
         if PERIOD_BOUNDARY_TYPES.include?(normalized_type)
           fresher = fresher_balance(balance, balances)
           if fresher
-            # fresher_balance does not break same-type ties, so a duplicated
-            # fresher type must not count as verified.
-            fresher_type = normalize_balance_type(fresher[:balance_type])
-            return [ fresher, by_type[fresher_type].one? ? nil : :fresher ]
+            # fresher_balance takes the first entry of the newest date, so
+            # same-type entries of that date go through the same tiebreak.
+            # Older entries of that type still make the pick unverified.
+            same_type = by_type[normalize_balance_type(fresher[:balance_type])]
+            fresher_date = parse_reference_date(fresher[:reference_date])
+            same_day = same_type.select { |candidate| parse_reference_date(candidate[:reference_date]) == fresher_date }
+            fresher, fresher_stage = resolve_same_type_balances(same_day, enable_banking_account)
+            return [ fresher, fresher_stage || (same_type.one? ? nil : :fresher) ]
           end
         end
 
@@ -330,7 +334,7 @@ class EnableBankingItem::Importer
     #   :currency                   only one candidate is in the account currency
     #   :last_committed_transaction candidates point to different bookings; newest wins
     #   :credit_limit               (depository) gap equals the credit limit; lower wins
-    #   :anchor / :anchor_timestamp (depository) closest to the previous anchor minus
+    #   :anchor / :anchor_timestamp (depository) matches the previous anchor minus
     #                               booked flows since, if that anchor was verified
     #   :lowest                     (depository) an included overdraft only ever raises it
     #   :first                      (other accounts) first entry in response order
@@ -420,8 +424,9 @@ class EnableBankingItem::Importer
       later_flows = dated.sum { |date, amount| date > anchor_date ? amount : 0 }
       all_flows = dated.sum { |_, amount| amount }
 
-      closest = closest_balances(candidates, account.current_anchor_balance - later_flows)
-      return nil unless closest == closest_balances(candidates, account.current_anchor_balance - all_flows)
+      closest = matching_balances(candidates, account.current_anchor_balance - later_flows)
+      return nil if closest.empty?
+      return nil unless closest == matching_balances(candidates, account.current_anchor_balance - all_flows)
       return [ closest.first, :anchor ] if closest.one?
 
       latest = closest.filter_map { |balance| [ balance, parse_balance_timestamp(balance[:last_change_date_time]) ] }
@@ -433,9 +438,10 @@ class EnableBankingItem::Importer
       newest.one? ? [ newest.first.first, :anchor_timestamp ] : nil
     end
 
-    def closest_balances(candidates, expected)
-      ranked = candidates.map { |balance| [ balance, (signed_balance_amount(balance) - expected).abs ] }.sort_by(&:last)
-      ranked.select { |_, distance| distance - ranked.first.last <= BALANCE_TIEBREAK_TOLERANCE }.map(&:first)
+    # Only candidates that actually match the expectation count: the closest of
+    # several far-off amounts is no evidence for any of them.
+    def matching_balances(candidates, expected)
+      candidates.select { |balance| (signed_balance_amount(balance) - expected).abs <= BALANCE_TIEBREAK_TOLERANCE }
     end
 
     # Same date precedence as EnableBankingEntry::Processor#date.

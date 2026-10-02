@@ -604,16 +604,45 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     create_anchor(account, amount: 1000, date: 2.days.ago.to_date)
     @enable_banking_account.update!(balance_verified: true, raw_transactions_payload: [])
     stub_balances(
-      clbd("1100.00", last_change_date_time: "2026-09-30T08:00:00Z"),
-      clbd("900.00", last_change_date_time: "2026-09-29T08:00:00Z")
+      clbd("999.99", last_change_date_time: "2026-09-29T08:00:00Z"),
+      clbd("1000.00", last_change_date_time: "2026-09-30T08:00:00Z")
     )
 
     assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
 
-    assert_equal BigDecimal("1100.00"), @enable_banking_account.reload.current_balance
+    assert_equal BigDecimal("1000.00"), @enable_banking_account.reload.current_balance
     assert_not @enable_banking_account.balance_evidence_verified?
     assert @enable_banking_account.balance_verified?, "only the processor may change the anchor's verification"
     assert_equal "anchor_timestamp", DebugLogEntry.order(:created_at).last.metadata["stage"]
+  end
+
+  test "the anchor check abstains when no candidate matches the expected balance" do
+    account = link_account(Depository.create!)
+    create_anchor(account, amount: 1000, date: 2.days.ago.to_date)
+    @enable_banking_account.update!(balance_verified: true, raw_transactions_payload: [])
+    # 1500 is closer to 1000 than 1600 but still no match, so it is no evidence.
+    stub_balances(clbd("1600.00"), clbd("1500.00"))
+
+    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+    assert_equal BigDecimal("1500.00"), @enable_banking_account.reload.current_balance
+    assert_not @enable_banking_account.balance_evidence_verified?
+    assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
+  end
+
+  test "duplicate fresher balances go through the same tiebreak regardless of response order" do
+    link_account(Depository.create!)
+    stub_balances(
+      { balance_type: "OPBD", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-01" },
+      { balance_type: "ITAV", balance_amount: { amount: "900.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" },
+      { balance_type: "ITAV", balance_amount: { amount: "200.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" }
+    )
+
+    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+    assert_equal BigDecimal("200.00"), @enable_banking_account.reload.current_balance
+    assert_not @enable_banking_account.balance_evidence_verified?
+    assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
   test "several balances of unknown types are not treated as evidence" do

@@ -1044,6 +1044,26 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_includes search.transactions_scope.pluck("entries.id"), entry.id
   end
 
+  test "unread totals never leak into a search without the user" do
+    user = users(:family_admin)
+    user.update_column(:transactions_read_before, 1.hour.ago)
+    create_transaction(account: @checking_account, external_id: "unread-3", source: "simplefin")
+    create_transaction(account: @checking_account)
+    filters = { status: [ "unread" ] }
+
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    begin
+      unread_totals = Transaction::Search.new(@family, filters: filters, user: user).totals
+      userless_totals = Transaction::Search.new(@family, filters: filters).totals
+
+      assert_equal 1, unread_totals.count
+      assert_equal 2, userless_totals.count
+    ensure
+      Rails.cache = original_cache
+    end
+  end
+
   test "ai_status current returns transactions whose auto-assigned category still applies" do
     tx_a = create_transaction(account: @checking_account, amount: 100, kind: "standard").entryable
     tx_a.enrich_attribute(:category_id, categories(:food_and_drink).id, source: "ai")

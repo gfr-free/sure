@@ -68,7 +68,12 @@ class Transaction::Search
       #
       # The unread filter depends on the user's read state, which changes on
       # every list render, so those totals are always recomputed.
-      Rails.cache.fetch("transaction_search_totals/v3/#{cache_key_base}", force: unread_filter?) do
+      #
+      # Their entries are still written, so they get their own per-user key and
+      # can never be served to a search without the unread filter.
+      totals_cache_key = "transaction_search_totals/v3/#{cache_key_base}"
+      totals_cache_key += "/unread/#{user.id}" if unread_filter?
+      Rails.cache.fetch(totals_cache_key, force: unread_filter?) do
         scope = transactions_scope
 
         # Exclude tax-advantaged accounts from totals calculation

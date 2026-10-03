@@ -316,7 +316,7 @@ class EnableBankingItem::Importer
             fresher_date = parse_reference_date(fresher[:reference_date])
             same_day = same_type.select { |candidate| parse_reference_date(candidate[:reference_date]) == fresher_date }
             fresher, fresher_stage = resolve_same_type_balances(same_day, enable_banking_account)
-            return [ fresher, fresher_stage || (same_type.one? ? nil : :fresher) ]
+            return [ fresher, same_type.one? ? fresher_stage : :fresher ]
           end
         end
 

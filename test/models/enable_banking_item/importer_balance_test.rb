@@ -645,6 +645,22 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
+  test "an older entry of the fresher type keeps an evidence-backed fresher pick unverified" do
+    stub_balances(
+      { balance_type: "OPBD", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-01" },
+      { balance_type: "ITAV", balance_amount: { amount: "150.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-15" },
+      { balance_type: "ITAV", balance_amount: { amount: "900.00", currency: "USD" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" },
+      { balance_type: "ITAV", balance_amount: { amount: "200.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" }
+    )
+
+    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+    @enable_banking_account.reload
+    assert_equal BigDecimal("200.00"), @enable_banking_account.current_balance
+    assert_not @enable_banking_account.balance_evidence_verified?
+    assert_equal "currency", DebugLogEntry.order(:created_at).last.metadata["stage"]
+  end
+
   test "several balances of unknown types are not treated as evidence" do
     @enable_banking_account.update!(balance_evidence_verified: true)
     stub_balances(

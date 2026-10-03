@@ -181,6 +181,26 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ tags(:one).id ], transaction_entry.reload.transaction.tag_ids
   end
 
+  test "bulk update lets a read_write share annotate but not change date or name" do
+    account = accounts(:credit_card)
+    account.account_shares.find_by!(user: users(:family_member)).update!(permission: "read_write")
+    entry = create_transaction(account: account, name: "Original name", date: Date.new(2026, 1, 5))
+
+    sign_in users(:family_member)
+    post transactions_bulk_update_url, params: {
+      bulk_update: {
+        entry_ids: [ entry.id ],
+        name: "Renamed", date: "2026-02-10", notes: "annotated", category_id: categories(:food_and_drink).id
+      }
+    }
+
+    entry.reload
+    assert_equal "Original name", entry.name
+    assert_equal Date.new(2026, 1, 5), entry.date
+    assert_equal "annotated", entry.notes
+    assert_equal categories(:food_and_drink), entry.transaction.category
+  end
+
   test "bulk update skips entries from accounts the user can only read" do
     read_only_account = accounts(:credit_card) # shared read_only with family_member
     entry = create_transaction(account: read_only_account, name: "Starbucks")

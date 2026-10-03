@@ -5,20 +5,31 @@ class Transactions::BulkUpdatesController < ApplicationController
   def create
     # Skip split parents from bulk update - update children instead
     scoped_params = family_scoped_bulk_update_params
+    selected = Current.family
+                      .entries
+                      .joins(:account)
+                      .excluding_split_parents
+                      .where(id: bulk_update_params[:entry_ids])
 
-    updated = Current.family
-                     .entries
-                     .joins(:account)
-                     .merge(Account.annotatable_by(Current.user))
-                     .excluding_split_parents
-                     .where(id: bulk_update_params[:entry_ids])
-                     .includes(:entryable)
-                     .bulk_update!(scoped_params, update_tags: scoped_params.key?(:tag_ids))
+    # Owners and full_control shares may change every field; read_write shares
+    # may only annotate (notes, category, merchant, tags), as on a single entry.
+    full_ids = selected.merge(Account.writable_by(Current.user)).pluck(:id)
+    annotate_ids = selected.merge(Account.annotatable_by(Current.user)).pluck(:id) - full_ids
+
+    updated = bulk_update_entries(full_ids, scoped_params) +
+              bulk_update_entries(annotate_ids, scoped_params.except(:date, :name))
 
     redirect_back_or_to transactions_path, notice: "#{updated} transactions updated"
   end
 
   private
+    def bulk_update_entries(entry_ids, attributes)
+      return 0 if entry_ids.empty?
+
+      Current.family.entries.where(id: entry_ids).includes(:entryable)
+             .bulk_update!(attributes, update_tags: attributes.key?(:tag_ids))
+    end
+
     def bulk_update_params
       params.require(:bulk_update)
             .permit(:date, :notes, :name, :category_id, :merchant_id, entry_ids: [], tag_ids: [])

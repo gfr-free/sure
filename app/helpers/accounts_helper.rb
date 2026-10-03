@@ -53,9 +53,10 @@ module AccountsHelper
   end
 
   # The second grouping dimension for an account list view, or nil when the
-  # view groups by account type only. Preview-only for now.
+  # view groups by account type only. Preview-only for now. Reads the flag
+  # from Current.user so the helper also works outside a controller render.
   def account_grouping_dimension(view)
-    return nil unless preview_features_enabled?
+    return nil unless Current.user&.preview_features_enabled?
 
     Current.user&.account_grouping_for(view)
   end

@@ -154,11 +154,18 @@ class RecurringTransactionsController < ApplicationController
     @recurring_transaction = build_declared_bill
 
     if @recurring_transaction.errors.none? && save_declared_bill
-      flash[:notice] = @recurring_transaction.typed_income? ? t(".success_income") : t(".success")
+      flash[:notice] =
+        if @recurring_transaction.typed_income? then t(".success_income")
+        elsif @recurring_transaction.transfer? then t(".success_transfer")
+        else t(".success")
+        end
 
+      # The overview lists only what is owed; a savings transfer shows up
+      # under All.
+      destination = @recurring_transaction.transfer? ? bills_path(view: "all") : bills_path
       respond_to do |format|
-        format.html { redirect_to bills_path }
-        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, bills_path) }
+        format.html { redirect_to destination }
+        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, destination) }
       end
     else
       render :new, status: :unprocessable_entity, layout: dialog_layout
@@ -182,6 +189,9 @@ class RecurringTransactionsController < ApplicationController
     apply_editable_identity
     ensure_auto_post_destination_writable
     apply_frequency_preset
+    # Kept for the form in case the update fails, so the choice is not lost.
+    @recurring_transaction.pending_tag_ids =
+      params.require(:recurring_transaction).permit(tag_ids: [])[:tag_ids]&.compact_blank
 
     if @recurring_transaction.typed_installment? && @recurring_transaction.end_after_count.present?
       @recurring_transaction.end_mode = "after_count"
@@ -190,7 +200,7 @@ class RecurringTransactionsController < ApplicationController
 
     # apply_editable_identity flags a bad account id; save would wipe that
     # error while validating, so it is checked first.
-    if @recurring_transaction.errors.none? && @recurring_transaction.save
+    if @recurring_transaction.errors.none? && save_with_tags
       applied = apply_payment_url_to_siblings
 
       flash[:notice] = if applied.positive?
@@ -384,8 +394,35 @@ class RecurringTransactionsController < ApplicationController
       params.require(:recurring_transaction).permit(
         :name, :amount, :account_id, :first_due_on, :frequency_preset,
         :frequency_interval, :frequency_interval_unit,
-        :payment_url, :autopay, :auto_post, :notes, :is_income
+        :payment_url, :autopay, :auto_post, :notes, :is_income,
+        :merchant_id, :destination_account_id, tag_ids: []
       )
+    end
+
+    # Assigning tags to a saved record writes the join rows at once, so they
+    # go in only after the series itself saved, and roll back with it. A new
+    # merchant or destination can collide with a sibling series on the
+    # dedup indexes; that is a form error, not a crash.
+    def save_with_tags
+      tag_ids = @recurring_transaction.pending_tag_ids
+
+      # The dedup indexes all key on account_id and cannot see a duplicate
+      # without one; same check as DeclaredBill.save.
+      if @recurring_transaction.account_id.nil? &&
+          (@recurring_transaction.will_save_change_to_merchant_id? || @recurring_transaction.will_save_change_to_destination_account_id?) &&
+          RecurringTransaction::DeclaredBill.account_less_duplicate?(@recurring_transaction)
+        @recurring_transaction.errors.add(:base, t("recurring_transactions.create.already_exists"))
+        return false
+      end
+
+      RecurringTransaction.transaction do
+        saved = @recurring_transaction.save
+        @recurring_transaction.tags = Current.family.tags.where(id: tag_ids) if saved && !tag_ids.nil?
+        saved
+      end
+    rescue ActiveRecord::RecordNotUnique
+      @recurring_transaction.errors.add(:base, t("recurring_transactions.create.already_exists"))
+      false
     end
 
     def build_declared_bill
@@ -454,6 +491,44 @@ class RecurringTransactionsController < ApplicationController
         else
           @recurring_transaction.errors.add(:account, :invalid)
         end
+      end
+
+      apply_editable_merchant(attrs)
+      apply_editable_destination(attrs)
+    end
+
+    # The form offers the merchants this user can see. The current one is
+    # always accepted as is, so a detected merchant the user could not pick
+    # again survives an unrelated edit.
+    def apply_editable_merchant(attrs)
+      return unless attrs.key?(:merchant_id)
+      return if attrs[:merchant_id].to_s == @recurring_transaction.merchant_id.to_s
+
+      if attrs[:merchant_id].blank?
+        @recurring_transaction.merchant = nil
+      elsif (merchant = Current.family.available_merchants_for(Current.user).find_by(id: attrs[:merchant_id]))
+        @recurring_transaction.merchant = merchant
+      else
+        @recurring_transaction.errors.add(:merchant, :invalid)
+      end
+    end
+
+    # A destination makes the series a transfer; clearing it makes a transfer
+    # a plain bill again. Writable only, like the account, and the current
+    # destination is kept as is for the same reason as the merchant. Income
+    # has no destination.
+    def apply_editable_destination(attrs)
+      return unless attrs.key?(:destination_account_id)
+      return if @recurring_transaction.typed_income?
+      return if attrs[:destination_account_id].to_s == @recurring_transaction.destination_account_id.to_s
+
+      if attrs[:destination_account_id].blank?
+        @recurring_transaction.destination_account = nil
+        @recurring_transaction.bill_type = "bill" if @recurring_transaction.typed_transfer?
+      elsif (destination = Current.family.accounts.writable_by(Current.user).find_by(id: attrs[:destination_account_id]))
+        @recurring_transaction.destination_account = destination
+      else
+        @recurring_transaction.errors.add(:base, t("recurring_transactions.create.destination_invalid"))
       end
     end
 

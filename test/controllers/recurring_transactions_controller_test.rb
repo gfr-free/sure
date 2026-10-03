@@ -1157,6 +1157,164 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "https://pay.example/theirs", read_only_sibling.reload.payment_url
   end
 
+  test "the add form offers merchant, tags and a transfer destination" do
+    get new_recurring_transaction_url, headers: { "Turbo-Frame" => "modal" }
+
+    assert_response :success
+    assert_select "input[name='recurring_transaction[merchant_id]']"
+    assert_select "input[name='recurring_transaction[tag_ids][]']"
+    assert_select "input[name='recurring_transaction[destination_account_id]']"
+  end
+
+  test "the add-income form has no transfer destination" do
+    get new_recurring_transaction_url(income: true), headers: { "Turbo-Frame" => "modal" }
+
+    assert_response :success
+    assert_select "input[name='recurring_transaction[destination_account_id]']", count: 0
+  end
+
+  test "create saves merchant, tags and a destination as a recurring transfer" do
+    foreign_tag = families(:empty).tags.create!(name: "Foreign")
+
+    post recurring_transactions_url, params: {
+      recurring_transaction: {
+        name: "Savings plan", amount: "100", account_id: accounts(:depository).id,
+        destination_account_id: accounts(:credit_card).id, merchant_id: merchants(:amazon).id,
+        tag_ids: [ "", tags(:one).id, foreign_tag.id ], first_due_on: 5.days.from_now.to_date.to_s,
+        frequency_preset: "monthly"
+      }
+    }
+
+    series = @family.recurring_transactions.find_by!(name: "Savings plan")
+    assert series.typed_transfer?
+    assert_equal accounts(:credit_card), series.destination_account
+    assert_equal merchants(:amazon), series.merchant
+    assert_equal [ tags(:one) ], series.tags.to_a
+  end
+
+  test "create refuses a destination the user cannot write" do
+    member = users(:family_member)
+    member.update!(preferences: (member.preferences || {}).merge("preview_features_enabled" => true))
+    sign_in member
+
+    assert_no_difference -> { RecurringTransaction.count } do
+      post recurring_transactions_url, params: {
+        recurring_transaction: {
+          name: "Card payment", amount: "100", account_id: accounts(:depository).id,
+          destination_account_id: accounts(:credit_card).id, # shared read-only
+          first_due_on: 5.days.from_now.to_date.to_s, frequency_preset: "monthly"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "create refuses a merchant from another family" do
+    foreign = families(:empty).merchants.create!(name: "Foreign Shop")
+
+    assert_no_difference -> { RecurringTransaction.count } do
+      post recurring_transactions_url, params: {
+        recurring_transaction: {
+          name: "Shop", amount: "10", account_id: accounts(:depository).id, merchant_id: foreign.id,
+          first_due_on: 5.days.from_now.to_date.to_s, frequency_preset: "monthly"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "update changes merchant and tags, and an empty tag list clears them" do
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { merchant_id: merchants(:amazon).id, tag_ids: [ "", tags(:one).id, tags(:two).id ] }
+    }
+
+    assert_equal merchants(:amazon), @recurring_transaction.reload.merchant
+    assert_equal [ tags(:one), tags(:two) ].sort_by(&:id), @recurring_transaction.tags.sort_by(&:id)
+
+    patch recurring_transaction_url(@recurring_transaction), params: { recurring_transaction: { tag_ids: [ "" ] } }
+
+    assert_empty @recurring_transaction.reload.tags
+  end
+
+  test "update refuses a merchant from another family and keeps the tags unchanged" do
+    foreign = families(:empty).merchants.create!(name: "Foreign Shop")
+    @recurring_transaction.update!(tags: [ tags(:one) ])
+
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { merchant_id: foreign.id, tag_ids: [ "", tags(:two).id ] }
+    }
+
+    assert_response :unprocessable_entity
+    assert_equal merchants(:netflix), @recurring_transaction.reload.merchant
+    assert_equal [ tags(:one) ], @recurring_transaction.tags.to_a
+  end
+
+  test "a failed update keeps the chosen tags in the form" do
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { payment_url: "javascript:alert(1)", tag_ids: [ "", tags(:two).id ] }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "[data-tag-id='#{tags(:two).id}'][aria-selected='true']"
+    assert_empty @recurring_transaction.reload.tags
+  end
+
+  test "a refused merchant keeps the chosen tags in the form" do
+    foreign = families(:empty).merchants.create!(name: "Foreign Shop")
+
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { merchant_id: foreign.id, tag_ids: [ "", tags(:two).id ] }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "[data-tag-id='#{tags(:two).id}'][aria-selected='true']"
+  end
+
+  test "a new recurring transfer lands on the all-bills view" do
+    post recurring_transactions_url, params: {
+      recurring_transaction: {
+        name: "Savings plan", amount: "100", account_id: accounts(:depository).id,
+        destination_account_id: accounts(:credit_card).id,
+        first_due_on: 5.days.from_now.to_date.to_s, frequency_preset: "monthly"
+      }
+    }
+
+    assert_redirected_to bills_path(view: "all")
+  end
+
+  test "update turns a bill into a transfer and back" do
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { destination_account_id: accounts(:credit_card).id }
+    }
+
+    assert @recurring_transaction.reload.typed_transfer?
+    assert_equal accounts(:credit_card), @recurring_transaction.destination_account
+
+    patch recurring_transaction_url(@recurring_transaction), params: {
+      recurring_transaction: { destination_account_id: "" }
+    }
+
+    assert_nil @recurring_transaction.reload.destination_account
+    assert @recurring_transaction.typed_bill?
+  end
+
+  test "an unchanged destination the user cannot write survives an edit" do
+    member = users(:family_member)
+    member.update!(preferences: (member.preferences || {}).merge("preview_features_enabled" => true))
+    series = create_series(name: "Card payment")
+    series.update!(destination_account: accounts(:credit_card)) # shared read-only with the member
+    sign_in member
+
+    patch recurring_transaction_url(series), params: {
+      recurring_transaction: { name: "Card payment renamed", destination_account_id: accounts(:credit_card).id }
+    }
+
+    assert_equal "Card payment renamed", series.reload.name
+    assert_equal accounts(:credit_card), series.destination_account
+  end
+
   private
 
     def create_series(name:, account: accounts(:depository), merchant: nil, status: "active", payment_url: nil)

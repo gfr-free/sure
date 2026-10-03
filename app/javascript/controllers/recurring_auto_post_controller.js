@@ -1,10 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
 
 // Enables the bill form's "Post automatically" switch only while the chosen
-// account is a manual one. The server validates the same rule on save; this
+// account, and the destination of a transfer, are manual ones. The server validates the same rule on save; this
 // only keeps the form from offering a choice it would reject.
 export default class extends Controller {
-  static targets = ["account", "toggle", "unavailable"];
+  static targets = ["account", "destination", "toggle", "unavailable"];
   static values = { manualIds: Array };
 
   connect() {
@@ -14,7 +14,12 @@ export default class extends Controller {
   update() {
     if (!this.hasToggleTarget) return;
 
-    const available = this.manualIdsValue.includes(this.accountTarget.value);
+    const destination = this.hasDestinationTarget
+      ? this.destinationTarget.value
+      : "";
+    const available =
+      this.manualIdsValue.includes(this.accountTarget.value) &&
+      (destination === "" || this.manualIdsValue.includes(destination));
 
     this.toggleTarget.disabled = !available;
     if (!available) this.toggleTarget.checked = false;

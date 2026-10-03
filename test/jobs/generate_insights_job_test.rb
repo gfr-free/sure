@@ -89,6 +89,23 @@ class GenerateInsightsJobTest < ActiveJob::TestCase
     assert_equal 5000.0, insight.metadata["balance"]
   end
 
+  # The badge rides a per-user stream every layout subscribes to, so new unread
+  # insights bump the lightbulb count on whatever page is open without showing
+  # one member the count of insights addressed to another.
+  test "broadcasts the unread badge alongside the refreshed list" do
+    user = @family.users.first
+    stub_generated([ generated_insight ])
+    Turbo::StreamsChannel.stubs(:broadcast_replace_to)
+    Turbo::StreamsChannel.expects(:broadcast_replace_to).with(
+      [ user, :insights_badge ],
+      targets: "[data-insights-badge]",
+      partial: "layouts/shared/insights_badge",
+      locals: { count: @family.insights.for_user(user).active.count + 1 }
+    )
+
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+  end
+
   test "enqueues notifications for newly created high priority insights" do
     Rails.application.config.stubs(:app_mode).returns("managed".inquiry)
     opted_in_user, opted_out_user = @family.users.to_a

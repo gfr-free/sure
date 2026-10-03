@@ -72,6 +72,14 @@ class GenerateInsightsJob < ApplicationJob
           partial: "insights/refresh_button",
           locals: { pending: false }
         )
+        # The lightbulb lives in the layout, so it goes on the per-user badge
+        # stream every page subscribes to, not just the /insights one.
+        Turbo::StreamsChannel.broadcast_replace_to(
+          [ user, :insights_badge ],
+          targets: "[data-insights-badge]",
+          partial: "layouts/shared/insights_badge",
+          locals: { count: unread_ids.size }
+        )
       end
     end
 

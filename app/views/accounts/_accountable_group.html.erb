@@ -24,19 +24,49 @@
     <% end %>
 
     <%# Test stack only: rows stay inline here (not in accounts/sidebar_account)
-        so the sparkline frames, unread badges and grouping all apply. %>
+        so the sparkline frames, unread badges, grouping and drag order all
+        apply. Drag order works on the flat list; inside subgroups the rows
+        are not draggable. %>
     <% subgroups = account_subgroups(account_group, view: :sidebar) %>
     <% sections = subgroups.any? ? subgroups.map { |subgroup| [ subgroup, subgroup.accounts ] } : [ [ nil, account_group.accounts ] ] %>
-    <div class="space-y-1">
+    <% sortable = Current.user&.account_order&.manual? && subgroups.empty? %>
+    <%= tag.div class: "space-y-1",
+          data: sortable ? {
+            controller: "account-sortable",
+            account_sortable_group_value: account_group.key,
+            account_sortable_url_value: reorder_accounts_path,
+            action: "dragover->account-sortable#dragOver drop->account-sortable#drop"
+          } : {} do %>
       <% sections.each do |subgroup, accounts| %>
         <% rows = capture do %>
           <% accounts.each do |account| %>
+            <%= tag.div class: "flex items-center gap-1 rounded-lg",
+                  data: sortable ? {
+                    account_sortable_target: "item",
+                    account_id: account.id,
+                    action: "dragstart->account-sortable#dragStart dragend->account-sortable#dragEnd"
+                  } : {} do %>
+            <% if sortable %>
+              <%# A span rather than a button: Firefox does not start a drag from a
+                  <button> inside a draggable row. %>
+              <%= tag.span role: "button",
+                    tabindex: 0,
+                    class: "shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-primary transition-colors cursor-grab active:cursor-grabbing touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alpha-black-100",
+                    aria: { label: t("accounts.sidebar.reorder_account", account: account.name) },
+                    title: t("accounts.sidebar.reorder_hint"),
+                    data: {
+                      action: "mousedown->account-sortable#enableDrag touchstart->account-sortable#touchStart touchmove->account-sortable#touchMove touchend->account-sortable#touchEnd touchcancel->account-sortable#touchEnd keydown->account-sortable#handleKeyDown"
+                    } do %>
+                <%= icon "grip-vertical", size: "sm" %>
+              <% end %>
+            <% end %>
             <%= link_to account_path(account),
                       class: class_names(
-                        "block flex items-center gap-2 px-3 py-2 rounded-lg",
+                        "block flex items-center gap-2 px-3 py-2 rounded-lg min-w-0 grow",
                         page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
                       ),
                       data: page_active?(account_path(account)) ? { active_account: true } : {},
+                      draggable: sortable ? "false" : nil,
                       title: account.name do %>
               <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>
 
@@ -69,6 +99,7 @@
                 <% end %>
               </div>
             <% end %>
+            <% end %>
           <% end %>
         <% end %>
         <% if subgroup %>
@@ -83,7 +114,7 @@
           <%= rows %>
         <% end %>
       <% end %>
-    </div>
+    <% end %>
 
     <div class="my-2">
       <%= render DS::Link.new(

@@ -57,7 +57,10 @@ module AccountsHelper
       Current.user&.always_expanded_account_groups&.sort,
       # Unread badges change whenever a list render marks rows read.
       Digest::SHA256.hexdigest(sidebar_unread_counts.sort.to_json),
-      account_grouping_dimension(:sidebar)
+      account_grouping_dimension(:sidebar),
+      # Dragging an account must re-render the sidebar right away rather
+      # than after the 12h expiry.
+      Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest(Current.user.manual_account_order.to_json) : nil
     ]
   end
 

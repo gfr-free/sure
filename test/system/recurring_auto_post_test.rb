@@ -30,11 +30,23 @@ class RecurringAutoPostTest < ApplicationSystemTestCase
     visit edit_recurring_transaction_url(@series)
 
     within("[data-controller='recurring-auto-post']") do
-      find("button[data-select-target='button']").click
+      all("button[data-select-target='button']").first.click
       find("[data-select-target='option']", text: accounts(:connected).name).click
     end
 
     assert find("#recurring_transaction_auto_post", visible: :all).disabled?
     assert_text I18n.t("recurring_transactions.form.auto_post_manual_only")
+  end
+
+  test "the switch is off for a transfer into a linked account" do
+    visit edit_recurring_transaction_url(@series)
+    assert_not find("#recurring_transaction_auto_post", visible: :all).disabled?
+
+    within("[data-controller='recurring-auto-post']") do
+      all("button[data-select-target='button']").last.click
+      find("[data-select-target='option']", text: accounts(:connected).name).click
+    end
+
+    assert find("#recurring_transaction_auto_post", visible: :all).disabled?
   end
 end

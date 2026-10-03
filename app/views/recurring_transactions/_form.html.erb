@@ -63,12 +63,25 @@
         linked one. The model validates the same rule on save. %>
     <% accounts = Current.user.accessible_accounts.visible.alphabetically %>
     <div class="space-y-4" data-controller="recurring-auto-post"
-         data-recurring-auto-post-manual-ids-value="<%= recurring_manual_account_ids(accounts).to_json %>">
+         data-recurring-auto-post-manual-ids-value="<%= recurring_manual_account_ids(accounts, recurring_transaction).to_json %>">
       <%= f.collection_select :account_id,
             accounts,
             :id, :name,
             { label: income ? t(".income_account_label") : t(".account_label"), include_blank: t(".account_blank") },
             { data: { recurring_auto_post_target: "account", action: "change->recurring-auto-post#update" } } %>
+
+      <%# A destination turns the bill into a transfer, such as a savings plan
+          or a card payment. A paycheck has no destination. %>
+      <% unless income %>
+        <div class="space-y-2">
+          <%= f.collection_select :destination_account_id,
+                recurring_destination_options(recurring_transaction),
+                :id, :name,
+                { label: t(".destination_label"), include_blank: t(".destination_blank") },
+                { data: { recurring_auto_post_target: "destination", action: "change->recurring-auto-post#update" } } %>
+          <p class="text-xs text-secondary"><%= t(".destination_hint") %></p>
+        </div>
+      <% end %>
 
       <% if recurring_transaction.amount_fixed? %>
         <div class="flex items-start justify-between gap-4">
@@ -178,6 +191,21 @@
 
     <%= render DS::Disclosure.new(title: t(".more_options"), align: "left") do %>
       <div class="space-y-4 pt-2">
+      <%# Posted entries carry the merchant and tags, and the matcher reads
+          the merchant to recognise the payment. %>
+      <%= render DS::MerchantSelect.new(
+            form: f,
+            method: :merchant_id,
+            merchants: recurring_merchant_options(recurring_transaction),
+            selected_id: recurring_transaction.merchant_id,
+            include_blank: t(".merchant_blank"),
+            label: t(".merchant_label")
+          ) %>
+      <%= render DS::TagSelect.new(
+            form: f,
+            tags: Current.family.tags.alphabetically.to_a,
+            selected_ids: recurring_transaction.pending_tag_ids || recurring_transaction.tag_ids
+          ) %>
       <% unless income %>
         <div class="space-y-2">
           <%= f.text_field :payment_url,

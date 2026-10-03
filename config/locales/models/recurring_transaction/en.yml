@@ -12,6 +12,9 @@ en:
         payment_url: "Payment link"
         frequency_interval: "Repeat interval"
         auto_post: "Post automatically"
+        destination_account: "Destination account"
+        merchant: "Merchant"
+        tags: "Tags"
     errors:
       models:
         recurring_transaction:
@@ -22,6 +25,8 @@ en:
               fixed_amount_required: "needs a fixed amount"
               account_currency_required: "needs the bill to use the account's currency"
               destination_not_writable: "needs write access to the destination account"
+            merchant:
+              invalid: "is not available to you"
             payment_url:
               invalid_scheme: "must be a valid http:// or https:// address"
             anchor_date:

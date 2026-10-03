@@ -83,9 +83,11 @@ en:
     create:
       success: Bill added
       success_income: Income added
+      success_transfer: Recurring transfer added
       due_date_required: "Enter the bill's next due date"
       amount_invalid: "Enter the amount as a plain number"
       account_invalid: "Pick an account you can add bills to, or leave it blank"
+      destination_invalid: "Pick a destination account you can write to, or leave it blank"
       already_exists: "This bill already exists"
     edit:
       trigger_label: Edit bill
@@ -101,6 +103,11 @@ en:
       auto_post_hint: Sure adds the transaction to the account on each due date.
       income_auto_post_hint: Sure adds the income to the account on each payday.
       auto_post_manual_only: Only for manual accounts. A linked account already gets this transaction from the bank.
+      destination_label: Move money to
+      destination_blank: "(none, this is a bill)"
+      destination_hint: Pick an account to make this a recurring transfer, such as a savings plan or a card payment.
+      merchant_label: Merchant
+      merchant_blank: "(none)"
       more_options: More options
       notes_label: Notes
       notes_placeholder: Account 4821, charged to the Amex

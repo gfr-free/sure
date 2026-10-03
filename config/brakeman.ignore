@@ -199,13 +199,13 @@
     {
       "warning_type": "Mass Assignment",
       "warning_code": 105,
-      "fingerprint": "0c0e91bf4db5f1f7e97c638ce73eaf8c50efbc84e64b4d8c7fad5e131bdb47c3",
+      "fingerprint": "3a0f067624d02fa7e9dd1ddf0e2f9d4bbaea41420ce1f254fb2540d7e57b969a",
       "check_name": "PermitAttributes",
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/recurring_transactions_controller.rb",
       "line": 385,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:recurring_transaction).permit(:name, :amount, :account_id, :first_due_on, :frequency_preset, :frequency_interval, :frequency_interval_unit, :payment_url, :autopay, :auto_post, :notes, :is_income)",
+      "code": "params.require(:recurring_transaction).permit(:name, :amount, :account_id, :first_due_on, :frequency_preset, :frequency_interval, :frequency_interval_unit, :payment_url, :autopay, :auto_post, :notes, :is_income, :merchant_id, :destination_account_id, :tag_ids => ([]))",
       "render_path": null,
       "location": {
         "type": "controller",
@@ -214,7 +214,7 @@
       },
       "user_input": ":account_id",
       "confidence": "High",
-      "note": "account_id is never mass-assigned: build_declared_bill resolves it through Current.user.accessible_accounts.find_by, so a foreign id degrades to no account rather than an association write."
+      "note": "account_id is never mass-assigned: build_declared_bill resolves it through Current.user.accessible_accounts.find_by, so a foreign id degrades to no account rather than an association write. merchant_id, destination_account_id and tag_ids are resolved the same way (available merchants, writable family accounts, family tags) and a foreign id is refused."
     }
   ],
   "brakeman_version": "7.1.0"

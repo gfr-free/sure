@@ -1,0 +1,61 @@
+<%# locals: (entry:, connection:, can_annotate: false) %>
+<% links = entry.transaction.paperless_links.includes(:paperless_connection).recent_first %>
+
+<div id="<%= dom_id(entry, :paperless_links) %>" class="pb-4 space-y-3">
+  <% if links.any? %>
+    <ul class="space-y-2">
+      <% links.each do |link| %>
+        <li class="flex items-center justify-between gap-3 p-3 border border-primary rounded-lg bg-container">
+          <div class="flex items-center gap-3 min-w-0">
+            <% if link.paperless_connection %>
+              <%= image_tag file_paperless_link_path(link, kind: "thumb"), alt: "", loading: "lazy",
+                            class: "w-10 h-12 object-cover rounded border border-primary shrink-0" %>
+            <% else %>
+              <div class="w-10 h-12 flex items-center justify-center rounded border border-primary shrink-0">
+                <%= icon "file-text", size: "sm", color: "secondary" %>
+              </div>
+            <% end %>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-primary truncate"><%= link.title.presence || t(".untitled", id: link.document_id) %></p>
+              <p class="text-xs text-secondary truncate">
+                <%= [ link.correspondent_name, (l(link.document_created_on, format: :long) if link.document_created_on) ].compact.join(" · ") %>
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <% if link.paperless_connection %>
+              <%= render DS::Link.new(href: file_paperless_link_path(link, kind: "preview"), variant: :outline, size: :sm,
+                                      icon: "eye", text: "", target: "_blank", aria: { label: t(".preview") }) %>
+              <%= render DS::Link.new(href: file_paperless_link_path(link, kind: "download"), variant: :outline, size: :sm,
+                                      icon: "download", text: "", data: { turbo: false }, aria: { label: t(".download") }) %>
+              <%= render DS::Link.new(href: link.document_url, variant: :outline, size: :sm, icon: "external-link",
+                                      text: "", target: "_blank", rel: "noopener noreferrer", aria: { label: t(".open_in_paperless") }) %>
+            <% end %>
+            <% if can_annotate %>
+              <%= render DS::Button.new(href: transaction_paperless_link_path(entry, link), method: :delete,
+                                        variant: :outline_destructive, size: :sm, icon: "unlink", aria: { label: t(".unlink") },
+                                        confirm: CustomConfirm.new(title: t(".unlink_confirm_title"),
+                                                                   body: t(".unlink_confirm_body"),
+                                                                   btn_text: t(".unlink"), destructive: true)) %>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-sm text-secondary"><%= t(".empty") %></p>
+  <% end %>
+
+  <% if can_annotate %>
+    <% if connection %>
+      <%= render DS::Link.new(text: t(".add"), icon: "plus", variant: :outline, size: :sm,
+                              href: new_transaction_paperless_link_path(entry), frame: :modal) %>
+    <% else %>
+      <p class="text-xs text-secondary">
+        <%= t(".not_connected") %>
+        <%= link_to t(".connect"), settings_paperless_path, class: "underline", data: { turbo_frame: "_top" } %>
+      </p>
+    <% end %>
+  <% end %>
+</div>

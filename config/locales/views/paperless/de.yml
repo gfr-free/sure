@@ -1,0 +1,91 @@
+---
+de:
+  paperless:
+    host_guard:
+      invalid_url: muss eine vollständige http(s)-Adresse sein, z. B. https://paperless.example.com
+      credentials_in_url: darf keinen Benutzernamen und kein Passwort enthalten
+      https_required: muss HTTPS verwenden, damit das API-Token verschlüsselt übertragen wird
+      unresolvable: konnte nicht aufgelöst werden
+      private_address: zeigt auf eine private oder lokale Netzadresse, die dieser Server nicht erlaubt. Der Betreiber kann sie mit PAPERLESS_ALLOW_PRIVATE_HOSTS=true freigeben.
+      admin_only: ist für Mitglieder nicht erlaubt. Server im lokalen Netz oder über einfaches HTTP können nur Familien-Admins verbinden; Mitglieder können einen Server nutzen, den ein Admin schon verbunden hat, oder eine öffentliche HTTPS-Adresse.
+  transactions:
+    paperless_links:
+      add: Aus Paperless verknüpfen
+      connect: Paperless verbinden
+      download: Herunterladen
+      empty: Noch keine Paperless-Dokumente verknüpft.
+      not_connected: Verbinde Paperless-ngx, um Belege und Rechnungen von dort zu verknüpfen.
+      open_in_paperless: In Paperless öffnen
+      preview: Vorschau
+      unlink: Verknüpfung lösen
+      unlink_confirm_body: Das Dokument bleibt in Paperless, nur die Verknüpfung mit dieser Buchung wird entfernt.
+      unlink_confirm_title: Verknüpfung lösen?
+      untitled: "Dokument #%{id}"
+  transaction_paperless_links:
+    not_connected: Verbinde zuerst Paperless.
+    new:
+      already_linked: Verknüpft
+      created_from_label: Erstellt ab
+      created_to_label: Erstellt bis
+      link: Verknüpfen
+      no_results: Keine passenden Dokumente
+      no_results_hint: Versuche einen anderen Suchbegriff oder einen größeren Zeitraum.
+      search: Suchen
+      search_failed: Suche in Paperless fehlgeschlagen
+      subtitle: "%{name} · %{date}"
+      text_label: In Titel und Inhalt suchen
+      text_placeholder: z. B. Händler, Rechnungsnummer oder Betrag
+      title: Paperless-Dokument verknüpfen
+      untitled: "Dokument #%{id}"
+    create:
+      already_linked: Dieses Dokument ist bereits mit der Buchung verknüpft.
+      failed: "Dokument konnte nicht verknüpft werden: %{error}"
+      success: Dokument verknüpft.
+    destroy:
+      success: Verknüpfung gelöst.
+  settings:
+    paperless:
+      not_allowed: Nur ein Familien-Admin kann die gemeinsame Paperless-Verbindung ändern.
+      show:
+        page_title: Paperless
+        mode:
+          title: Wer verbindet
+          subtitle: Lege fest, ob jedes Mitglied sein eigenes Paperless-Konto nutzt oder die Familie eines teilt.
+          label: Verbindungsart
+          options:
+            per_user: Jedes Mitglied verbindet sein eigenes Paperless-Konto
+            family: Eine gemeinsame Verbindung für die ganze Familie
+          help:
+            per_user: Jeder sieht nur die Dokumente, die sein eigener Paperless-Nutzer sehen darf. Empfohlen.
+            family: Alle Mitglieder sehen alle Dokumente, auf die das gemeinsame Token Zugriff hat. Nur Admins können diese Verbindung ändern.
+        connection:
+          title: Verbindung zu Paperless-ngx
+          subtitle: Die Dokumente bleiben in Paperless. Sure speichert nur Verknüpfungen und zeigt Vorschauen über deinen Server.
+          base_url_label: Paperless-Adresse
+          base_url_help: Wenn du die Adresse änderst, werden über die alte Adresse verknüpfte Dokumente gelöst; sie behalten ihren Titel, zeigen aber keine Vorschau mehr.
+          api_token_label: API-Token
+          api_token_placeholder: Token aus deinem Paperless-Profil einfügen
+          api_token_keep: Leer lassen, um das gespeicherte Token zu behalten
+          api_token_help: Öffne in Paperless „Mein Profil“ und erstelle ein Auth-Token. Ein Paperless-Nutzer ohne Admin-Rechte reicht und begrenzt, was Sure sehen kann.
+          verify_ssl_label: SSL-Zertifikat prüfen
+          verify_ssl_help: Nur für ein selbst signiertes Zertifikat im eigenen Netz ausschalten.
+          save: Speichern und testen
+          verify: Verbindung testen
+          disconnect: Trennen
+          disconnect_confirm_title: Paperless trennen?
+          disconnect_confirm_body: Bestehende Verknüpfungen behalten Titel und Datum, aber Vorschauen funktionieren erst nach erneutem Verbinden wieder.
+          connected: "Verbunden mit Paperless %{version} (zuletzt geprüft %{time})."
+          error_title: Verbindungsproblem
+          managed_by_admin: "Deine Familie nutzt eine gemeinsame Verbindung zu %{url}, die ein Admin verwaltet."
+          not_set_up_by_admin: Ein Admin hat die gemeinsame Verbindung noch nicht eingerichtet.
+      update:
+        success: "Paperless verbunden (Version %{version})."
+        saved_but_unreachable: "Gespeichert, aber Paperless war nicht erreichbar: %{error}"
+      verify:
+        success: "Verbindung funktioniert (Paperless %{version})."
+        failure: "Verbindung fehlgeschlagen: %{error}"
+        not_connected: keine Verbindung eingerichtet
+      destroy:
+        success: Paperless getrennt.
+      mode:
+        success: Verbindungsart geändert.

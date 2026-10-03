@@ -139,6 +139,14 @@
 
     <% dialog.with_section(title: t(".attachments")) do %>
       <%= render "transactions/attachments", transaction: @entry.transaction, can_upload: can_annotate_entry?, can_delete: can_edit_entry? %>
+
+      <% paperless_connection = Current.family.paperless_connection_for(Current.user) %>
+      <% if paperless_connection || @entry.transaction.paperless_links.exists? %>
+        <div class="pt-4 border-t border-primary">
+          <h4 class="text-sm font-medium text-secondary mb-3"><%= t(".paperless") %></h4>
+          <%= render "transactions/paperless_links", entry: @entry, connection: paperless_connection, can_annotate: can_annotate_entry? %>
+        </div>
+      <% end %>
     <% end %>
 
     <% if (details = build_transaction_extra_details(@entry)) %>

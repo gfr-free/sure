@@ -1,0 +1,21 @@
+---
+de:
+  account_grouping:
+    none: Ohne Angabe
+    dimensions:
+      subtype: Unterart
+      institution: Bank / Institut
+      connection: Anbindung
+      owner: Eigentümer
+      ownership: Eigene oder geteilte Konten
+      currency: Währung
+      tax_treatment: Steuerart
+      custom_group: Eigene Gruppe
+    connections:
+      manual: Manuell
+      plaid: Plaid
+      simplefin: SimpleFIN
+      enable_banking: Enable Banking
+    ownership:
+      mine: Meine Konten
+      shared_with_me: Mit mir geteilt

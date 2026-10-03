@@ -31,6 +31,21 @@ class Settings::AppearancesController < ApplicationController
         selected = (account_groups.is_a?(Array) ? account_groups : [ account_groups ])
         updated_prefs["always_expanded_account_groups"] = selected.select { |k| valid_keys.include?(k) }
       end
+      # Second grouping level for the account lists. Blank means "type only";
+      # anything outside the known dimensions is dropped.
+      AccountGrouping::VIEWS.each do |view|
+        param_key = :"account_grouping_#{view}"
+        next unless params.dig(:user, param_key)
+
+        dimension = params.dig(:user, param_key).to_s
+        updated_prefs["account_grouping"] = (updated_prefs["account_grouping"] || {}).merge(
+          view => (AccountGrouping.valid_dimension?(dimension) ? dimension : nil)
+        ).compact
+      end
+      if (label = params.dig(:user, :custom_account_group_label))
+        updated_prefs["custom_account_group_label"] = label.to_s.squish.first(AccountGrouping::CUSTOM_GROUP_MAX_LENGTH).presence
+        updated_prefs.delete("custom_account_group_label") if updated_prefs["custom_account_group_label"].nil?
+      end
       @user.update!(preferences: updated_prefs)
     end
     redirect_to settings_appearance_path

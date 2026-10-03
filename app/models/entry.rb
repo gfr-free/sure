@@ -212,6 +212,7 @@ class Entry < ApplicationRecord
         .where.not(id: pending_entry.id)
         .where(currency: pending_entry.currency)
         .where(amount: pending_entry.amount)
+        .where(source: pending_entry.source) # one provider's pending is never another provider's duplicate
         .where(date: pending_entry.date..(pending_entry.date + date_window.days)) # Posted must be ON or AFTER pending date
         .where(not_pending_sql)
         .limit(2) # Only need to know if 0, 1, or 2+ candidates
@@ -327,6 +328,7 @@ class Entry < ApplicationRecord
       .where(excluded: false)
       .where(currency: posted_entry.currency)
       .where(amount: posted_entry.amount)
+      .where(source: posted_entry.source)
       .where(date: (posted_entry.date - date_window.days)..posted_entry.date)
       .limit(2)
       .count == 1

@@ -55,6 +55,18 @@ class EntryTest < ActiveSupport::TestCase
     assert_not second.reload.excluded?
   end
 
+  test "reconcile_pending_duplicates ignores a booked entry from another provider" do
+    account = accounts(:depository)
+    pending = create_pending(account, date: 3.days.ago.to_date, amount: 30)
+    pending.update_columns(source: "simplefin")
+    booked = create_transaction(account: account, date: 1.day.ago.to_date, amount: 30)
+    booked.update_columns(source: "lunchflow")
+
+    Entry.reconcile_pending_duplicates(account: account)
+
+    assert_not pending.reload.excluded?
+  end
+
   private
     def create_pending(account, date:, amount:)
       create_transaction(

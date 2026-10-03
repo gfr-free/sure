@@ -406,13 +406,22 @@ class BudgetCategory < ApplicationRecord
     budget.budget_categories.select { |bc| bc.category.parent_id == category.parent_id && bc.id != id }
   end
 
+  # Filtered from the budget's already loaded rows, like `siblings` and
+  # `parent_budget_category`, and memoized: every shared child's
+  # available_to_spend and percent_of_budget_spent asks its parent for these,
+  # so a query here ran several times per row on the budget page.
   def subcategories
-    return BudgetCategory.none unless category.parent_id.nil?
-    return BudgetCategory.none if category.id.nil?
+    return [] unless category.parent_id.nil?
+    return [] if category.id.nil?
 
-    budget.budget_categories
-      .joins(:category)
-      .where(categories: { parent_id: category.id })
+    @subcategories ||= budget.budget_categories.select { |bc| bc.category.parent_id == category.id }
+  end
+
+  # The memo must not outlive a reload: move_allocation! re-reads its rows
+  # under lock and re-checks the balance against fresh subcategories.
+  def reload(*)
+    @subcategories = nil
+    super
   end
 
   private

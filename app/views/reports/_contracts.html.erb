@@ -1,0 +1,59 @@
+<%# locals: (report:) %>
+<div class="space-y-4">
+  <p class="text-sm text-secondary"><%= t(".description") %></p>
+
+  <div class="bg-container-inset rounded-xl p-1">
+    <div class="bg-container rounded-lg shadow-border-xs divide-y divide-subdued">
+      <% report.by_kind.each do |row| %>
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <%= icon Contract.icon_for(row.kind), size: "sm", color: "secondary" %>
+            <span class="text-sm text-primary"><%= t("contracts.kinds.#{row.kind}") %></span>
+            <span class="text-xs text-secondary"><%= row.count %></span>
+          </div>
+          <span class="text-sm text-primary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(row.annual_cost)) %></span>
+        </div>
+      <% end %>
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <span class="text-sm font-medium text-primary"><%= t(".total") %></span>
+        <span class="text-sm font-medium text-primary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(report.total_annual_cost)) %></span>
+      </div>
+    </div>
+  </div>
+  <% if report.unconvertible_count.positive? %>
+    <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: report.unconvertible_count) %></p>
+  <% end %>
+
+  <% if report.insurance.any? %>
+    <div class="space-y-2">
+      <h3 class="text-sm font-medium text-primary"><%= t(".insurance_title") %></h3>
+      <p class="text-xs text-secondary"><%= t(".insurance_description") %></p>
+      <div class="bg-container rounded-lg shadow-border-xs divide-y divide-subdued">
+        <% report.insurance.each do |row| %>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div class="min-w-0">
+              <%= link_to row.contract.name, contract_path(row.contract), class: "text-sm text-primary hover:underline" %>
+              <p class="text-xs text-secondary">
+                <%= row.line ? t("contracts.insurance_lines.#{row.line}") : t(".line_unknown") %>
+              </p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <% if row.possibly_deductible %>
+                <%= render DS::Pill.new(label: t(".possibly_deductible"), tone: :info, marker: false) %>
+              <% end %>
+              <span class="text-sm text-primary privacy-sensitive"><%= format_money(row.paid) %></span>
+            </div>
+          </div>
+        <% end %>
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <span class="text-sm font-medium text-primary"><%= t(".possibly_deductible_total") %></span>
+          <span class="text-sm font-medium text-primary privacy-sensitive"><%= format_money(report.possibly_deductible_total) %></span>
+        </div>
+      </div>
+      <p class="text-xs text-secondary"><%= t(".tax_disclaimer") %></p>
+    </div>
+  <% end %>
+  <% if report.unconvertible_payment_count.positive? %>
+    <p class="text-xs text-warning"><%= t(".unconvertible_payments", count: report.unconvertible_payment_count) %></p>
+  <% end %>
+</div>

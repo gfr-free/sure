@@ -31,7 +31,7 @@ class Family::DataImporter
     end
   end
 
-  SUPPORTED_TYPES = %w[Account Balance Category Tag Merchant ProviderMerchant RecurringTransaction RecurrenceRule RecurringOccurrence RecurringAllocation RecurringPriceChange RecurringMatchRejection Transaction Transfer RejectedTransfer Trade Holding Valuation Budget BudgetCategory Rule].freeze
+  SUPPORTED_TYPES = %w[Account Balance Category Tag Merchant ProviderMerchant Contract ContractShare RecurringTransaction RecurrenceRule RecurringOccurrence RecurringAllocation RecurringPriceChange RecurringMatchRejection Transaction Transfer RejectedTransfer Trade Holding Valuation Budget BudgetCategory Rule].freeze
   ACCOUNTABLE_TYPE_CLASSES = {
     "Depository" => Depository, "Investment" => Investment, "Crypto" => Crypto,
     "Property" => Property, "Vehicle" => Vehicle, "OtherAsset" => OtherAsset,
@@ -47,6 +47,7 @@ class Family::DataImporter
     categories: "Category",
     tags: "Tag",
     merchants: "Merchant",
+    contracts: "Contract",
     recurring_transactions: "RecurringTransaction",
     recurring_occurrences: "RecurringOccurrence",
     transactions: "Transaction",
@@ -61,6 +62,8 @@ class Family::DataImporter
     "Tag" => "tags",
     "Merchant" => "merchants",
     "ProviderMerchant" => "provider_merchants",
+    "Contract" => "contracts",
+    "ContractShare" => "contract_shares",
     "RecurringTransaction" => "recurring_transactions",
     "RecurrenceRule" => "recurrence_rules",
     "RecurringOccurrence" => "recurring_occurrences",
@@ -89,6 +92,7 @@ class Family::DataImporter
       categories: {},
       tags: {},
       merchants: {},
+      contracts: {},
       recurring_transactions: {},
       recurring_occurrences: {},
       transactions: {},
@@ -116,6 +120,8 @@ class Family::DataImporter
       import_tags(records["Tag"] || [])
       import_merchants(records["Merchant"] || [])
       import_provider_merchants(records["ProviderMerchant"] || [])
+      import_contracts(records["Contract"] || [])
+      import_contract_shares(records["ContractShare"] || [])
       import_recurring_transactions(records["RecurringTransaction"] || [])
       import_transactions(records["Transaction"] || [])
       # Bills: rules and occurrences need their series, allocations and the
@@ -612,7 +618,8 @@ class Family::DataImporter
           end_after_count: data["end_after_count"],
           weekend_adjust: imported_enum_value(data["weekend_adjust"], RecurringTransaction.weekend_adjusts, "none"),
           holiday_calendar: data["holiday_calendar"],
-          matcher_hints: data["matcher_hints"] || {}
+          matcher_hints: data["matcher_hints"] || {},
+          contract_id: mapped_id(:contracts, data["contract_id"], record_type: "RecurringTransaction", required: false)
         )
         # These columns are NOT NULL with database defaults. An export written
         # before they existed omits them, and assigning nil would replace a
@@ -661,6 +668,118 @@ class Family::DataImporter
       return if old_id.blank?
 
       mapped_id(mapping_key, old_id, record_type: record_type)
+    end
+
+    # --- Contracts -------------------------------------------------------
+    #
+    # Users are not part of an export, so the owner and the shares only carry
+    # over when the same members exist in the target family (a re-import on the
+    # same instance). Otherwise the importing member owns the contract.
+
+    def import_contracts(records)
+      pending_successors = {}
+
+      records.each do |record|
+        data = record["data"]
+        old_id = data["id"]
+
+        require_source_id!("Contract", old_id)
+
+        contract = mapped_record(:contracts, old_id, @family.contracts, record_type: "Contract")
+        created = contract.blank?
+        contract ||= @family.contracts.build
+
+        owner = @family.users.find_by(id: data["owner_id"]) if data["owner_id"].present?
+        contract.owner = owner if owner
+
+        merchant_id = mapped_id(:merchants, data["merchant_id"], record_type: "Contract", required: false) if data["merchant_id"].present?
+        account_id = mapped_id(:accounts, data["account_id"], record_type: "Contract", required: false) if data["account_id"].present?
+
+        # A merchant that did not come across, or the free-text provider of an
+        # older export, finds the family merchant of that name when there is
+        # one. None is created: the import restores what was exported.
+        if merchant_id.blank?
+          provider = (data["merchant_name"].presence || data["provider_name"].presence).to_s.strip.downcase
+          merchant_id = @family.merchants.where("LOWER(name) = ?", provider).pick(:id) if provider.present?
+        end
+
+        ends_on = parse_import_date(data["ends_on"])
+        # Older exports record cancellations as their own statuses; a contract
+        # with an end, cancelled or not, is ended now.
+        ended = data["status"].to_s.in?(%w[ended cancelled cancellation_sent]) && (ends_on.present? || data["status"] == "ended")
+        ends_on ||= parse_import_date(data["cancelled_on"]) || Date.current if ended
+
+        contract.assign_attributes(
+          account_id: account_id,
+          merchant_id: merchant_id,
+          name: data["name"],
+          kind: imported_enum_value(data["kind"], Contract.kinds, "other"),
+          status: ended ? "ended" : "active",
+          contract_number: data["contract_number"],
+          customer_number: data["customer_number"],
+          started_on: parse_import_date(data["started_on"]),
+          minimum_term_months: data["minimum_term_months"],
+          notice_period_value: data["notice_period_value"],
+          notice_period_unit: data["notice_period_unit"].to_s.in?(Contract.notice_period_units.keys) ? data["notice_period_unit"] : nil,
+          notice_anchor: data["notice_anchor"].to_s.in?(Contract.notice_anchors.keys) ? data["notice_anchor"] : nil,
+          renewal_period_months: data["renewal_period_months"],
+          renewal_anchor_on: parse_import_date(data["renewal_anchor_on"]),
+          ends_on: ends_on,
+          portal_url: data["portal_url"],
+          service_phone: data["service_phone"],
+          service_email: data["service_email"],
+          claims_phone: data["claims_phone"],
+          document_links: Array(data["document_links"]),
+          email_reminders: boolean_import_value(data, "email_reminders", default: true),
+          notice_not_required: boolean_import_value(data, "notice_not_required", default: false),
+          # Which reminder stages already went out, so a restore does not
+          # re-send them. Absent in older exports.
+          notice_reminders_sent: data["notice_reminders_sent"].is_a?(Hash) ? data["notice_reminders_sent"] : {},
+          details: data["details"].is_a?(Hash) ? data["details"] : {},
+          notes: data["notes"]
+        )
+
+        unless contract.save
+          invalid_record!("Contract", contract.errors.attribute_names.first || "base", contract.errors.full_messages.to_sentence)
+          next
+        end
+
+        map_source!(:contracts, old_id, contract)
+        pending_successors[contract.id] = data["replaced_by_id"] if data["replaced_by_id"].present?
+        increment_summary("Contract", created ? :created : :updated)
+      end
+
+      pending_successors.each do |contract_id, source_successor_id|
+        successor_id = mapped_id(:contracts, source_successor_id, record_type: "Contract", required: false)
+        next if successor_id.blank? || successor_id == contract_id
+
+        @family.contracts.where(id: contract_id).update_all(replaced_by_id: successor_id)
+      end
+    end
+
+    def import_contract_shares(records)
+      records.each do |record|
+        data = record["data"]
+        contract_id = mapped_id(:contracts, data["contract_id"], record_type: "ContractShare", required: false)
+        contract = @family.contracts.find_by(id: contract_id) if contract_id
+        user = @family.users.find_by(id: data["user_id"]) if data["user_id"].present?
+
+        if contract.nil? || user.nil? || contract.owner_id == user.id
+          increment_summary("ContractShare", :skipped)
+          next
+        end
+
+        share = contract.contract_shares.find_or_initialize_by(user: user)
+        created = share.new_record?
+        share.permission = data["permission"].to_s.in?(ContractShare::PERMISSIONS) ? data["permission"] : "read_only"
+        share.permission = "read_only" if user.guest?
+
+        if share.save
+          increment_summary("ContractShare", created ? :created : :updated)
+        else
+          increment_summary("ContractShare", :skipped)
+        end
+      end
     end
 
     # --- Bills subsystem -------------------------------------------------

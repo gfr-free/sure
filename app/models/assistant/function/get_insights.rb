@@ -49,12 +49,13 @@ class Assistant::Function::GetInsights < Assistant::Function
   end
 
   # Insights are family-scoped by design (the nightly generator runs per
-  # family, not per user), so there is no per-account visibility filter here.
-  # That matches the web feed exactly: InsightsController serves
-  # Current.family.insights to every member, so this tool exposes nothing the
-  # /insights page does not already show the same user.
+  # family, not per user), except the ones addressed to a single member (a
+  # contract they own). That matches the web feed exactly: InsightsController
+  # serves the family's insights plus the user's own, so this tool exposes
+  # nothing the /insights page does not already show the same user.
   def call(params = {})
-    scope = params["include_acknowledged"] ? family.insights.where.not(status: :expired) : family.insights.visible
+    base = family.insights.for_user(user)
+    scope = params["include_acknowledged"] ? base.where.not(status: :expired) : base.visible
     scope = scope.where(insight_type: params["insight_type"]) if params["insight_type"].present?
 
     limit = params["limit"].present? ? params["limit"].to_i.clamp(1, MAX_LIMIT) : DEFAULT_LIMIT

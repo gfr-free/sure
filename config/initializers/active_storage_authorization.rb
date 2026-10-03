@@ -2,7 +2,7 @@
 Rails.application.config.to_prepare do
   module ActiveStorageAttachmentAuthorization
     extend ActiveSupport::Concern
-    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement].freeze
+    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement ContractDocument].freeze
 
     included do
       include Authentication
@@ -32,6 +32,8 @@ Rails.application.config.to_prepare do
           transaction_attachment_authorized?(attachment)
         when "AccountStatement"
           account_statement_attachment_authorized?(attachment)
+        when "ContractDocument"
+          contract_document_attachment_authorized?(attachment)
         else
           false
         end
@@ -51,6 +53,16 @@ Rails.application.config.to_prepare do
         return false if statement.nil?
 
         statement.viewable_by?(Current.user)
+      rescue ActiveRecord::RecordNotFound
+        false
+      end
+
+      # Only people who may see the contract, as on the contract page itself.
+      def contract_document_attachment_authorized?(attachment)
+        document = attachment.record
+        return false if document.nil? || Current.user.nil? || Current.family.nil?
+
+        Current.family.contracts.accessible_by(Current.user).exists?(id: document.contract_id)
       rescue ActiveRecord::RecordNotFound
         false
       end

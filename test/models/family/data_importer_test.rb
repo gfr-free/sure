@@ -637,6 +637,81 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal false, restored_named.manual
   end
 
+  test "round trips contracts with their bills, successor and shares" do
+    source = families(:dylan_family)
+    old_contract = contracts(:liability_insurance)
+    successor = contracts(:phone_plan)
+    old_contract.update!(replaced_by: successor, document_links: [ { "url" => "https://docs.example.com/1" } ],
+                         notice_reminders_sent: { "2026-09-30" => [ 30 ] })
+    recurring_transactions(:netflix_subscription).update!(contract: successor)
+
+    ndjson = nil
+    Zip::File.open_buffer(Family::DataExporter.new(source).generate_export) do |zip|
+      ndjson = zip.read("all.ndjson")
+    end
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    restored_old = @family.contracts.find_by!(name: "Private liability")
+    restored_new = @family.contracts.find_by!(name: "Phone plan")
+
+    assert_equal "LV-2024-004711", restored_old.contract_number
+    assert_equal "insurance", restored_old.kind
+    assert_equal "end_of_term", restored_old.notice_anchor
+    assert_equal restored_new, restored_old.replaced_by
+    assert_equal [ { "url" => "https://docs.example.com/1" } ], restored_old.document_links
+    assert_equal({ "2026-09-30" => [ 30 ] }, restored_old.notice_reminders_sent,
+                 "sent reminder stages travel with the contract or a restore re-sends them")
+    assert_equal "K-123456", restored_new.customer_number
+    # Members do not travel with an export, so the importing family owns it
+    # and the source family's shares are skipped.
+    assert_equal @family.id, restored_new.owner.family_id
+    assert_empty restored_new.contract_shares.where(user: users(:family_member))
+    assert_equal [ restored_new ], @family.recurring_transactions.where.not(contract_id: nil).map(&:contract)
+  end
+
+  test "a contract whose merchant did not come across finds the family merchant of that name" do
+    merchant = @family.merchants.create!(name: "FitX")
+    ndjson = build_ndjson([
+      { type: "Contract", data: { id: "c-1", name: "Gym", kind: "fitness", merchant_id: "missing-merchant", merchant_name: "fitx" } },
+      { type: "Contract", data: { id: "c-2", name: "Pool", kind: "fitness", provider_name: "Unknown Pool" } }
+    ])
+
+    assert_no_difference -> { Merchant.count } do
+      Family::DataImporter.new(@family, ndjson).import!
+    end
+
+    assert_equal merchant, @family.contracts.find_by!(name: "Gym").merchant
+    assert_nil @family.contracts.find_by!(name: "Pool").merchant_id
+  end
+
+  test "an older export's cancellation becomes an end" do
+    ndjson = build_ndjson([
+      { type: "Contract", data: { id: "c-1", name: "Gym", kind: "fitness", status: "cancelled", ends_on: "2026-12-31" } },
+      { type: "Contract", data: { id: "c-2", name: "Pool", kind: "fitness", status: "cancellation_sent" } }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    gym = @family.contracts.find_by!(name: "Gym")
+    assert gym.ended?
+    assert_equal Date.new(2026, 12, 31), gym.ends_on
+    assert @family.contracts.find_by!(name: "Pool").active?, "no end date, so nothing ended yet"
+  end
+
+  test "records a source mapping for contracts imported in a session" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    ndjson = build_ndjson([
+      { type: "Contract", data: { id: "c-session", name: "Gym", kind: "fitness", provider_name: "FitX" } }
+    ])
+
+    Family::DataImporter.new(@family, ndjson, import_session: session).import!
+
+    contract = @family.contracts.find_by!(name: "Gym")
+    mapping = session.source_mappings.find_by!(source_type: "Contract", source_id: "c-session")
+    assert_equal contract, mapping.target
+  end
+
   test "imports recurring transactions with unknown status fallback" do
     ndjson = build_ndjson([
       {

@@ -168,6 +168,19 @@ en:
       holdings: Holdings
       sell_trades: Sell Trades
       and_more: "+%{count} more"
+    contracts:
+      title: "Fixed costs & contracts"
+      description: "What your contracts cost per year, from the bills linked to them."
+      total: "Total"
+      insurance_title: "Insurance premiums paid in this period"
+      insurance_description: "From the payments recorded on bills linked to insurance contracts."
+      line_unknown: "Line not set"
+      possibly_deductible: "Possibly deductible"
+      possibly_deductible_total: "Possibly deductible in total"
+      unconvertible_payments:
+        one: "1 payment could not be converted to the household currency and is missing from the insurance premiums."
+        other: "%{count} payments could not be converted to the household currency and are missing from the insurance premiums."
+      tax_disclaimer: "Premiums for liability, accident, disability, term life, supplementary health and long-term care insurance (and the liability share of car insurance) can count as provident expenses in a German tax return, within caps. Not tax advice."
     investment_flows:
       title: Investment Flows
       description: Track money flowing into and out of your investment accounts through contributions and withdrawals.

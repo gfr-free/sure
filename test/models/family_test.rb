@@ -294,6 +294,21 @@ class FamilyTest < ActiveSupport::TestCase
     assert_equal "vs_test123", family.reload.vector_store_id
   end
 
+  test "upload_document removes the stored copy when the local record fails" do
+    family = families(:dylan_family)
+    family.update!(vector_store_id: "vs_test123")
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:upload_file).returns(VectorStore::Response.new(success?: true, data: { file_id: "file-lost" }, error: nil))
+    adapter.expects(:remove_file).with(store_id: "vs_test123", file_id: "file-lost")
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+    FamilyDocument.any_instance.stubs(:save!).raises(ActiveRecord::RecordInvalid.new(FamilyDocument.new))
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      family.upload_document(file_content: "hello", filename: "notes.txt")
+    end
+  end
+
   # auto_share_existing_accounts_with -----------------------------------------
 
   test "auto_share_existing_accounts_with shares existing family accounts read_write when sharing is default" do

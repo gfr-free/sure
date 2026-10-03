@@ -1,0 +1,15 @@
+<h1><%= t(".heading", name: @contract.name) %></h1>
+
+<p><%= t(".intro", name: @contract.name, deadline: I18n.l(@deadline, format: :long), term_ends_on: I18n.l(@term_ends_on, format: :long)) %></p>
+
+<p><%= t(".days_left", count: @days_left) %></p>
+
+<% if Contract.http_url?(@contract.portal_url) %>
+  <p><%= t(".portal") %> <%= link_to @contract.portal_url, @contract.portal_url %></p>
+<% end %>
+
+<p style="margin-top: 16px;">
+  <%= link_to t(".cta"), @contract_url, class: "button" %>
+</p>
+
+<p style="margin-top: 16px;"><small><%= t(".footer") %></small></p>

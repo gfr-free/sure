@@ -49,6 +49,9 @@ class Merchant::Merger
         # Reassign family's transactions to target
         scope.update_all(merchant_id: target_merchant.id)
 
+        # Contracts keep their provider when its merchant is merged away.
+        family.contracts.where(merchant_id: source.id).update_all(merchant_id: target_merchant.id, updated_at: Time.current)
+
         # Delete FamilyMerchant, keep ProviderMerchant (it may be used by other families)
         source.destroy! if source.is_a?(FamilyMerchant)
 

@@ -1,0 +1,39 @@
+<%# locals: (series:) %>
+<%# The contract behind a bill, or the way to record one. The contract line
+    only shows to people who may see the contract; a bill without an account
+    is visible to the whole household, its contract may not be. %>
+<% contract = series.contract %>
+<% if contract&.viewable_by?(Current.user) %>
+  <div class="space-y-2">
+    <%= link_to contract_path(contract), class: "inline-flex items-center gap-1.5 text-sm text-primary hover:underline", data: { turbo_frame: "_top" } do %>
+      <%= icon contract.icon, size: "sm", color: "secondary" %>
+      <%= t("bills.contract_line.linked", name: contract.name) %>
+      <%= icon "chevron-right", size: "sm", color: "secondary" %>
+    <% end %>
+
+    <% if contract.effectively_ended? && series.runs_past?(contract.ends_on || Date.current) %>
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-warning/10 rounded-lg p-3">
+        <p class="text-xs text-primary">
+          <%= contract.ends_on ? t("bills.contract_line.ended_on", date: l(contract.ends_on, format: :long)) : t("bills.contract_line.ended") %>
+        </p>
+        <% if bill_writable?(series) %>
+          <%= render DS::Button.new(
+                text: t("bills.contract_line.end_bill"),
+                variant: :outline,
+                size: :sm,
+                href: end_linked_bills_contract_path(contract),
+                method: :post,
+                data: { turbo_frame: "_top" }
+              ) %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% elsif contract.nil? && series.active? && !series.typed_income? && !series.transfer? && bill_writable?(series) %>
+  <%= link_to new_contract_path(recurring_transaction_id: series.id),
+        class: "inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary",
+        data: { turbo_frame: :modal } do %>
+    <%= icon "file-signature", size: "sm" %>
+    <%= t("bills.contract_line.record") %>
+  <% end %>
+<% end %>

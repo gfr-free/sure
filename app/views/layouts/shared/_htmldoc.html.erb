@@ -21,6 +21,7 @@
 
     <% if Current.family %>
       <%= turbo_stream_from Current.family %>
+      <%= turbo_stream_from Current.user, :insights_badge if Current.user %>
     <% end %>
 
     <%= turbo_frame_tag "modal" %>

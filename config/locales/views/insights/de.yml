@@ -5,6 +5,7 @@ de:
       title: Neue Finanzanalyse
       body: Öffne Sure, um deine neueste KI-Analyse anzusehen.
     actions:
+      contract: Vertrag ansehen
       budget: Budget ansehen
       cash_flow_warning: Wiederkehrende Buchungen prüfen
       idle_cash: Zum Konto
@@ -25,6 +26,13 @@ de:
       header_new: Neu
       view_all: Alle Insights ansehen
     figures:
+      days_left:
+        one: "noch %{count} Tag"
+        other: "noch %{count} Tage"
+      was: "vorher %{amount}"
+      payments:
+        one: "%{count} Zahlung"
+        other: "%{count} Zahlungen"
       days_overdue:
         one: "%{count} Tag überfällig"
         other: "%{count} Tage überfällig"
@@ -55,6 +63,12 @@ de:
       checking: Wird geprüft …
       queued: Wir erzeugen gerade neue Insights. Schau in einer Minute noch einmal vorbei.
     templates:
+      contract_notice_deadline: "Damit %{name} zum %{term_ends_on} endet, muss deine Kündigung bis zum %{deadline} eingehen. Sonst läuft der Vertrag weiter."
+      contract_price_increase:
+        special: "%{name} kostet seit dem %{effective_on} %{new_amount} statt %{previous_amount}. Eine Preiserhöhung gibt dir oft ein Sonderkündigungsrecht; prüfe das Schreiben, mit dem sie angekündigt wurde."
+        plain: "%{name} kostet seit dem %{effective_on} %{new_amount} statt %{previous_amount}."
+      contract_charges_after_end: "%{name} ist am %{ends_on} geendet, trotzdem wurden %{count} Zahlungen über insgesamt %{amount} abgebucht, zuletzt am %{latest_on}. Möglicherweise steht dir eine Erstattung zu."
+      contract_price_guarantee_ending: "Die Preisgarantie für %{name} endet am %{guarantee_until}. Danach darf der Anbieter den Preis erhöhen, ein guter Zeitpunkt also, Angebote zu vergleichen."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
@@ -74,6 +88,10 @@ de:
         below: Hochgerechnet gibst du diesen Monat %{projected_spend} für %{category} aus, rund %{deviation_pct} % weniger als dein jüngster Monatsschnitt von %{baseline_spend}.
       subscription_audit: "%{name} (%{amount}) ist seit dem erwarteten Termin am %{expected_on} nicht mehr aufgetaucht. Vielleicht ist das Abo gekündigt oder die Abbuchung hat sich verschoben."
     titles:
+      contract_notice_deadline: "Kündigungsfrist für %{name}"
+      contract_price_increase: "%{name} ist teurer geworden"
+      contract_charges_after_end: "%{name} bucht weiter ab"
+      contract_price_guarantee_ending: "Preisgarantie für %{name} läuft aus"
       budget_at_risk:
         one: Eine Kategorie in deinem Budget braucht Aufmerksamkeit
         other: "%{count} Kategorien in deinem Budget brauchen Aufmerksamkeit"
@@ -92,6 +110,10 @@ de:
         below: Deine Ausgaben für %{category} sinken
       subscription_audit: Läuft %{name} noch?
     types:
+      contract_notice_deadline: Vertrag
+      contract_price_increase: Vertrag
+      contract_charges_after_end: Vertrag
+      contract_price_guarantee_ending: Vertrag
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität

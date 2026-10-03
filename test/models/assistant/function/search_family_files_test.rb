@@ -51,8 +51,120 @@ class Assistant::Function::SearchFamilyFilesTest < ActiveSupport::TestCase
     assert_equal "provider_not_configured", result[:error]
   end
 
+  test "drops hits from contract documents the user cannot see" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    member = users(:family_member)
+    private_contract = contracts(:liability_insurance)
+    shared_contract = contracts(:phone_plan)
+
+    [ [ private_contract, "file-private" ], [ shared_contract, "file-shared" ] ].each do |contract, file_id|
+      family_document = family.family_documents.create!(filename: "#{file_id}.pdf", status: "ready", provider_file_id: file_id)
+      document = contract.contract_documents.new(family_document: family_document, ai_searchable: true)
+      document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "#{file_id}.pdf", content_type: "application/pdf")
+      document.save!
+    end
+
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-other")
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "private policy", filename: "file-private.pdf", score: 0.9, file_id: "file-private" },
+          { content: "shared plan", filename: "file-shared.pdf", score: 0.8, file_id: "file-shared" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-other" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = Assistant::Function::SearchFamilyFiles.new(member).call("query" => "policy")
+
+    assert_equal [ "shared plan", "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
+  test "drops hits from contract files whose contract document is gone" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family.family_documents.create!(
+      filename: "orphan.pdf", status: "ready", provider_file_id: "file-orphan",
+      metadata: { "type" => "contract", "contract_id" => contracts(:phone_plan).id }
+    )
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-other")
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "deleted policy", filename: "orphan.pdf", score: 0.9, file_id: "file-orphan" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-other" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "policy")
+
+    assert_equal [ "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
+  test "drops hits from contract documents opted out of search" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family_document = family.family_documents.create!(
+      filename: "opted-out.pdf", status: "ready", provider_file_id: "file-opted-out",
+      metadata: { "type" => "contract", "contract_id" => contracts(:phone_plan).id }
+    )
+    document = contracts(:phone_plan).contract_documents.new(family_document: family_document, ai_searchable: false)
+    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "opted-out.pdf", content_type: "application/pdf")
+    document.save!
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [ { content: "opted out", filename: "opted-out.pdf", score: 0.9, file_id: "file-opted-out" } ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "plan")
+
+    assert_empty result[:results]
+  end
+
+  test "drops hits without a local record, such as an interrupted upload" do
+    family = @user.family
+    family.update!(vector_store_id: "vs_test123")
+    family.family_documents.create!(filename: "tax.pdf", status: "ready", provider_file_id: "file-known")
+
+    adapter = mock("vector_store_adapter")
+    adapter.stubs(:search).returns(
+      VectorStore::Response.new(
+        success?: true,
+        data: [
+          { content: "private plan", filename: "plan.pdf", score: 0.9, file_id: "file-orphan" },
+          { content: "tax return", filename: "tax.pdf", score: 0.7, file_id: "file-known" }
+        ],
+        error: nil
+      )
+    )
+    VectorStore::Registry.stubs(:adapter).returns(adapter)
+
+    result = @function.call("query" => "plan")
+
+    assert_equal [ "tax return" ], result[:results].map { |r| r[:content] }
+  end
+
   test "returns search results on success" do
     @user.family.update!(vector_store_id: "vs_test123")
+    @user.family.family_documents.create!(filename: "2024_tax_return.pdf", status: "ready", provider_file_id: "file-abc")
 
     mock_adapter = mock("vector_store_adapter")
     mock_adapter.stubs(:search).returns(

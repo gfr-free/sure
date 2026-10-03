@@ -1,0 +1,13 @@
+<%= t(".heading", name: @contract.name) %>
+
+<%= t(".intro", name: @contract.name, deadline: I18n.l(@deadline, format: :long), term_ends_on: I18n.l(@term_ends_on, format: :long)) %>
+
+<%= t(".days_left", count: @days_left) %>
+<% if @contract.portal_url.present? %>
+
+<%= t(".portal") %> <%= @contract.portal_url %>
+<% end %>
+
+<%= t(".cta") %>: <%= @contract_url %>
+
+<%= t(".footer") %>

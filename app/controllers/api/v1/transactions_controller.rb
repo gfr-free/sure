@@ -3,10 +3,16 @@
 class Api::V1::TransactionsController < Api::V1::BaseController
   include Pagy::Backend
 
+  # Fields a read_write share may change, mirroring the annotate-only subset
+  # of the web TransactionsController#permitted_entry_params.
+  ANNOTATABLE_FIELDS = %w[notes category_id merchant_id tag_ids user_modified].freeze
+
   # Ensure proper scope authorization for read vs write access
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :create, :update, :destroy ]
   before_action :set_transaction, only: [ :show, :update, :destroy ]
+  before_action :ensure_update_permission, only: :update
+  before_action :ensure_destroy_permission, only: :destroy
 
   def index
     family = current_resource_owner.family
@@ -90,7 +96,11 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       return
     end
 
-    account = family.accounts.writable_by(current_resource_owner).find(account_id_param)
+    account = family.accounts.writable_by(current_resource_owner).find_by(id: account_id_param)
+    unless account
+      render json: { error: "not_found", message: "Account not found" }, status: :not_found
+      return
+    end
 
     if idempotency_key_requested? && (existing_entry = existing_idempotent_entry(account))
       return render_existing_idempotent_entry(existing_entry)
@@ -216,6 +226,41 @@ class Api::V1::TransactionsController < Api::V1::BaseController
         error: "not_found",
         message: "Transaction not found"
       }, status: :not_found
+    end
+
+    # The transaction is visible (set_transaction scopes by accessible_by);
+    # changing it additionally needs write access to its account, the same
+    # owner/full_control rule the web controllers apply. read_write shares may
+    # only annotate, matching the web UI.
+    def ensure_update_permission
+      case entry_permission
+      when :owner, :full_control
+        nil
+      when :read_write
+        render_account_forbidden unless (requested_transaction_fields - ANNOTATABLE_FIELDS).empty?
+      else
+        render_account_forbidden
+      end
+    end
+
+    def ensure_destroy_permission
+      render_account_forbidden unless entry_permission.in?([ :owner, :full_control ])
+    end
+
+    def requested_transaction_fields
+      fields = params[:transaction]
+      fields.respond_to?(:keys) ? fields.keys.map(&:to_s) : []
+    end
+
+    def entry_permission
+      @entry_permission ||= @entry.account.permission_for(current_resource_owner)
+    end
+
+    def render_account_forbidden
+      render json: {
+        error: "forbidden",
+        message: "You do not have permission to modify transactions in this account"
+      }, status: :forbidden
     end
 
     def ensure_read_scope

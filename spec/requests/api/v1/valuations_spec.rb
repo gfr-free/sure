@@ -36,6 +36,7 @@ RSpec.describe 'API V1 Valuations', type: :request do
   let(:account) do
     Account.create!(
       family: family,
+      owner: user,
       name: 'Investment Account',
       balance: 10000,
       currency: 'USD',
@@ -57,6 +58,27 @@ RSpec.describe 'API V1 Valuations', type: :request do
 
   let!(:valuation) { valuation_entry.entryable }
   let!(:valuation_id) { valuation_entry.id }
+
+  # A family member the account is shared with read-only, for the
+  # account-permission 403 examples.
+  let(:read_only_member) do
+    family.users.create!(
+      email: 'api-member@example.com',
+      password: 'password123',
+      password_confirmation: 'password123',
+      role: 'member'
+    ).tap { |member| account.share_with!(member, permission: 'read_only') }
+  end
+
+  let(:read_only_member_api_key) do
+    ApiKey.create!(
+      user: read_only_member,
+      name: 'API Docs Member Key',
+      key: ApiKey.generate_secure_key,
+      scopes: %w[read_write],
+      source: 'web'
+    )
+  end
 
   path '/api/v1/valuations' do
     get 'List valuations' do
@@ -215,7 +237,7 @@ RSpec.describe 'API V1 Valuations', type: :request do
         run_test!
       end
 
-      response '404', 'account not found' do
+      response '404', 'account not found or not writable by the API user' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:body) do
@@ -316,6 +338,21 @@ RSpec.describe 'API V1 Valuations', type: :request do
           {
             valuation: {
               amount: 12000.00
+            }
+          }
+        end
+
+        run_test!
+      end
+
+      response '403', 'API user lacks write permission on the valuation account' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:'X-Api-Key') { read_only_member_api_key.plain_key }
+        let(:body) do
+          {
+            valuation: {
+              notes: 'Not allowed'
             }
           }
         end

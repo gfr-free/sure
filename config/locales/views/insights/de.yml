@@ -76,6 +76,7 @@ de:
       cash_flow_warning:
         low: Nach deinen anstehenden wiederkehrenden Buchungen und deinen üblichen Ausgaben könnte dein Guthaben um den %{projected_low_date} auf %{projected_low} sinken.
         negative: Nach deinen anstehenden wiederkehrenden Buchungen und deinen üblichen Ausgaben könnte dein Guthaben um den %{projected_low_date} auf %{projected_low} fallen.
+      exchange_rate_jump: "Der Wechselkurs %{pair} hat sich am %{date} um %{change_pct} % verändert, von %{previous_rate} auf %{rate}. Ein so großer Sprung ist oft ein Datenfehler und wirkt sich auf alle Beträge aus, die aus %{from} umgerechnet werden."
       idle_cash: Auf %{account} liegen %{balance}, ohne Bewegung in den letzten %{idle_days} Tagen.
       maintained_goal_depleted: "Für %{goal} sind %{saved} von %{target} zurückgelegt. Bis zum Zielstand fehlen %{missing}."
       net_worth_milestone: Dein Nettovermögen hat %{milestone} überschritten und liegt jetzt bei %{net_worth}.
@@ -99,6 +100,7 @@ de:
       cash_flow_warning:
         low: Dein Guthaben könnte knapp werden
         negative: Dein Guthaben könnte ins Minus rutschen
+      exchange_rate_jump: Ungewöhnlicher Wechselkurs %{pair}
       idle_cash: Ungenutztes Guthaben in %{account}
       maintained_goal_depleted: "%{goal} liegt unter dem Zielstand"
       net_worth_milestone: 'Meilenstein beim Nettovermögen: %{milestone}'
@@ -117,6 +119,7 @@ de:
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität
+      exchange_rate_jump: Wechselkurs
       idle_cash: Ungenutztes Guthaben
       maintained_goal_depleted: Rücklage
       net_worth_milestone: Nettovermögen

@@ -14,7 +14,8 @@ module InsightsHelper
     "contract_notice_deadline" => "calendar-clock",
     "contract_price_increase" => "trending-up",
     "contract_charges_after_end" => "receipt",
-    "contract_price_guarantee_ending" => "lock-open"
+    "contract_price_guarantee_ending" => "lock-open",
+    "exchange_rate_jump" => "arrow-left-right"
   }.freeze
 
   def insight_icon_key(insight)
@@ -93,6 +94,8 @@ module InsightsHelper
       facts["amount"] && [ facts["amount"], t("insights.figures.payments", count: facts["count"].to_i) ]
     when "contract_price_guarantee_ending"
       facts["days_left"] && [ facts["guarantee_until"], t("insights.figures.days_left", count: facts["days_left"].to_i) ]
+    when "exchange_rate_jump"
+      facts["change_pct"] && [ "#{facts["change_pct"]}%", facts["date"] ]
     end
   end
 
@@ -176,7 +179,7 @@ module InsightsHelper
     when "contract_charges_after_end"
       :negative
     when "budget_at_risk", "maintained_goal_depleted", "contract_notice_deadline", "contract_price_increase",
-         "contract_price_guarantee_ending"
+         "contract_price_guarantee_ending", "exchange_rate_jump"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

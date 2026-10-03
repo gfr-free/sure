@@ -470,7 +470,16 @@ class TradeRepublicAccount::ActivitiesProcessor
       # A user who unlinked the pair keeps it unlinked.
       return if RejectedTransfer.exists?(inflow_transaction_id: inflow.id, outflow_transaction_id: outflow.id)
 
-      Transfer.create!(inflow_transaction: inflow, outflow_transaction: outflow, status: "confirmed")
+      # A concurrent sync can link either side between the checks above and this
+      # insert; the unique transfer indexes then reject it. The savepoint keeps
+      # that rejection from aborting the surrounding import transaction.
+      begin
+        Transfer.transaction(requires_new: true) do
+          Transfer.create!(inflow_transaction: inflow, outflow_transaction: outflow, status: "confirmed")
+        end
+      rescue ActiveRecord::RecordNotUnique
+        raise unless Transfer.where(inflow_transaction_id: inflow.id).or(Transfer.where(outflow_transaction_id: outflow.id)).exists?
+      end
     end
 
     # Trade Republic settles in the currency of the portfolio and Crypto

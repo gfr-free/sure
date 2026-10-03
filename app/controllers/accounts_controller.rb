@@ -1,5 +1,5 @@
 class AccountsController < ApplicationController
-  include StreamExtensions
+  include StreamExtensions, UnreadEntriesTrackable
 
   # Sparkline frames load lazily from the sidebar on every page and render no
   # layout: skip layout-only setup and never start an auto-sync from them.
@@ -175,6 +175,12 @@ class AccountsController < ApplicationController
     end
 
     @activity_feed_data = Account::ActivityFeedData.new(@account, @entries, split_parents: @split_parents)
+
+    # Activity is the first tab, so it is on screen unless another tab was asked for.
+    if @tab.blank? || @tab == "activity"
+      track_unread_entries(@entries)
+      @has_unread = Current.user.unread_entries.where(account_id: @account.id).exists?
+    end
   end
 
   def sync

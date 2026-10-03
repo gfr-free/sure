@@ -395,6 +395,7 @@ class ReportsController < ApplicationController
       # Structure: { [parent_category_id, type] => { parent_data, subcategories: { subcategory_id => data } } }
       grouped_data = {}
       family_currency = Current.family.currency
+      rate_store = report_rate_store(transactions, trades, to: family_currency)
 
       # Helper to initialize a category group hash
       init_category_group = ->(id, name, color, icon, type, filter_value) do
@@ -430,7 +431,7 @@ class ReportsController < ApplicationController
       process_entry = ->(category, entry, is_trade) do
         type = entry.amount > 0 ? "expense" : "income"
         begin
-          converted_amount = Money.new(entry.amount.abs, entry.currency).exchange_to(family_currency).amount
+          converted_amount = Money.new(entry.amount.abs, entry.currency, store: rate_store).exchange_to(family_currency).amount
         rescue Money::ConversionError
           converted_amount = entry.amount.abs
         end
@@ -729,6 +730,15 @@ class ReportsController < ApplicationController
       scope
     end
 
+    # Rows convert at today's rate (Money#exchange_to's default date), read
+    # from rates loaded once per currency rather than looked up per row, and
+    # never fetched from the provider during the request: a missing rate falls
+    # back to the unconverted amount, as a failed lookup already did.
+    def report_rate_store(*scopes, to:)
+      currencies = scopes.flat_map { |scope| scope.map { |record| record.entry.currency } }
+      ExchangeRate::CachedStore.new(currencies, to: to)
+    end
+
     def build_transactions_breakdown_for_export
       # Get flat transactions list (not grouped) for export
       # Exclude transfers, one-time, and CC payments (matching income_statement logic)
@@ -786,6 +796,7 @@ class ReportsController < ApplicationController
       # Group by category, type, and month
       breakdown = {}
       family_currency = Current.family.currency
+      rate_store = report_rate_store(transactions, to: family_currency)
 
       # Process transactions
       transactions.each do |transaction|
@@ -797,7 +808,7 @@ class ReportsController < ApplicationController
 
         # Convert to family currency
         begin
-          converted_amount = Money.new(entry.amount.abs, entry.currency).exchange_to(family_currency).amount
+          converted_amount = Money.new(entry.amount.abs, entry.currency, store: rate_store).exchange_to(family_currency).amount
         rescue Money::ConversionError
           converted_amount = entry.amount.abs
         end

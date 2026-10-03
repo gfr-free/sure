@@ -1030,6 +1030,10 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     user = users(:family_admin)
     user.update_column(:transactions_read_before, 1.hour.ago)
     unread = create_transaction(account: @checking_account, external_id: "unread-2", source: "simplefin")
+    create_transaction(
+      account: @checking_account, external_id: "unread-pending", source: "simplefin",
+      entryable: Transaction.new(extra: { "simplefin" => { "pending" => true } })
+    )
 
     search = Transaction::Search.new(@family, filters: { status: [ "confirmed", "unread" ] }, user: user)
 

@@ -23,45 +23,64 @@
       </div>
     <% end %>
 
+    <%# Test stack only: rows stay inline here (not in accounts/sidebar_account)
+        so the sparkline frames, unread badges and grouping all apply. %>
+    <% subgroups = account_subgroups(account_group, view: :sidebar) %>
+    <% sections = subgroups.any? ? subgroups.map { |subgroup| [ subgroup, subgroup.accounts ] } : [ [ nil, account_group.accounts ] ] %>
     <div class="space-y-1">
-      <% account_group.accounts.each do |account| %>
-        <%= link_to account_path(account),
-                  class: class_names(
-                    "block flex items-center gap-2 px-3 py-2 rounded-lg",
-                    page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
-                  ),
-                  data: page_active?(account_path(account)) ? { active_account: true } : {},
-                  title: account.name do %>
-          <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>
+      <% sections.each do |subgroup, accounts| %>
+        <% rows = capture do %>
+          <% accounts.each do |account| %>
+            <%= link_to account_path(account),
+                      class: class_names(
+                        "block flex items-center gap-2 px-3 py-2 rounded-lg",
+                        page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
+                      ),
+                      data: page_active?(account_path(account)) ? { active_account: true } : {},
+                      title: account.name do %>
+              <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>
 
-          <div class="min-w-0 grow">
-            <div class="flex items-center gap-2 mb-0.5">
-              <%= tag.p account.name, class: class_names("text-sm text-primary font-medium truncate", "animate-pulse" => account.syncing?) %>
-              <% if account.shared? %>
-                <%= icon("users", class: "w-3 h-3 text-secondary shrink-0") %>
-              <% end %>
-              <% if (unread_count = sidebar_unread_counts[account.id].to_i).positive? %>
-                <%= render DS::Pill.new(
-                  label: unread_count,
-                  tone: :info,
-                  marker: false,
-                  title: t("accounts.sidebar.unread_count", count: unread_count)
-                ) %>
-              <% end %>
-            </div>
-            <%= tag.p account.short_subtype_label, class: "text-sm text-secondary truncate" %>
-          </div>
+              <div class="min-w-0 grow">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <%= tag.p account.name, class: class_names("text-sm text-primary font-medium truncate", "animate-pulse" => account.syncing?) %>
+                  <% if account.shared? %>
+                    <%= icon("users", class: "w-3 h-3 text-secondary shrink-0") %>
+                  <% end %>
+                  <% if (unread_count = sidebar_unread_counts[account.id].to_i).positive? %>
+                    <%= render DS::Pill.new(
+                      label: unread_count,
+                      tone: :info,
+                      marker: false,
+                      title: t("accounts.sidebar.unread_count", count: unread_count)
+                    ) %>
+                  <% end %>
+                </div>
+                <%= tag.p account.short_subtype_label, class: "text-sm text-secondary truncate" %>
+              </div>
 
-          <div class="ml-auto text-right grow h-10">
-            <%= tag.p format_money(account.balance_money), class: "text-sm font-medium text-primary whitespace-nowrap privacy-sensitive" %>
-            <%= turbo_frame_tag sidebar_sparkline_frame_id(dom_id(account, :sparkline), all_tab: all_tab, mobile: mobile, version: sparkline_version),
-                                src: sparkline_account_path(account), loading: "lazy",
-                                data: { turbo_permanent: true, controller: "turbo-frame-timeout permanent-frame", turbo_frame_timeout_timeout_value: 10000 } do %>
-              <div class="flex items-center w-8 h-4 ml-auto">
-                <div class="w-6 h-px bg-loader"></div>
+              <div class="ml-auto text-right grow h-10">
+                <%= tag.p format_money(account.balance_money), class: "text-sm font-medium text-primary whitespace-nowrap privacy-sensitive" %>
+                <%= turbo_frame_tag sidebar_sparkline_frame_id(dom_id(account, :sparkline), all_tab: all_tab, mobile: mobile, version: sparkline_version),
+                                    src: sparkline_account_path(account), loading: "lazy",
+                                    data: { turbo_permanent: true, controller: "turbo-frame-timeout permanent-frame", turbo_frame_timeout_timeout_value: 10000 } do %>
+                  <div class="flex items-center w-8 h-4 ml-auto">
+                    <div class="w-6 h-px bg-loader"></div>
+                  </div>
+                <% end %>
               </div>
             <% end %>
+          <% end %>
+        <% end %>
+        <% if subgroup %>
+          <div id="<%= subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" class="space-y-1" data-subgroup-key="<%= subgroup.key %>">
+            <div class="flex items-center justify-between gap-2 px-3 pt-2">
+              <%= tag.p subgroup.name, class: class_names("text-xs font-medium text-secondary truncate", "animate-pulse" => subgroup.syncing?) %>
+              <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
+            </div>
+            <%= rows %>
           </div>
+        <% else %>
+          <%= rows %>
         <% end %>
       <% end %>
     </div>

@@ -820,6 +820,19 @@ class User < ApplicationRecord
     always_expanded_account_groups.include?(account_group_key.to_s)
   end
 
+  # Returns the second grouping dimension chosen for an account list view
+  # ("sidebar" or "dashboard"), or nil when the view groups by type only.
+  # Unknown or stale keys read as nil. See AccountGrouping.
+  def account_grouping_for(view)
+    key = preferences&.dig("account_grouping", view.to_s)
+    AccountGrouping.valid_dimension?(key) ? key : nil
+  end
+
+  # The user's own name for the free-text "custom group" account field.
+  def custom_account_group_label
+    preferences&.dig("custom_account_group_label").presence || I18n.t("account_grouping.dimensions.custom_group")
+  end
+
   # Returns whether clicking outside a modal is prevented from closing it.
   def disable_modal_click_outside?
     preferences&.dig("disable_modal_click_outside") == true

@@ -56,7 +56,8 @@ module AccountsHelper
       # would not otherwise reflect the change).
       Current.user&.always_expanded_account_groups&.sort,
       # Unread badges change whenever a list render marks rows read.
-      Digest::SHA256.hexdigest(sidebar_unread_counts.sort.to_json)
+      Digest::SHA256.hexdigest(sidebar_unread_counts.sort.to_json),
+      account_grouping_dimension(:sidebar)
     ]
   end
 
@@ -90,5 +91,35 @@ module AccountsHelper
     requested = turbo_frame_request_id.to_s
     pattern = /\A(?:mobile_)?(?:all|tab)_#{Regexp.escape(base_id)}_[0-9a-f]{12}\z/
     requested.match?(pattern) ? requested : base_id
+  end
+
+  # The second grouping dimension for an account list view, or nil when the
+  # view groups by account type only. Preview-only for now. Reads the flag
+  # from Current.user so the helper also works outside a controller render.
+  def account_grouping_dimension(view)
+    return nil unless Current.user&.preview_features_enabled?
+
+    Current.user&.account_grouping_for(view)
+  end
+
+  # Subgroups to render inside an account type group for the given view, or
+  # an empty array when the view has no second level (see AccountGrouping).
+  def account_subgroups(account_group, view:)
+    dimension = account_grouping_dimension(view)
+    return [] unless dimension
+
+    account_group.subgroups(dimension, user: Current.user)
+  end
+
+  # Values already used for the custom group field on accounts the user can
+  # see, offered as suggestions in the account form.
+  def account_custom_group_suggestions
+    return [] unless Current.user
+
+    Current.user.accessible_accounts
+      .where.not(custom_group: nil)
+      .distinct
+      .order(:custom_group)
+      .pluck(:custom_group)
   end
 end

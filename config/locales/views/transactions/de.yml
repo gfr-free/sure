@@ -76,6 +76,7 @@ de:
       applied_to_detail: "%{amount} für die am %{date} fällige Rechnung"
       applied_to_contract: "Vertrag: %{name}"
       applied_to_unreviewed: Prüfung erforderlich
+      applied_to_auto_posted: Automatisch gebucht
       memo: Memo
       merge_duplicate: Ja, zusammenführen
       open_matcher: Zuordnung öffnen
@@ -121,6 +122,8 @@ de:
       split: Geteilt
       split_child_tooltip: Teil einer geteilten Transaktion
       split_tooltip: Diese Transaktion wurde in mehrere Einträge geteilt
+      auto_posted: Wiederkehrend
+      auto_posted_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt
     merge_duplicate:
       success: Transaktionen erfolgreich zusammengeführt
       failure: Transaktionen konnten nicht zusammengeführt werden

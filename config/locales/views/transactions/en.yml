@@ -69,6 +69,7 @@ en:
       applied_to_detail: "%{amount} toward the bill due %{date}"
       applied_to_contract: "Contract: %{name}"
       applied_to_unreviewed: Needs review
+      applied_to_auto_posted: Posted automatically
       merge_duplicate: Yes, merge them
       potential_duplicate_description: This pending transaction may be the same as the posted transaction below. If so, merge them to avoid double-counting.
       potential_duplicate_title: Possible duplicate detected
@@ -177,6 +178,8 @@ en:
       review_recommended_tooltip: Large amount difference — review recommended to check if this is a duplicate
       split: Split
       split_tooltip: This transaction has been split into multiple entries
+      auto_posted: Recurring
+      auto_posted_tooltip: Sure posted this transaction from a recurring bill
       split_child_tooltip: Part of a split transaction
     merge_duplicate:
       success: Transactions merged successfully

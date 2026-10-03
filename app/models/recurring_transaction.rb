@@ -59,10 +59,12 @@ class RecurringTransaction < ApplicationRecord
   validate :anchor_required_for_intervals
   validate :end_mode_fields_consistent
   validate :bill_type_matches_shape
+  validate :auto_post_requirements, if: :auto_post_requirements_changed?
 
   normalizes :payment_url, with: ->(url) { normalize_payment_url(url) }
 
   before_validation :derive_transfer_bill_type
+  before_save :start_auto_posting_today, if: -> { auto_post? && will_save_change_to_auto_post? }
 
   # Columns whose change reshapes the occurrence stream. Amount is absent on
   # purpose: open occurrences inherit it at read time.
@@ -264,6 +266,58 @@ class RecurringTransaction < ApplicationRecord
     destination_account_id.present?
   end
 
+  # Auto-posting writes real entries, so it is limited to accounts no bank
+  # feeds: on a linked account the posted entry would sit beside the bank's
+  # own copy of the same payment. A transfer needs both ends manual.
+  def auto_post_accounts_manual?
+    account.present? && account.manual? && (!transfer? || destination_account&.manual?)
+  end
+
+  # Open dates from the start date through `today` that have not posted yet.
+  # A date that already posted never qualifies again, even after its entry is
+  # deleted and the occurrence reopens. A snoozed date waits for its snooze:
+  # GREATEST ignores a NULL snoozed_until, matching effective_due_on.
+  def auto_postable_occurrences(today)
+    return recurring_occurrences.none if auto_post_from.blank?
+
+    recurring_occurrences
+      .open_status
+      .where(auto_posted_at: nil)
+      .where("recurring_occurrences.due_on >= ?", auto_post_from)
+      .where("GREATEST(recurring_occurrences.due_on, recurring_occurrences.snoozed_until) <= ?", today)
+      .order(:due_on)
+  end
+
+  # Disabled accounts and ones being deleted take no new entries; the series
+  # simply waits instead of switching itself off.
+  def auto_post_accounts_active?
+    account&.active? && (!transfer? || destination_account&.active?)
+  end
+
+  # Checked when auto-posting is switched on or what it depends on is edited,
+  # not on every save: linking a bank to the account changes no column here,
+  # and background updates to such a series (matcher hints, cleanup) must not
+  # start failing validation. The Poster switches it off on its next run.
+  def auto_post_requirements_changed?
+    auto_post? && (%w[auto_post account_id destination_account_id amount_strategy currency] & changes_to_save.keys).any?
+  end
+
+  def auto_post_requirements
+    errors.add(:auto_post, :manual_account_required) unless auto_post_accounts_manual?
+    errors.add(:auto_post, :fixed_amount_required) unless amount_fixed?
+    if account.present? && currency != account.currency
+      errors.add(:auto_post, :account_currency_required)
+    end
+  end
+
+  # Switching auto-posting on never backfills the past: only dates from today
+  # on post. Re-enabling restarts from the new day.
+  def start_auto_posting_today
+    # The family's calendar day, the same one the poster uses.
+    zone = ActiveSupport::TimeZone[family.timezone.to_s] || Time.zone
+    self.auto_post_from = Time.current.in_time_zone(zone).to_date
+  end
+
   scope :for_family, ->(family) { where(family: family) }
   scope :expected_soon, -> { active.where("next_expected_date <= ?", 1.month.from_now) }
 
@@ -292,6 +346,8 @@ class RecurringTransaction < ApplicationRecord
   # The bills that want an action from you. Autopay bills still belong on the
   # list, but they are not tasks.
   scope :needs_action, -> { where(autopay: false) }
+
+  scope :auto_posting, -> { active.where(auto_post: true) }
 
   # Derived rather than read from the stored `next_expected_date`, which can sit
   # a cycle too far out when a payment posts earlier than the expected day.

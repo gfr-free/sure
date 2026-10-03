@@ -75,6 +75,9 @@ class TransactionsController < ApplicationController
       Set.new
     end
 
+    # Bills are a preview feature, and so is the marker for what they posted.
+    @auto_posted_entry_ids = RecurringAllocation.auto_posted_entry_ids(entry_ids) if preview_features_enabled?
+
     @uncategorized_count = Rails.cache.fetch(uncategorized_count_cache_key) do
       Current.accessible_entries.uncategorized_transactions.count
     end

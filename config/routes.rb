@@ -636,6 +636,7 @@ Rails.application.routes.draw do
 
     member do
       post :toggle_status
+      post :toggle_auto_post
       post :confirm
       post :dismiss
     end

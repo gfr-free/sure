@@ -839,6 +839,20 @@ class UserTest < ActiveSupport::TestCase
     assert_nil user.default_account_for_transactions
   end
 
+  test "transfer_to_family! unlinks other members' contracts from accounts that move" do
+    user = users(:family_member)
+    source_family = user.family
+    account = Account.create!(family: source_family, owner: user, name: "Moving Checking", balance: 100, currency: "USD", accountable: Depository.new)
+    contract = contracts(:liability_insurance) # owned by family_admin, who stays
+    contract.update!(account: account)
+
+    user.transfer_to_family!(Family.create!(name: "Contract Transfer Family"), role: "admin")
+
+    assert_equal source_family, contract.reload.family
+    assert_nil contract.account_id
+    assert contract.valid?
+  end
+
   test "transfer_to_family! moves owned account provider items and statements" do
     user = users(:family_member)
     source_family = user.family

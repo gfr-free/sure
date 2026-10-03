@@ -186,7 +186,7 @@ class Family::DataExporter
     end
 
     def attachment_manifest_items
-      (transaction_attachment_manifest_items + family_document_attachment_manifest_items)
+      (transaction_attachment_manifest_items + family_document_attachment_manifest_items + contract_document_attachment_manifest_items)
         .sort_by { |item| [ item[:record_type], item[:record_id].to_s, item[:filename].to_s, item[:id].to_s ] }
     end
 
@@ -222,6 +222,26 @@ class Family::DataExporter
           }
         )
       end
+    end
+
+    def contract_document_attachment_manifest_items
+      ContractDocument.joins(:contract)
+        .where(contracts: { family_id: @family.id })
+        .with_attached_file
+        .filter_map do |document|
+          next unless document.file.attached?
+
+          attachment_manifest_item(
+            document.file.attachment,
+            record_type: "ContractDocument",
+            record_id: document.id,
+            extra: {
+              contract_id: document.contract_id,
+              ai_searchable: document.ai_searchable,
+              role: document.role
+            }
+          )
+        end
     end
 
     def attachment_manifest_item(attachment, record_type:, record_id:, extra: {})
@@ -329,6 +349,28 @@ class Family::DataExporter
             website_url: merchant.website_url,
             created_at: merchant.created_at,
             updated_at: merchant.updated_at
+          }
+        }.to_json
+      end
+
+      # Contracts before recurring transactions: a bill's contract_id is remapped
+      # on import. Their shares follow; they only restore into a family that
+      # still has the same members (a re-import on the same instance).
+      @family.contracts.find_each do |contract|
+        lines << {
+          type: "Contract",
+          data: serialize_contract_for_export(contract)
+        }.to_json
+      end
+
+      ContractShare.joins(:contract).where(contracts: { family_id: @family.id }).find_each do |share|
+        lines << {
+          type: "ContractShare",
+          data: {
+            id: share.id,
+            contract_id: share.contract_id,
+            user_id: share.user_id,
+            permission: share.permission
           }
         }.to_json
       end
@@ -662,8 +704,47 @@ class Family::DataExporter
         matcher_hints: recurring_transaction.matcher_hints,
         dedup_scope: recurring_transaction.dedup_scope,
         replaced_by_id: recurring_transaction.replaced_by_id,
+        contract_id: recurring_transaction.contract_id,
         created_at: recurring_transaction.created_at,
         updated_at: recurring_transaction.updated_at
+      }
+    end
+
+    # The user asked for their data, so contract and customer numbers are
+    # exported in plaintext: without them the export would not round-trip.
+    def serialize_contract_for_export(contract)
+      {
+        id: contract.id,
+        owner_id: contract.owner_id,
+        account_id: contract.account_id,
+        merchant_id: contract.merchant_id,
+        merchant_name: contract.merchant&.name,
+        replaced_by_id: contract.replaced_by_id,
+        name: contract.name,
+        kind: contract.kind,
+        status: contract.status,
+        contract_number: contract.contract_number,
+        customer_number: contract.customer_number,
+        started_on: contract.started_on,
+        minimum_term_months: contract.minimum_term_months,
+        notice_period_value: contract.notice_period_value,
+        notice_period_unit: contract.notice_period_unit,
+        notice_anchor: contract.notice_anchor,
+        renewal_period_months: contract.renewal_period_months,
+        renewal_anchor_on: contract.renewal_anchor_on,
+        ends_on: contract.ends_on,
+        portal_url: contract.portal_url,
+        service_phone: contract.service_phone,
+        service_email: contract.service_email,
+        claims_phone: contract.claims_phone,
+        document_links: contract.document_links,
+        email_reminders: contract.email_reminders,
+        notice_not_required: contract.notice_not_required,
+        notice_reminders_sent: contract.notice_reminders_sent,
+        details: contract.details,
+        notes: contract.notes,
+        created_at: contract.created_at,
+        updated_at: contract.updated_at
       }
     end
 

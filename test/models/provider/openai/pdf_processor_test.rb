@@ -247,6 +247,13 @@ class Provider::Openai::PdfProcessorTest < ActiveSupport::TestCase
     assert_equal [], processor.send(:convert_pdf_to_images)
   end
 
+  test "asks for contract terms but never for contract numbers" do
+    instructions = Provider::Openai::PdfProcessor.new(nil, max_response_tokens: 100).instructions
+
+    assert_includes instructions, '"notice_period_value"'
+    assert_includes instructions, "Never include contract, policy"
+  end
+
   private
     # Build a vision processor with synthetic images and a mocked API client.
     # @return [Provider::Openai::PdfProcessor] processor under test

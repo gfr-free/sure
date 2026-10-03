@@ -78,6 +78,9 @@ class BillsMobileTest < ApplicationSystemTestCase
       assert_no_horizontal_scroll("the #{view} view")
     end
 
+    visit contracts_url
+    assert_no_horizontal_scroll("the contracts view")
+
     # The bill's own page: chart, history and configuration in one column.
     visit bill_url(bill)
     assert_text bill.display_name

@@ -236,7 +236,7 @@ class PagesController < ApplicationController
 
       visible = case key
       when "investment_summary" then investment_summary_available?
-      when "insights_feed" then Current.family.insights.visible.exists?
+      when "insights_feed" then Current.family.insights.for_user(Current.user).visible.exists?
       else @accounts.any?
       end
 
@@ -272,7 +272,7 @@ class PagesController < ApplicationController
     def insights_feed_section
       return nil unless preview_features_enabled?
 
-      insights = Current.family.insights.visible.ordered.limit(Insight::FEED_LIMIT)
+      insights = Current.family.insights.for_user(Current.user).visible.ordered.limit(Insight::FEED_LIMIT)
       {
         key: "insights_feed",
         title: "pages.dashboard.insights_feed.title",

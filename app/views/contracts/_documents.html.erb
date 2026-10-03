@@ -1,0 +1,116 @@
+<%# locals: (contract:, documents:, editable:) %>
+<%= render DS::Card.new(class: "space-y-3", id: "contract_documents") do %>
+  <div class="flex items-center justify-between gap-2">
+    <h2 class="text-sm font-medium text-primary"><%= t("contracts.documents.title") %></h2>
+    <span class="text-xs text-secondary"><%= t("contracts.documents.count", count: documents.size, max: ContractDocument::MAX_PER_CONTRACT) %></span>
+  </div>
+
+  <% if documents.any? %>
+    <ul class="divide-y divide-subdued">
+      <% documents.each do |document| %>
+        <li class="py-2 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <%= icon document.file.image? ? "image" : "file-text", size: "sm", color: "secondary" %>
+            <div class="min-w-0">
+              <%= link_to document.filename.to_s, contract_document_path(contract, document), target: "_blank", rel: "noopener", class: "block text-sm text-primary truncate hover:underline" %>
+              <div class="flex flex-wrap items-center gap-x-1 text-xs text-secondary">
+                <% if editable %>
+                  <%= render DS::Menu.new(variant: :button, placement: "bottom-start") do |menu| %>
+                    <% menu.with_button(type: "button", class: "inline-flex items-center gap-0.5 hover:text-primary cursor-pointer",
+                                        aria: { label: t("contracts.documents.role_label", name: document.filename.to_s) }) do %>
+                      <%= t("contracts.documents.roles.#{document.role}") %>
+                      <%= icon "chevron-down", size: "xs" %>
+                    <% end %>
+                    <% ContractDocument::ROLES.each do |role| %>
+                      <% menu.with_item(variant: "button", text: t("contracts.documents.roles.#{role}"),
+                                        icon: role == document.role ? "check" : nil, method: :patch,
+                                        href: contract_document_path(contract, document, contract_document: { role: role })) %>
+                    <% end %>
+                  <% end %>
+                <% else %>
+                  <span><%= t("contracts.documents.roles.#{document.role}") %></span>
+                <% end %>
+                <span>&middot; <%= number_to_human_size(document.byte_size) %></span>
+                <% if document.ai_searchable? %>
+                  <span>&middot; <%= t("contracts.documents.searchable") %></span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <% if editable %>
+            <div class="flex items-center gap-2 shrink-0">
+              <% if Current.user.ai_enabled? && document.indexable? %>
+                <%= render DS::Button.new(
+                      href: contract_document_path(contract, document, contract_document: { ai_searchable: !document.ai_searchable? }),
+                      method: :patch,
+                      variant: :outline,
+                      size: :sm,
+                      icon: document.ai_searchable? ? "eye-off" : "sparkles",
+                      text: document.ai_searchable? ? t("contracts.documents.stop_search") : t("contracts.documents.allow_search"),
+                      title: t("contracts.documents.search_hint")
+                    ) %>
+              <% end %>
+              <%= render DS::Button.new(
+                    href: contract_document_path(contract, document),
+                    method: :delete,
+                    variant: :outline_destructive,
+                    size: :sm,
+                    icon: "trash-2",
+                    text: "",
+                    "aria-label": t("contracts.documents.delete"),
+                    confirm: CustomConfirm.for_resource_deletion(t("contracts.documents.resource"))
+                  ) %>
+            </div>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-sm text-secondary"><%= t("contracts.documents.empty") %></p>
+  <% end %>
+
+  <% if contract.document_links.any? %>
+    <ul class="space-y-1">
+      <% contract.document_links.each do |link| %>
+        <% next unless (url = contract_safe_url(link["url"])) %>
+        <li>
+          <%= link_to url, target: "_blank", rel: "noopener noreferrer", class: "inline-flex items-center gap-1 text-sm text-primary hover:underline" do %>
+            <%= icon "external-link", size: "sm", color: "secondary" %>
+            <% if link["role"].present? %>
+              <span class="text-secondary"><%= t("contracts.documents.roles.#{link["role"]}") %>:</span>
+            <% end %>
+            <%= link["label"].presence || URI.parse(url).host %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% if editable && documents.size < ContractDocument::MAX_PER_CONTRACT %>
+    <%= styled_form_with url: contract_documents_path(contract), method: :post, multipart: true, local: true,
+          data: {
+            controller: "attachment-upload",
+            attachment_upload_max_files_value: ContractDocument::MAX_PER_CONTRACT - documents.size,
+            attachment_upload_max_size_value: ContractDocument::MAX_FILE_SIZE
+          } do |form| %>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div class="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 border border-secondary border-dashed rounded-lg cursor-pointer bg-surface-inset hover:bg-surface-inset-hover text-sm text-secondary"
+               data-action="click->attachment-upload#triggerFileInput">
+          <%= icon "paperclip", size: "sm" %>
+          <span data-attachment-upload-target="uploadText"><%= t("contracts.documents.choose", size: ContractDocument::MAX_FILE_SIZE / 1.megabyte) %></span>
+          <div data-attachment-upload-target="fileName" class="hidden min-w-0"><p class="truncate text-primary"></p></div>
+        </div>
+        <%= file_field_tag "contract_document[files][]",
+              multiple: true,
+              accept: ContractDocument::ALLOWED_CONTENT_TYPES.join(","),
+              class: "hidden",
+              data: { attachment_upload_target: "fileInput", action: "change->attachment-upload#updateSubmitButton" } %>
+        <%= select_tag "contract_document[role]", options_for_select(ContractDocument.role_options, "contract"),
+              class: "form-field__input text-sm sm:w-auto", "aria-label": t("contracts.documents.upload_role") %>
+        <%= render DS::Button.new(text: t("contracts.documents.upload"), variant: :primary, size: :sm, type: :submit,
+                                  data: { attachment_upload_target: "submitButton" }) %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

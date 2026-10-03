@@ -1,0 +1,141 @@
+class Assistant::Function::CreateContract < Assistant::Function
+  include Assistant::Function::ContractsSupport
+
+  class << self
+    def name
+      "create_contract"
+    end
+
+    def description
+      <<~INSTRUCTIONS
+        Record a new contract owned by the user. Only name, provider and kind are
+        required; pass the terms the user states. Contract and customer numbers cannot be
+        set here; tell the user to add them on the contract page.
+
+        bill_ids links existing bills (ids from get_bills) that pay for the contract; the
+        yearly cost comes from them. Confirm the details with the user before calling.
+      INSTRUCTIONS
+    end
+  end
+
+  def strict_mode?
+    false
+  end
+
+  def params_schema
+    build_schema(
+      required: %w[name provider kind],
+      properties: contract_properties.merge(
+        bill_ids: { type: "array", items: { type: "string" }, description: "Bills that pay for this contract, ids from get_bills." }
+      )
+    )
+  end
+
+  # Saves a contract owned by the user and links writable bills in one
+  # transaction. Returns the serialized contract, linked bill names and path, or
+  # an error hash for disabled Bills, malformed dates or a contract or bill
+  # validation failure, in which case nothing was saved.
+  def call(params = {})
+    return contracts_disabled_result if contracts_disabled?
+
+    contract = family.contracts.new(owner: user)
+    invalid_dates = assign_contract_attributes(contract, params)
+    return invalid_dates_result(invalid_dates) if invalid_dates.any?
+
+    linked, error = save_and_link_bills(contract, params["bill_ids"])
+    return error if error
+
+    { contract: serialize_contract(contract.reload), linked_bills: linked, url: Rails.application.routes.url_helpers.contract_path(contract) }
+  end
+
+  private
+    # Saves the contract and links the bills together: a bill that fails its own
+    # validation rolls the contract back too, so a retry cannot leave a
+    # duplicate contract behind. Returns [linked_bill_names, nil] or [nil, error_hash].
+    def save_and_link_bills(contract, bill_ids)
+      linked = Contract.transaction do
+        contract.merchant = family.merchants.create!(name: @new_merchant_name.first(255)) if @new_merchant_name.present?
+        contract.save!
+        link_bills(contract, bill_ids)
+      end
+      [ linked, nil ]
+    rescue ActiveRecord::RecordInvalid => e
+      message = e.record.errors.full_messages.to_sentence
+      message = "Bill #{e.record.display_name}: #{message}" if e.record.is_a?(RecurringTransaction)
+      [ nil, { error: message, hint: "Fix the listed fields and try again. Nothing was saved." } ]
+    end
+
+    def contract_properties
+      {
+        name: { type: "string" },
+        provider: { type: "string", description: "The company the contract is with. Matched to an existing merchant by name, or added as a new one." },
+        kind: { type: "string", enum: Contract.kinds.keys },
+        started_on: { type: "string", description: "YYYY-MM-DD" },
+        minimum_term_months: { type: "integer", minimum: 0 },
+        notice_period_value: { type: "integer", minimum: 0 },
+        notice_period_unit: { type: "string", enum: Contract.notice_period_units.keys },
+        notice_anchor: { type: "string", enum: Contract.notice_anchors.keys, description: "end_of_term, end_of_month or any_day." },
+        renewal_period_months: { type: "integer", minimum: 1, description: "Leave out when it runs on indefinitely after the minimum term." },
+        renewal_anchor_on: { type: "string", description: "Main due date, YYYY-MM-DD." }
+      }
+    end
+
+    # Returns the date params that were present but unparseable. Those calls
+    # are rejected outright: assigning nil instead would silently clear a
+    # stored date over a malformed LLM value.
+    def assign_contract_attributes(contract, params)
+      contract.name = params["name"] if params.key?("name")
+      contract.merchant = Contract.merchant_named(family, user, params["provider"]) if params["provider"].present?
+      # The function object is reused across calls, so this is reset every time.
+      @new_merchant_name = (params["provider"].to_s.strip if params["provider"].present? && contract.merchant.nil?)
+      contract.kind = params["kind"] if params["kind"].in?(Contract.kinds.keys)
+      %w[minimum_term_months notice_period_value renewal_period_months].each do |key|
+        contract.public_send("#{key}=", params[key]) if params.key?(key)
+      end
+      contract.notice_period_unit = params["notice_period_unit"] if params["notice_period_unit"].in?(Contract.notice_period_units.keys)
+      contract.notice_anchor = params["notice_anchor"] if params["notice_anchor"].in?(Contract.notice_anchors.keys)
+
+      %w[started_on renewal_anchor_on].filter_map do |key|
+        next unless params.key?(key)
+
+        if params[key].blank?
+          contract.public_send("#{key}=", nil)
+          next
+        end
+
+        date = parse_date(params[key])
+        next key if date.nil?
+
+        contract.public_send("#{key}=", date)
+        nil
+      end
+    end
+
+    def invalid_dates_result(keys)
+      {
+        error: "#{keys.join(', ')} is not a valid date",
+        hint: "Pass dates as YYYY-MM-DD, or an empty string to clear a date. Nothing was changed."
+      }
+    end
+
+    def parse_date(value)
+      Date.iso8601(value.to_s)
+    rescue Date::Error
+      nil
+    end
+
+    # Links visible bills the user may change and returns their display names.
+    # Invalid, missing or inaccessible IDs are ignored, and so are bills held by
+    # a contract the user cannot edit; other existing contract links on selected
+    # bills are replaced. ActiveRecord::RecordInvalid propagates,
+    # leaving earlier bill updates saved unless the caller supplies a transaction
+    # (save_and_link_bills does).
+    def link_bills(contract, bill_ids)
+      ids = Array(bill_ids).select { |id| valid_uuid?(id) }
+      return [] if ids.empty?
+
+      bills = family.recurring_transactions.linkable_by(user).where(id: ids).to_a
+      bills.each { |bill| bill.update!(contract: contract) }
+      bills.map(&:display_name)
+    end
+end

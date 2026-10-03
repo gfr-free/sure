@@ -1,0 +1,86 @@
+<% content_for :title do %>
+  <%= t(".title") %> – <%= Current.family.name %>
+<% end %>
+
+<div class="tufte-report">
+  <header class="tufte-header">
+    <h1 class="tufte-title"><%= t(".title") %></h1>
+    <p class="tufte-meta"><%= Current.family.name %> · <%= t(".generated_on", date: l(Date.current, format: :long)) %></p>
+    <p class="tufte-meta"><%= t(".intro") %></p>
+  </header>
+
+  <% @contracts.group_by(&:kind).each do |kind, contracts| %>
+    <section class="tufte-section">
+      <h2 class="tufte-section-title"><%= t("contracts.kinds.#{kind}") %></h2>
+      <table class="tufte-table tufte-compact">
+        <thead>
+          <tr>
+            <th><%= Contract.human_attribute_name(:name) %></th>
+            <th><%= Contract.human_attribute_name(:merchant) %></th>
+            <th><%= Contract.human_attribute_name(:contract_number) %></th>
+            <th><%= t(".cost") %></th>
+            <th><%= t(".term") %></th>
+            <th><%= t(".managed_by") %></th>
+            <th><%= t(".paid_from") %></th>
+            <th><%= t(".contacts") %></th>
+            <th><%= t(".documents") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% contracts.each do |contract| %>
+            <% schedule = contract.notice_schedule %>
+            <% cost, = @costs[contract.id] %>
+            <tr>
+              <td>
+                <%= contract.name %>
+                <% if contract.insurance_line %><br><small><%= t("contracts.insurance_lines.#{contract.insurance_line}") %></small><% end %>
+                <% if contract.insurance? && contract.detail("insured_persons").present? %>
+                  <br><small><%= t("contracts.details.fields.insured_persons") %>: <%= contract.detail("insured_persons") %></small>
+                <% end %>
+              </td>
+              <td><%= contract.provider_display_name || "–" %></td>
+              <td><%= contract.masked_contract_number || "–" %></td>
+              <td>
+                <%= cost ? format_money(cost) : "–" %>
+                <% if contract.insurance? && (sum = contract.typed_detail("sum_insured")) %>
+                  <br><small><%= t("contracts.details.fields.sum_insured") %>: <%= format_money(Money.new(sum, Current.family.currency)) %></small>
+                <% end %>
+              </td>
+              <td>
+                <% if contract.ended? %>
+                  <%= t("contracts.status_until", date: l(contract.ends_on, format: :long)) %>
+                <% elsif schedule.notice_deadline %>
+                  <%= t("contracts.cancel_by", date: l(schedule.notice_deadline, format: :long)) %>
+                  <% if schedule.term_ends_on %><br><small><%= t(".term_ends", date: l(schedule.term_ends_on, format: :long)) %></small><% end %>
+                <% elsif schedule.earliest_end_on %>
+                  <%= t(".earliest_end", date: l(schedule.earliest_end_on, format: :long)) %>
+                <% elsif contract.notice_not_required? %>
+                  <%= t("contracts.terms.not_required") %>
+                <% else %>
+                  –
+                <% end %>
+              </td>
+              <td><%= contract.owner.display_name %></td>
+              <td><%= @payment_accounts.fetch(contract.id, []).join(", ").presence || "–" %></td>
+              <td>
+                <% [ [ :service_phone, contract.service_phone ], [ :claims_phone, contract.claims_phone ], [ :service_email, contract.service_email ], [ :portal_url, contract.portal_url ] ].each do |attribute, value| %>
+                  <% next if value.blank? %>
+                  <div><small><%= Contract.human_attribute_name(attribute) %>:</small> <%= value %></div>
+                <% end %>
+              </td>
+              <td>
+                <% names = contract.contract_documents.map { |document| document.file.filename.to_s } %>
+                <% names += contract.document_links.map { |link| link["label"].presence || link["url"] } %>
+                <%= names.join(", ").presence || "–" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
+  <% end %>
+
+  <% if @contracts.empty? %>
+    <p><%= t(".empty") %></p>
+  <% end %>
+</div>

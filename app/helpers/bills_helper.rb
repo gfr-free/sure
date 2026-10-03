@@ -17,6 +17,13 @@ module BillsHelper
   # consent AND a resolvable LLM provider -- an unconfigured self-hosted
   # install renders no AI affordances at all, following the Rules registry's
   # conditional-executor precedent.
+  # The write rule RecurringTransactionsController#ensure_series_writable
+  # enforces: a bill on an account needs write access to it; an accountless
+  # bill has no account gate.
+  def bill_writable?(series)
+    series.account_id.nil? || Account.writable_by(Current.user).where(id: series.account_id).exists?
+  end
+
   def bills_one_shot_ai_available?
     Current.user&.ai_enabled? && Provider::Registry.preferred_llm_provider.present?
   end

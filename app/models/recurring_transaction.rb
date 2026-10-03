@@ -14,6 +14,7 @@ class RecurringTransaction < ApplicationRecord
   belongs_to :merchant, optional: true
   belongs_to :category, optional: true
   belongs_to :replaced_by, optional: true, class_name: "RecurringTransaction"
+  belongs_to :contract, optional: true
   # autosave: FrequencyPreset marks old rules for destruction and builds
   # replacements in one assignment, and only autosave honors that on save.
   has_many :recurrence_rules, -> { order(:position) }, dependent: :destroy, autosave: true
@@ -144,7 +145,7 @@ class RecurringTransaction < ApplicationRecord
   def accounts_belong_to_family
     return if family_id.blank?
 
-    { account: account, destination_account: destination_account }.each do |attribute, record|
+    { account: account, destination_account: destination_account, contract: contract }.each do |attribute, record|
       next if record.blank? || record.family_id == family_id
 
       errors.add(attribute, :wrong_family)
@@ -251,6 +252,12 @@ class RecurringTransaction < ApplicationRecord
     elsif account.family_id != destination_account.family_id
       errors.add(:destination_account, :family_mismatch)
     end
+  end
+
+  # Still expecting payments after the given date: active and not scheduled to
+  # end on or before it. A contract that ended flags bills for which this holds.
+  def runs_past?(date)
+    active? && !(ends_on_date? && end_on.present? && end_on <= date)
   end
 
   def transfer?
@@ -391,6 +398,23 @@ class RecurringTransaction < ApplicationRecord
         where(destination_account_id: accessible_account_ids)
           .or(where(destination_account_id: nil))
       )
+  }
+
+  # Bills this user may change: visible to them, and on an account they can
+  # write. An accountless bill has no account gate.
+  scope :writable_by, ->(user) {
+    writable_account = RecurringTransaction.where(account_id: nil)
+                                           .or(RecurringTransaction.where(account_id: Account.writable_by(user).select(:id)))
+    accessible_by(user).and(writable_account)
+  }
+
+  # Bills this user may link to a contract: ones they may change that are
+  # unlinked or held by a contract they can edit, so linking never takes a
+  # bill away from a contract they may only read or cannot see.
+  scope :linkable_by, ->(user) {
+    unlinked_or_editable = RecurringTransaction.where(contract_id: nil)
+                                               .or(RecurringTransaction.where(contract_id: Contract.editable_by(user).select(:id)))
+    writable_by(user).and(unlinked_or_editable)
   }
 
   # Class methods for identification and cleanup

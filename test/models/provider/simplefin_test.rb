@@ -4,6 +4,7 @@ class Provider::SimplefinTest < ActiveSupport::TestCase
   setup do
     @provider = Provider::Simplefin.new
     @access_url = "https://example.com/simplefin/access"
+    @provider.stubs(:resolve_addresses).returns([ "93.184.216.34" ])
   end
 
   test "retries on Net::ReadTimeout and succeeds on retry" do
@@ -173,5 +174,146 @@ class Provider::SimplefinTest < ActiveSupport::TestCase
 
     assert delay <= Provider::Simplefin::MAX_RETRY_DELAY,
       "Delay should be capped at MAX_RETRY_DELAY (#{Provider::Simplefin::MAX_RETRY_DELAY}s)"
+  end
+
+  test "claim_access_url rejects setup tokens pointing at link-local metadata addresses" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:post).never
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.claim_access_url(Base64.strict_encode64("http://169.254.169.254/latest/meta-data/"))
+    end
+
+    assert_equal :invalid_url, error.error_type
+  end
+
+  test "claim_access_url rejects hosts that resolve to a link-local address" do
+    @provider.stubs(:resolve_addresses).with("metadata.example.test").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:post).never
+
+    assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.claim_access_url(Base64.strict_encode64("https://metadata.example.test/claim"))
+    end
+  end
+
+  test "claim_access_url rejects the AWS IPv6 metadata address when self-hosted" do
+    @provider.stubs(:resolve_addresses).with("metadata6.example.test").returns([ "fd00:ec2::254" ])
+    Provider::Simplefin.expects(:post).never
+
+    with_self_hosting do
+      assert_raises(Provider::Simplefin::SimplefinError) do
+        @provider.claim_access_url(Base64.strict_encode64("http://metadata6.example.test/latest"))
+      end
+    end
+  end
+
+  test "claim_access_url rejects non-http schemes" do
+    Provider::Simplefin.expects(:post).never
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.claim_access_url(Base64.strict_encode64("file:///etc/passwd"))
+    end
+
+    assert_equal :invalid_url, error.error_type
+  end
+
+  test "claim_access_url allows private bridge addresses when self-hosted" do
+    @provider.stubs(:resolve_addresses).with("bridge.lan").returns([ "192.168.1.20" ])
+    Provider::Simplefin.expects(:post).returns(OpenStruct.new(code: 200, body: "http://user:pass@bridge.lan/simplefin"))
+
+    with_self_hosting do
+      assert_equal "http://user:pass@bridge.lan/simplefin",
+        @provider.claim_access_url(Base64.strict_encode64("http://bridge.lan/simplefin/claim/abc"))
+    end
+  end
+
+  test "claim_access_url rejects private and loopback addresses on managed instances" do
+    Rails.configuration.stubs(:app_mode).returns("managed".inquiry)
+    Provider::Simplefin.expects(:post).never
+
+    { "bridge.lan" => "192.168.1.20", "localhost" => "127.0.0.1", "v6.lan" => "fd00::1" }.each do |host, address|
+      @provider.stubs(:resolve_addresses).with(host).returns([ address ])
+
+      assert_raises(Provider::Simplefin::SimplefinError, "#{host} should be rejected") do
+        @provider.claim_access_url(Base64.strict_encode64("https://#{host}/claim"))
+      end
+    end
+  end
+
+  test "claim_access_url requires https on managed instances" do
+    Rails.configuration.stubs(:app_mode).returns("managed".inquiry)
+    Provider::Simplefin.expects(:post).never
+
+    assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.claim_access_url(Base64.strict_encode64("http://bridge.simplefin.org/claim"))
+    end
+  end
+
+  test "claim_access_url rejects an access URL pointing at a disallowed address" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:post).returns(OpenStruct.new(code: 200, body: "http://169.254.169.254/latest"))
+
+    assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.claim_access_url(Base64.strict_encode64("https://example.com/claim"))
+    end
+  end
+
+  test "claim_access_url does not follow redirects" do
+    Provider::Simplefin.expects(:post).with("https://example.com/claim", has_entry(follow_redirects: false))
+      .returns(OpenStruct.new(code: 200, body: "https://example.com/access"))
+
+    @provider.claim_access_url(Base64.strict_encode64("https://example.com/claim"))
+  end
+
+  test "get_accounts does not echo the response body in error messages" do
+    Provider::Simplefin.expects(:get).returns(OpenStruct.new(code: 418, message: "I'm a teapot", body: "internal-secret"))
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) { @provider.get_accounts(@access_url) }
+
+    assert_not_includes error.message, "internal-secret"
+  end
+
+  test "get_accounts rejects a stored access URL pointing at a disallowed address" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:get).never
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_accounts("http://user:pass@169.254.169.254/simplefin")
+    end
+
+    assert_equal :invalid_url, error.error_type
+  end
+
+  test "get_accounts does not follow redirects" do
+    Provider::Simplefin.expects(:get).with("#{@access_url}/accounts", has_entry(follow_redirects: false))
+      .returns(OpenStruct.new(code: 200, body: '{"accounts": []}'))
+
+    @provider.get_accounts(@access_url)
+  end
+
+  test "get_info rejects a base URL pointing at a disallowed address" do
+    @provider.stubs(:resolve_addresses).with("169.254.169.254").returns([ "169.254.169.254" ])
+    Provider::Simplefin.expects(:get).never
+
+    assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_info("http://169.254.169.254/simplefin")
+    end
+  end
+
+  test "get_info does not follow redirects" do
+    Provider::Simplefin.expects(:get).with("https://example.com/simplefin/info", has_entry(follow_redirects: false))
+      .returns(OpenStruct.new(code: 200, body: "1.0\n"))
+
+    assert_equal [ "1.0" ], @provider.get_info("https://example.com/simplefin")
+  end
+
+  test "an unresolvable host raises a network error, not an invalid url" do
+    @provider.stubs(:resolve_addresses).with("flaky.example.test").returns([])
+
+    error = assert_raises(Provider::Simplefin::SimplefinError) do
+      @provider.get_accounts("https://user:pass@flaky.example.test/simplefin")
+    end
+
+    assert_equal :network_error, error.error_type
   end
 end

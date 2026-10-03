@@ -57,6 +57,14 @@ class CategoryTest < ActiveSupport::TestCase
     assert_nil category.parent
   end
 
+  test "parent must belong to the same family" do
+    foreign_parent = families(:empty).categories.create!(name: "Foreign", color: "#000000", lucide_icon: "folder")
+    category = @family.categories.new(name: "Child", color: "#000000", lucide_icon: "folder", parent: foreign_parent)
+
+    assert_not category.valid?
+    assert category.errors.added?(:parent, :invalid)
+  end
+
   test "subcategory can only be one level deep" do
     category = categories(:subcategory)
 

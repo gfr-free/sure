@@ -108,6 +108,34 @@ class RecurringTransaction
       end
     end
 
+    # The Poster's write path for an entry it just created for this very
+    # occurrence. Confirmed and auto-closed, so deleting the entry reopens the
+    # occurrence; it teaches the matcher nothing, since the entry's name and
+    # amount came from the series in the first place.
+    def allocate_posted!(entry:)
+      occurrence.with_lock do
+        with_entry_lock(entry) do
+          allocated, source_amount, source_currency = resolve_amounts(nil, entry)
+          guard_entry_capacity!(entry, source_amount)
+          freeze_expected_amount!
+
+          allocation = occurrence.allocations.create!(
+            entry: entry,
+            allocated_amount: allocated,
+            currency: occurrence.currency,
+            source_amount: source_amount,
+            source_currency: source_currency,
+            state: "confirmed",
+            source: "auto_posted",
+            paid_on: entry.date
+          )
+
+          refresh_close_state!
+          allocation
+        end
+      end
+    end
+
     # Accepting a suggestion makes it a real payment.
     def confirm_suggestion!(allocation)
       occurrence.with_lock do

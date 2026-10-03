@@ -24,6 +24,79 @@ class RecurringTransactionTest < ActiveSupport::TestCase
       "a destination outside the family is not this family's obligation"
   end
 
+  test "auto-posting is allowed on a manual account with a fixed amount" do
+    series = build_recurring(auto_post: true)
+
+    assert series.valid?, series.errors.full_messages.to_sentence
+  end
+
+  test "auto-posting is refused on a linked account" do
+    series = build_recurring(account: accounts(:connected), auto_post: true)
+
+    assert_not series.valid?
+    assert series.errors.added?(:auto_post, :manual_account_required)
+  end
+
+  test "auto-posting a transfer needs both accounts manual" do
+    series = build_recurring(destination_account: accounts(:connected), auto_post: true)
+
+    assert_not series.valid?
+    assert series.errors.added?(:auto_post, :manual_account_required)
+  end
+
+  test "auto-posting needs a fixed amount" do
+    series = build_recurring(amount_strategy: "average", auto_post: true)
+
+    assert_not series.valid?
+    assert series.errors.added?(:auto_post, :fixed_amount_required)
+  end
+
+  test "auto-posting needs the account's currency" do
+    series = build_recurring(currency: "EUR", auto_post: true)
+
+    assert_not series.valid?
+    assert series.errors.added?(:auto_post, :account_currency_required)
+  end
+
+  test "switching auto-posting on starts from today, not the past" do
+    series = build_recurring
+    series.save!
+    assert_nil series.auto_post_from
+
+    travel_to Date.new(2026, 10, 3) do
+      series.update!(auto_post: true)
+    end
+
+    assert_equal Date.new(2026, 10, 3), series.reload.auto_post_from
+  end
+
+  test "switching auto-posting on starts from the family's local day" do
+    series = build_recurring
+    series.save!
+    series.family.update!(timezone: "Pacific/Auckland")
+
+    travel_to Time.utc(2026, 10, 2, 23, 0) do
+      series.update!(auto_post: true)
+    end
+
+    assert_equal Date.new(2026, 10, 3), series.reload.auto_post_from
+  end
+
+  test "a series whose account was linked later still saves unrelated changes" do
+    series = build_recurring(auto_post: true)
+    series.save!
+    series.update_columns(account_id: accounts(:connected).id)
+
+    assert series.reload.update(matcher_hints: { "name_aliases" => [ "NETFLIX.COM" ] }),
+      "background updates must not fail; the poster switches auto-posting off"
+  end
+
+  test "an installment plan can auto-post" do
+    series = build_recurring(bill_type: "installment", auto_post: true)
+
+    assert series.valid?, series.errors.full_messages.to_sentence
+  end
+
   test "status is required" do
     recurring = @family.recurring_transactions.build(
       account: @account,

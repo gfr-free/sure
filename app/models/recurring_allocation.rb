@@ -17,7 +17,7 @@ class RecurringAllocation < ApplicationRecord
 
   enum :state, { suggested: "suggested", confirmed: "confirmed" }, prefix: :allocation
   enum :source, { auto_matched: "auto_matched", user_confirmed: "user_confirmed",
-                  user_created: "user_created" }, prefix: :from
+                  user_created: "user_created", auto_posted: "auto_posted" }, prefix: :from
 
   validates :allocated_amount, presence: true, numericality: { greater_than: 0 }
   validates :currency, presence: true
@@ -27,6 +27,14 @@ class RecurringAllocation < ApplicationRecord
   scope :suggested, -> { where(state: :suggested) }
 
   before_validation :default_paid_on
+
+  # Which of these entries Sure posted by itself, in one query for a whole
+  # transaction list.
+  def self.auto_posted_entry_ids(entry_ids)
+    return Set.new if entry_ids.empty?
+
+    from_auto_posted.where(entry_id: entry_ids).distinct.pluck(:entry_id).to_set
+  end
 
   private
     def currency_matches_occurrence

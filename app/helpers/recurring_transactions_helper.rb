@@ -13,6 +13,12 @@ module RecurringTransactionsHelper
     end
   end
 
+  # Which of these accounts are manual, for the bill form's auto-post switch.
+  # One query instead of Account#manual? per option.
+  def recurring_manual_account_ids(accounts)
+    accounts.reorder(nil).manual.pluck(:id)
+  end
+
   def frequency_preset_options(recurring_transaction)
     options = RecurringTransaction::FrequencyPreset::PRESETS.map do |preset|
       [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]

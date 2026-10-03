@@ -15,18 +15,20 @@ class MobileDevice < ApplicationRecord
   before_validation :set_last_seen_at, on: :create
 
   CALLBACK_URL = "sureapp://oauth/callback"
+  SHARED_OAUTH_APPLICATION_NAME = "Sure Mobile"
 
   scope :active, -> { where("last_seen_at > ?", 90.days.ago) }
 
   def self.shared_oauth_application
     @shared_oauth_application ||= begin
-      Doorkeeper::Application.find_or_create_by!(name: "Sure Mobile") do |app|
-        app.redirect_uri = CALLBACK_URL
+      # Matching the redirect URI too skips same-named clients registered
+      # through /register before that name was reserved.
+      Doorkeeper::Application.find_or_create_by!(name: SHARED_OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL) do |app|
         app.scopes = "read_write"
         app.confidential = false
       end
     rescue ActiveRecord::RecordNotUnique
-      Doorkeeper::Application.find_by!(name: "Sure Mobile")
+      Doorkeeper::Application.find_by!(name: SHARED_OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL)
     end
   end
 

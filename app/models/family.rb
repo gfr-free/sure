@@ -667,7 +667,8 @@ class Family < ApplicationRecord
 
   # Used for invalidating entry related aggregation queries
   def entries_cache_version
-    "#{entries.count}-#{entries.maximum(:updated_at)&.to_f || 0}"
+    count, max_updated_at = entries_count_and_max_updated_at
+    "#{count}-#{max_updated_at&.to_f || 0}"
   end
 
   # Used for invalidating caches keyed on entries (e.g. the transactions
@@ -676,7 +677,8 @@ class Family < ApplicationRecord
   # the current max updated_at, and uses full-precision timestamps so two
   # updates within the same second still produce distinct versions.
   def entries_version
-    "#{entries.count}-#{entries.maximum(:updated_at)&.to_f}"
+    count, max_updated_at = entries_count_and_max_updated_at
+    "#{count}-#{max_updated_at&.to_f}"
   end
 
   # Used for invalidating caches keyed on recurring transactions (e.g. the
@@ -807,5 +809,14 @@ class Family < ApplicationRecord
       return if timezone.blank?
 
       errors.add(:timezone, :invalid) if ActiveSupport::TimeZone[timezone].blank?
+    end
+
+    # One aggregate query instead of separate COUNT and MAX scans. Both
+    # #entries_cache_version and #entries_version issue this exact SQL, so
+    # within a request/job the Active Record query cache serves repeat calls,
+    # and any write (including update_all/delete_all) clears that cache, so a
+    # write-then-render in the same request still sees fresh values.
+    def entries_count_and_max_updated_at
+      entries.pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(entries.updated_at)"))
     end
 end

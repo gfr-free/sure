@@ -560,7 +560,9 @@ Rails.application.routes.draw do
     resource :pending_duplicate_merges, only: %i[new create]
     resource :category, only: :update, controller: :transaction_categories
     resources :attachments, only: %i[show create destroy], controller: :transaction_attachments
-    resources :paperless_links, only: %i[new create destroy], controller: :transaction_paperless_links
+    resources :paperless_links, only: %i[new create destroy], controller: :transaction_paperless_links do
+      get "thumbs/:document_id", action: :thumb, on: :collection, as: :thumb, constraints: { document_id: /\d+/ }
+    end
 
     collection do
       delete :clear_filter
@@ -581,8 +583,6 @@ Rails.application.routes.draw do
   resources :paperless_links, only: [] do
     get "file/:kind", action: :file, on: :member, as: :file, constraints: { kind: /thumb|preview|download/ }
   end
-  get "paperless/documents/:document_id/thumb", to: "paperless_thumbnails#show", as: :paperless_document_thumb,
-      constraints: { document_id: /\d+/ }
 
   resources :bills, only: %i[index show] do
     # POST for the same reason recurring_transactions#identify is: detection

@@ -42,22 +42,4 @@ class PaperlessLinksControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
-
-  test "search thumbnails use the user's own connection" do
-    Provider::Paperless.any_instance.expects(:file).with("7", kind: :thumb).returns([ "img", "image/webp" ])
-    sign_in users(:family_admin)
-
-    get paperless_document_thumb_url(document_id: 7)
-
-    assert_response :success
-    assert_equal "image/webp", response.media_type
-  end
-
-  test "search thumbnails need a connection" do
-    sign_in users(:family_member)
-
-    get paperless_document_thumb_url(document_id: 7)
-
-    assert_response :not_found
-  end
 end

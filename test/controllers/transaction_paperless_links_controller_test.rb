@@ -72,6 +72,37 @@ class TransactionPaperlessLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "search thumbnails stream through the user's connection" do
+    Provider::Paperless.any_instance.expects(:file).with("7", kind: :thumb).returns([ "img", "image/webp" ])
+
+    get thumb_transaction_paperless_links_url(@entry, document_id: 7)
+
+    assert_response :success
+    assert_equal "image/webp", response.media_type
+  end
+
+  test "search thumbnails need a connection" do
+    sign_in users(:family_member)
+
+    get thumb_transaction_paperless_links_url(@entry, document_id: 7)
+
+    assert_response :not_found
+  end
+
+  test "a shared connection shows search thumbnails only to members who may link" do
+    Provider::Paperless::HostGuard.stubs(:check!)
+    family = @entry.account.family
+    family.paperless_connections.create!(user: nil, base_url: "https://docs.example.com", api_token: "abc")
+    family.update!(paperless_connection_mode: "family")
+    credit_card_entry = create_transaction(account: accounts(:credit_card), amount: 20)
+    Provider::Paperless.any_instance.expects(:file).never
+    sign_in users(:family_member)
+
+    get thumb_transaction_paperless_links_url(credit_card_entry, document_id: 7)
+
+    assert_response :redirect
+  end
+
   test "the transaction drawer lists linked documents" do
     PaperlessLink.create!(family: @entry.account.family, linkable: @entry.transaction,
                           paperless_connection: paperless_connections(:admin_connection), document_id: 7, title: "Stromrechnung")

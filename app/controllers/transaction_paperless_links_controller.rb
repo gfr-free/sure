@@ -1,4 +1,6 @@
 class TransactionPaperlessLinksController < ApplicationController
+  include PaperlessFileStreaming
+
   SEARCH_WINDOW_DAYS = 30
 
   before_action :set_entry
@@ -29,6 +31,19 @@ class TransactionPaperlessLinksController < ApplicationController
   rescue Provider::Paperless::Error => e
     @connection.report_error(e, operation: "link")
     redirect_back_or_to transactions_path, alert: t(".failed", error: e.message)
+  end
+
+  # Thumbnails for search results, before a document is linked. Behind the same
+  # checks as the search itself, so a shared family token only shows previews to
+  # members who may link documents to this transaction.
+  def thumb
+    connection = Current.family.paperless_connection_for(Current.user)
+    return head(:not_found) if connection.nil?
+
+    bytes, content_type = connection.client.file(params[:document_id], kind: :thumb)
+    stream_paperless_file(bytes, content_type, kind: "thumb", filename: "thumb-#{params[:document_id]}")
+  rescue Provider::Paperless::Error => e
+    head(e.error_type == :not_found ? :not_found : :bad_gateway)
   end
 
   def destroy

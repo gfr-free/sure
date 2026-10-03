@@ -24,7 +24,7 @@
           <% @documents.each do |document| %>
             <li class="flex items-center justify-between gap-3 p-3 border border-primary rounded-lg bg-container">
               <div class="flex items-center gap-3 min-w-0">
-                <%= image_tag paperless_document_thumb_path(document[:id]), alt: "", loading: "lazy",
+                <%= image_tag thumb_transaction_paperless_links_path(@entry, document_id: document[:id]), alt: "", loading: "lazy",
                               class: "w-10 h-12 object-cover rounded border border-primary shrink-0" %>
                 <div class="min-w-0">
                   <p class="text-sm font-medium text-primary truncate"><%= document[:title].presence || t(".untitled", id: document[:id]) %></p>

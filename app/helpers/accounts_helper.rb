@@ -60,7 +60,10 @@ module AccountsHelper
       account_grouping_dimension(:sidebar),
       # Dragging an account must re-render the sidebar right away rather
       # than after the 12h expiry.
-      Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest(Current.user.manual_account_order.to_json) : nil
+      Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest(Current.user.manual_account_order.to_json) : nil,
+      # Changing the account order in Settings must re-render the sidebar
+      # right away rather than after the 12h expiry.
+      Current.user&.default_account_order
     ]
   end
 

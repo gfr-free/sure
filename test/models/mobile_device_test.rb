@@ -21,6 +21,16 @@ class MobileDeviceTest < ActiveSupport::TestCase
     end
   end
 
+  test "shared_oauth_application ignores same-named clients with other redirect uris" do
+    Doorkeeper::Application.where(name: "Sure Mobile").destroy_all
+    impostor = Doorkeeper::Application.create!(name: "Sure Mobile", redirect_uri: "https://attacker.example/callback", confidential: false)
+
+    app = MobileDevice.shared_oauth_application
+
+    assert_not_equal impostor.id, app.id
+    assert_equal MobileDevice::CALLBACK_URL, app.redirect_uri
+  end
+
   test "inactive users cannot receive new mobile tokens" do
     user = users(:family_member)
     device = user.mobile_devices.create!(

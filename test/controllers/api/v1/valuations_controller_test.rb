@@ -3,6 +3,8 @@
 require "test_helper"
 
 class Api::V1::ValuationsControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     @user = users(:family_admin)
     @family = @user.family
@@ -366,7 +368,79 @@ class Api::V1::ValuationsControllerTest < ActionDispatch::IntegrationTest
     assert valuation_data.key?("notes")
   end
 
+  # Shared-account write permissions
+  test "member cannot create valuation on read_only shared or unshared account" do
+    [ accounts(:credit_card), accounts(:investment) ].each do |account|
+      assert_no_difference("Entry.count") do
+        post api_v1_valuations_url,
+             params: { valuation: { account_id: account.id, amount: 1234, date: Date.current } },
+             headers: api_headers(member_api_key)
+      end
+      assert_response :not_found
+    end
+  end
+
+  test "member with full_control share can create valuation" do
+    assert_difference("accounts(:depository).entries.valuations.count", 1) do
+      post api_v1_valuations_url,
+           params: { valuation: { account_id: accounts(:depository).id, amount: 1234, date: 1.day.ago.to_date } },
+           headers: api_headers(member_api_key)
+    end
+    assert_response :created
+  end
+
+  test "member cannot update valuation on read_only shared account" do
+    entry = create_valuation(account: accounts(:credit_card), date: 2.days.ago.to_date, amount: 100)
+
+    get api_v1_valuation_url(entry), headers: api_headers(member_api_key)
+    assert_response :success
+
+    put api_v1_valuation_url(entry),
+        params: { valuation: { notes: "Hijacked" } },
+        headers: api_headers(member_api_key)
+    assert_response :forbidden
+    assert_equal "forbidden", JSON.parse(response.body)["error"]
+    assert_nil entry.reload.notes
+  end
+
+  test "member cannot read or update valuation on unshared account" do
+    entry = create_valuation(account: accounts(:investment), date: 2.days.ago.to_date, amount: 100)
+
+    get api_v1_valuation_url(entry), headers: api_headers(member_api_key)
+    assert_response :not_found
+
+    put api_v1_valuation_url(entry),
+        params: { valuation: { notes: "Hijacked" } },
+        headers: api_headers(member_api_key)
+    assert_response :not_found
+    assert_nil entry.reload.notes
+  end
+
+  test "member with full_control share can update valuation" do
+    entry = create_valuation(account: accounts(:depository), date: 2.days.ago.to_date, amount: 100)
+
+    put api_v1_valuation_url(entry),
+        params: { valuation: { notes: "Updated" } },
+        headers: api_headers(member_api_key)
+    assert_response :success
+    assert_equal "Updated", entry.reload.notes
+  end
+
   private
+
+    def member_api_key
+      @member_api_key ||= begin
+        member = users(:family_member)
+        member.api_keys.active.destroy_all
+        ApiKey.create!(
+          user: member,
+          name: "Member Read-Write Key",
+          scopes: [ "read_write" ],
+          source: "web",
+          display_key: "test_member_rw_#{SecureRandom.hex(8)}"
+        ).tap { |key| Redis.new.del("api_rate_limit:#{key.id}") }
+      end
+    end
 
     def api_headers(api_key)
       { "X-Api-Key" => api_key.plain_key }

@@ -9,6 +9,7 @@ class Api::V1::ValuationsController < Api::V1::BaseController
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :create, :update ]
   before_action :set_valuation, only: [ :show, :update ]
+  before_action :ensure_account_writable, only: :update
 
   def index
     family = current_resource_owner.family
@@ -83,7 +84,7 @@ class Api::V1::ValuationsController < Api::V1::BaseController
       return
     end
 
-    account = current_resource_owner.family.accounts.find(valuation_account_id)
+    account = current_resource_owner.family.accounts.writable_by(current_resource_owner).find(valuation_account_id)
     requested_upsert = upsert_requested?
     existing_write = false
 
@@ -235,6 +236,8 @@ class Api::V1::ValuationsController < Api::V1::BaseController
       @entry = current_resource_owner.family
                  .entries
                  .where(entryable_type: "Valuation")
+                 .joins(:account)
+                 .merge(Account.accessible_by(current_resource_owner))
                  .find(params[:id])
       @valuation = @entry.entryable
     rescue ActiveRecord::RecordNotFound
@@ -242,6 +245,17 @@ class Api::V1::ValuationsController < Api::V1::BaseController
         error: "not_found",
         message: "Valuation not found"
       }, status: :not_found
+    end
+
+    # Visibility comes from set_valuation (accessible_by); changing a
+    # valuation needs owner/full_control on its account, as in the web UI.
+    def ensure_account_writable
+      return if @entry.account.permission_for(current_resource_owner).in?([ :owner, :full_control ])
+
+      render json: {
+        error: "forbidden",
+        message: "You do not have permission to modify valuations in this account"
+      }, status: :forbidden
     end
 
     def ensure_read_scope

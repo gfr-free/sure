@@ -36,6 +36,7 @@ RSpec.describe 'API V1 Transactions', type: :request do
   let(:account) do
     Account.create!(
       family: family,
+      owner: user,
       name: 'Checking Account',
       balance: 1000,
       currency: 'USD',
@@ -83,6 +84,27 @@ RSpec.describe 'API V1 Transactions', type: :request do
       entryable: Transaction.new
     )
     entry.transaction
+  end
+
+  # A family member the account is shared with read-only, for the
+  # account-permission 403 examples.
+  let(:read_only_member) do
+    family.users.create!(
+      email: 'api-member@example.com',
+      password: 'password123',
+      password_confirmation: 'password123',
+      role: 'member'
+    ).tap { |member| account.share_with!(member, permission: 'read_only') }
+  end
+
+  let(:read_only_member_api_key) do
+    ApiKey.create!(
+      user: read_only_member,
+      name: 'API Docs Member Key',
+      key: ApiKey.generate_secure_key,
+      scopes: %w[read_write],
+      source: 'web'
+    )
   end
 
   path '/api/v1/transactions' do
@@ -237,6 +259,23 @@ RSpec.describe 'API V1 Transactions', type: :request do
         run_test!
       end
 
+      response '404', 'account not found or not writable by the API user' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:body) do
+          {
+            transaction: {
+              account_id: SecureRandom.uuid,
+              date: Date.current.to_s,
+              amount: 50.00,
+              name: 'Test purchase'
+            }
+          }
+        end
+
+        run_test!
+      end
+
       response '422', 'validation error - missing account_id' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
@@ -343,6 +382,14 @@ RSpec.describe 'API V1 Transactions', type: :request do
         run_test!
       end
 
+      response '403', 'API user lacks write permission on the transaction account (read_write shares may only change notes, category, merchant and tags)' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:'X-Api-Key') { read_only_member_api_key.plain_key }
+
+        run_test!
+      end
+
       response '404', 'transaction not found' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
@@ -361,6 +408,14 @@ RSpec.describe 'API V1 Transactions', type: :request do
 
       response '200', 'transaction deleted' do
         schema '$ref' => '#/components/schemas/DeleteResponse'
+
+        run_test!
+      end
+
+      response '403', 'API user lacks write permission on the transaction account' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:'X-Api-Key') { read_only_member_api_key.plain_key }
 
         run_test!
       end

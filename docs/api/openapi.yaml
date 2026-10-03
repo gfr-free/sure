@@ -9789,6 +9789,12 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Transaction"
+        '404':
+          description: account not found or not writable by the API user
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '422':
           description: validation error - missing required fields
           content:
@@ -9911,6 +9917,13 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Transaction"
+        '403':
+          description: API user lacks write permission on the transaction account
+            (read_write shares may only change notes, category, merchant and tags)
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '404':
           description: transaction not found
           content:
@@ -9979,6 +9992,12 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/DeleteResponse"
+        '403':
+          description: API user lacks write permission on the transaction account
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '404':
           description: transaction not found
           content:
@@ -10278,7 +10297,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '404':
-          description: account not found
+          description: account not found or not writable by the API user
           content:
             application/json:
               schema:
@@ -10368,6 +10387,12 @@ paths:
                 "$ref": "#/components/schemas/Valuation"
         '422':
           description: validation error - only one of amount/date provided
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: API user lacks write permission on the valuation account
           content:
             application/json:
               schema:

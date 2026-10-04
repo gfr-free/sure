@@ -21,7 +21,10 @@ class TransactionPaperlessLinksController < ApplicationController
   end
 
   def create
-    PaperlessLink.link!(linkable: @transaction, connection: @connection, document_id: params.require(:document_id), user: Current.user)
+    document_id = Integer(params.require(:document_id), 10, exception: false)
+    return redirect_back_or_to(transactions_path, alert: t(".invalid_document")) unless document_id&.positive?
+
+    PaperlessLink.link!(linkable: @transaction, connection: @connection, document_id: document_id, user: Current.user)
     redirect_back_or_to transactions_path, notice: t(".success")
   rescue ActiveRecord::RecordNotUnique
     redirect_back_or_to transactions_path, alert: t(".already_linked")

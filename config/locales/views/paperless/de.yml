@@ -40,6 +40,7 @@ de:
     create:
       already_linked: Dieses Dokument ist bereits mit der Buchung verknüpft.
       failed: "Dokument konnte nicht verknüpft werden: %{error}"
+      invalid_document: Das ist kein gültiges Paperless-Dokument.
       success: Dokument verknüpft.
     destroy:
       success: Verknüpfung gelöst.

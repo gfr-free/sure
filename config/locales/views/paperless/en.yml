@@ -40,6 +40,7 @@ en:
     create:
       already_linked: This document is already linked to the transaction.
       failed: "Could not link the document: %{error}"
+      invalid_document: This is not a valid Paperless document.
       success: Document linked.
     destroy:
       success: Document unlinked.

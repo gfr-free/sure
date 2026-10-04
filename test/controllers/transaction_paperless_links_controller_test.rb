@@ -38,6 +38,17 @@ class TransactionPaperlessLinksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Rewe Kassenbon", @entry.transaction.paperless_links.last.title
   end
 
+  test "a malformed document id is rejected without calling Paperless" do
+    Provider::Paperless.any_instance.expects(:document).never
+
+    assert_no_difference -> { PaperlessLink.count } do
+      post transaction_paperless_links_url(@entry), params: { document_id: "abc" }
+    end
+
+    assert_response :redirect
+    assert_equal I18n.t("transaction_paperless_links.create.invalid_document"), flash[:alert]
+  end
+
   test "unlinks a document" do
     link = PaperlessLink.create!(family: @entry.account.family, linkable: @entry.transaction, document_id: 7)
 

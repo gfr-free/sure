@@ -67,6 +67,18 @@ class EntryTest < ActiveSupport::TestCase
     assert_not pending.reload.excluded?
   end
 
+  test "reconcile_pending_duplicates does not suggest a fuzzy match from another provider" do
+    account = accounts(:depository)
+    pending = create_pending(account, date: 3.days.ago.to_date, amount: 30)
+    pending.update_columns(source: "simplefin")
+    booked = create_transaction(account: account, date: 2.days.ago.to_date, amount: 33)
+    booked.update_columns(source: "lunchflow")
+
+    Entry.reconcile_pending_duplicates(account: account)
+
+    assert_nil pending.reload.transaction.extra["potential_posted_match"]
+  end
+
   private
     def create_pending(account, date:, amount:)
       create_transaction(

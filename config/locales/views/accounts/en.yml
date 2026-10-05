@@ -221,8 +221,8 @@ en:
       no_rate: "–"
       rate_pa: "%{rate} p.a."
       upcoming:
-        credit: "From %{date} the interest rate changes from %{from} to %{to}."
-        debit: "From %{date} the overdraft rate changes from %{from} to %{to}."
+        credit: "From %{date} the interest rate changes from %{from} to %{to}"
+        debit: "From %{date} the overdraft rate changes from %{from} to %{to}"
       columns:
         effective_from: Valid from
         kind: Kind

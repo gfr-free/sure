@@ -203,8 +203,8 @@ de:
       no_rate: "–"
       rate_pa: "%{rate} p. a."
       upcoming:
-        credit: "Ab %{date} ändert sich der Zinssatz von %{from} auf %{to}."
-        debit: "Ab %{date} ändert sich der Dispozins von %{from} auf %{to}."
+        credit: "Ab %{date} ändert sich der Zinssatz von %{from} auf %{to}"
+        debit: "Ab %{date} ändert sich der Dispozins von %{from} auf %{to}"
       columns:
         effective_from: Gilt ab
         kind: Art

@@ -160,10 +160,14 @@ class Entry < ApplicationRecord
 
     if count > 0
       now = Time.current
-      # Re-check `excluded` so a row the user excluded meanwhile gets no sync note.
-      stale_entries = Entry.where(id: stale_ids, excluded: false)
 
       transaction do
+        # Lock the rows and re-check `excluded`, so a row the user excluded
+        # meanwhile gets no sync note and the note and the exclusion always
+        # cover the same rows.
+        locked_ids = Entry.where(id: stale_ids, excluded: false).lock.pluck(:id)
+        stale_entries = Entry.where(id: locked_ids)
+
         # One statement for all notes; `by` comes from each entry's own source.
         Transaction.where(id: stale_entries.where(entryable_type: "Transaction").select(:entryable_id))
           .update_all([ <<~SQL.squish, { at: now.iso8601, days: days } ])

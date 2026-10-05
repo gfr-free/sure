@@ -119,10 +119,22 @@ class EntryTest < ActiveSupport::TestCase
     entry = create_transaction(account: accounts(:depository))
     Entry.find(entry.id).update!(excluded: true)
 
-    entry.exclude_automatically!(reason: "posted_match")
+    assert_equal false, entry.exclude_automatically!(reason: "posted_match")
 
     assert entry.reload.excluded?
     assert_nil entry.auto_exclusion
+  end
+
+  test "reconcile_pending_duplicates does not count an entry the user excluded meanwhile" do
+    account = accounts(:depository)
+    create_pending(account, date: 3.days.ago.to_date, amount: 25)
+    create_transaction(account: account, date: 1.day.ago.to_date, amount: 25)
+    Entry.any_instance.stubs(:exclude_automatically!).returns(false)
+
+    stats = Entry.reconcile_pending_duplicates(account: account)
+
+    assert_equal 0, stats[:reconciled]
+    assert_empty stats[:details]
   end
 
   test "exclude_automatically! rejects unknown reasons" do

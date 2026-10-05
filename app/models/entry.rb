@@ -245,11 +245,15 @@ class Entry < ApplicationRecord
           account: acct.name,
           match_type: "exact"
         }
+        unless dry_run
+          # Skip entries the user excluded by hand since they were loaded.
+          next unless pending_entry.exclude_automatically!(reason: "posted_match", matched_entry_id: posted_match.id)
+        end
+
         stats[:details] << detail
         stats[:reconciled] += 1
 
         unless dry_run
-          pending_entry.exclude_automatically!(reason: "posted_match", matched_entry_id: posted_match.id)
           Rails.logger.info("Reconciled pending→posted duplicate: excluded entry #{pending_entry.id} (#{pending_entry.name}) matched to #{posted_match.id}")
         end
         next
@@ -337,7 +341,7 @@ class Entry < ApplicationRecord
       # Reload under a row lock: a user who excluded the entry since it was
       # loaded keeps a manual exclusion without a sync note.
       lock!
-      return if excluded?
+      return false if excluded?
 
       if entryable.is_a?(Transaction)
         note = {
@@ -351,6 +355,7 @@ class Entry < ApplicationRecord
 
       self.auto_excluding = true
       update!(excluded: true)
+      true
     ensure
       self.auto_excluding = false
     end

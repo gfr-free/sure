@@ -202,6 +202,16 @@ class Rule::RunnerTest < ActiveSupport::TestCase
     assert_equal "Groceries run", @whole_foods.reload.entry.notes
   end
 
+  test "lines from several appending rules add up" do
+    create_rule("Top", "Whole Foods", append_notes: "Check receipt")
+    create_rule("Bottom", "Whole", append_notes: "Reimbursable")
+
+    run_active_rules
+    run_active_rules
+
+    assert_equal "Check receipt\nReimbursable", @whole_foods.reload.entry.notes
+  end
+
   test "an appended note keeps a rule further down from replacing the notes" do
     create_rule("Top", "Whole Foods", append_notes: "Check receipt")
     create_rule("Bottom", "Whole Foods", notes: "Groceries run")

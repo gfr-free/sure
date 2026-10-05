@@ -11,7 +11,14 @@ class Rule::ActionExecutor::AppendTransactionNotes < Rule::ActionExecutor
     nil
   end
 
+  # Appended lines add up like tags: several appending rules may each add
+  # their line. A rule above that replaces the notes still wins, and an
+  # append keeps replacing rules further down away (see SetTransactionNotes).
   def claimed_attributes
+    [ :appended_notes ]
+  end
+
+  def blocking_attributes
     [ :notes ]
   end
 

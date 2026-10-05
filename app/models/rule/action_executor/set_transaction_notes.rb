@@ -15,6 +15,11 @@ class Rule::ActionExecutor::SetTransactionNotes < Rule::ActionExecutor
     [ :notes ]
   end
 
+  # A line appended by a rule above must not be overwritten.
+  def blocking_attributes
+    [ :notes, :appended_notes ]
+  end
+
   def execute(transaction_scope, value: nil, ignore_attribute_locks: false, rule_run: nil)
     text = value.to_s.strip
     return 0 if text.blank?

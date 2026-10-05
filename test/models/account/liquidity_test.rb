@@ -219,6 +219,27 @@ class Account::LiquidityTest < ActiveSupport::TestCase
     assert_not Depository.rules_for("hsa").counts_in_budget?
   end
 
+  test "grace days only stay on a deposit that renews automatically" do
+    account = create_account(Depository, "cd")
+
+    account.update!(available_on: @today, auto_renew: true, renewal_term_months: 12, grace_days: 10)
+    assert_equal 10, account.reload.grace_days
+    assert_equal @today + 10, account.grace_period_end(@today)
+
+    account.update!(auto_renew: false)
+    assert_nil account.reload.grace_days
+    assert_nil account.grace_period_end(@today)
+  end
+
+  test "grace days must be a sensible number" do
+    account = create_account(Depository, "cd")
+
+    account.assign_attributes(auto_renew: true, renewal_term_months: 12, grace_days: Account::Liquidity::MAX_GRACE_DAYS + 1)
+
+    assert_not account.valid?
+    assert account.errors[:grace_days].any?
+  end
+
   private
     def create_account(klass, subtype)
       @family.accounts.create!(

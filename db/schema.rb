@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_093000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -29,6 +29,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "provider_type"], name: "index_account_providers_on_account_and_provider_type", unique: true
     t.index ["provider_type", "provider_id"], name: "index_account_providers_on_provider_type_and_provider_id", unique: true
+  end
+
+  create_table "account_release_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "account_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.date "release_on", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["account_id", "user_id", "kind", "release_on"], name: "index_account_release_notices_uniqueness", unique: true
+    t.index ["user_id"], name: "index_account_release_notices_on_user_id"
   end
 
   create_table "account_shares", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -111,6 +122,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.boolean "enable_category_matcher", default: true, null: false
     t.boolean "exclude_from_reports", default: false, null: false
     t.uuid "family_id", null: false
+    t.integer "grace_days"
     t.uuid "import_id"
     t.string "institution_domain"
     t.string "institution_name"
@@ -141,6 +153,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.index ["plaid_account_id"], name: "index_accounts_on_plaid_account_id"
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
+    t.check_constraint "grace_days IS NULL OR grace_days >= 0", name: "chk_accounts_grace_days"
     t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
     t.check_constraint "notice_period_days IS NULL OR notice_period_days >= 0", name: "chk_accounts_notice_period_days"
     t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
@@ -2931,6 +2944,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
   end
 
   add_foreign_key "account_providers", "accounts", on_delete: :cascade
+  add_foreign_key "account_release_notices", "accounts", on_delete: :cascade
+  add_foreign_key "account_release_notices", "users", on_delete: :cascade
   add_foreign_key "account_shares", "accounts"
   add_foreign_key "account_shares", "users"
   add_foreign_key "account_statements", "accounts", column: "suggested_account_id", on_delete: :nullify

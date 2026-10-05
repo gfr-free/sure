@@ -367,6 +367,7 @@ class Family::DataImporter
       term = importable_integer(data["renewal_term_months"], 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
       account.renewal_term_months = term
       account.auto_renew = term.present? && ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true
+      account.grace_days = importable_integer(data["grace_days"], 0..Account::Liquidity::MAX_GRACE_DAYS)
     end
 
     def importable_integer(value, range)

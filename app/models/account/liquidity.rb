@@ -31,6 +31,7 @@ module Account::Liquidity
 
   MAX_NOTICE_PERIOD_DAYS = 3650
   MAX_RENEWAL_TERM_MONTHS = 600
+  MAX_GRACE_DAYS = 90
 
   included do
     validates :liquidity, inclusion: { in: LEVELS }
@@ -41,6 +42,9 @@ module Account::Liquidity
               numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_RENEWAL_TERM_MONTHS },
               allow_nil: true
     validates :renewal_term_months, presence: true, if: -> { auto_renew? && liquidity == "locked" }
+    validates :grace_days,
+              numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: MAX_GRACE_DAYS },
+              allow_nil: true
     validate :liquidity_choice_must_be_known
 
     before_validation :apply_liquidity
@@ -141,6 +145,14 @@ module Account::Liquidity
     available_on >> (terms * renewal_term_months)
   end
 
+  # The last day a renewing deposit can still be cancelled after renewing
+  # on `renewal_date`, or nil without grace days.
+  def grace_period_end(renewal_date)
+    return nil unless auto_renew? && grace_days.to_i.positive? && renewal_date
+
+    renewal_date + grace_days.to_i
+  end
+
   def days_until_available(date = liquidity_today)
     release = next_release_date(date)
     return nil if release.nil? || release < date
@@ -166,7 +178,7 @@ module Account::Liquidity
     return if liquidity == default
 
     attributes = { liquidity: default }
-    attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil) unless default == "locked"
+    attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil, grace_days: nil) unless default == "locked"
     update_columns(attributes)
   end
 
@@ -187,6 +199,8 @@ module Account::Liquidity
       end
 
       clear_release_fields unless liquidity == "locked"
+      # Grace days only exist for a deposit that renews by itself.
+      self.grace_days = nil unless auto_renew?
     end
 
     def liquidity_default_needed?

@@ -176,6 +176,8 @@ de:
         renewal_term_months_label: Laufzeit in Monaten
         notice_period_days_label: Kündigungsfrist (Tage)
         notice_period_days_hint: Optional, nur zur Anzeige.
+        grace_days_label: "Kulanzfrist nach Verlängerung (Tage)"
+        grace_days_hint: "Optional. Tage nach einer automatischen Verlängerung, in denen du noch kündigen kannst."
       details:
         title: Details
         intro_subtype: "Regeln für dieses Konto. Die Standardwerte kommen vom Subtyp %{subtype}."
@@ -184,6 +186,7 @@ de:
         "yes": "Ja"
         "no": "Nein"
         no_release_date: Kein Datum gesetzt
+        grace_until: "Nach der Verlängerung noch kündbar bis %{date}"
         renews:
           one: verlängert sich jeden Monat
           other: "verlängert sich alle %{count} Monate"

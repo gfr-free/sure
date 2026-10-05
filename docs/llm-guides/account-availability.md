@@ -19,7 +19,9 @@ Stored on `accounts.liquidity`:
 
 `available_on` is the release date of a locked account. With `auto_renew` and
 `renewal_term_months` the deposit rolls over and never releases by itself.
-`notice_period_days` is informational only.
+`notice_period_days` is informational only. `grace_days` (renewing deposits
+only) is how long after a renewal the deposit can still be cancelled; it is
+shown and used by the reminders, never by the availability scopes.
 
 ## Where the logic lives
 
@@ -67,11 +69,33 @@ account.next_release_date(today)
 Assets and liabilities are separate scopes on purpose: a combined scope would
 count credit cards as available wealth.
 
+## Release reminders
+
+`Account::ReleaseReminder` decides which locked accounts need a reminder on a
+day: `upcoming` (released within the lead time), `released` (on the release
+date and for a week after) and `renewal` (a renewing deposit; from the lead
+time before the last day to give notice until that day or the end of the
+grace period). Both channels ask it, so they never disagree:
+
+- Feed: `Insight::Generators::AccountReleaseGenerator`, run by
+  `GenerateInsightsJob`. The feed is per family, so it runs only when a member
+  chose the feed, takes the longest lead time among them and only accounts
+  that count in one of their finances.
+- E-mail: `AccountReleaseNotificationJob` (daily cron) mails each member who
+  chose e-mail a digest (`AccountAvailabilityMailer`) for the accounts in their
+  own finances with their own lead time. `AccountReleaseNotice` stores what was
+  sent so nothing goes out twice.
+
+Channel and lead time are per person in `users.preferences`
+(`User#account_release_channel`, `#account_release_lead_days`), set on the
+Preferences page.
+
 ## Preview gating
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
 UI are behind the preview switch: the form section, header badge, Details tab,
 and the budget's and paycheck planner's switch from "depository" to
 `immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
-already run only for preview families. API and assistant fields are always
+already run only for preview families; release reminders, their settings and
+the e-mail only reach members with preview features on. API and assistant fields are always
 returned (additive).

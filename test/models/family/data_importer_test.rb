@@ -47,7 +47,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           available_on: "2027-03-31",
           notice_period_days: 30,
           auto_renew: true,
-          renewal_term_months: 12
+          renewal_term_months: 12,
+          grace_days: 10
         }
       }
     ])
@@ -60,6 +61,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 30, account.notice_period_days
     assert account.auto_renew?
     assert_equal 12, account.renewal_term_months
+    assert_equal 10, account.grace_days
   end
 
   test "an exported automatic availability follows the subtype default on import" do

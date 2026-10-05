@@ -194,6 +194,8 @@ en:
         renewal_term_months_label: Term in months
         notice_period_days_label: Notice period (days)
         notice_period_days_hint: Optional, shown for information only.
+        grace_days_label: "Grace period after renewal (days)"
+        grace_days_hint: "Optional. Days after an automatic renewal in which you can still cancel."
       details:
         title: Details
         intro_subtype: "Rules for this account. Defaults come from the subtype %{subtype}."
@@ -202,6 +204,7 @@ en:
         "yes": "Yes"
         "no": "No"
         no_release_date: No date set
+        grace_until: "Can still be cancelled until %{date} after renewing"
         renews:
           one: renews every month
           other: "renews every %{count} months"

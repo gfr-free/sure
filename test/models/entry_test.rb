@@ -70,6 +70,7 @@ class EntryTest < ActiveSupport::TestCase
     pending = create_pending(account, date: 3.days.ago.to_date, amount: 25)
     pending.update_columns(source: "enable_banking")
     booked = create_transaction(account: account, date: 1.day.ago.to_date, amount: 25)
+    booked.update_columns(source: "enable_banking")
 
     Entry.reconcile_pending_duplicates(account: account)
 

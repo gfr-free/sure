@@ -156,6 +156,31 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, response_body["available_now"]
   end
 
+  test "should show interest terms, with amounts only on the single account" do
+    account = accounts(:depository)
+    account.update!(interest_payout_frequency: "monthly")
+    account.interest_rates.create!(effective_from: 1.year.ago.to_date, rate: 3.5)
+    account.interest_rates.create!(effective_from: 1.month.from_now.to_date, rate: 1.5)
+
+    get "/api/v1/accounts/#{account.id}", headers: api_headers(@api_key)
+
+    assert_response :success
+    interest = JSON.parse(response.body)["interest"]
+    assert_equal "3.5", interest["rate"]
+    assert_equal "monthly", interest["payout_frequency"]
+    assert_equal "act_365", interest["day_count"]
+    assert_equal [ "1.5" ], interest["rate_changes"].map { |change| change["rate"] }
+    assert interest.key?("accrued")
+    assert interest["next_payout_amount"].key?("formatted")
+
+    get "/api/v1/accounts", headers: api_headers(@api_key)
+
+    listed = JSON.parse(response.body)["accounts"].find { |row| row["id"] == account.id }
+    assert_equal "3.5", listed["interest"]["rate"]
+    assert_not listed["interest"].key?("accrued")
+    assert_nil JSON.parse(response.body)["accounts"].find { |row| row["id"] == accounts(:investment).id }&.dig("interest")
+  end
+
   test "should return 404 for unknown account on show" do
     get "/api/v1/accounts/#{SecureRandom.uuid}", headers: api_headers(@api_key)
 

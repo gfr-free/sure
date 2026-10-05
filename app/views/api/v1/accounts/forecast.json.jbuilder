@@ -23,6 +23,6 @@ json.events @forecast.events do |event|
   json.kind event.kind.to_s
   json.amount money.call(event.amount)
   json.balance_after money.call(event.balance_after)
-  json.recurring_transaction_id event.series.id
-  json.occurrence_id event.occurrence.id
+  json.recurring_transaction_id event.series&.id
+  json.occurrence_id event.occurrence&.id
 end

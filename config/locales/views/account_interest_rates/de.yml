@@ -1,0 +1,5 @@
+---
+de:
+  account_interest_rates:
+    destroy:
+      success: Zinssatz entfernt

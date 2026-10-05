@@ -30,6 +30,20 @@ class Assistant::Function::GetAccountsTest < ActiveSupport::TestCase
     end
   end
 
+  test "carries the interest terms of accounts that have them" do
+    account = accounts(:depository)
+    account.interest_rates.create!(effective_from: 1.year.ago.to_date, rate: 3.5)
+    account.interest_rates.create!(effective_from: 1.month.from_now.to_date, rate: 1.5)
+
+    accounts = @fn.call[:accounts]
+    payload = accounts.find { |row| row[:id] == account.id }
+
+    assert_equal 3.5, payload[:interest][:rate]
+    assert_equal "monthly", payload[:interest][:payout_frequency]
+    assert_equal [ 1.5 ], payload[:interest][:rate_changes].map { |change| change[:rate] }
+    assert_nil accounts.find { |row| row[:id] == accounts(:investment).id }[:interest]
+  end
+
   test "says how available each account's money is" do
     cd = accounts(:depository)
     cd.update!(subtype: "cd", available_on: Date.current + 90)

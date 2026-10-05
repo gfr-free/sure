@@ -12,6 +12,10 @@
 # statistical daily spend (F7): a pure bills account would otherwise always
 # read as running dry.
 #
+# Interest payouts expected in the window (Account::InterestProjection) join
+# as events of kind :interest, worked out on the balance path the payments
+# leave behind; they have no occurrence or series.
+#
 # Only accounts whose money is reachable today take part (Account::Liquidity,
 # `immediate`); credit cards stay out until there is limit logic. Every figure
 # is in the account's own currency; occurrences in another currency are
@@ -36,7 +40,7 @@ class Account::Forecast
     # The accounts a forecast is computed for: available today and holding
     # money (not a liability).
     def forecastable_scope(family, as_of: Account.liquidity_today_for(family))
-      family.accounts.visible.immediate_assets_on(as_of)
+      family.accounts.visible.immediate_assets_on(as_of).includes(:interest_rates)
     end
 
     def forecastable?(account, as_of: Account.liquidity_today_for(account.family))
@@ -148,6 +152,7 @@ class Account::Forecast
     def compute(occurrences)
       @starting_balance = account.balance_money
       @events = build_events(occurrences)
+      @events = (@events + interest_events(@events)).sort_by { |event| [ event.date, event.amount.amount ] }
 
       balance = @starting_balance
       @low_balance = balance
@@ -188,6 +193,23 @@ class Account::Forecast
         Event.new(date: date, name: series.display_name, kind: kind, amount: signed, balance_after: nil,
                   occurrence: occurrence, series: series)
       end.sort_by { |event| [ event.date, event.amount.amount ] }
+    end
+
+    # Interest paid or charged in the window, on the balance the payments
+    # leave each day.
+    def interest_events(payment_events)
+      return [] unless account.interest_terms?
+
+      by_date = payment_events.group_by(&:date).transform_values { |events| events.sum(BigDecimal("0")) { |event| event.amount.amount } }
+      start = starting_balance.amount
+      balance_on = ->(date) { start + by_date.sum(BigDecimal("0")) { |day, amount| day <= date ? amount : 0 } }
+
+      account.interest_projection(as_of: starts_on).payouts_between(ends_on, balance_on: balance_on).filter_map do |payout|
+        next if payout.amount.zero?
+
+        Event.new(date: payout.date, name: I18n.t("accounts.forecast.interest_event"), kind: :interest, amount: payout.amount,
+                  balance_after: nil, occurrence: nil, series: nil)
+      end
     end
 
     def kind_for(occurrence)

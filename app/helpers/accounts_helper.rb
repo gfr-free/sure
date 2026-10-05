@@ -29,6 +29,20 @@ module AccountsHelper
       release ? t("accounts.liquidity.badge.locked_until", date: l(release, format: :long)) : t("accounts.liquidity.badge.locked")
     end
   end
+  # "3.5 % p.a." in the user's locale; a dash when there is no rate.
+  def interest_rate_label(rate)
+    return t("accounts.interest.no_rate") if rate.nil?
+
+    t("accounts.interest.rate_pa", rate: number_to_percentage(rate, precision: 2, strip_insignificant_zeros: true))
+  end
+
+  # Options for the payout rhythm select; blank follows the subtype.
+  def interest_payout_frequency_options(account)
+    automatic = t("accounts.interest.form.frequency_automatic",
+                  frequency: t("accounts.interest.frequencies.#{account.default_interest_payout_frequency}"))
+    [ [ automatic, "" ] ] + Account::Interest::PAYOUT_FREQUENCIES.map { |value| [ t("accounts.interest.frequencies.#{value}"), value ] }
+  end
+
   def summary_card(title:, &block)
     content = capture(&block)
     render "accounts/summary_card", title: title, content: content

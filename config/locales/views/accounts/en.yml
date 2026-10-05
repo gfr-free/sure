@@ -91,6 +91,7 @@ en:
         statements: Statements
         details: Details
         forecast: Forecast
+        interest: Interest
       activity:
         amount: Amount
         balance: Balance
@@ -201,6 +202,58 @@ en:
         income: Income
         transfer_in: Transfer in
         transfer_out: Transfer out
+        interest: Interest
+      interest_event: Interest payment
+    interest:
+      title: Interest
+      terms: "Paid %{frequency} into this account. Day count: %{day_count}."
+      current_rate: Current rate
+      overdraft_rate: "Overdraft: %{rate}"
+      accrued: Accrued since the last payment
+      next_payout: Next payment on %{date}
+      value_at_maturity: Released on %{date}, with interest
+      estimate_hint: Estimated from the daily balances and the rate history, before tax. Future days assume today's balance.
+      empty: No interest rate is set for this account. Add one to see the interest it earns, the next payment and the value at maturity.
+      edit: Edit interest
+      history_title: Rate history
+      planned: Planned
+      remove: Remove
+      no_rate: "–"
+      rate_pa: "%{rate} p.a."
+      upcoming:
+        credit: "From %{date} the interest rate changes from %{from} to %{to}."
+        debit: "From %{date} the overdraft rate changes from %{from} to %{to}."
+      columns:
+        effective_from: Valid from
+        kind: Kind
+        rate: Rate
+        actions: Actions
+      kinds:
+        credit: Interest rate
+        debit: Overdraft rate
+      frequencies:
+        daily: daily
+        monthly: monthly
+        quarterly: quarterly
+        semiannual: every six months
+        annual: yearly
+        at_maturity: at maturity
+      day_counts:
+        thirty_360: 30/360
+        act_365: actual/365
+      errors:
+        planned_in_future: must be after today
+      form:
+        heading: Interest
+        rate_label: Interest rate (% p.a., nominal)
+        rate_hint: A new rate applies from today; the first rate applies from the start of the account. Clearing the field removes the rate.
+        overdraft_rate_label: Overdraft rate (% p.a.)
+        frequency_label: Interest paid
+        frequency_automatic: "Automatic (%{frequency})"
+        planned_heading: Planned rate change
+        planned_rate_label: New rate (% p.a.)
+        planned_on_label: Valid from
+        planned_hint: For example when a teaser rate ends. You get a notice 14 days before.
     liquidity:
       preview: Preview
       levels:
@@ -244,6 +297,7 @@ en:
           tax_treatment: Tax treatment
           counts_in_budget: Transactions count in budget and cash flow
           counts_as_budget_cash: Balance counts as free money in the budget
+          interest_payout: Interest paid
         sources:
           subtype: "From subtype %{subtype}"
           account_type: "From account type %{type}"

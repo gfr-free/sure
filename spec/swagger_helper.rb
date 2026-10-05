@@ -323,11 +323,40 @@ RSpec.configure do |config|
               available_on: { type: :string, format: :date, nullable: true, description: 'Release date of a locked account' },
               notice_period_days: { type: :integer, nullable: true, description: 'Notice period in days, informational only' },
               available_now: { type: :boolean, description: 'Whether the money counts as available today (assets only)' },
+              interest: {
+                nullable: true,
+                description: 'Interest terms; null when the account has none',
+                allOf: [ { '$ref' => '#/components/schemas/AccountInterest' } ]
+              },
               status: { type: :string, enum: %w[active draft disabled pending_deletion] },
               institution_name: { type: :string, nullable: true },
               institution_domain: { type: :string, nullable: true },
               created_at: { type: :string, format: :'date-time' },
               updated_at: { type: :string, format: :'date-time' }
+            }
+          },
+          AccountInterestRateChange: {
+            type: :object,
+            required: %w[effective_from rate applies_to],
+            properties: {
+              effective_from: { type: :string, format: :date },
+              rate: { type: :string, description: 'Nominal rate in percent per year' },
+              applies_to: { type: :string, enum: %w[credit debit], description: 'credit: paid on a positive balance; debit: charged on an overdraft' }
+            }
+          },
+          AccountInterest: {
+            type: :object,
+            required: %w[rate debit_rate payout_frequency day_count next_payout_on rate_changes],
+            properties: {
+              rate: { type: :string, nullable: true, description: 'Nominal credit rate in percent per year in force today' },
+              debit_rate: { type: :string, nullable: true, description: 'Overdraft rate in percent per year in force today' },
+              payout_frequency: { type: :string, enum: %w[daily monthly quarterly semiannual annual at_maturity] },
+              day_count: { type: :string, enum: %w[thirty_360 act_365], description: 'Fixed per currency: 30/360 for EUR, actual/365 otherwise' },
+              next_payout_on: { type: :string, format: :date, nullable: true },
+              rate_changes: { type: :array, items: { '$ref' => '#/components/schemas/AccountInterestRateChange' }, description: 'Planned changes after today' },
+              accrued: { allOf: [ { '$ref' => '#/components/schemas/ForecastMoney' } ], description: 'Interest since the last payment (single-account response only)' },
+              next_payout_amount: { nullable: true, allOf: [ { '$ref' => '#/components/schemas/ForecastMoney' } ], description: 'Estimated next payment (single-account response only)' },
+              value_at_maturity: { nullable: true, allOf: [ { '$ref' => '#/components/schemas/ForecastMoney' } ], description: 'Locked accounts: balance plus interest up to the release date (single-account response only)' }
             }
           },
           ForecastMoney: {
@@ -344,11 +373,11 @@ RSpec.configure do |config|
             properties: {
               date: { type: :string, format: :date },
               name: { type: :string },
-              kind: { type: :string, enum: %w[expense income transfer_in transfer_out] },
+              kind: { type: :string, enum: %w[expense income transfer_in transfer_out interest] },
               amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               balance_after: { '$ref' => '#/components/schemas/ForecastMoney' },
-              recurring_transaction_id: { type: :string, format: :uuid },
-              occurrence_id: { type: :string, format: :uuid }
+              recurring_transaction_id: { type: :string, format: :uuid, nullable: true, description: 'null for interest payments' },
+              occurrence_id: { type: :string, format: :uuid, nullable: true, description: 'null for interest payments' }
             }
           },
           AccountForecast: {

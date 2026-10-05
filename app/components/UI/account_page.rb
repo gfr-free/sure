@@ -68,12 +68,14 @@ class UI::AccountPage < ApplicationComponent
 
   # "Details" lists the rules that apply to the account (Account::RuleDetails);
   # "Forecast" what is left after the expected payments (Account::Forecast),
-  # for accounts whose money is reachable today. Preview only, decision E10.
+  # for accounts whose money is reachable today; "Interest" the interest terms
+  # and what they earn (Account::InterestProjection). Preview only, decision E10.
   def preview_tabs
     return [] unless Current.user&.preview_features_enabled?
 
     forecast_tab = Account::Forecast.forecastable?(account) ? [ :forecast ] : []
-    forecast_tab + [ :details ]
+    interest_tab = account.interest_capable? ? [ :interest ] : []
+    forecast_tab + interest_tab + [ :details ]
   end
 
   def forecast
@@ -123,6 +125,8 @@ class UI::AccountPage < ApplicationComponent
       render_statement_tab
     when :forecast
       render "accounts/show/forecast", account: account, forecast: forecast
+    when :interest
+      render "accounts/show/interest", account: account, projection: account.interest_projection
     when :details
       render "accounts/show/details", account: account
     end

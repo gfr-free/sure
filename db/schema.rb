@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -20,6 +20,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
   create_enum "account_status", ["ok", "syncing", "error"]
   create_enum "goal_pledge_kind", ["transfer", "manual_save"]
   create_enum "goal_pledge_status", ["open", "matched", "cancelled", "expired"]
+
+  create_table "account_interest_rates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "account_id", null: false
+    t.string "applies_to", default: "credit", null: false
+    t.datetime "created_at", null: false
+    t.date "effective_from", null: false
+    t.decimal "rate", precision: 8, scale: 4, null: false
+    t.string "source", default: "manual", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "applies_to", "effective_from"], name: "index_account_interest_rates_on_account_kind_date", unique: true
+    t.check_constraint "applies_to::text = ANY (ARRAY['credit'::character varying, 'debit'::character varying]::text[])", name: "chk_account_interest_rates_applies_to"
+    t.check_constraint "rate > '-100'::integer::numeric AND rate < 1000::numeric", name: "chk_account_interest_rates_rate"
+    t.check_constraint "source::text = ANY (ARRAY['manual'::character varying, 'provider'::character varying]::text[])", name: "chk_account_interest_rates_source"
+  end
 
   create_table "account_providers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "account_id", null: false
@@ -114,6 +128,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.uuid "import_id"
     t.string "institution_domain"
     t.string "institution_name"
+    t.string "interest_payout_frequency"
     t.string "liquidity", default: "immediate", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "name"
@@ -141,6 +156,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.index ["plaid_account_id"], name: "index_accounts_on_plaid_account_id"
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
+    t.check_constraint "interest_payout_frequency IS NULL OR (interest_payout_frequency::text = ANY (ARRAY['daily'::character varying, 'monthly'::character varying, 'quarterly'::character varying, 'semiannual'::character varying, 'annual'::character varying, 'at_maturity'::character varying]::text[]))", name: "chk_accounts_interest_payout_frequency"
     t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
     t.check_constraint "notice_period_days IS NULL OR notice_period_days >= 0", name: "chk_accounts_notice_period_days"
     t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
@@ -2930,6 +2946,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
     t.index ["status"], name: "index_wise_items_on_status"
   end
 
+  add_foreign_key "account_interest_rates", "accounts", on_delete: :cascade
   add_foreign_key "account_providers", "accounts", on_delete: :cascade
   add_foreign_key "account_shares", "accounts"
   add_foreign_key "account_shares", "users"

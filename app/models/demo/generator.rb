@@ -277,6 +277,13 @@ class Demo::Generator
       @building_savings = family.accounts.create!(accountable: Depository.new(subtype: "building_savings"), name: "Building Savings Contract", balance: 0,
                                                   currency: "USD", available_on: 3.years.from_now.to_date, notice_period_days: 90)
 
+      # Interest terms (Account::Interest): a savings account whose teaser rate
+      # ends soon, and the CD paying its interest at maturity.
+      @marcus_savings.update!(interest_payout_frequency: "monthly")
+      @marcus_savings.interest_rates.create!(effective_from: 6.months.ago.to_date, rate: 4.0)
+      @marcus_savings.interest_rates.create!(effective_from: 10.days.from_now.to_date, rate: 2.5)
+      @ally_cd.interest_rates.create!(effective_from: 7.months.ago.to_date, rate: 4.5)
+
       # EUR checking (EUR)
       @eu_checking = family.accounts.create!(accountable: Depository.new(subtype: "checking"), name: "Deutsche Bank EUR Account", balance: 0, currency: "EUR")
 

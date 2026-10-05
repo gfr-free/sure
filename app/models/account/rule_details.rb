@@ -21,7 +21,8 @@ class Account::RuleDetails
       notice_row,
       tax_treatment_row,
       budget_row,
-      budget_cash_row
+      budget_cash_row,
+      interest_payout_row
     ].compact
   end
 
@@ -67,6 +68,15 @@ class Account::RuleDetails
     # Whether the account's transactions count as income and spending.
     def budget_row
       Row.new(key: :counts_in_budget, value: !account.tax_advantaged?, source: :tax_treatment)
+    end
+
+    # How often interest is paid (Account::Interest): the user's choice or the
+    # subtype's usual rhythm.
+    def interest_payout_row
+      return nil unless account.interest_capable?
+
+      source = account.interest_payout_frequency.present? ? :user : default_source
+      Row.new(key: :interest_payout, value: account.effective_interest_payout_frequency, source: source)
     end
 
     # Whether the balance counts as money for this month's budget ("really

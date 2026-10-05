@@ -102,3 +102,36 @@ card, `Insight::Generators::AccountShortfallGenerator` (which also silences
 the family-wide cash-flow warning while an account warning stands),
 `GET /api/v1/accounts/:id/forecast` and the assistant's
 `get_account_forecast`.
+
+## Interest
+
+`Account::Interest` (concern on `Account`) holds an account's interest terms;
+`Account::InterestProjection` works out what they produce; `InterestMath` does
+the day-by-day arithmetic without touching the database.
+
+- Rate history in `account_interest_rates`: `credit` (paid on a positive
+  balance) and, on depository accounts, `debit` (overdraft). A planned change,
+  such as the end of a teaser rate, is an entry dated in the future. Rates are
+  nominal, in percent per year.
+- `accounts.interest_payout_frequency`: daily, monthly, quarterly, semiannual,
+  annual or at_maturity. Blank follows the subtype (CD at maturity, building
+  savings yearly, other depository accounts monthly). Interest is always paid
+  into the account itself, on the last day of each period.
+- Day count is fixed per currency: 30E/360 for EUR, actual/365 otherwise.
+- Credit rates apply to depository and other-asset accounts. Loans keep their
+  own rate model and schedule; `Account#interest_rate_on(date, applies_to:)`
+  reads it, and reads a credit card's APR as its debit rate. Neither accrues
+  through the projection.
+
+The projection gives `accrued` (since the last payout, from the `balances`
+table), `next_payout`, `payouts_between(to, balance_on:)` and, for locked
+accounts, `value_at_maturity` (a term deposit paid at maturity capitalises
+once a year counted back from the release date). Future days assume today's
+balance unless the caller passes a balance path: `Account::Forecast` passes
+its own, so interest payouts in the window show up as `:interest` events.
+
+`Insight::Generators::InterestRateDropGenerator` warns 14 days before a credit
+rate drops. The account form's interest section, the account page's Interest
+tab and the insight are preview only; the API (`interest` on each account, the
+amounts on the single-account response) and the assistant's `get_accounts`
+always carry the terms.

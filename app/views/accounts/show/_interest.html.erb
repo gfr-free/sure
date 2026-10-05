@@ -1,0 +1,113 @@
+<%# locals: (account:, projection:) %>
+<%# Interest terms and what they earn (Account::Interest,
+    Account::InterestProjection, decision E18). Preview only. %>
+<% can_edit = account.permission_for(Current.user).in?([ :owner, :full_control ]) %>
+<% upcoming = account.upcoming_interest_rates(projection.as_of) %>
+<div class="space-y-4" data-testid="account-interest">
+  <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-4">
+    <div class="flex items-center gap-2">
+      <h3 class="font-medium text-primary"><%= t("accounts.interest.title") %></h3>
+      <%= render DS::Pill.new(label: t("accounts.liquidity.preview")) %>
+    </div>
+
+    <% if account.interest_terms? %>
+      <p class="text-sm text-secondary">
+        <%= t("accounts.interest.terms",
+              frequency: t("accounts.interest.frequencies.#{projection.frequency}"),
+              day_count: t("accounts.interest.day_counts.#{projection.day_count}")) %>
+      </p>
+
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <%= summary_card title: t("accounts.interest.current_rate") do %>
+          <%= interest_rate_label(projection.credit_rate) %>
+          <% if projection.debit_rate %>
+            <span class="block text-xs font-normal text-secondary"><%= t("accounts.interest.overdraft_rate", rate: interest_rate_label(projection.debit_rate)) %></span>
+          <% end %>
+        <% end %>
+        <%= summary_card title: t("accounts.interest.accrued") do %>
+          <%= format_money projection.accrued %>
+        <% end %>
+        <% if (payout = projection.next_payout) %>
+          <%= summary_card title: t("accounts.interest.next_payout", date: l(payout.date, format: :long)) do %>
+            <%= format_money payout.amount %>
+          <% end %>
+        <% end %>
+        <% if (value = projection.value_at_maturity) %>
+          <%= summary_card title: t("accounts.interest.value_at_maturity", date: l(projection.maturity_date, format: :long)) do %>
+            <%= format_money value %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <% upcoming.each do |entry| %>
+        <% previous = account.interest_rate_on(entry.effective_from - 1, applies_to: entry.applies_to) %>
+        <%= render DS::Alert.new(
+              variant: previous && entry.rate < previous && entry.applies_to == "credit" ? :warning : :info,
+              message: t("accounts.interest.upcoming.#{entry.applies_to}",
+                         date: l(entry.effective_from, format: :long),
+                         from: interest_rate_label(previous),
+                         to: interest_rate_label(entry.rate))
+            ) %>
+      <% end %>
+
+      <p class="text-xs text-secondary"><%= t("accounts.interest.estimate_hint") %></p>
+    <% else %>
+      <p class="text-sm text-secondary"><%= t("accounts.interest.empty") %></p>
+    <% end %>
+
+    <% if can_edit %>
+      <%= render DS::Link.new(
+            text: t("accounts.interest.edit"),
+            href: edit_account_path(account),
+            variant: :outline,
+            size: :sm,
+            frame: :modal
+          ) %>
+    <% end %>
+  </div>
+
+  <% if account.interest_terms? %>
+    <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-2">
+      <h3 class="font-medium text-primary"><%= t("accounts.interest.history_title") %></h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-secondary">
+              <th scope="col" class="py-2 pr-4 font-normal"><%= t("accounts.interest.columns.effective_from") %></th>
+              <th scope="col" class="py-2 pr-4 font-normal"><%= t("accounts.interest.columns.kind") %></th>
+              <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t("accounts.interest.columns.rate") %></th>
+              <% if can_edit %>
+                <th scope="col" class="py-2 font-normal"><span class="sr-only"><%= t("accounts.interest.columns.actions") %></span></th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-subdued">
+            <% account.interest_rates.sort_by { |entry| [ entry.applies_to, entry.effective_from ] }.each do |entry| %>
+              <tr>
+                <td class="py-2 pr-4 text-secondary whitespace-nowrap">
+                  <%= l(entry.effective_from, format: :long) %>
+                  <% if entry.effective_from > projection.as_of %>
+                    <span class="block text-xs"><%= t("accounts.interest.planned") %></span>
+                  <% end %>
+                </td>
+                <td class="py-2 pr-4 text-primary"><%= t("accounts.interest.kinds.#{entry.applies_to}") %></td>
+                <td class="py-2 pr-4 text-right text-primary whitespace-nowrap"><%= interest_rate_label(entry.rate) %></td>
+                <% if can_edit %>
+                  <td class="py-2 text-right">
+                    <%= render DS::Button.new(
+                          text: t("accounts.interest.remove"),
+                          variant: :ghost,
+                          size: :sm,
+                          href: account_interest_rate_path(account, entry),
+                          method: :delete
+                        ) %>
+                  </td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+</div>

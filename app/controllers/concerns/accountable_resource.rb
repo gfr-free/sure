@@ -158,6 +158,8 @@ module AccountableResource
         :institution_name, :institution_domain, :notes, :exclude_from_reports,
         :enable_category_matcher,
         :liquidity_choice, :available_on, :notice_period_days, :auto_renew, :renewal_term_months,
+        :interest_payout_frequency, :interest_rate_input, :overdraft_rate_input,
+        :planned_interest_rate, :planned_interest_rate_on,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

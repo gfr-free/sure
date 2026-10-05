@@ -1,0 +1,42 @@
+<%# locals: (form:, account:) %>
+<%# Interest terms (Account::Interest, decision E18). Preview only, decision
+    E10. The rate fields write the rate history: the rate in force today, the
+    overdraft rate and one planned change. %>
+<%= render DS::Disclosure.new(title: t("accounts.interest.form.heading"), align: "left", open: account.interest_terms?) do %>
+  <div class="space-y-2" data-testid="account-interest-fields">
+    <%= form.number_field :interest_rate_input,
+                          value: account.interest_rate_for_form,
+                          label: t("accounts.interest.form.rate_label"),
+                          step: "0.01",
+                          min: Account::InterestRate::MIN_RATE,
+                          max: Account::InterestRate::MAX_RATE %>
+    <p class="text-xs text-secondary"><%= t("accounts.interest.form.rate_hint") %></p>
+
+    <% if account.overdraft_interest_capable? %>
+      <%= form.number_field :overdraft_rate_input,
+                            value: account.overdraft_rate_for_form,
+                            label: t("accounts.interest.form.overdraft_rate_label"),
+                            step: "0.01",
+                            min: Account::InterestRate::MIN_RATE,
+                            max: Account::InterestRate::MAX_RATE %>
+    <% end %>
+
+    <%= form.select :interest_payout_frequency,
+                    interest_payout_frequency_options(account),
+                    { label: t("accounts.interest.form.frequency_label"), selected: account.interest_payout_frequency.to_s } %>
+
+    <p class="text-sm text-primary pt-2"><%= t("accounts.interest.form.planned_heading") %></p>
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <%= form.number_field :planned_interest_rate,
+                            value: account.planned_interest_rate,
+                            label: t("accounts.interest.form.planned_rate_label"),
+                            step: "0.01",
+                            min: Account::InterestRate::MIN_RATE,
+                            max: Account::InterestRate::MAX_RATE %>
+      <%= form.date_field :planned_interest_rate_on,
+                          value: account.planned_interest_rate_on,
+                          label: t("accounts.interest.form.planned_on_label") %>
+    </div>
+    <p class="text-xs text-secondary"><%= t("accounts.interest.form.planned_hint") %></p>
+  </div>
+<% end %>

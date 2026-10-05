@@ -110,6 +110,42 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='account[available_on]']", 1
   end
 
+  test "update writes the interest terms from the form" do
+    patch depository_path(@account), params: {
+      account: {
+        interest_rate_input: "3.5", overdraft_rate_input: "11.9", interest_payout_frequency: "quarterly",
+        planned_interest_rate: "1.5", planned_interest_rate_on: 2.months.from_now.to_date.iso8601
+      }
+    }
+
+    @account.reload
+    assert_equal "quarterly", @account.interest_payout_frequency
+    assert_equal BigDecimal("3.5"), @account.interest_rate_on(Date.current)
+    assert_equal BigDecimal("11.9"), @account.interest_rate_on(Date.current, applies_to: "debit")
+    assert_equal [ BigDecimal("1.5") ], @account.upcoming_interest_rates.map(&:rate)
+  end
+
+  test "a planned rate change in the past comes back as a form error" do
+    patch depository_path(@account), params: {
+      account: { planned_interest_rate: "1.5", planned_interest_rate_on: Date.current.iso8601 }
+    }
+
+    assert_response :unprocessable_entity
+    assert_empty @account.interest_rates.reload
+  end
+
+  test "the interest fields are preview only" do
+    set_preview(false)
+    get edit_account_url(@account)
+    assert_select "input[name='account[interest_rate_input]']", 0
+
+    set_preview(true)
+    get edit_account_url(@account)
+    assert_select "input[name='account[interest_rate_input]']", 1
+    assert_select "input[name='account[overdraft_rate_input]']", 1
+    assert_select "select[name='account[interest_payout_frequency]']", 1
+  end
+
   test "the account page shows availability and the details tab only with preview" do
     @account.update!(subtype: "cd", available_on: Date.new(2030, 3, 31))
 

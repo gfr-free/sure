@@ -148,6 +148,26 @@ class Account::ForecastTest < ActiveSupport::TestCase
     assert_empty Account::Forecast.for_account(@account, user: users(:family_admin)).events
   end
 
+  test "interest paid in the window joins as an event on the balance the payments leave" do
+    travel_to Time.zone.local(2026, 1, 20, 12) do
+      today = Account.liquidity_today_for(@family)
+      @account.update!(interest_payout_frequency: "monthly")
+      # 3.65 % on 1,000 is 0.10 a day under actual/365.
+      @account.interest_rates.create!(effective_from: Date.new(2025, 12, 1), rate: 3.65)
+      @account.balances.create!(date: Date.new(2026, 1, 1), balance: 1000, start_cash_balance: 1000, currency: "USD")
+      occurrence(series(name: "Rent", amount: 100), due_on: today + 5)
+
+      forecast = Account::Forecast.for_account(@account.reload)
+      interest = forecast.events.select { |event| event.kind == :interest }
+
+      assert_equal [ Date.new(2026, 1, 31) ], interest.map(&:date)
+      # 20 days at 1,000 so far, 4 more before the rent, then 7 at 900.
+      assert_equal Money.new(3.03, "USD"), interest.first.amount
+      assert_nil interest.first.occurrence
+      assert_equal Money.new(903.03, "USD"), forecast.ending_balance
+    end
+  end
+
   test "only immediate assets are forecastable" do
     assert Account::Forecast.forecastable?(@account)
     assert_not Account::Forecast.forecastable?(accounts(:credit_card))

@@ -123,6 +123,7 @@ de:
         statements: Auszüge
         details: Details
         forecast: Prognose
+        interest: Zinsen
     update:
       success: "%{type}-Konto aktualisiert"
     sidebar:
@@ -183,6 +184,58 @@ de:
         income: Einnahme
         transfer_in: Umbuchung herein
         transfer_out: Umbuchung hinaus
+        interest: Zinsen
+      interest_event: Zinszahlung
+    interest:
+      title: Zinsen
+      terms: "Wird %{frequency} auf dieses Konto gezahlt. Zinstage: %{day_count}."
+      current_rate: Aktueller Zinssatz
+      overdraft_rate: "Dispo: %{rate}"
+      accrued: Aufgelaufen seit der letzten Zahlung
+      next_payout: Nächste Zahlung am %{date}
+      value_at_maturity: Frei am %{date}, mit Zinsen
+      estimate_hint: Geschätzt aus den Tagessalden und der Zinshistorie, vor Steuern. Für künftige Tage gilt der heutige Saldo.
+      empty: Für dieses Konto ist kein Zinssatz hinterlegt. Trage einen ein, um die Zinsen, die nächste Zahlung und den Endbetrag zu sehen.
+      edit: Zinsen bearbeiten
+      history_title: Zinshistorie
+      planned: Geplant
+      remove: Entfernen
+      no_rate: "–"
+      rate_pa: "%{rate} p. a."
+      upcoming:
+        credit: "Ab %{date} ändert sich der Zinssatz von %{from} auf %{to}."
+        debit: "Ab %{date} ändert sich der Dispozins von %{from} auf %{to}."
+      columns:
+        effective_from: Gilt ab
+        kind: Art
+        rate: Satz
+        actions: Aktionen
+      kinds:
+        credit: Zinssatz
+        debit: Dispozins
+      frequencies:
+        daily: täglich
+        monthly: monatlich
+        quarterly: vierteljährlich
+        semiannual: halbjährlich
+        annual: jährlich
+        at_maturity: bei Fälligkeit
+      day_counts:
+        thirty_360: 30/360
+        act_365: act/365
+      errors:
+        planned_in_future: muss nach heute liegen
+      form:
+        heading: Zinsen
+        rate_label: Zinssatz (% p. a., nominal)
+        rate_hint: Ein neuer Satz gilt ab heute, der erste Satz ab Beginn des Kontos. Ein leeres Feld entfernt den Satz.
+        overdraft_rate_label: Dispozins (% p. a.)
+        frequency_label: Zinszahlung
+        frequency_automatic: "Automatisch (%{frequency})"
+        planned_heading: Geplante Zinsänderung
+        planned_rate_label: Neuer Satz (% p. a.)
+        planned_on_label: Gilt ab
+        planned_hint: Zum Beispiel, wenn ein Lockzins endet. Du bekommst 14 Tage vorher einen Hinweis.
     liquidity:
       preview: Vorschau
       levels:
@@ -226,6 +279,7 @@ de:
           tax_treatment: Steuerart
           counts_in_budget: Buchungen zählen in Budget und Cashflow
           counts_as_budget_cash: Saldo zählt im Budget als frei verfügbar
+          interest_payout: Zinszahlung
         sources:
           subtype: "Aus Subtyp %{subtype}"
           account_type: "Aus Kontoart %{type}"

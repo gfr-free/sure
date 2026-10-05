@@ -37,6 +37,8 @@
               <%= t("accounts.liquidity.details.days", count: row.value) %>
             <% when :tax_treatment %>
               <%= t("accounts.tax_treatments.#{row.value}") %>
+            <% when :interest_payout %>
+              <%= t("accounts.interest.frequencies.#{row.value}") %>
             <% when :counts_in_budget, :counts_as_budget_cash %>
               <%= row.value ? t("accounts.liquidity.details.yes") : t("accounts.liquidity.details.no") %>
             <% end %>

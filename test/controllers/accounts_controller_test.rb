@@ -30,6 +30,36 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "preview users see the interest tab with the rate and its history" do
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+    @account.interest_rates.create!(effective_from: 1.year.ago.to_date, rate: 3.5)
+    @account.interest_rates.create!(effective_from: 1.month.from_now.to_date, rate: 1.5)
+
+    get account_url(@account, tab: "interest")
+
+    assert_response :success
+    assert_select "[data-testid='account-interest']" do
+      assert_select "table tbody tr", count: 2
+    end
+  end
+
+  test "removing a planned interest rate needs write access" do
+    entry = @account.interest_rates.create!(effective_from: 1.month.from_now.to_date, rate: 1.5)
+
+    assert_difference -> { @account.interest_rates.count }, -1 do
+      delete account_interest_rate_url(@account, entry)
+    end
+    assert_redirected_to account_url(@account, tab: "interest")
+
+    other_entry = @account.interest_rates.create!(effective_from: 2.months.from_now.to_date, rate: 1)
+    account_shares(:depository_shared_with_member).update!(permission: "read_only")
+    sign_in users(:family_member)
+
+    assert_no_difference -> { @account.interest_rates.count } do
+      delete account_interest_rate_url(@account, other_entry)
+    end
+  end
+
   test "the forecast tab stays hidden without preview features" do
     get account_url(@account)
 

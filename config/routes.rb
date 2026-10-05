@@ -678,6 +678,7 @@ Rails.application.routes.draw do
     end
 
     resource :sharing, only: [ :show, :update ], controller: "account_sharings"
+    resources :interest_rates, only: :destroy, controller: "account_interest_rates", shallow: false
   end
 
   resources :account_statements, only: %i[index show create update destroy] do

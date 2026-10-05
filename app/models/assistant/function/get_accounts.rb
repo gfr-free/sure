@@ -14,6 +14,11 @@ class Assistant::Function::GetAccounts < Assistant::Function
         available_now). When the user asks how much money they have or can
         spend, separate available money from money that is locked.
 
+        Accounts with interest terms carry an interest object: the nominal
+        rate in percent per year, the overdraft rate, how often interest is
+        paid, the next payment date and planned rate changes (for example
+        when a teaser rate ends).
+
         Pass include_balance_series: true only when the user asks about balance
         history; the series is omitted by default to keep responses small.
       INSTRUCTIONS
@@ -62,6 +67,7 @@ class Assistant::Function::GetAccounts < Assistant::Function
           liquidity: account.liquidity,
           available_on: account.available_on,
           available_now: account.available_on?,
+          interest: interest_terms(account),
           start_date: account.start_date,
           is_linked: account.linked?,
           provider: account.provider_name,
@@ -78,10 +84,26 @@ class Assistant::Function::GetAccounts < Assistant::Function
   end
 
   private
+    def interest_terms(account)
+      return nil unless account.interest_terms?
+
+      today = @interest_today ||= Account.liquidity_today_for(family)
+      projection = account.interest_projection(as_of: today)
+      {
+        rate: projection.credit_rate&.to_f,
+        overdraft_rate: projection.debit_rate&.to_f,
+        payout_frequency: projection.frequency,
+        next_payout_on: projection.next_payout_date,
+        rate_changes: account.upcoming_interest_rates(today).map do |entry|
+          { effective_from: entry.effective_from, rate: entry.rate.to_f, kind: entry.applies_to }
+        end
+      }
+    end
+
     # No balances preload: the series goes through Balance::ChartSeriesBuilder,
     # which runs its own query keyed by account ids.
     def accounts_scope(_include_series)
-      user.accessible_accounts.visible.includes(:account_providers, :accountable)
+      user.accessible_accounts.visible.includes(:account_providers, :accountable, :interest_rates)
     end
 
     def historical_balances(account, period)

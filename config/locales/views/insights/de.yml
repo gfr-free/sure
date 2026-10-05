@@ -6,6 +6,7 @@ de:
       body: Öffne Sure, um deine neueste KI-Analyse anzusehen.
     actions:
       account_shortfall: Kontoprognose ansehen
+      interest_rate_drop: Zinsen ansehen
       budget: Budget ansehen
       cash_flow_warning: Wiederkehrende Buchungen prüfen
       idle_cash: Zum Konto
@@ -59,6 +60,7 @@ de:
       account_shortfall:
         plain: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen. Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
         with_cause: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen (%{cause}, %{cause_amount}). Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
+      interest_rate_drop: "Ab %{change_on} zahlt %{account} nur noch %{new_rate} statt %{previous_rate}. Bei %{balance} sind das rund %{monthly_loss} weniger im Monat."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
@@ -79,6 +81,7 @@ de:
       subscription_audit: "%{name} (%{amount}) ist seit dem erwarteten Termin am %{expected_on} nicht mehr aufgetaucht. Vielleicht ist das Abo gekündigt oder die Abbuchung hat sich verschoben."
     titles:
       account_shortfall: "%{account} könnte ins Minus rutschen"
+      interest_rate_drop: "Der Zinssatz von %{account} sinkt bald"
       budget_at_risk:
         one: Eine Kategorie in deinem Budget braucht Aufmerksamkeit
         other: "%{count} Kategorien in deinem Budget brauchen Aufmerksamkeit"
@@ -98,6 +101,7 @@ de:
       subscription_audit: Läuft %{name} noch?
     types:
       account_shortfall: Kontoprognose
+      interest_rate_drop: Zinsen
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität

@@ -17,6 +17,34 @@ json.liquidity account.liquidity
 json.available_on account.available_on&.iso8601
 json.notice_period_days account.notice_period_days
 json.available_now account.available_on?
+# Interest terms (Account::Interest). The amounts need the daily balances, so
+# they are only in the single-account response.
+if account.interest_terms?
+  interest_today = account.liquidity_today
+  projection = account.interest_projection(as_of: interest_today)
+  interest_money = ->(value) { value && { amount: value.amount.to_s, formatted: value.format } }
+
+  json.interest do
+    json.rate projection.credit_rate&.to_s
+    json.debit_rate projection.debit_rate&.to_s
+    json.payout_frequency projection.frequency
+    json.day_count projection.day_count
+    json.next_payout_on projection.next_payout_date&.iso8601
+    json.rate_changes account.upcoming_interest_rates(interest_today) do |entry|
+      json.effective_from entry.effective_from.iso8601
+      json.rate entry.rate.to_s
+      json.applies_to entry.applies_to
+    end
+
+    if local_assigns[:detailed]
+      json.accrued interest_money.call(projection.accrued)
+      json.next_payout_amount interest_money.call(projection.next_payout&.amount)
+      json.value_at_maturity interest_money.call(projection.value_at_maturity)
+    end
+  end
+else
+  json.interest nil
+end
 json.status account.status
 json.institution_name account.institution_name
 json.institution_domain account.institution_domain

@@ -1,0 +1,5 @@
+---
+en:
+  account_interest_rates:
+    destroy:
+      success: Interest rate removed

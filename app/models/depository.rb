@@ -32,18 +32,30 @@ class Depository < ApplicationRecord
   # was previously invisible to the tax-advantaged filter PR #724 introduced.
   TAX_ADVANTAGED_SUBTYPES = %w[hsa].freeze
 
-  # `TaxTreatable` (the `Account` concern) reads this via `respond_to?` so
-  # adding it here transparently flips `Account#tax_advantaged?` for HSA
-  # depositories without touching the concern itself.
+  TAX_TREATMENTS = %w[taxable tax_deferred tax_exempt tax_advantaged].freeze
+
+  validate :stored_tax_treatment_must_be_known
+
+  # `TaxTreatable` (the `Account` concern) reads this via `respond_to?`.
   #
-  # Returns `nil` (not `:taxable`) for ordinary depository subtypes. `nil`
-  # already reads as taxable everywhere it matters: `TaxTreatable#taxable?`
-  # treats `nil` as taxable and `#tax_advantaged?` excludes it. Returning
-  # `nil` also keeps `tax_treatment.present?` false so the header tax badge
+  # The `tax_treatment` column (taxes on returns, decision E20 S2) holds the
+  # person's choice, such as a tax-exempt savings wrapper. Without one the
+  # subtype decides: HSA cash is tax-advantaged, every other subtype returns
+  # `nil` (not `:taxable`). `nil` already reads as taxable everywhere it
+  # matters: `TaxTreatable#taxable?` treats `nil` as taxable and
+  # `#tax_advantaged?` excludes it. Returning `nil` also keeps
+  # `tax_treatment.present?` false so the header tax badge
   # (`app/views/accounts/show/_header.html.erb`) stays hidden on checking,
   # savings, CD, and money-market accounts that never displayed it before.
   def tax_treatment
-    :tax_advantaged if TAX_ADVANTAGED_SUBTYPES.include?(subtype)
+    stored = self[:tax_treatment]
+    return stored.to_sym if stored.present?
+
+    self.class.default_tax_treatment_for(subtype)
+  end
+
+  def tax_treatment=(value)
+    self[:tax_treatment] = value.presence
   end
 
   class << self
@@ -67,4 +79,11 @@ class Depository < ApplicationRecord
       "landmark"
     end
   end
+
+  private
+    # The reader falls back to the subtype, so validate the stored value.
+    def stored_tax_treatment_must_be_known
+      stored = self[:tax_treatment]
+      errors.add(:tax_treatment, :inclusion) if stored.present? && !stored.in?(TAX_TREATMENTS)
+    end
 end

@@ -165,6 +165,48 @@ class BudgetAvailableCashTest < ActiveSupport::TestCase
     assert_equal 7_000, budget_for(viewer).available_cash
   end
 
+  # --- Taxes on returns (decision E20, S6), preview only ---
+
+  test "with preview on, the tax due later is not really free" do
+    viewer = preview_viewer
+    year = Account.liquidity_today_for(@family).year
+    viewer.tax_profiles.create!(valid_from_year: year, currency: @family.currency, rate_interest: 25, annual_allowance: 0,
+                                withheld_at_source_default: false)
+    account = depository(2_000, owner: viewer)
+    account.entries.create!(date: Date.new(year, 1, 2).clamp(..Date.current), amount: -400, currency: @family.currency, name: "Interest",
+                            entryable: Transaction.new(investment_activity_label: "Interest"))
+
+    budget = budget_for(viewer)
+    assert_equal 100, budget.tax_reserve
+    assert_equal budget.available_cash - 100, budget.free_cash
+
+    viewer.settle_tax_reserve!(year)
+    assert_equal 0, budget_for(viewer).tax_reserve
+  end
+
+  test "the household figure leaves out tax on another member's accounts the viewer cannot see" do
+    viewer = preview_viewer
+    other = users(:sso_only)
+    year = Account.liquidity_today_for(@family).year
+    other.tax_profiles.create!(valid_from_year: year, currency: @family.currency, rate_interest: 25, annual_allowance: 0,
+                               withheld_at_source_default: false)
+    depository(2_000, owner: other).entries.create!(date: Date.new(year, 1, 2).clamp(..Date.current), amount: -400, currency: @family.currency,
+                                                    name: "Interest", entryable: Transaction.new(investment_activity_label: "Interest"))
+
+    assert_equal 0, budget_for(viewer).tax_reserve
+  end
+
+  test "without preview, no tax reserve is taken off" do
+    viewer = users(:empty)
+    viewer.update!(preferences: (viewer.preferences || {}).merge("preview_features_enabled" => false))
+    year = Account.liquidity_today_for(@family).year
+    viewer.tax_profiles.create!(valid_from_year: year, currency: @family.currency, rate_interest: 25, withheld_at_source_default: false)
+    depository(2_000, owner: viewer).entries.create!(date: Date.new(year, 1, 2).clamp(..Date.current), amount: -400, currency: @family.currency,
+                                                     name: "Interest", entryable: Transaction.new(investment_activity_label: "Interest"))
+
+    assert_equal 0, budget_for(viewer).tax_reserve
+  end
+
   private
     def preview_viewer
       users(:empty).tap do |user|

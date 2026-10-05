@@ -1,6 +1,8 @@
 ---
 de:
   budgets:
+    available_cash:
+      tax_reserve: Steuer-Rücklage (geschätzt)
     name:
       custom_range: "%{start} - %{end_date}"
       month_year: "%{month}"

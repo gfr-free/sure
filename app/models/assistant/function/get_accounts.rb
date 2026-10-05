@@ -19,6 +19,11 @@ class Assistant::Function::GetAccounts < Assistant::Function
         paid, the next payment date and planned rate changes (for example
         when a teaser rate ends).
 
+        Bank, investment and crypto accounts carry a tax object: the tax
+        treatment, whether the bank withholds tax on returns (null means the
+        owner's tax settings decide), the exemption order given to that bank
+        and a tax debited every January. Sure only estimates tax.
+
         Pass include_balance_series: true only when the user asks about balance
         history; the series is omitted by default to keep responses small.
       INSTRUCTIONS
@@ -68,6 +73,7 @@ class Assistant::Function::GetAccounts < Assistant::Function
           available_on: account.available_on,
           available_now: account.available_on?,
           interest: interest_terms(account),
+          tax: tax_settings(account),
           start_date: account.start_date,
           is_linked: account.linked?,
           provider: account.provider_name,
@@ -97,6 +103,17 @@ class Assistant::Function::GetAccounts < Assistant::Function
         rate_changes: account.upcoming_interest_rates(today).map do |entry|
           { effective_from: entry.effective_from, rate: entry.rate.to_f, kind: entry.applies_to }
         end
+      }
+    end
+
+    def tax_settings(account)
+      return nil unless account.tax_capable?
+
+      {
+        treatment: account.tax_treatment&.to_s,
+        withheld_at_source: account.tax_withheld_at_source,
+        allowance_allocation: account.tax_allowance_allocation&.to_f,
+        january_tax_debit: account.january_tax_debit&.to_f
       }
     end
 

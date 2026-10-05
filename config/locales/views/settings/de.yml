@@ -209,6 +209,7 @@ de:
       api_keys_label: API-Schlüssel
       bank_sync_label: Banksynchronisierung
       appearance_label: Darstellung
+      taxes_label: Steuern
       background_jobs_label: Hintergrundjobs
       debug_label: Debug
       llm_usage_label: LLM-Nutzung

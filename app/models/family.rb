@@ -735,10 +735,18 @@ class Family < ApplicationRecord
     # `Depository::TAX_ADVANTAGED_SUBTYPES` (currently `%w[hsa]`). Extracted
     # rather than inlined because the existing two blocks are already long
     # enough; the extraction keeps `tax_advantaged_account_ids` readable.
+    #
+    # A treatment the person chose (`depositories.tax_treatment`, decision E20
+    # S2) wins over the subtype, as `Depository#tax_treatment` reads it.
     def tax_advantaged_depository_account_ids
       accounts
         .joins("INNER JOIN depositories ON depositories.id = accounts.accountable_id AND accounts.accountable_type = 'Depository'")
-        .where(depositories: { subtype: Depository::TAX_ADVANTAGED_SUBTYPES })
+        .where(depositories: { tax_treatment: %w[tax_deferred tax_exempt tax_advantaged] })
+        .or(
+          accounts
+            .joins("INNER JOIN depositories ON depositories.id = accounts.accountable_id AND accounts.accountable_type = 'Depository'")
+            .where(depositories: { tax_treatment: nil, subtype: Depository::TAX_ADVANTAGED_SUBTYPES })
+        )
         .pluck(:id)
     end
 

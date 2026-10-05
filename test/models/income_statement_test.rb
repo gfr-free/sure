@@ -606,6 +606,25 @@ class IncomeStatementTest < ActiveSupport::TestCase
     refute_includes tax_advantaged_ids, @checking_account.id
   end
 
+  # A treatment the person chose on a bank account (decision E20, S2) wins
+  # over the subtype in both directions.
+  test "family.tax_advantaged_account_ids follows a stored depository tax treatment" do
+    exempt_savings = @family.accounts.create!(
+      name: "Tax-free savings", currency: @family.currency, balance: 1_000,
+      accountable: Depository.new(subtype: "savings", tax_treatment: "tax_exempt")
+    )
+    taxable_hsa = @family.accounts.create!(
+      name: "HSA marked taxable", currency: @family.currency, balance: 1_000,
+      accountable: Depository.new(subtype: "hsa", tax_treatment: "taxable")
+    )
+
+    @family.instance_variable_set(:@tax_advantaged_account_ids, nil)
+    tax_advantaged_ids = @family.tax_advantaged_account_ids
+
+    assert_includes tax_advantaged_ids, exempt_savings.id
+    refute_includes tax_advantaged_ids, taxable_hsa.id
+  end
+
   # Exclude-from-reports tests
   test "excludes transactions from accounts with exclude_from_reports set" do
     excluded_account = @family.accounts.create!(

@@ -36,6 +36,7 @@ class User < ApplicationRecord
   has_many :oidc_identities, dependent: :destroy
   has_many :sso_audit_logs, dependent: :nullify
   has_many :owned_accounts, class_name: "Account", foreign_key: :owner_id
+  has_many :tax_profiles, dependent: :destroy
   has_many :account_shares, dependent: :destroy
   has_many :shared_accounts, through: :account_shares, source: :account
   has_many :budget_shares_given, class_name: "BudgetShare", foreign_key: :owner_id, inverse_of: :owner, dependent: :destroy
@@ -739,6 +740,24 @@ class User < ApplicationRecord
 
   def preview_features_enabled?
     preferences&.dig("preview_features_enabled") == true
+  end
+
+  # Tax years whose tax reserve the person marked as paid (STEUER.md S6), for
+  # example after the tax assessment arrived. The reserve then drops out.
+  def tax_reserve_settled_years
+    Array(preferences&.dig("tax_reserve_settled_years")).filter_map { |year| Integer(year.to_s, exception: false) }
+  end
+
+  def tax_reserve_settled?(year)
+    tax_reserve_settled_years.include?(year)
+  end
+
+  def settle_tax_reserve!(year, settled: true)
+    with_lock do
+      years = tax_reserve_settled_years
+      years = settled ? (years | [ year ]) : (years - [ year ])
+      update!(preferences: (preferences || {}).merge("tax_reserve_settled_years" => years.sort))
+    end
   end
 
   private

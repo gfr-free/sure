@@ -328,11 +328,26 @@ RSpec.configure do |config|
                 description: 'Interest terms; null when the account has none',
                 allOf: [ { '$ref' => '#/components/schemas/AccountInterest' } ]
               },
+              tax: {
+                nullable: true,
+                description: 'Tax settings for returns; null on account types without them',
+                allOf: [ { '$ref' => '#/components/schemas/AccountTax' } ]
+              },
               status: { type: :string, enum: %w[active draft disabled pending_deletion] },
               institution_name: { type: :string, nullable: true },
               institution_domain: { type: :string, nullable: true },
               created_at: { type: :string, format: :'date-time' },
               updated_at: { type: :string, format: :'date-time' }
+            }
+          },
+          AccountTax: {
+            type: :object,
+            required: %w[treatment withheld_at_source allowance_allocation january_tax_debit],
+            properties: {
+              treatment: { type: :string, nullable: true, enum: [ 'taxable', 'tax_deferred', 'tax_exempt', 'tax_advantaged', nil ], description: 'Null reads as taxable' },
+              withheld_at_source: { type: :boolean, nullable: true, description: 'Whether the bank withholds the tax; null follows the owner\'s tax profile' },
+              allowance_allocation: { type: :string, nullable: true, description: 'Exemption order given to this bank, in the owner\'s tax currency' },
+              january_tax_debit: { type: :string, nullable: true, description: 'Tax debited every January (such as a Vorabpauschale), in the account currency' }
             }
           },
           AccountInterestRateChange: {
@@ -373,7 +388,7 @@ RSpec.configure do |config|
             properties: {
               date: { type: :string, format: :date },
               name: { type: :string },
-              kind: { type: :string, enum: %w[expense income transfer_in transfer_out interest] },
+              kind: { type: :string, enum: %w[expense income transfer_in transfer_out interest tax] },
               amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               balance_after: { '$ref' => '#/components/schemas/ForecastMoney' },
               recurring_transaction_id: { type: :string, format: :uuid, nullable: true, description: 'null for interest payments' },

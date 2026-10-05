@@ -168,6 +168,49 @@ class Account::ForecastTest < ActiveSupport::TestCase
     end
   end
 
+  test "withheld interest arrives net, after what is left of the exemption order" do
+    travel_to Time.zone.local(2026, 1, 20, 12) do
+      owner = @account.owner
+      owner.tax_profiles.create!(valid_from_year: 2026, currency: "USD", rate_interest: 25, annual_allowance: 1_000)
+      @account.update!(interest_payout_frequency: "monthly", tax_withheld_at_source: true, tax_allowance_allocation: 1)
+      @account.interest_rates.create!(effective_from: Date.new(2025, 12, 1), rate: 3.65)
+      @account.balances.create!(date: Date.new(2026, 1, 1), balance: 1000, start_cash_balance: 1000, currency: "USD")
+
+      forecast = Account::Forecast.for_account(@account.reload)
+      interest = forecast.events.find { |event| event.kind == :interest }
+
+      # 3.10 gross for 31 days, 1.00 free, 2.10 taxed at 25 %.
+      assert_equal Money.new(BigDecimal("2.57"), "USD"), interest.amount
+    end
+  end
+
+  test "interest stays gross where the bank does not withhold" do
+    travel_to Time.zone.local(2026, 1, 20, 12) do
+      @account.owner.tax_profiles.create!(valid_from_year: 2026, currency: "USD", rate_interest: 25, annual_allowance: 0)
+      @account.update!(interest_payout_frequency: "monthly", tax_withheld_at_source: false)
+      @account.interest_rates.create!(effective_from: Date.new(2025, 12, 1), rate: 3.65)
+      @account.balances.create!(date: Date.new(2026, 1, 1), balance: 1000, start_cash_balance: 1000, currency: "USD")
+
+      interest = Account::Forecast.for_account(@account.reload).events.find { |event| event.kind == :interest }
+
+      assert_equal Money.new(3.10, "USD"), interest.amount
+    end
+  end
+
+  test "a tax debited every January joins on 2 January" do
+    travel_to Time.zone.local(2025, 12, 20, 12) do
+      @account.update!(january_tax_debit: 45)
+
+      forecast = Account::Forecast.for_account(@account)
+      tax = forecast.events.select { |event| event.kind == :tax }
+
+      assert_equal [ Date.new(2026, 1, 2) ], tax.map(&:date)
+      assert_equal Money.new(-45, "USD"), tax.first.amount
+      assert_equal Money.new(955, "USD"), forecast.ending_balance
+      assert_includes Account::Forecast.for_family(@family).map(&:account), @account
+    end
+  end
+
   test "only immediate assets are forecastable" do
     assert Account::Forecast.forecastable?(@account)
     assert_not Account::Forecast.forecastable?(accounts(:credit_card))

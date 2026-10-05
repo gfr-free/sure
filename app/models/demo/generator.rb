@@ -284,6 +284,15 @@ class Demo::Generator
       @marcus_savings.interest_rates.create!(effective_from: 10.days.from_now.to_date, rate: 2.5)
       @ally_cd.interest_rates.create!(effective_from: 7.months.ago.to_date, rate: 4.5)
 
+      # Taxes on returns (Account::Taxation, Tax::Estimate): US banks book
+      # interest gross, so the tax is due with the return.
+      if (demo_admin = family.users.find_by(role: "admin"))
+        demo_admin.tax_profiles.find_or_create_by!(valid_from_year: Date.current.year) do |profile|
+          profile.assign_attributes(currency: "USD", rate_interest: 22, rate_dividends: 15, annual_allowance: 0,
+                                    withheld_at_source_default: false)
+        end
+      end
+
       # EUR checking (EUR)
       @eu_checking = family.accounts.create!(accountable: Depository.new(subtype: "checking"), name: "Deutsche Bank EUR Account", balance: 0, currency: "EUR")
 

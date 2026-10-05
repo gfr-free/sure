@@ -19,7 +19,7 @@ class Budget < ApplicationRecord
   validates :start_date, :end_date, presence: true
   validates :start_date, :end_date, uniqueness: { scope: [ :family_id, :user_id ] }
 
-  monetize :available_cash, :earmarked_for_goals, :free_cash
+  monetize :available_cash, :earmarked_for_goals, :tax_reserve, :free_cash
   monetize :budgeted_spending, :expected_income, :allocated_spending,
            :actual_spending, :available_to_spend, :available_to_allocate,
            :estimated_spending, :estimated_income, :actual_income, :remaining_expected_income,
@@ -251,8 +251,34 @@ class Budget < ApplicationRecord
     end
   end
 
+  # Tax still due on returns the banks booked gross (decision E20, S6): it is
+  # promised to the tax office, so it is not really free. Only where it can be
+  # worked out cleanly (Tax::Estimate#reserve), for this year and last year
+  # until the person marks the year as paid. Preview only, like the switch to
+  # availability above.
+  #
+  # Scoped to the people behind the figure: a personal budget its owner, the
+  # household one every member, each on the accounts the viewer can see, as
+  # `cash_accounts` is.
+  def tax_reserve
+    @tax_reserve ||= if current_user&.preview_features_enabled?
+      people = user_id.present? ? family.users.where(id: user_id) : family.users
+      this_year = Account.liquidity_today_for(family).year
+
+      people.to_a.product([ this_year - 1, this_year ]).sum(0.to_d) do |person, year|
+        estimate = Tax::Estimate.new(person, year: year, viewer: current_user)
+        reserve = estimate.reserve
+        next 0.to_d if reserve.nil? || !estimate.reserve_open?
+
+        convert_to_budget_currency(reserve.amount, reserve.currency.iso_code)
+      end
+    else
+      0.to_d
+    end
+  end
+
   def free_cash
-    [ available_cash - earmarked_for_goals, 0 ].max
+    [ available_cash - earmarked_for_goals - tax_reserve, 0 ].max
   end
 
   def name

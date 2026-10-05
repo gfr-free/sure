@@ -185,7 +185,9 @@ de:
         transfer_in: Umbuchung herein
         transfer_out: Umbuchung hinaus
         interest: Zinsen
+        tax: Steuer
       interest_event: Zinszahlung
+      january_tax_debit_event: Steuerabbuchung im Januar
     interest:
       title: Zinsen
       terms: "Wird %{frequency} auf dieses Konto gezahlt. Zinstage: %{day_count}."
@@ -195,6 +197,8 @@ de:
       next_payout: Nächste Zahlung am %{date}
       value_at_maturity: Frei am %{date}, mit Zinsen
       estimate_hint: Geschätzt aus den Tagessalden und der Zinshistorie, vor Steuern. Für künftige Tage gilt der heutige Saldo.
+      after_tax: "Nach Steuern (geschätzt): %{amount}"
+      tax_due_later: "Später fällige Steuer (geschätzt): %{amount}"
       empty: Für dieses Konto ist kein Zinssatz hinterlegt. Trage einen ein, um die Zinsen, die nächste Zahlung und den Endbetrag zu sehen.
       edit: Zinsen bearbeiten
       history_title: Zinshistorie
@@ -286,6 +290,21 @@ de:
           user: Von dir gesetzt
           tax_treatment: Folgt der Steuerart
           liquidity: Folgt der Verfügbarkeit
+    tax:
+      form:
+        heading: Steuern auf Erträge
+        treatment_label: Steuerart
+        treatment_automatic: "Automatisch (%{treatment})"
+        withheld_label: Zieht die Bank die Steuer ab?
+        withheld_options:
+          profile: Wie in meinen Steuer-Einstellungen
+          'yes': Ja, Erträge kommen netto
+          'no': Nein, die Steuer wird später fällig
+        withheld_hint: Bucht die Bank Zinsen und Dividenden brutto, wird die Steuer später fällig und Sure hält eine Rücklage dafür.
+        allocation_label: Freistellungsauftrag bei dieser Bank
+        allocation_hint: Der Teil deines Jahresfreibetrags, den du dieser Bank gegeben hast, in der Währung deiner Steuer-Einstellungen.
+        january_debit_label: Steuerabbuchung jeden Januar
+        january_debit_hint: Zum Beispiel die Vorabpauschale. Sie erscheint am 2. Januar in der Kontoprognose.
     tax_treatments:
       taxable: Versteuerbar
       tax_deferred: Steuerlich aufgeschoben

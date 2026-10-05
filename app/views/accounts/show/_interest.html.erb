@@ -30,11 +30,17 @@
         <% if (payout = projection.next_payout) %>
           <%= summary_card title: t("accounts.interest.next_payout", date: l(payout.date, format: :long)) do %>
             <%= format_money payout.amount %>
+            <% if (note = interest_tax_note(account, payout.amount, on: payout.date)) %>
+              <span class="block text-xs font-normal text-secondary"><%= note %></span>
+            <% end %>
           <% end %>
         <% end %>
         <% if (value = projection.value_at_maturity) %>
           <%= summary_card title: t("accounts.interest.value_at_maturity", date: l(projection.maturity_date, format: :long)) do %>
             <%= format_money value %>
+            <% if (note = interest_tax_note(account, value - account.balance_money, on: projection.maturity_date, total: value)) %>
+              <span class="block text-xs font-normal text-secondary"><%= note %></span>
+            <% end %>
           <% end %>
         <% end %>
       </div>

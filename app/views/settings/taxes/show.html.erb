@@ -1,0 +1,161 @@
+<%= content_for :page_title, t(".page_title") %>
+
+<%# Taxes on returns (decision E20, STEUER.md S-1/S-2). Per person: this page
+    always shows Current.user's own profile. Preview only. %>
+<%= settings_section title: t(".profile_title"), subtitle: t(".profile_subtitle"), badge: render(DS::Pill.new(label: t("accounts.liquidity.preview"))) do %>
+  <%= styled_form_with model: @profile, url: settings_taxes_path, method: :patch, scope: :tax_profile, class: "space-y-4", data: { testid: "tax-profile-form" } do |form| %>
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <%= form.number_field :valid_from_year,
+                            label: t(".valid_from_year"),
+                            min: TaxProfile::MIN_YEAR,
+                            max: TaxProfile::MAX_YEAR,
+                            step: 1 %>
+      <%= form.select :currency,
+                      currency_picker_options_for_family(Current.family, extra: [ @profile.currency ].compact).map { |code| [ currency_label(code), code ] },
+                      { label: t(".currency") } %>
+    </div>
+    <p class="text-xs text-secondary"><%= t(".valid_from_hint") %></p>
+
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <% TaxProfile::INCOME_KINDS.each do |kind| %>
+        <%= form.number_field :"rate_#{kind}",
+                              label: t(".rates.#{kind}"),
+                              step: "0.001",
+                              min: 0,
+                              max: 100 %>
+      <% end %>
+    </div>
+    <p class="text-xs text-secondary"><%= t(".rates_hint") %></p>
+
+    <%= form.number_field :annual_allowance, label: t(".annual_allowance"), step: "0.01", min: 0 %>
+    <p class="text-xs text-secondary"><%= t(".annual_allowance_hint") %></p>
+
+    <div class="flex items-center justify-between gap-3">
+      <div class="space-y-1">
+        <p class="text-sm text-primary"><%= t(".withheld_default") %></p>
+        <p class="text-xs text-secondary"><%= t(".withheld_default_hint") %></p>
+      </div>
+      <%= form.toggle :withheld_at_source_default %>
+    </div>
+
+    <%= form.submit t(".save") %>
+  <% end %>
+
+  <% if @profiles.size > 1 || (@profiles.one? && @profiles.first.valid_from_year != @profile.valid_from_year) %>
+    <div class="pt-4 space-y-2">
+      <p class="text-sm text-primary"><%= t(".history_title") %></p>
+      <ul class="divide-y divide-subdued text-sm">
+        <% @profiles.each do |profile| %>
+          <li class="flex items-center justify-between gap-3 py-2">
+            <span class="text-secondary"><%= t(".history_entry", year: profile.valid_from_year) %></span>
+            <%= render DS::Button.new(
+                  text: t(".remove"),
+                  variant: :ghost,
+                  size: :sm,
+                  href: profile_settings_taxes_path(profile_id: profile.id),
+                  method: :delete
+                ) %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+<% end %>
+
+<% @estimates.each do |estimate| %>
+  <%= settings_section title: t(".estimate_title", year: estimate.year), subtitle: t(".estimate_subtitle") do %>
+    <div class="space-y-3" data-testid="tax-estimate-<%= estimate.year %>">
+      <% if !estimate.profile? %>
+        <p class="text-sm text-secondary"><%= t(".no_profile", year: estimate.year) %></p>
+      <% else %>
+        <% currency = estimate.currency %>
+        <dl class="space-y-2">
+          <% %w[interest dividends].each do |kind| %>
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="text-sm text-secondary"><%= t(".income.#{kind}") %></dt>
+              <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money Money.new(estimate.income_total(kind: kind), currency) %></dd>
+            </div>
+          <% end %>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="text-sm text-secondary"><%= t(".withheld_tax") %></dt>
+            <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money Money.new(estimate.withheld_tax.round(2), currency) %></dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="text-sm text-secondary"><%= t(".deferred_allowance") %></dt>
+            <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money Money.new(estimate.deferred_allowance, currency) %></dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3 -mx-2 px-2 py-2 rounded-lg bg-surface-inset">
+            <dt class="text-sm font-medium text-primary"><%= t(".reserve") %></dt>
+            <dd class="text-sm font-medium text-primary tabular-nums privacy-sensitive">
+              <% if (reserve = estimate.reserve) %>
+                <%= format_money reserve %>
+              <% else %>
+                <%= t(".reserve_unknown") %>
+              <% end %>
+            </dd>
+          </div>
+        </dl>
+
+        <p class="text-xs text-secondary"><%= t(".reserve_hint") %></p>
+
+        <% if estimate.missing_rates.any? %>
+          <%= render DS::Alert.new(variant: :info, message: t(".missing_rates", kinds: estimate.missing_rates.map { |kind| t(".income.#{kind}") }.to_sentence)) %>
+        <% end %>
+        <% if estimate.over_allocated? %>
+          <%= render DS::Alert.new(variant: :warning, message: t(".over_allocated",
+                allocated: format_money(Money.new(estimate.allocated_allowance, currency)),
+                allowance: format_money(Money.new(estimate.profile.annual_allowance, currency)))) %>
+        <% end %>
+        <% if estimate.unconvertible_count.positive? %>
+          <%= render DS::Alert.new(variant: :info, message: t(".unconvertible", count: estimate.unconvertible_count)) %>
+        <% end %>
+
+        <% if estimate.banks.any? %>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <caption class="text-left text-sm text-primary pb-2"><%= t(".banks_title") %></caption>
+              <thead>
+                <tr class="text-left text-xs text-secondary">
+                  <th scope="col" class="py-2 pr-4 font-normal"><%= t(".columns.bank") %></th>
+                  <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t(".columns.allocation") %></th>
+                  <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t(".columns.used") %></th>
+                  <th scope="col" class="py-2 font-normal text-right"><%= t(".columns.remaining") %></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-subdued">
+                <% estimate.banks.each do |bank| %>
+                  <tr>
+                    <td class="py-2 pr-4 text-primary">
+                      <%= bank.label %>
+                      <% if bank.used_up? %>
+                        <span class="block text-xs text-warning"><%= t(".used_up") %></span>
+                      <% end %>
+                    </td>
+                    <td class="py-2 pr-4 text-right tabular-nums privacy-sensitive"><%= format_money Money.new(bank.allocation, currency) %></td>
+                    <td class="py-2 pr-4 text-right tabular-nums privacy-sensitive"><%= format_money Money.new([ bank.income, bank.allocation ].min, currency) %></td>
+                    <td class="py-2 text-right tabular-nums privacy-sensitive"><%= format_money Money.new(bank.remaining, currency) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+
+        <% if estimate.reserve&.positive? %>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm text-secondary">
+              <%= estimate.reserve_open? ? t(".reserve_open") : t(".reserve_settled") %>
+            </p>
+            <%= render DS::Button.new(
+                  text: estimate.reserve_open? ? t(".mark_paid") : t(".mark_open"),
+                  variant: :outline,
+                  size: :sm,
+                  href: settle_settings_taxes_path(year: estimate.year, settled: estimate.reserve_open?),
+                  method: :post
+                ) %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

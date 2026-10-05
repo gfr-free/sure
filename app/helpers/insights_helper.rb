@@ -12,7 +12,8 @@ module InsightsHelper
     # the same object seen from two places.
     "maintained_goal_depleted" => "shield-alert",
     "account_shortfall" => "alert-triangle",
-    "interest_rate_drop" => "percent"
+    "interest_rate_drop" => "percent",
+    "tax_allowance" => "receipt"
   }.freeze
 
   def insight_icon_key(insight)
@@ -72,6 +73,8 @@ module InsightsHelper
       facts["projected_low"] && [ facts["projected_low"], facts["projected_low_date"] ]
     when "interest_rate_drop"
       facts["new_rate"] && [ facts["new_rate"], facts["change_on"] ]
+    when "tax_allowance"
+      facts["allocation"] ? [ facts["allocation"], facts["bank"] ] : facts["allocated"] && [ facts["allocated"], facts["allowance"] ]
     when "subscription_audit"
       facts["amount"] && [ facts["amount"], t("insights.figures.days_overdue", count: facts["days_overdue"].to_i) ]
     when "idle_cash"
@@ -115,6 +118,8 @@ module InsightsHelper
     when "interest_rate_drop"
       account = insight.family.accounts.visible.find_by(id: metadata["account_id"])
       account && { text: t("insights.actions.interest_rate_drop"), href: account_path(account, tab: "interest") }
+    when "tax_allowance"
+      { text: t("insights.actions.tax_allowance"), href: settings_taxes_path }
     when "savings_rate_change"
       return nil unless insight.period_start && insight.period_end
       { text: t("insights.actions.savings_rate_change"),
@@ -170,7 +175,7 @@ module InsightsHelper
       metadata["negative"] ? :negative : :warning
     when "account_shortfall"
       :negative
-    when "budget_at_risk", "maintained_goal_depleted", "interest_rate_drop"
+    when "budget_at_risk", "maintained_goal_depleted", "interest_rate_drop", "tax_allowance"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

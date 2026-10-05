@@ -203,7 +203,9 @@ en:
         transfer_in: Transfer in
         transfer_out: Transfer out
         interest: Interest
+        tax: Tax
       interest_event: Interest payment
+      january_tax_debit_event: Tax debited in January
     interest:
       title: Interest
       terms: "Paid %{frequency} into this account. Day count: %{day_count}."
@@ -213,6 +215,8 @@ en:
       next_payout: Next payment on %{date}
       value_at_maturity: Released on %{date}, with interest
       estimate_hint: Estimated from the daily balances and the rate history, before tax. Future days assume today's balance.
+      after_tax: "After tax (estimated): %{amount}"
+      tax_due_later: "Tax due later (estimated): %{amount}"
       empty: No interest rate is set for this account. Add one to see the interest it earns, the next payment and the value at maturity.
       edit: Edit interest
       history_title: Rate history
@@ -304,6 +308,21 @@ en:
           user: Set by you
           tax_treatment: Follows the tax treatment
           liquidity: Follows the availability
+    tax:
+      form:
+        heading: Taxes on returns
+        treatment_label: Tax treatment
+        treatment_automatic: "Automatic (%{treatment})"
+        withheld_label: Does the bank withhold the tax?
+        withheld_options:
+          profile: As in my tax settings
+          'yes': Yes, returns arrive net
+          'no': No, the tax is due later
+        withheld_hint: If the bank books interest and dividends gross, the tax is due later and Sure keeps a reserve for it.
+        allocation_label: Exemption order at this bank
+        allocation_hint: The part of your yearly allowance given to this bank, in the currency of your tax settings.
+        january_debit_label: Tax debited every January
+        january_debit_hint: For example the German Vorabpauschale. It shows up in the account forecast on 2 January.
     tax_treatments:
       taxable: Taxable
       tax_deferred: Tax-Deferred

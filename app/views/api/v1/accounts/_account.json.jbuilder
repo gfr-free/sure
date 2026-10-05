@@ -45,6 +45,18 @@ if account.interest_terms?
 else
   json.interest nil
 end
+# Tax settings (Account::Taxation). Only the account's own values: a null
+# withheld_at_source follows the owner's tax profile.
+if account.tax_capable?
+  json.tax do
+    json.treatment account.tax_treatment&.to_s
+    json.withheld_at_source account.tax_withheld_at_source
+    json.allowance_allocation account.tax_allowance_allocation&.to_s
+    json.january_tax_debit account.january_tax_debit&.to_s
+  end
+else
+  json.tax nil
+end
 json.status account.status
 json.institution_name account.institution_name
 json.institution_domain account.institution_domain

@@ -29,6 +29,7 @@ class Insight < ApplicationRecord
     maintained_goal_depleted
     account_shortfall
     interest_rate_drop
+    tax_allowance
   ].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)

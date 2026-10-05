@@ -43,6 +43,37 @@ module AccountsHelper
     [ [ automatic, "" ] ] + Account::Interest::PAYOUT_FREQUENCIES.map { |value| [ t("accounts.interest.frequencies.#{value}"), value ] }
   end
 
+  # Bank accounts: blank follows the subtype (Depository#tax_treatment).
+  def depository_tax_treatment_options(account)
+    default = Depository.default_tax_treatment_for(account.subtype) || :taxable
+    automatic = t("accounts.tax.form.treatment_automatic", treatment: t("accounts.tax_treatments.#{default}"))
+    [ [ automatic, "" ] ] + Depository::TAX_TREATMENTS.map { |value| [ t("accounts.tax_treatments.#{value}"), value ] }
+  end
+
+  def tax_withheld_options
+    Account::Taxation::WITHHELD_CHOICES.map { |value| [ t("accounts.tax.form.withheld_options.#{value}"), value ] }
+  end
+
+  # The tax on an interest amount (decision E20, S-1): what arrives after tax
+  # where the bank withholds it, else what falls due later. Nil without a
+  # rate in the owner's tax profile, or on a tax-free account. `total` is the
+  # figure the note sits under when it is more than the interest itself
+  # (principal plus interest at maturity).
+  def interest_tax_note(account, amount, on:, total: amount)
+    return nil if amount.nil? || !amount.positive? || !account.returns_taxable?
+
+    estimate = (@interest_tax_estimates ||= Tax::Estimate.cache)[[ account.owner, on.year ]]
+    tax = estimate.tax_for(account, amount.amount, kind: "interest")
+    return nil if tax.nil?
+
+    tax_money = Money.new(tax, amount.currency)
+    if account.tax_withheld_at_source_in?(on.year)
+      t("accounts.interest.after_tax", amount: format_money(total - tax_money))
+    else
+      t("accounts.interest.tax_due_later", amount: format_money(tax_money))
+    end
+  end
+
   def summary_card(title:, &block)
     content = capture(&block)
     render "accounts/summary_card", title: title, content: content

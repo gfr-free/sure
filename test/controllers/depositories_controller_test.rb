@@ -146,6 +146,52 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name='account[interest_payout_frequency]']", 1
   end
 
+  test "update writes the tax settings, the treatment onto the bank account" do
+    patch depository_path(@account), params: {
+      account: {
+        tax_treatment_choice: "tax_exempt", tax_withheld_choice: "no",
+        tax_allowance_allocation: "801", january_tax_debit: "12.5"
+      }
+    }
+
+    @account.reload
+    assert_equal :tax_exempt, @account.tax_treatment
+    assert_equal false, @account.tax_withheld_at_source
+    assert_equal BigDecimal("801"), @account.tax_allowance_allocation
+    assert_equal BigDecimal("12.5"), @account.january_tax_debit
+
+    patch depository_path(@account), params: { account: { tax_treatment_choice: "", tax_withheld_choice: "profile" } }
+
+    @account.reload
+    assert_nil @account.accountable[:tax_treatment]
+    assert_nil @account.tax_withheld_at_source
+  end
+
+  test "the tax fields are preview only" do
+    set_preview(false)
+    get edit_account_url(@account)
+    assert_select "[data-testid='account-tax-fields']", 0
+
+    set_preview(true)
+    get edit_account_url(@account)
+    assert_select "select[name='account[tax_treatment_choice]']", 1
+    assert_select "select[name='account[tax_withheld_choice]']", 1
+    assert_select "input[name='account[tax_allowance_allocation]']", 1
+    assert_select "input[name='account[january_tax_debit]']", 1
+  end
+
+  test "the interest tab shows the tax on the next payment" do
+    set_preview(true)
+    @user.tax_profiles.create!(valid_from_year: Date.current.year, currency: "USD", rate_interest: 25, annual_allowance: 0)
+    @account.update!(owner: @user, interest_payout_frequency: "monthly", tax_withheld_at_source: false)
+    @account.interest_rates.create!(effective_from: 1.year.ago.to_date, rate: 3.5)
+
+    get account_url(@account, tab: "interest")
+
+    assert_response :success
+    assert_match I18n.t("accounts.interest.tax_due_later", amount: "").strip, response.body
+  end
+
   test "the account page shows availability and the details tab only with preview" do
     @account.update!(subtype: "cd", available_on: Date.new(2030, 3, 31))
 

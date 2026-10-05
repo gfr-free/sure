@@ -8,6 +8,7 @@ class Insight::GeneratorRegistry
     Insight::Generators::SpendingAnomalyGenerator,
     Insight::Generators::AccountShortfallGenerator,
     Insight::Generators::InterestRateDropGenerator,
+    Insight::Generators::TaxAllowanceGenerator,
     Insight::Generators::CashFlowWarningGenerator,
     Insight::Generators::NetWorthMilestoneGenerator,
     Insight::Generators::SubscriptionAuditGenerator,

@@ -28,6 +28,16 @@
       </dd>
     </div>
 
+    <%# Tax due later on returns booked gross (decision E20, S6), preview only. %>
+    <% if budget.tax_reserve.positive? %>
+      <div class="flex items-baseline justify-between gap-3">
+        <dt class="text-sm text-secondary"><%= t(".tax_reserve") %></dt>
+        <dd class="text-sm text-secondary tabular-nums privacy-sensitive">
+          −<%= format_money budget.tax_reserve_money %>
+        </dd>
+      </div>
+    <% end %>
+
     <div class="flex items-baseline justify-between gap-3 border-b border-subdued pb-2">
       <dt class="text-sm text-secondary"><%= t(".earmarked") %></dt>
       <dd class="text-sm text-secondary tabular-nums privacy-sensitive">

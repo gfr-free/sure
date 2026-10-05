@@ -56,12 +56,14 @@ class Account::RuleDetails
       Row.new(key: :notice_period, value: account.notice_period_days, source: :user)
     end
 
-    # Crypto keeps its tax treatment in a column the user sets; Investment and
-    # Depository derive it from the subtype.
+    # Crypto keeps its tax treatment in a column the user sets; Investment
+    # derives it from the subtype, and so does Depository unless the user
+    # picked one (decision E20, S2).
     def tax_treatment_row
       return nil if account.tax_treatment.nil?
 
-      source = account.crypto? ? :user : default_source
+      user_set = account.crypto? || (account.accountable.is_a?(Depository) && account.accountable[:tax_treatment].present?)
+      source = user_set ? :user : default_source
       Row.new(key: :tax_treatment, value: account.tax_treatment, source: source)
     end
 

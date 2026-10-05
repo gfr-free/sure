@@ -44,6 +44,18 @@ class Assistant::Function::GetAccountsTest < ActiveSupport::TestCase
     assert_nil accounts.find { |row| row[:id] == accounts(:investment).id }[:interest]
   end
 
+  test "carries the tax settings of bank, investment and crypto accounts" do
+    account = accounts(:depository)
+    account.update!(tax_withheld_at_source: false, tax_allowance_allocation: 500)
+
+    accounts = @fn.call[:accounts]
+    payload = accounts.find { |row| row[:id] == account.id }
+
+    assert_equal false, payload[:tax][:withheld_at_source]
+    assert_equal 500.0, payload[:tax][:allowance_allocation]
+    assert_nil accounts.find { |row| row[:id] == accounts(:credit_card).id }&.dig(:tax)
+  end
+
   test "says how available each account's money is" do
     cd = accounts(:depository)
     cd.update!(subtype: "cd", available_on: Date.current + 90)

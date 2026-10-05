@@ -385,6 +385,10 @@ Rails.application.routes.draw do
     resource :preferences, only: %i[show update]
     resource :budget_shares, only: :update
     resource :appearance, only: %i[show update]
+    resource :taxes, only: %i[show update] do
+      post :settle
+      delete "profiles/:profile_id", action: :destroy_profile, as: :profile
+    end
     resource :debug, only: :show
     resource :background_jobs, controller: "background_jobs", only: :show do
       post :cancel

@@ -1,0 +1,60 @@
+---
+de:
+  settings:
+    taxes:
+      show:
+        page_title: Steuern
+        profile_title: Steuern auf Erträge
+        profile_subtitle: Deine eigenen Sätze und dein Freibetrag. Sure schätzt damit die Steuer auf Zinsen und Dividenden. Nichts wird vorausgefüllt, und Sure rechnet nie verbindlich.
+        valid_from_year: Gilt ab Jahr
+        valid_from_hint: Speicherst du mit einem neuen Jahr, entsteht ein neuer Eintrag. Frühere Jahre behalten ihre Sätze.
+        currency: Währung
+        rates:
+          interest: Satz auf Zinsen (%)
+          dividends: Satz auf Dividenden (%)
+          gains: Satz auf Kursgewinne (%)
+          crypto: Satz auf Krypto-Gewinne (%)
+        rates_hint: Lass einen Satz leer, um diese Erträge brutto zu lassen. Kirchensteuer oder Solidaritätszuschlag rechnest du in den Satz ein. Kurs- und Krypto-Gewinne werden genutzt, sobald es Verlusttöpfe gibt.
+        annual_allowance: Jahresfreibetrag
+        annual_allowance_hint: Steuerfreie Erträge pro Jahr. Freistellungsaufträge an Banken stellst du am jeweiligen Konto ein.
+        withheld_default: Meine Banken ziehen die Steuer meist ab
+        withheld_default_hint: Ausschalten, wenn deine Banken brutto buchen und die Steuer mit der Steuererklärung fällig wird. Jedes Konto kann davon abweichen.
+        save: Speichern
+        history_title: Gespeicherte Einträge
+        history_entry: Ab %{year}
+        remove: Entfernen
+        estimate_title: Schätzung %{year}
+        estimate_subtitle: Aus den Zinsen und Dividenden, die dieses Jahr auf deinen steuerpflichtigen Konten gebucht wurden.
+        no_profile: Für %{year} gelten keine Steuer-Einstellungen, daher zeigt Sure Erträge vor Steuern.
+        income:
+          interest: Zinsen
+          dividends: Dividenden
+          gains: Kursgewinne
+          crypto: Krypto-Gewinne
+        withheld_tax: Von Banken einbehalten (geschätzt)
+        deferred_allowance: Freibetrag übrig für Konten ohne Steuerabzug
+        reserve: Später fällige Steuer (Rücklage)
+        reserve_unknown: Zu wenig Daten
+        reserve_hint: Die Rücklage betrifft Erträge, die Banken brutto gebucht haben. Sie wird im Budget von „Wirklich frei“ abgezogen, bis du das Jahr als bezahlt markierst.
+        missing_rates: "Für %{kinds} ist kein Satz eingetragen, diese Erträge bleiben in der Schätzung außen vor."
+        over_allocated: "Deine Freistellungsaufträge summieren sich auf %{allocated}, mehr als dein Freibetrag von %{allowance}."
+        unconvertible:
+          one: Ein Ertrag in einer anderen Währung bleibt außen vor, weil kein Wechselkurs vorliegt.
+          other: "%{count} Erträge in einer anderen Währung bleiben außen vor, weil kein Wechselkurs vorliegt."
+        banks_title: Freistellungsaufträge je Bank
+        columns:
+          bank: Bank
+          allocation: Freistellungsauftrag
+          used: Genutzt
+          remaining: Übrig
+        used_up: Ausgeschöpft
+        reserve_open: Die Rücklage zählt im Budget.
+        reserve_settled: Als bezahlt markiert. Die Rücklage zählt nicht mehr im Budget.
+        mark_paid: Als bezahlt markieren
+        mark_open: Wieder zählen
+      update:
+        saved: Steuer-Einstellungen gespeichert.
+      settle:
+        updated: Steuer-Rücklage aktualisiert.
+      destroy_profile:
+        removed: Eintrag entfernt.

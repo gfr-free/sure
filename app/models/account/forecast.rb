@@ -14,7 +14,9 @@
 #
 # Interest payouts expected in the window (Account::InterestProjection) join
 # as events of kind :interest, worked out on the balance path the payments
-# leave behind; they have no occurrence or series.
+# leave behind; they have no occurrence or series. Where the bank withholds
+# the tax they arrive net, and a tax debited every January (Vorabpauschale)
+# joins as an event of kind :tax (Account::Taxation).
 #
 # Only accounts whose money is reachable today take part (Account::Liquidity,
 # `immediate`); credit cards stay out until there is limit logic. Every figure
@@ -62,7 +64,7 @@ class Account::Forecast
 
       accounts.filter_map do |account|
         mine = occurrences.select { |occurrence| touches?(occurrence, account) }
-        next if mine.empty?
+        next if mine.empty? && account.january_tax_debits_between(as_of, as_of + DEFAULT_HORIZON_DAYS).empty?
 
         new(account, as_of: as_of, occurrences: mine)
       end
@@ -153,6 +155,7 @@ class Account::Forecast
       @starting_balance = account.balance_money
       @events = build_events(occurrences)
       @events = (@events + interest_events(@events)).sort_by { |event| [ event.date, event.amount.amount ] }
+      @events = (@events + tax_debit_events).sort_by { |event| [ event.date, event.amount.amount ] }
 
       balance = @starting_balance
       @low_balance = balance
@@ -204,11 +207,39 @@ class Account::Forecast
       start = starting_balance.amount
       balance_on = ->(date) { start + by_date.sum(BigDecimal("0")) { |day, amount| day <= date ? amount : 0 } }
 
+      gross_by_year = Hash.new(0.to_d)
       account.interest_projection(as_of: starts_on).payouts_between(ends_on, balance_on: balance_on).filter_map do |payout|
         next if payout.amount.zero?
 
-        Event.new(date: payout.date, name: I18n.t("accounts.forecast.interest_event"), kind: :interest, amount: payout.amount,
+        amount = payout.amount - withheld_tax_on(payout, gross_by_year)
+        Event.new(date: payout.date, name: I18n.t("accounts.forecast.interest_event"), kind: :interest, amount: amount,
                   balance_after: nil, occurrence: nil, series: nil)
+      end
+    end
+
+    # Where the bank withholds the tax, interest arrives net (decision E20,
+    # S-1). Worked out on the payouts so far in the same year, so the
+    # exemption order is used up once, not per payout.
+    def withheld_tax_on(payout, gross_by_year)
+      year = payout.date.year
+      return Money.new(0, currency) unless payout.amount.positive? && account.returns_taxable? && account.tax_withheld_at_source_in?(year)
+
+      estimate = (@tax_estimates ||= Tax::Estimate.cache)[[ account.owner, year ]]
+      before = gross_by_year[year]
+      gross_by_year[year] += payout.amount.amount
+      tax_before = estimate.tax_for(account, before, kind: "interest")
+      tax_after = estimate.tax_for(account, gross_by_year[year], kind: "interest")
+      return Money.new(0, currency) if tax_before.nil? || tax_after.nil?
+
+      Money.new(tax_after - tax_before, currency)
+    end
+
+    # A tax the bank debits every January, such as the German Vorabpauschale
+    # (decision E20, S7). The amount is the person's own entry.
+    def tax_debit_events
+      account.january_tax_debits_between(starts_on, ends_on).map do |date|
+        Event.new(date: date, name: I18n.t("accounts.forecast.january_tax_debit_event"), kind: :tax,
+                  amount: -Money.new(account.january_tax_debit, currency), balance_after: nil, occurrence: nil, series: nil)
       end
     end
 

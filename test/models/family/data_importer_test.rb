@@ -62,6 +62,32 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 12, account.renewal_term_months
   end
 
+  test "imports the account's tax settings and drops values out of range" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-savings",
+          name: "Savings",
+          balance: "100.00",
+          currency: "EUR",
+          accountable_type: "Depository",
+          accountable: { subtype: "savings", tax_treatment: "tax_exempt" },
+          tax_withheld_at_source: false,
+          tax_allowance_allocation: "801.0",
+          january_tax_debit: "-5"
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal :tax_exempt, account.tax_treatment
+    assert_equal false, account.tax_withheld_at_source
+    assert_equal BigDecimal("801"), account.tax_allowance_allocation
+    assert_nil account.january_tax_debit
+  end
+
   test "an exported automatic availability follows the subtype default on import" do
     ndjson = build_ndjson([
       {

@@ -160,6 +160,7 @@ module AccountableResource
         :liquidity_choice, :available_on, :notice_period_days, :auto_renew, :renewal_term_months,
         :interest_payout_frequency, :interest_rate_input, :overdraft_rate_input,
         :planned_interest_rate, :planned_interest_rate_on,
+        :tax_treatment_choice, :tax_withheld_choice, :tax_allowance_allocation, :january_tax_debit,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

@@ -378,6 +378,7 @@ en:
       whats_new_label: What's new
       api_keys_label: API Keys
       appearance_label: Appearance
+      taxes_label: Taxes
       bank_sync_label: Bank sync
       debug_label: Debug
     settings_nav_link_large:

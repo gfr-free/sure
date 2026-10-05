@@ -331,6 +331,7 @@ class Family::DataImporter
           status: importable_account_status(data["status"])
         )
         assign_imported_liquidity(account, data)
+        assign_imported_tax(account, data, accountable_data)
 
         account.save!
 
@@ -367,6 +368,24 @@ class Family::DataImporter
       term = importable_integer(data["renewal_term_months"], 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
       account.renewal_term_months = term
       account.auto_renew = term.present? && ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true
+    end
+
+    # Tax settings (Account::Taxation). Values out of range are dropped, so
+    # the account falls back to its owner's profile and subtype.
+    def assign_imported_tax(account, data, accountable_data)
+      withheld = data["tax_withheld_at_source"]
+      account.tax_withheld_at_source = withheld.nil? ? nil : ActiveModel::Type::Boolean.new.cast(withheld)
+      account.tax_allowance_allocation = importable_amount(data["tax_allowance_allocation"])
+      account.january_tax_debit = importable_amount(data["january_tax_debit"])
+
+      if account.accountable.is_a?(Depository)
+        account.accountable.tax_treatment = accountable_data["tax_treatment"].to_s.presence_in(Depository::TAX_TREATMENTS)
+      end
+    end
+
+    def importable_amount(value)
+      amount = BigDecimal(value.to_s, exception: false)
+      amount if amount && !amount.negative?
     end
 
     def importable_integer(value, range)

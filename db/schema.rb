@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -129,6 +129,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
     t.string "institution_domain"
     t.string "institution_name"
     t.string "interest_payout_frequency"
+    t.decimal "january_tax_debit", precision: 19, scale: 4
     t.string "liquidity", default: "immediate", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "name"
@@ -140,6 +141,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
     t.uuid "simplefin_account_id"
     t.string "status", default: "active"
     t.string "subtype"
+    t.decimal "tax_allowance_allocation", precision: 19, scale: 4
+    t.boolean "tax_withheld_at_source"
     t.datetime "updated_at", null: false
     t.index ["accountable_id", "accountable_type"], name: "index_accounts_on_accountable_id_and_accountable_type"
     t.index ["accountable_type"], name: "index_accounts_on_accountable_type"
@@ -157,9 +160,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
     t.check_constraint "interest_payout_frequency IS NULL OR (interest_payout_frequency::text = ANY (ARRAY['daily'::character varying, 'monthly'::character varying, 'quarterly'::character varying, 'semiannual'::character varying, 'annual'::character varying, 'at_maturity'::character varying]::text[]))", name: "chk_accounts_interest_payout_frequency"
+    t.check_constraint "january_tax_debit IS NULL OR january_tax_debit >= 0::numeric", name: "chk_accounts_january_tax_debit"
     t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
     t.check_constraint "notice_period_days IS NULL OR notice_period_days >= 0", name: "chk_accounts_notice_period_days"
     t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
+    t.check_constraint "tax_allowance_allocation IS NULL OR tax_allowance_allocation >= 0::numeric", name: "chk_accounts_tax_allowance_allocation"
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -658,7 +663,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
     t.datetime "created_at", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "subtype"
+    t.string "tax_treatment"
     t.datetime "updated_at", null: false
+    t.check_constraint "tax_treatment IS NULL OR (tax_treatment::text = ANY (ARRAY['taxable'::character varying, 'tax_deferred'::character varying, 'tax_exempt'::character varying, 'tax_advantaged'::character varying]::text[]))", name: "chk_depositories_tax_treatment"
   end
 
   create_table "enable_banking_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2648,6 +2655,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
     t.index ["family_id"], name: "index_tags_on_family_id"
   end
 
+  create_table "tax_profiles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "annual_allowance", precision: 19, scale: 4
+    t.datetime "created_at", null: false
+    t.string "currency", null: false
+    t.decimal "rate_crypto", precision: 6, scale: 3
+    t.decimal "rate_dividends", precision: 6, scale: 3
+    t.decimal "rate_gains", precision: 6, scale: 3
+    t.decimal "rate_interest", precision: 6, scale: 3
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.integer "valid_from_year", null: false
+    t.boolean "withheld_at_source_default", default: true, null: false
+    t.index ["user_id", "valid_from_year"], name: "index_tax_profiles_on_user_id_and_valid_from_year", unique: true
+    t.check_constraint "annual_allowance IS NULL OR annual_allowance >= 0::numeric", name: "chk_tax_profiles_annual_allowance"
+    t.check_constraint "rate_crypto IS NULL OR rate_crypto >= 0::numeric AND rate_crypto <= 100::numeric", name: "chk_tax_profiles_rate_crypto"
+    t.check_constraint "rate_dividends IS NULL OR rate_dividends >= 0::numeric AND rate_dividends <= 100::numeric", name: "chk_tax_profiles_rate_dividends"
+    t.check_constraint "rate_gains IS NULL OR rate_gains >= 0::numeric AND rate_gains <= 100::numeric", name: "chk_tax_profiles_rate_gains"
+    t.check_constraint "rate_interest IS NULL OR rate_interest >= 0::numeric AND rate_interest <= 100::numeric", name: "chk_tax_profiles_rate_interest"
+  end
+
   create_table "tool_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.jsonb "function_arguments"
@@ -3114,6 +3141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_173000) do
   add_foreign_key "syncs", "syncs", column: "parent_id"
   add_foreign_key "taggings", "tags"
   add_foreign_key "tags", "families"
+  add_foreign_key "tax_profiles", "users", on_delete: :cascade
   add_foreign_key "tool_calls", "messages"
   add_foreign_key "trade_republic_accounts", "trade_republic_items"
   add_foreign_key "trade_republic_items", "families"

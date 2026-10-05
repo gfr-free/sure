@@ -1,0 +1,30 @@
+<%# locals: (form:, account:) %>
+<%# Taxes on returns (Account::Taxation, decision E20). Preview only, decision
+    E10. Investment and crypto accounts set their treatment through the
+    subtype or their own field; bank accounts get theirs here. %>
+<%= render DS::Disclosure.new(title: t("accounts.tax.form.heading"), align: "left", open: account.tax_withheld_at_source == false || account.tax_allowance_allocation.present? || account.january_tax_debit.present?) do %>
+  <div class="space-y-2" data-testid="account-tax-fields">
+    <% if account.accountable.is_a?(Depository) %>
+      <%= form.select :tax_treatment_choice,
+                      depository_tax_treatment_options(account),
+                      { label: t("accounts.tax.form.treatment_label"), selected: account.accountable[:tax_treatment].to_s } %>
+    <% end %>
+
+    <%= form.select :tax_withheld_choice,
+                    tax_withheld_options,
+                    { label: t("accounts.tax.form.withheld_label"), selected: account.tax_withheld_choice } %>
+    <p class="text-xs text-secondary"><%= t("accounts.tax.form.withheld_hint") %></p>
+
+    <%= form.number_field :tax_allowance_allocation,
+                          label: t("accounts.tax.form.allocation_label"),
+                          step: "0.01",
+                          min: 0 %>
+    <p class="text-xs text-secondary"><%= t("accounts.tax.form.allocation_hint") %></p>
+
+    <%= form.number_field :january_tax_debit,
+                          label: t("accounts.tax.form.january_debit_label"),
+                          step: "0.01",
+                          min: 0 %>
+    <p class="text-xs text-secondary"><%= t("accounts.tax.form.january_debit_hint") %></p>
+  </div>
+<% end %>

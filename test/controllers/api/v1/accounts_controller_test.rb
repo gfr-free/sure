@@ -181,6 +181,23 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_nil JSON.parse(response.body)["accounts"].find { |row| row["id"] == accounts(:investment).id }&.dig("interest")
   end
 
+  test "should show the account's tax settings" do
+    account = accounts(:depository)
+    account.update!(tax_withheld_at_source: false, tax_allowance_allocation: 500)
+
+    get "/api/v1/accounts/#{account.id}", headers: api_headers(@api_key)
+
+    assert_response :success
+    tax = JSON.parse(response.body)["tax"]
+    assert_nil tax["treatment"]
+    assert_equal false, tax["withheld_at_source"]
+    assert_equal "500.0", tax["allowance_allocation"]
+    assert_nil tax["january_tax_debit"]
+
+    get "/api/v1/accounts/#{accounts(:credit_card).id}", headers: api_headers(@api_key)
+    assert_nil JSON.parse(response.body)["tax"]
+  end
+
   test "should return 404 for unknown account on show" do
     get "/api/v1/accounts/#{SecureRandom.uuid}", headers: api_headers(@api_key)
 

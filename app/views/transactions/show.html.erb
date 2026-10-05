@@ -285,7 +285,10 @@
             <% end %>
           </div>
         <% end %>
-        <% if @entry.account.investment? || @entry.account.crypto? %>
+        <%# Bank accounts get the label in preview so interest and dividends can
+            be marked for the tax estimate (decision E20); they only need those. %>
+        <% bank_income_labels = @entry.account.depository? && preview_features_enabled? %>
+        <% if @entry.account.investment? || @entry.account.crypto? || bank_income_labels %>
           <div class="pb-4">
             <%= styled_form_with model: @entry,
                   url: transaction_path(@entry),
@@ -300,7 +303,7 @@
                   </div>
                   <%= ef.select :investment_activity_label,
                         options_for_select(
-                          [["—", nil]] + Transaction::ACTIVITY_LABELS.map { |l| [t("transactions.activity_labels.#{l.parameterize(separator: '_')}"), l] },
+                          [["—", nil]] + (bank_income_labels ? Transaction::BANK_ACTIVITY_LABELS : Transaction::ACTIVITY_LABELS).map { |l| [t("transactions.activity_labels.#{l.parameterize(separator: '_')}"), l] },
                           @entry.entryable.investment_activity_label
                         ),
                         { label: false },

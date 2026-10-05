@@ -108,6 +108,10 @@ class Transaction < ApplicationRecord
     "Interest", "Fee", "Transfer", "Contribution", "Withdrawal", "Exchange", "Other"
   ].freeze
 
+  # The labels a bank account offers: interest and dividends feed the tax
+  # estimate (Tax::Estimate), the rest keeps a label already set selectable.
+  BANK_ACTIVITY_LABELS = %w[Interest Dividend Fee Other].freeze
+
   # Internal movement labels that should be excluded from budget (auto cash management)
   INTERNAL_MOVEMENT_LABELS = [ "Transfer", "Sweep In", "Sweep Out", "Exchange" ].freeze
 

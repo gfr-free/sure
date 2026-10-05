@@ -135,3 +135,40 @@ rate drops. The account form's interest section, the account page's Interest
 tab and the insight are preview only; the API (`interest` on each account, the
 amounts on the single-account response) and the assistant's `get_accounts`
 always carry the terms.
+
+## Taxes on returns
+
+`Account::Taxation` (concern on `Account`) holds an account's tax settings,
+`TaxProfile` a person's rates, and `Tax::Estimate` the arithmetic (decision
+E20). Sure estimates; it never computes tax bindingly, and there are no
+country presets.
+
+- Tax belongs to a person, not the family: `tax_profiles` per user, from
+  `valid_from_year` on, with a rate per income type (interest, dividends,
+  gains, crypto; percent, nullable), a yearly allowance and whether the
+  person's banks usually withhold the tax. The account's owner is the person.
+- Bank accounts store their tax treatment in `depositories.tax_treatment`
+  (nil follows the subtype); investment and crypto accounts keep theirs.
+  `Family#tax_advantaged_account_ids` honours the stored value.
+- Per account: `tax_withheld_at_source` (nil follows the profile),
+  `tax_allowance_allocation` (the exemption order at that bank) and
+  `january_tax_debit` (such as the Vorabpauschale, a `:tax` event in the
+  account forecast on 2 January).
+- Booked returns are transactions labelled "Interest" or "Dividend".
+  Bank accounts offer those labels in the transaction drawer (preview).
+- `Tax::Estimate.new(user, year:)` collects the returns, applies the
+  allowance in booking order (exemption orders for withholding accounts, the
+  rest for accounts without withholding) and each kind's rate.
+  `reserve` is the tax still due on gross-booked returns, nil when it cannot
+  be worked out cleanly. `tax_for(account, amount, kind:)` estimates the tax
+  on a further amount.
+- The budget takes the reserve of this year and last year off "really free"
+  until the person marks the year as paid (`User#settle_tax_reserve!`).
+  Withheld interest arrives net in the account forecast.
+- `Insight::Generators::TaxAllowanceGenerator` points out exemption orders
+  that are used up or add up to more than the allowance.
+
+Settings → Taxes, the account form's tax section, the reserve in the budget
+and the insight are preview only. The API (`tax` on each account) and the
+assistant's `get_accounts` always carry the account's own settings. Capital
+and crypto gains wait for loss pots (E21).

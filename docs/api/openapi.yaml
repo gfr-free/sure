@@ -503,6 +503,11 @@ components:
           description: Interest terms; null when the account has none
           allOf:
           - "$ref": "#/components/schemas/AccountInterest"
+        tax:
+          nullable: true
+          description: Tax settings for returns; null on account types without them
+          allOf:
+          - "$ref": "#/components/schemas/AccountTax"
         status:
           type: string
           enum:
@@ -522,6 +527,38 @@ components:
         updated_at:
           type: string
           format: date-time
+    AccountTax:
+      type: object
+      required:
+      - treatment
+      - withheld_at_source
+      - allowance_allocation
+      - january_tax_debit
+      properties:
+        treatment:
+          type: string
+          nullable: true
+          enum:
+          - taxable
+          - tax_deferred
+          - tax_exempt
+          - tax_advantaged
+          -
+          description: Null reads as taxable
+        withheld_at_source:
+          type: boolean
+          nullable: true
+          description: Whether the bank withholds the tax; null follows the owner's
+            tax profile
+        allowance_allocation:
+          type: string
+          nullable: true
+          description: Exemption order given to this bank, in the owner's tax currency
+        january_tax_debit:
+          type: string
+          nullable: true
+          description: Tax debited every January (such as a Vorabpauschale), in the
+            account currency
     AccountInterestRateChange:
       type: object
       required:
@@ -634,6 +671,7 @@ components:
           - transfer_in
           - transfer_out
           - interest
+          - tax
         amount:
           "$ref": "#/components/schemas/ForecastMoney"
         balance_after:

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -100,6 +100,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.integer "account_providers_count", default: 0, null: false
     t.uuid "accountable_id"
     t.string "accountable_type"
+    t.boolean "auto_renew", default: false, null: false
+    t.date "available_on"
     t.decimal "balance", precision: 19, scale: 4
     t.decimal "cash_balance", precision: 19, scale: 4, default: "0.0"
     t.virtual "classification", type: :string, as: "\nCASE\n    WHEN ((accountable_type)::text = ANY (ARRAY[('Loan'::character varying)::text, ('CreditCard'::character varying)::text, ('OtherLiability'::character varying)::text])) THEN 'liability'::text\n    ELSE 'asset'::text\nEND", stored: true
@@ -112,11 +114,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.uuid "import_id"
     t.string "institution_domain"
     t.string "institution_name"
+    t.string "liquidity", default: "immediate", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "name"
     t.text "notes"
+    t.integer "notice_period_days"
     t.uuid "owner_id"
     t.uuid "plaid_account_id"
+    t.integer "renewal_term_months"
     t.uuid "simplefin_account_id"
     t.string "status", default: "active"
     t.string "subtype"
@@ -127,6 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.index ["family_id", "accountable_type"], name: "index_accounts_on_family_id_and_accountable_type"
     t.index ["family_id", "exclude_from_reports"], name: "index_accounts_on_family_id_and_exclude_from_reports"
     t.index ["family_id", "id"], name: "index_accounts_on_family_id_and_id"
+    t.index ["family_id", "liquidity"], name: "index_accounts_on_family_id_and_liquidity"
     t.index ["family_id", "status", "accountable_type"], name: "index_accounts_on_family_id_status_accountable_type"
     t.index ["family_id", "status"], name: "index_accounts_on_family_id_and_status"
     t.index ["family_id"], name: "index_accounts_on_family_id"
@@ -135,6 +141,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.index ["plaid_account_id"], name: "index_accounts_on_plaid_account_id"
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
+    t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
+    t.check_constraint "notice_period_days IS NULL OR notice_period_days >= 0", name: "chk_accounts_notice_period_days"
+    t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1593,7 +1602,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.jsonb "variable_rate_schedule", default: {}, null: false
     t.check_constraint "down_payment IS NULL OR down_payment >= 0::numeric", name: "chk_loans_down_payment_non_negative"
     t.check_constraint "insurance_rate IS NULL OR insurance_rate >= 0::numeric", name: "chk_loans_insurance_rate_non_negative"
-    t.check_constraint "insurance_rate_type IS NULL OR (insurance_rate_type::text = ANY (ARRAY['level_term'::character varying::text, 'decreasing_life'::character varying::text]))", name: "chk_loans_insurance_rate_type"
+    t.check_constraint "insurance_rate_type IS NULL OR (insurance_rate_type::text = ANY (ARRAY['level_term'::character varying, 'decreasing_life'::character varying]::text[]))", name: "chk_loans_insurance_rate_type"
   end
 
   create_table "lunchflow_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2625,7 +2634,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
 
   create_table "tool_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.jsonb "extra_content"
     t.jsonb "function_arguments"
     t.string "function_name"
     t.jsonb "function_result"

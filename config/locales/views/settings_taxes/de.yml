@@ -24,7 +24,7 @@ de:
         history_entry: Ab %{year}
         remove: Entfernen
         estimate_title: Schätzung %{year}
-        estimate_subtitle: Aus den Zinsen und Dividenden, die dieses Jahr auf deinen steuerpflichtigen Konten gebucht wurden.
+        estimate_subtitle: Aus den Zinsen und Dividenden, die %{year} auf deinen steuerpflichtigen Konten gebucht wurden.
         no_profile: Für %{year} gelten keine Steuer-Einstellungen, daher zeigt Sure Erträge vor Steuern.
         income:
           interest: Zinsen

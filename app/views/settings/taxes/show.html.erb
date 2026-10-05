@@ -63,7 +63,7 @@
 <% end %>
 
 <% @estimates.each do |estimate| %>
-  <%= settings_section title: t(".estimate_title", year: estimate.year), subtitle: t(".estimate_subtitle") do %>
+  <%= settings_section title: t(".estimate_title", year: estimate.year), subtitle: t(".estimate_subtitle", year: estimate.year) do %>
     <div class="space-y-3" data-testid="tax-estimate-<%= estimate.year %>">
       <% if !estimate.profile? %>
         <p class="text-sm text-secondary"><%= t(".no_profile", year: estimate.year) %></p>

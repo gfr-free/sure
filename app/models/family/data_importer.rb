@@ -1098,6 +1098,7 @@ class Family::DataImporter
       return "loan_payment" if destination_account.loan?
       return "cc_payment" if destination_account.liability?
       return "investment_contribution" if investment_account?(destination_account) && !investment_account?(source_account)
+      return "investment_contribution" if Transfer.saving_into?(destination_account, source: source_account, date: transfer.outflow_transaction.entry.date)
 
       "funds_movement"
     end

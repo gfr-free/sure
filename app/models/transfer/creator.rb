@@ -250,6 +250,8 @@ class Transfer::Creator
         "cc_payment"
       elsif destination_is_investment? && !source_is_investment?
         "investment_contribution"
+      elsif Transfer.saving_into?(destination_account, source: source_account, date: date)
+        "investment_contribution"
       else
         "funds_movement"
       end

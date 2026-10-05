@@ -18,9 +18,17 @@ class Insight::Generators::AccountShortfallGenerator < Insight::Generator
   end
 
   private
+    # The insight is shown to the whole family, but a transfer's other end may
+    # be an account some members cannot see. Name the cause only when it is a
+    # bill on this account itself.
+    def shareable_cause(forecast)
+      cause = forecast.low_cause
+      cause if cause&.kind == :expense
+    end
+
     def insight_for(forecast)
       account = forecast.account
-      cause = forecast.low_cause
+      cause = shareable_cause(forecast)
       template_key = cause ? "account_shortfall.with_cause" : "account_shortfall.plain"
       facts = {
         account: account.name,

@@ -15,7 +15,8 @@ class Insight::Generators::CashFlowWarningGenerator < Insight::Generator
   def generate
     # The per-account warning (AccountShortfallGenerator) names the account
     # and the payment; repeating it family-wide would say the same thing twice.
-    return [] if Account::Forecast.for_family(family).any?(&:shortfall?)
+    # Only accounts this warning covers count: it sums family-currency cash.
+    return [] if Account::Forecast.for_family(family).any? { |forecast| forecast.shortfall? && forecast.currency == family.currency }
 
     accounts = cash_accounts
     return [] if accounts.empty?

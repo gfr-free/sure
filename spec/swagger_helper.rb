@@ -368,7 +368,7 @@ RSpec.configure do |config|
               ending_balance: { '$ref' => '#/components/schemas/ForecastMoney' },
               low_balance: { '$ref' => '#/components/schemas/ForecastMoney' },
               low_on: { type: :string, format: :date },
-              shortfall: { type: :boolean, description: 'Whether the balance falls below zero after today' },
+              shortfall: { type: :boolean, description: 'Whether an expected payment, today or later, takes the balance below zero' },
               shortfall_amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               top_up_by: { type: :string, format: :date, nullable: true },
               unconvertible_count: { type: :integer, description: 'Payments left out for lack of an exchange rate' },

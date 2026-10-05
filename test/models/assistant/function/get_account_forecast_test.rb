@@ -31,6 +31,8 @@ class Assistant::Function::GetAccountForecastTest < ActiveSupport::TestCase
     assert_equal "invalid_account_id", call_tool("account_id" => "nope")[:error]
     assert_equal "account_not_found", call_tool("account_id" => SecureRandom.uuid)[:error]
     assert_equal "invalid_until", call_tool("account_id" => @account.id, "until" => "soon")[:error]
+    assert_equal "invalid_until", call_tool("account_id" => @account.id, "until" => (@today + 400).iso8601)[:error]
+    assert_equal "invalid_until", call_tool("account_id" => @account.id, "until" => (@today - 1).iso8601)[:error]
   end
 
   test "is offered only to preview users" do

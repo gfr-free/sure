@@ -613,7 +613,8 @@ components:
           format: date
         shortfall:
           type: boolean
-          description: Whether the balance falls below zero after today
+          description: Whether an expected payment, today or later, takes the balance
+            below zero
         shortfall_amount:
           "$ref": "#/components/schemas/ForecastMoney"
         top_up_by:

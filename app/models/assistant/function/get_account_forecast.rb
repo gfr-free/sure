@@ -55,6 +55,11 @@ class Assistant::Function::GetAccountForecast < Assistant::Function
     until_date = parse_until(params["until"])
     return error("invalid_until", "until must be a date (YYYY-MM-DD).") if until_date == :invalid
 
+    today = Account.liquidity_today_for(account.family)
+    if until_date && (until_date < today || until_date > today + Account::Forecast::MAX_HORIZON_DAYS)
+      return error("invalid_until", "until must be between today and #{Account::Forecast::MAX_HORIZON_DAYS} days ahead.")
+    end
+
     forecast = Account::Forecast.for_account(account, user: user, until_date: until_date)
 
     {

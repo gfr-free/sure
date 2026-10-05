@@ -170,11 +170,11 @@ class Account::Forecast
 
     def build_events(occurrences)
       occurrences.filter_map do |occurrence|
-        date = [ occurrence.effective_due_on, starts_on ].max
+        date = occurrence.effective_due_on
         next if date > ends_on
         # Overdue rows are left out: an unmatched payment that already left the
         # account would otherwise be subtracted a second time.
-        next if occurrence.effective_due_on < starts_on
+        next if date < starts_on
 
         kind = kind_for(occurrence)
         next if kind.nil?

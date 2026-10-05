@@ -86,8 +86,8 @@ partials live in `app/views/liquidity/`.
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
 UI are behind the preview switch: the form section, header badge, Details tab,
-and the budget's and paycheck planner's switch from "depository" to
-`immediate_assets_on`, and the dashboard widget and reports section read the
-viewer's `preview_features_enabled?`. Insights
+the budget's and paycheck planner's switch from "depository" to
+`immediate_assets_on`, the dashboard widget and the reports section. All of
+them read the viewer's `preview_features_enabled?`. Insights
 already run only for preview families. API and assistant fields are always
 returned (additive).

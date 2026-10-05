@@ -151,11 +151,14 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
 
     def cache_key(period, group_by)
       shares_version = user ? AccountShare.where(user: user).maximum(:updated_at)&.to_i : nil
+      # Owner groups are named after users, so a renamed user must refresh them.
+      owner_names_version = family.users.maximum(:updated_at)&.to_f if group_by == "owner"
       key = [
         "balance_sheet_net_worth_breakdown_series",
         CACHE_VERSION,
         user&.id,
         shares_version,
+        owner_names_version,
         period.start_date,
         period.end_date,
         group_by

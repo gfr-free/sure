@@ -138,6 +138,16 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilderTest < ActiveSupport::TestCase
     assert_not_equal builder.send(:cache_key, period, "account_type"), builder.send(:cache_key, period, "custom_group")
   end
 
+  test "owner grouping cache key changes when a family member is renamed" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    before = builder.send(:cache_key, period, "owner")
+
+    travel 1.minute do
+      @family.users.first.update!(first_name: "Renamed")
+      assert_not_equal before, builder.send(:cache_key, period, "owner")
+    end
+  end
+
   private
     def builder
       BalanceSheet::NetWorthBreakdownSeriesBuilder.new(@family)

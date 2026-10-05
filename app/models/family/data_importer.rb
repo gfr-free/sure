@@ -334,6 +334,7 @@ class Family::DataImporter
         assign_imported_tax(account, data, accountable_data)
 
         account.save!
+        import_loss_pots(account, data["loss_pots"])
 
         # Set opening balance if we have a historical balance and the import
         # does not provide either an explicit opening-anchor valuation or an
@@ -380,6 +381,32 @@ class Family::DataImporter
 
       if account.accountable.is_a?(Depository)
         account.accountable.tax_treatment = accountable_data["tax_treatment"].to_s.presence_in(Depository::TAX_TREATMENTS)
+      end
+    end
+
+    # Loss pots (LossPot) with their entered balances. Unknown kinds, invalid
+    # dates and negative amounts are dropped; balances already there for the
+    # same date are overwritten.
+    def import_loss_pots(account, pots)
+      return unless account.loss_pots_capable? && pots.is_a?(Array)
+
+      pots.each do |pot_data|
+        next unless pot_data.is_a?(Hash) && pot_data["kind"].to_s.in?(LossPot::KINDS)
+
+        pot = account.loss_pots.find_or_initialize_by(kind: pot_data["kind"].to_s)
+        carry_forward = pot_data["carry_forward"]
+        pot.carry_forward = ActiveModel::Type::Boolean.new.cast(carry_forward) unless carry_forward.nil?
+        pot.save!
+
+        Array(pot_data["snapshots"]).each do |snapshot_data|
+          next unless snapshot_data.is_a?(Hash)
+
+          date = parse_import_date(snapshot_data["date"])
+          amount = importable_amount(snapshot_data["amount"])
+          next if date.nil? || amount.nil?
+
+          pot.snapshots.find_or_initialize_by(date: date).update!(amount: amount, source: "manual")
+        end
       end
     end
 

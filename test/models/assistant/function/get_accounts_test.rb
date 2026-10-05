@@ -44,6 +44,19 @@ class Assistant::Function::GetAccountsTest < ActiveSupport::TestCase
     assert_nil accounts.find { |row| row[:id] == accounts(:investment).id }[:interest]
   end
 
+  test "carries loss pots and the joint account split" do
+    account = accounts(:investment)
+    account.share_with!(users(:family_member))
+    account.update!(tax_joint_user: users(:family_member), tax_owner_share: 70)
+    account.loss_pots.create!(kind: "stocks").snapshots.create!(date: Date.new(2025, 12, 31), amount: 400)
+
+    tax = @fn.call[:accounts].find { |row| row[:id] == account.id }[:tax]
+
+    assert_equal users(:family_member).display_name, tax[:joint_with]
+    assert_equal 70.0, tax[:owner_share]
+    assert_equal [ { kind: "stocks", carry_forward: true, amount: 400.0, as_of: Date.new(2025, 12, 31) } ], tax[:loss_pots]
+  end
+
   test "carries the tax settings of bank, investment and crypto accounts" do
     account = accounts(:depository)
     account.update!(tax_withheld_at_source: false, tax_allowance_allocation: 500)

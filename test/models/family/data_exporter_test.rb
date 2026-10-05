@@ -371,6 +371,20 @@ class Family::DataExporterTest < ActiveSupport::TestCase
     end
   end
 
+  test "exports loss pots with their balances" do
+    pot = accounts(:investment).loss_pots.create!(kind: "general", carry_forward: false)
+    pot.snapshots.create!(date: Date.new(2025, 12, 31), amount: 300)
+
+    Zip::File.open_buffer(@exporter.generate_export) do |zip|
+      account = zip.read("all.ndjson").split("\n").map { |line| JSON.parse(line) }
+                   .find { |line| line["type"] == "Account" && line.dig("data", "id") == accounts(:investment).id }
+
+      assert_equal [ { "kind" => "general", "carry_forward" => false,
+                       "snapshots" => [ { "date" => "2025-12-31", "amount" => "300.0", "source" => "manual" } ] } ],
+                   account.dig("data", "loss_pots")
+    end
+  end
+
   test "only exports data from the specified family" do
     # Create data for another family that should NOT be exported
     other_account = @other_family.accounts.create!(

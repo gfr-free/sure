@@ -5,7 +5,7 @@ de:
       show:
         page_title: Steuern
         profile_title: Steuern auf Erträge
-        profile_subtitle: Deine eigenen Sätze und dein Freibetrag. Sure schätzt damit die Steuer auf Zinsen und Dividenden. Nichts wird vorausgefüllt, und Sure rechnet nie verbindlich.
+        profile_subtitle: Deine eigenen Sätze und dein Freibetrag. Sure schätzt damit die Steuer auf Zinsen, Dividenden und realisierte Gewinne. Nichts wird vorausgefüllt, und Sure rechnet nie verbindlich.
         valid_from_year: Gilt ab Jahr
         valid_from_hint: Speicherst du mit einem neuen Jahr, entsteht ein neuer Eintrag. Frühere Jahre behalten ihre Sätze.
         currency: Währung
@@ -14,7 +14,7 @@ de:
           dividends: Satz auf Dividenden (%)
           gains: Satz auf Kursgewinne (%)
           crypto: Satz auf Krypto-Gewinne (%)
-        rates_hint: Lass einen Satz leer, um diese Erträge brutto zu lassen. Kirchensteuer oder Solidaritätszuschlag rechnest du in den Satz ein. Kurs- und Krypto-Gewinne werden genutzt, sobald es Verlusttöpfe gibt.
+        rates_hint: Lass einen Satz leer, um diese Erträge brutto zu lassen. Kirchensteuer oder Solidaritätszuschlag rechnest du in den Satz ein.
         annual_allowance: Jahresfreibetrag
         annual_allowance_hint: Steuerfreie Erträge pro Jahr. Freistellungsaufträge an Banken stellst du am jeweiligen Konto ein.
         withheld_default: Meine Banken ziehen die Steuer meist ab
@@ -24,13 +24,14 @@ de:
         history_entry: Ab %{year}
         remove: Entfernen
         estimate_title: Schätzung %{year}
-        estimate_subtitle: Aus den Zinsen und Dividenden, die %{year} auf deinen steuerpflichtigen Konten gebucht wurden.
+        estimate_subtitle: Aus den Zinsen, Dividenden und realisierten Gewinnen, die %{year} auf deinen steuerpflichtigen Konten gebucht wurden, nach deinen Verlusttöpfen.
         no_profile: Für %{year} gelten keine Steuer-Einstellungen, daher zeigt Sure Erträge vor Steuern.
         income:
           interest: Zinsen
           dividends: Dividenden
           gains: Kursgewinne
           crypto: Krypto-Gewinne
+        offset: Mit Verlusten und Verlusttöpfen verrechnet
         withheld_tax: Von Banken einbehalten (geschätzt)
         deferred_allowance: Freibetrag übrig für Konten ohne Steuerabzug
         reserve: Später fällige Steuer (Rücklage)
@@ -41,6 +42,27 @@ de:
         unconvertible:
           one: Ein Ertrag in einer anderen Währung bleibt außen vor, weil kein Wechselkurs vorliegt.
           other: "%{count} Erträge in einer anderen Währung bleiben außen vor, weil kein Wechselkurs vorliegt."
+        unknown_gains:
+          one: Ein Verkauf bleibt außen vor, weil sein Kaufpreis unbekannt ist.
+          other: "%{count} Verkäufe bleiben außen vor, weil ihr Kaufpreis unbekannt ist."
+        gains_hint: Gewinne werden mit Durchschnittskosten gerechnet, Banken rechnen oft nach FIFO. Daher können sie vom Bankauszug abweichen.
+        pots_title: Verlusttöpfe
+        pots_hint: Dein Anteil an den Ständen, die du an deinen Konten eingetragen hast, plus die Verluste dieses Jahres, abzüglich des seitdem Verrechneten. Die Stände änderst du in den Steuer-Einstellungen des Kontos.
+        pot_kinds:
+          stocks: Aktien
+          general: Allgemein
+        pot_columns:
+          account: Konto
+          entered: Eingetragen
+          added: Verluste dieses Jahr
+          used: Verrechnet
+          remaining: Übrig (geschätzt)
+        pot_entered_on: "Stand %{date}"
+        pot_carry_forward_off: verfällt zum Jahresende
+        pot_outdated: Der Stand ist älter als das Vorjahr und wird nicht genutzt. Trag den neuesten Bankauszug ein.
+        unconvertible_pots:
+          one: Ein Verlusttopf in einer anderen Währung zählt als leer, weil kein Wechselkurs vorliegt.
+          other: "%{count} Verlusttöpfe in einer anderen Währung zählen als leer, weil kein Wechselkurs vorliegt."
         banks_title: Freistellungsaufträge je Bank
         columns:
           bank: Bank

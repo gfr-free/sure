@@ -5,7 +5,7 @@ en:
       show:
         page_title: Taxes
         profile_title: Tax on returns
-        profile_subtitle: Your own rates and allowance. Sure uses them to estimate the tax on interest and dividends. Nothing is filled in for you, and Sure never computes tax bindingly.
+        profile_subtitle: Your own rates and allowance. Sure uses them to estimate the tax on interest, dividends and realised gains. Nothing is filled in for you, and Sure never computes tax bindingly.
         valid_from_year: Applies from year
         valid_from_hint: Saving with a new year starts a new entry, so earlier years keep their rates.
         currency: Currency
@@ -14,7 +14,7 @@ en:
           dividends: Rate on dividends (%)
           gains: Rate on capital gains (%)
           crypto: Rate on crypto gains (%)
-        rates_hint: Leave a rate empty to keep that income gross. Church tax or a solidarity surcharge go into the rate itself. Capital and crypto gains are used once loss pots are in place.
+        rates_hint: Leave a rate empty to keep that income gross. Church tax or a solidarity surcharge go into the rate itself.
         annual_allowance: Yearly allowance
         annual_allowance_hint: Tax-free returns per year. Exemption orders you give to banks are set on each account.
         withheld_default: My banks usually withhold the tax
@@ -24,13 +24,14 @@ en:
         history_entry: From %{year}
         remove: Remove
         estimate_title: Estimate %{year}
-        estimate_subtitle: From the interest and dividends booked in %{year} on your taxable accounts.
+        estimate_subtitle: From the interest, dividends and realised gains booked in %{year} on your taxable accounts, after your loss pots.
         no_profile: No tax settings apply to %{year}, so Sure shows returns before tax.
         income:
           interest: Interest
           dividends: Dividends
           gains: Capital gains
           crypto: Crypto gains
+        offset: Offset against losses and loss pots
         withheld_tax: Withheld by banks (estimated)
         deferred_allowance: Allowance left for accounts without withholding
         reserve: Tax due later (reserve)
@@ -41,6 +42,27 @@ en:
         unconvertible:
           one: One return in another currency is left out because no exchange rate is available.
           other: "%{count} returns in another currency are left out because no exchange rate is available."
+        unknown_gains:
+          one: One sale is left out because its purchase price is unknown.
+          other: "%{count} sales are left out because their purchase price is unknown."
+        gains_hint: Gains are worked out at average cost, while banks often use first in, first out, so they can differ from your statement.
+        pots_title: Loss pots
+        pots_hint: Your share of the balances you entered on your accounts, plus this year's losses, less what was offset since. Edit the balances in each account's tax settings.
+        pot_kinds:
+          stocks: Shares
+          general: General
+        pot_columns:
+          account: Account
+          entered: Entered
+          added: Losses this year
+          used: Offset
+          remaining: Left (estimated)
+        pot_entered_on: "as of %{date}"
+        pot_carry_forward_off: lapses at the year end
+        pot_outdated: Balance is older than last year and not used. Enter the latest statement.
+        unconvertible_pots:
+          one: One loss pot in another currency counts as empty because no exchange rate is available.
+          other: "%{count} loss pots in another currency count as empty because no exchange rate is available."
         banks_title: Exemption orders per bank
         columns:
           bank: Bank

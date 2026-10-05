@@ -246,12 +246,13 @@ class Family::DataExporter
       lines = []
 
       # Export accounts with full accountable data
-      @family.accounts.includes(:accountable).find_each do |account|
+      @family.accounts.includes(:accountable, loss_pots: :snapshots).find_each do |account|
         lines << {
           type: "Account",
           data: account.as_json(
             include: {
-              accountable: {}
+              accountable: {},
+              loss_pots: { only: %i[kind carry_forward], include: { snapshots: { only: %i[date amount source] } } }
             }
           )
         }.to_json

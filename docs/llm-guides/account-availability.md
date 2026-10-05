@@ -146,7 +146,10 @@ country presets.
 - Tax belongs to a person, not the family: `tax_profiles` per user, from
   `valid_from_year` on, with a rate per income type (interest, dividends,
   gains, crypto; percent, nullable), a yearly allowance and whether the
-  person's banks usually withhold the tax. The account's owner is the person.
+  person's banks usually withhold the tax. The account's owner is the person;
+  a joint account (`tax_joint_user_id`) splits its returns and exemption
+  order with a second family member by `tax_owner_share` (nil = 50/50, E21
+  T1). `Account#tax_shares` gives each person's share.
 - Bank accounts store their tax treatment in `depositories.tax_treatment`
   (nil follows the subtype); investment and crypto accounts keep theirs.
   `Family#tax_advantaged_account_ids` honours the stored value.
@@ -154,14 +157,26 @@ country presets.
   `tax_allowance_allocation` (the exemption order at that bank) and
   `january_tax_debit` (such as the Vorabpauschale, a `:tax` event in the
   account forecast on 2 January).
-- Booked returns are transactions labelled "Interest" or "Dividend".
-  Bank accounts offer those labels in the transaction drawer (preview).
-- `Tax::Estimate.new(user, year:)` collects the returns, applies the
-  allowance in booking order (exemption orders for withholding accounts, the
+- Booked returns are transactions labelled "Interest" or "Dividend", plus
+  realised gains and losses of sales (`Trade#realized_gain_loss`, average
+  cost): "gains" on investment accounts, "crypto" on crypto accounts. Sales
+  without a known purchase price are left out and counted. Bank accounts
+  offer the labels in the transaction drawer (preview).
+- Loss pots (`LossPot`, E21 V-1) live per investment or crypto account, one
+  per kind: `stocks` (share losses, offsets share gains only) and `general`
+  (every other loss, offsets every return). `loss_pot_snapshots` keep the
+  balances the person copied from a statement (`source: manual`); the latest
+  one up to the estimate's date is the anchor, and returns up to its date
+  are treated as already in it. Without `carry_forward` a balance only counts
+  in its own year. Without a stocks pot, share losses go to the general pot.
+  Pots never offset across accounts.
+- `Tax::Estimate.new(user, year:)` collects the returns, offsets them
+  against the loss pots (`pot_states`), applies the allowance in booking order (exemption orders for withholding accounts, the
   rest for accounts without withholding) and each kind's rate.
   `reserve` is the tax still due on gross-booked returns, nil when it cannot
-  be worked out cleanly. `tax_for(account, amount, kind:)` estimates the tax
-  on a further amount.
+  be worked out cleanly. `tax_for(account, amount, kind:)` estimates one
+  person's tax on a further amount; `Tax::Estimate.tax_for_account` sums it
+  over the people sharing the account.
 - The budget takes the reserve of this year and last year off "really free"
   until the person marks the year as paid (`User#settle_tax_reserve!`).
   Withheld interest arrives net in the account forecast.
@@ -170,5 +185,6 @@ country presets.
 
 Settings → Taxes, the account form's tax section, the reserve in the budget
 and the insight are preview only. The API (`tax` on each account) and the
-assistant's `get_accounts` always carry the account's own settings. Capital
-and crypto gains wait for loss pots (E21).
+assistant's `get_accounts` always carry the account's own settings,
+including loss pots and the joint split. Sure exports carry loss pots with
+their balances; the joint person is not imported, because people are not.

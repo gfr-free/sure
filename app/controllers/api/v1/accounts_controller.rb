@@ -119,7 +119,7 @@ class Api::V1::AccountsController < Api::V1::BaseController
     def accounts_scope
       scope = current_resource_owner.family.accounts
                                     .accessible_by(current_resource_owner)
-                                    .includes(:accountable, :family, :interest_rates, account_providers: :provider)
+                                    .includes(:accountable, :family, :interest_rates, account_providers: :provider, loss_pots: :snapshots)
       include_disabled_accounts? ? scope : scope.visible
     end
 

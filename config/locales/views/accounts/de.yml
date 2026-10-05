@@ -305,6 +305,20 @@ de:
         allocation_hint: Der Teil deines Jahresfreibetrags, den du dieser Bank gegeben hast, in der Währung deiner Steuer-Einstellungen.
         january_debit_label: Steuerabbuchung jeden Januar
         january_debit_hint: Zum Beispiel die Vorabpauschale. Sie erscheint am 2. Januar in der Kontoprognose.
+        joint_label: Gemeinschaftskonto mit
+        joint_none: Niemand (nur Kontoinhaber)
+        joint_hint: Die Erträge eines Gemeinschaftskontos werden für die Steuerschätzung zwischen Kontoinhaber und dieser Person aufgeteilt. Wählbar sind Personen, mit denen das Konto geteilt ist.
+        owner_share_label: Anteil des Kontoinhabers an den Erträgen (%)
+        owner_share_hint: Leer lassen für 50/50.
+        loss_pots_heading: Verlusttöpfe
+        loss_pots_hint: Übernimm die Stände aus deinem Bankauszug, etwa der Jahressteuerbescheinigung. Sure verrechnet spätere Gewinne damit; Verluste bis zu diesem Tag sind schon enthalten.
+        loss_pot_stocks_label: Verlusttopf Aktien
+        loss_pot_stocks_hint: Verluste aus Aktienverkäufen. Sie werden nur mit Aktiengewinnen verrechnet.
+        loss_pot_general_label: Allgemeiner Verlusttopf
+        loss_pot_general_hint: Alle anderen Verluste. Sie werden mit allen Erträgen verrechnet, auch mit Zinsen und Dividenden. Gibt es in deinem Land nur einen Topf, nutze diesen.
+        loss_pot_as_of_label: Stand vom
+        loss_pot_carry_forward_label: Stände werden ins nächste Jahr vorgetragen
+        loss_pot_carry_forward_hint: Ausschalten, wo ungenutzte Verluste zum Jahresende verfallen.
     tax_treatments:
       taxable: Versteuerbar
       tax_deferred: Steuerlich aufgeschoben

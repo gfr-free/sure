@@ -198,6 +198,30 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_nil JSON.parse(response.body)["tax"]
   end
 
+  test "should show loss pots and the joint account split" do
+    account = accounts(:investment)
+    partner = User.create!(family: account.family, email: "partner-#{SecureRandom.hex(4)}@example.com",
+                           password: "Password1!secure", first_name: "Pat", last_name: "Partner", role: "member")
+    account.share_with!(partner)
+    account.update!(tax_joint_user: partner)
+    pot = account.loss_pots.create!(kind: "general", carry_forward: false)
+    pot.snapshots.create!(date: Date.new(2025, 12, 31), amount: 300)
+    pot.snapshots.create!(date: Date.new(2026, 3, 31), amount: 250)
+
+    get "/api/v1/accounts/#{account.id}", headers: api_headers(@api_key)
+
+    assert_response :success
+    tax = JSON.parse(response.body)["tax"]
+    assert_equal partner.id, tax["joint_user_id"]
+    assert_equal "50.0", tax["owner_share"]
+    assert_equal [ { "kind" => "general", "carry_forward" => false, "amount" => "250.0", "as_of" => "2026-03-31" } ], tax["loss_pots"]
+
+    get "/api/v1/accounts/#{accounts(:depository).id}", headers: api_headers(@api_key)
+    tax = JSON.parse(response.body)["tax"]
+    assert_nil tax["owner_share"]
+    assert_equal [], tax["loss_pots"]
+  end
+
   test "should return 404 for unknown account on show" do
     get "/api/v1/accounts/#{SecureRandom.uuid}", headers: api_headers(@api_key)
 

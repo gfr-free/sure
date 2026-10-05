@@ -81,4 +81,19 @@ class Settings::TaxesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Demo Bank", response.body
     assert_match I18n.t("settings.taxes.show.used_up"), response.body
   end
+
+  test "shows realised gains and the loss pots with what was offset" do
+    @user.tax_profiles.create!(valid_from_year: @year, currency: "USD", rate_gains: 25, annual_allowance: 0,
+                               withheld_at_source_default: false)
+    account = accounts(:investment)
+    account.loss_pots.create!(kind: "general").snapshots.create!(date: Date.new(@year - 1, 12, 31), amount: 300)
+
+    get settings_taxes_path
+
+    assert_response :success
+    assert_select "[data-testid='tax-loss-pots-#{@year}']" do
+      assert_select "td", text: /#{account.name}/
+    end
+    assert_match I18n.t("settings.taxes.show.income.gains"), response.body
+  end
 end

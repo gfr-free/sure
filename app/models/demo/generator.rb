@@ -307,6 +307,11 @@ class Demo::Generator
       @hsa_investment    = family.accounts.create!(accountable: Investment.new, name: "Fidelity HSA Investment", balance: 0, currency: "USD")
       @uk_isa           = family.accounts.create!(accountable: Investment.new, name: "Vanguard UK ISA", balance: 0, currency: "GBP")
 
+      # Loss pot (LossPot, V-1): a loss carried forward on the brokerage, as a
+      # year-end statement would show it. US rules know no share-only pot.
+      @schwab_brokerage.loss_pots.create!(kind: "general")
+                       .snapshots.create!(date: Date.new(Date.current.year - 1, 12, 31), amount: 1_500)
+
       # Property (USD)
       @home = family.accounts.create!(accountable: Property.new, name: "Primary Residence", balance: 0, currency: "USD")
 

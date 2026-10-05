@@ -53,6 +53,15 @@ if account.tax_capable?
     json.withheld_at_source account.tax_withheld_at_source
     json.allowance_allocation account.tax_allowance_allocation&.to_s
     json.january_tax_debit account.january_tax_debit&.to_s
+    json.joint_user_id account.tax_joint_user_id
+    json.owner_share account.tax_joint? ? account.effective_tax_owner_share.to_s : nil
+    json.loss_pots account.loss_pots.sort_by { |pot| LossPot::KINDS.index(pot.kind) } do |pot|
+      latest = pot.latest_snapshot
+      json.kind pot.kind
+      json.carry_forward pot.carry_forward
+      json.amount latest&.amount&.to_s
+      json.as_of latest&.date
+    end
   end
 else
   json.tax nil

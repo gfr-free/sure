@@ -70,10 +70,16 @@
       <% else %>
         <% currency = estimate.currency %>
         <dl class="space-y-2">
-          <% %w[interest dividends].each do |kind| %>
+          <% TaxProfile::INCOME_KINDS.each do |kind| %>
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-sm text-secondary"><%= t(".income.#{kind}") %></dt>
-              <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money Money.new(estimate.income_total(kind: kind), currency) %></dd>
+              <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money Money.new(estimate.returns_total(kind), currency) %></dd>
+            </div>
+          <% end %>
+          <% if estimate.offset_total.positive? %>
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="text-sm text-secondary"><%= t(".offset") %></dt>
+              <dd class="text-sm text-primary tabular-nums privacy-sensitive"><%= format_money -Money.new(estimate.offset_total, currency) %></dd>
             </div>
           <% end %>
           <div class="flex items-baseline justify-between gap-3">
@@ -108,6 +114,57 @@
         <% end %>
         <% if estimate.unconvertible_count.positive? %>
           <%= render DS::Alert.new(variant: :info, message: t(".unconvertible", count: estimate.unconvertible_count)) %>
+        <% end %>
+        <% if estimate.unconvertible_pots_count.positive? %>
+          <%= render DS::Alert.new(variant: :info, message: t(".unconvertible_pots", count: estimate.unconvertible_pots_count)) %>
+        <% end %>
+        <% if estimate.unknown_gains_count.positive? %>
+          <%= render DS::Alert.new(variant: :info, message: t(".unknown_gains", count: estimate.unknown_gains_count)) %>
+        <% end %>
+        <% if Tax::Estimate::GAIN_KINDS.any? { |kind| estimate.income_total(kind: kind).nonzero? } %>
+          <p class="text-xs text-secondary"><%= t(".gains_hint") %></p>
+        <% end %>
+
+        <% if (pot_states = estimate.pot_states).any? %>
+          <div class="overflow-x-auto" data-testid="tax-loss-pots-<%= estimate.year %>">
+            <table class="w-full text-sm">
+              <caption class="text-left text-sm text-primary pb-2"><%= t(".pots_title") %></caption>
+              <thead>
+                <tr class="text-left text-xs text-secondary">
+                  <th scope="col" class="py-2 pr-4 font-normal"><%= t(".pot_columns.account") %></th>
+                  <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t(".pot_columns.entered") %></th>
+                  <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t(".pot_columns.added") %></th>
+                  <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t(".pot_columns.used") %></th>
+                  <th scope="col" class="py-2 font-normal text-right"><%= t(".pot_columns.remaining") %></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-subdued">
+                <% pot_states.each do |state| %>
+                  <tr>
+                    <td class="py-2 pr-4 text-primary">
+                      <%= state.account.name %>
+                      <span class="block text-xs text-secondary">
+                        <%= t(".pot_kinds.#{state.kind}") %><% if state.pot && !state.pot.carry_forward? %> · <%= t(".pot_carry_forward_off") %><% end %>
+                        <% if state.outdated %>
+                          <span class="block text-warning"><%= t(".pot_outdated") %></span>
+                        <% end %>
+                      </span>
+                    </td>
+                    <td class="py-2 pr-4 text-right tabular-nums privacy-sensitive">
+                      <%= format_money Money.new(state.entered, currency) %>
+                      <% if state.entered_on %>
+                        <span class="block text-xs text-secondary"><%= t(".pot_entered_on", date: l(state.entered_on, format: :long)) %></span>
+                      <% end %>
+                    </td>
+                    <td class="py-2 pr-4 text-right tabular-nums privacy-sensitive"><%= format_money Money.new(state.added, currency) %></td>
+                    <td class="py-2 pr-4 text-right tabular-nums privacy-sensitive"><%= format_money Money.new(state.used, currency) %></td>
+                    <td class="py-2 text-right tabular-nums privacy-sensitive"><%= format_money Money.new(state.remaining, currency) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+            <p class="pt-2 text-xs text-secondary"><%= t(".pots_hint") %></p>
+          </div>
         <% end %>
 
         <% if estimate.banks.any? %>

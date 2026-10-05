@@ -224,11 +224,11 @@ class Account::Forecast
       year = payout.date.year
       return Money.new(0, currency) unless payout.amount.positive? && account.returns_taxable? && account.tax_withheld_at_source_in?(year)
 
-      estimate = (@tax_estimates ||= Tax::Estimate.cache)[[ account.owner, year ]]
+      cache = (@tax_estimates ||= Tax::Estimate.cache)
       before = gross_by_year[year]
       gross_by_year[year] += payout.amount.amount
-      tax_before = estimate.tax_for(account, before, kind: "interest")
-      tax_after = estimate.tax_for(account, gross_by_year[year], kind: "interest")
+      tax_before = Tax::Estimate.tax_for_account(account, before, kind: "interest", year: year, cache: cache)
+      tax_after = Tax::Estimate.tax_for_account(account, gross_by_year[year], kind: "interest", year: year, cache: cache)
       return Money.new(0, currency) if tax_before.nil? || tax_after.nil?
 
       Money.new(tax_after - tax_before, currency)

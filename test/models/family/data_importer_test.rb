@@ -62,6 +62,34 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 12, account.renewal_term_months
   end
 
+  test "imports loss pots and drops invalid balances" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-broker",
+          name: "Broker",
+          balance: "100.00",
+          currency: "EUR",
+          accountable_type: "Investment",
+          accountable: { subtype: "brokerage" },
+          loss_pots: [
+            { kind: "stocks", carry_forward: false,
+              snapshots: [ { date: "2025-12-31", amount: "1200.5" }, { date: "nope", amount: "5" }, { date: "2026-01-31", amount: "-1" } ] },
+            { kind: "options", snapshots: [ { date: "2025-12-31", amount: "10" } ] }
+          ]
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+    pot = account.loss_pots.sole
+
+    assert_equal "stocks", pot.kind
+    assert_not pot.carry_forward?
+    assert_equal [ [ Date.new(2025, 12, 31), BigDecimal("1200.5") ] ], pot.snapshots.map { |s| [ s.date, s.amount ] }
+  end
+
   test "imports the account's tax settings and drops values out of range" do
     ndjson = build_ndjson([
       {

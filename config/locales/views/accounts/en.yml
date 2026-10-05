@@ -323,6 +323,20 @@ en:
         allocation_hint: The part of your yearly allowance given to this bank, in the currency of your tax settings.
         january_debit_label: Tax debited every January
         january_debit_hint: For example the German Vorabpauschale. It shows up in the account forecast on 2 January.
+        joint_label: Joint account with
+        joint_none: Nobody (only the owner)
+        joint_hint: The returns of a joint account are split between the owner and this person for the tax estimate. Only people the account is shared with can be chosen.
+        owner_share_label: Owner's share of the returns (%)
+        owner_share_hint: Leave empty for 50/50.
+        loss_pots_heading: Loss pots
+        loss_pots_hint: Copy the balances from your bank statement, such as the annual tax certificate. Sure offsets later gains against them; losses up to that date are already included.
+        loss_pot_stocks_label: Loss pot for shares
+        loss_pot_stocks_hint: Losses from selling shares. They only offset gains from shares.
+        loss_pot_general_label: General loss pot
+        loss_pot_general_hint: All other losses. They offset every return, including interest and dividends. If your country has only one pot, use this one.
+        loss_pot_as_of_label: Balance as of
+        loss_pot_carry_forward_label: Balances carry into the next year
+        loss_pot_carry_forward_hint: Turn off where unused losses lapse at the year end.
     tax_treatments:
       taxable: Taxable
       tax_deferred: Tax-Deferred

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -142,6 +142,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
     t.string "status", default: "active"
     t.string "subtype"
     t.decimal "tax_allowance_allocation", precision: 19, scale: 4
+    t.uuid "tax_joint_user_id"
+    t.decimal "tax_owner_share", precision: 5, scale: 2
     t.boolean "tax_withheld_at_source"
     t.datetime "updated_at", null: false
     t.index ["accountable_id", "accountable_type"], name: "index_accounts_on_accountable_id_and_accountable_type"
@@ -159,12 +161,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
     t.index ["plaid_account_id"], name: "index_accounts_on_plaid_account_id"
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
+    t.index ["tax_joint_user_id"], name: "index_accounts_on_tax_joint_user_id"
     t.check_constraint "interest_payout_frequency IS NULL OR (interest_payout_frequency::text = ANY (ARRAY['daily'::character varying, 'monthly'::character varying, 'quarterly'::character varying, 'semiannual'::character varying, 'annual'::character varying, 'at_maturity'::character varying]::text[]))", name: "chk_accounts_interest_payout_frequency"
     t.check_constraint "january_tax_debit IS NULL OR january_tax_debit >= 0::numeric", name: "chk_accounts_january_tax_debit"
     t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
     t.check_constraint "notice_period_days IS NULL OR notice_period_days >= 0", name: "chk_accounts_notice_period_days"
     t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
     t.check_constraint "tax_allowance_allocation IS NULL OR tax_allowance_allocation >= 0::numeric", name: "chk_accounts_tax_allowance_allocation"
+    t.check_constraint "tax_owner_share IS NULL OR tax_owner_share >= 0::numeric AND tax_owner_share <= 100::numeric", name: "chk_accounts_tax_owner_share"
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1628,6 +1632,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
     t.check_constraint "insurance_rate_type IS NULL OR (insurance_rate_type::text = ANY (ARRAY['level_term'::character varying, 'decreasing_life'::character varying]::text[]))", name: "chk_loans_insurance_rate_type"
   end
 
+  create_table "loss_pot_snapshots", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "amount", precision: 19, scale: 4, null: false
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.uuid "loss_pot_id", null: false
+    t.string "source", default: "manual", null: false
+    t.datetime "updated_at", null: false
+    t.index ["loss_pot_id", "date"], name: "index_loss_pot_snapshots_on_loss_pot_id_and_date", unique: true
+    t.check_constraint "amount >= 0::numeric", name: "chk_loss_pot_snapshots_amount"
+    t.check_constraint "source::text = ANY (ARRAY['manual'::character varying, 'computed'::character varying, 'provider'::character varying]::text[])", name: "chk_loss_pot_snapshots_source"
+  end
+
+  create_table "loss_pots", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "account_id", null: false
+    t.boolean "carry_forward", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "kind"], name: "index_loss_pots_on_account_id_and_kind", unique: true
+    t.check_constraint "kind::text = ANY (ARRAY['stocks'::character varying, 'general'::character varying]::text[])", name: "chk_loss_pots_kind"
+  end
+
   create_table "lunchflow_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "account_id"
     t.string "account_status"
@@ -2985,6 +3011,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
   add_foreign_key "accounts", "plaid_accounts"
   add_foreign_key "accounts", "simplefin_accounts"
   add_foreign_key "accounts", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "accounts", "users", column: "tax_joint_user_id", on_delete: :nullify
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "akahu_accounts", "akahu_items"
@@ -3080,6 +3107,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
   add_foreign_key "kraken_accounts", "kraken_items"
   add_foreign_key "kraken_items", "families"
   add_foreign_key "llm_usages", "families"
+  add_foreign_key "loss_pot_snapshots", "loss_pots", on_delete: :cascade
+  add_foreign_key "loss_pots", "accounts", on_delete: :cascade
   add_foreign_key "lunchflow_accounts", "lunchflow_items"
   add_foreign_key "lunchflow_items", "families"
   add_foreign_key "merchants", "families"

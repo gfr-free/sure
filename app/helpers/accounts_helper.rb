@@ -54,6 +54,15 @@ module AccountsHelper
     Account::Taxation::WITHHELD_CHOICES.map { |value| [ t("accounts.tax.form.withheld_options.#{value}"), value ] }
   end
 
+  # The people a joint account can split its returns with for tax (decision
+  # E21 T1): those it is shared with.
+  def tax_joint_user_options(account)
+    return [] unless account.persisted?
+
+    account.shared_users.where(family_id: account.family_id).where.not(id: account.owner_id)
+           .order(:created_at).map { |user| [ user.display_name, user.id ] }
+  end
+
   # The tax on an interest amount (decision E20, S-1): what arrives after tax
   # where the bank withholds it, else what falls due later. Nil without a
   # rate in the owner's tax profile, or on a tax-free account. `total` is the
@@ -62,8 +71,8 @@ module AccountsHelper
   def interest_tax_note(account, amount, on:, total: amount)
     return nil if amount.nil? || !amount.positive? || !account.returns_taxable?
 
-    estimate = (@interest_tax_estimates ||= Tax::Estimate.cache)[[ account.owner, on.year ]]
-    tax = estimate.tax_for(account, amount.amount, kind: "interest")
+    tax = Tax::Estimate.tax_for_account(account, amount.amount, kind: "interest", year: on.year,
+                                        cache: (@interest_tax_estimates ||= Tax::Estimate.cache))
     return nil if tax.nil?
 
     tax_money = Money.new(tax, amount.currency)

@@ -12,6 +12,10 @@ class AccountShare < ApplicationRecord
   validate :cannot_share_with_owner
   validate :user_in_same_family
 
+  # A joint account for tax (Account::Taxation) names someone it is shared
+  # with; unsharing ends the split.
+  after_destroy :clear_tax_joint_user
+
   scope :with_permission, ->(permission) { where(permission: permission) }
 
   def full_control?
@@ -35,6 +39,11 @@ class AccountShare < ApplicationRecord
   end
 
   private
+    def clear_tax_joint_user
+      return unless account && account.tax_joint_user_id == user_id
+
+      account.update_column(:tax_joint_user_id, nil)
+    end
 
     def cannot_share_with_owner
       if account && user && account.owner_id == user_id

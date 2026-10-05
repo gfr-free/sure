@@ -2,7 +2,7 @@
 <%# Taxes on returns (Account::Taxation, decision E20). Preview only, decision
     E10. Investment and crypto accounts set their treatment through the
     subtype or their own field; bank accounts get theirs here. %>
-<%= render DS::Disclosure.new(title: t("accounts.tax.form.heading"), align: "left", open: account.tax_withheld_at_source == false || account.tax_allowance_allocation.present? || account.january_tax_debit.present?) do %>
+<%= render DS::Disclosure.new(title: t("accounts.tax.form.heading"), align: "left", open: account.tax_withheld_at_source == false || account.tax_allowance_allocation.present? || account.january_tax_debit.present? || account.tax_joint? || account.loss_pots.any?) do %>
   <div class="space-y-2" data-testid="account-tax-fields">
     <% if account.accountable.is_a?(Depository) %>
       <%= form.select :tax_treatment_choice,
@@ -26,5 +26,49 @@
                           step: "0.01",
                           min: 0 %>
     <p class="text-xs text-secondary"><%= t("accounts.tax.form.january_debit_hint") %></p>
+
+    <% joint_options = tax_joint_user_options(account) %>
+    <% if joint_options.any? %>
+      <%= form.select :tax_joint_user_id,
+                      joint_options,
+                      { label: t("accounts.tax.form.joint_label"), include_blank: t("accounts.tax.form.joint_none") } %>
+      <p class="text-xs text-secondary"><%= t("accounts.tax.form.joint_hint") %></p>
+
+      <%= form.number_field :tax_owner_share,
+                            label: t("accounts.tax.form.owner_share_label"),
+                            placeholder: Account::Taxation::DEFAULT_OWNER_SHARE,
+                            step: "0.01",
+                            min: 0,
+                            max: 100 %>
+      <p class="text-xs text-secondary"><%= t("accounts.tax.form.owner_share_hint") %></p>
+    <% end %>
+
+    <% if account.loss_pots_capable? %>
+      <div class="pt-2 space-y-2" data-testid="account-loss-pot-fields">
+        <p class="text-sm text-primary"><%= t("accounts.tax.form.loss_pots_heading") %></p>
+        <p class="text-xs text-secondary"><%= t("accounts.tax.form.loss_pots_hint") %></p>
+
+        <% LossPot::KINDS.each do |kind| %>
+          <%= form.number_field :"loss_pot_#{kind}_amount",
+                                label: t("accounts.tax.form.loss_pot_#{kind}_label"),
+                                step: "0.01",
+                                min: 0 %>
+          <p class="text-xs text-secondary"><%= t("accounts.tax.form.loss_pot_#{kind}_hint") %></p>
+        <% end %>
+
+        <%= form.date_field :loss_pot_as_of,
+                            label: t("accounts.tax.form.loss_pot_as_of_label"),
+                            value: account.loss_pot_as_of || Date.current,
+                            max: Date.current %>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="space-y-1">
+            <p class="text-sm text-primary"><%= t("accounts.tax.form.loss_pot_carry_forward_label") %></p>
+            <p class="text-xs text-secondary"><%= t("accounts.tax.form.loss_pot_carry_forward_hint") %></p>
+          </div>
+          <%= form.toggle :loss_pot_carry_forward %>
+        </div>
+      </div>
+    <% end %>
   </div>
 <% end %>

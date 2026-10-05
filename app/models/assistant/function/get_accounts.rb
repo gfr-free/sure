@@ -22,7 +22,10 @@ class Assistant::Function::GetAccounts < Assistant::Function
         Bank, investment and crypto accounts carry a tax object: the tax
         treatment, whether the bank withholds tax on returns (null means the
         owner's tax settings decide), the exemption order given to that bank
-        and a tax debited every January. Sure only estimates tax.
+        and a tax debited every January. Joint accounts name the second person
+        and the owner's share of the returns; investment and crypto accounts
+        list their loss pots (balances copied from bank statements). Sure only
+        estimates tax.
 
         Pass include_balance_series: true only when the user asks about balance
         history; the series is omitted by default to keep responses small.
@@ -113,14 +116,20 @@ class Assistant::Function::GetAccounts < Assistant::Function
         treatment: account.tax_treatment&.to_s,
         withheld_at_source: account.tax_withheld_at_source,
         allowance_allocation: account.tax_allowance_allocation&.to_f,
-        january_tax_debit: account.january_tax_debit&.to_f
+        january_tax_debit: account.january_tax_debit&.to_f,
+        joint_with: account.tax_joint_user&.display_name,
+        owner_share: account.tax_joint? ? account.effective_tax_owner_share.to_f : nil,
+        loss_pots: account.loss_pots.map do |pot|
+          latest = pot.latest_snapshot
+          { kind: pot.kind, carry_forward: pot.carry_forward, amount: latest&.amount&.to_f, as_of: latest&.date }
+        end
       }
     end
 
     # No balances preload: the series goes through Balance::ChartSeriesBuilder,
     # which runs its own query keyed by account ids.
     def accounts_scope(_include_series)
-      user.accessible_accounts.visible.includes(:account_providers, :accountable, :interest_rates)
+      user.accessible_accounts.visible.includes(:account_providers, :accountable, :interest_rates, :tax_joint_user, loss_pots: :snapshots)
     end
 
     def historical_balances(account, period)

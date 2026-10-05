@@ -161,6 +161,8 @@ module AccountableResource
         :interest_payout_frequency, :interest_rate_input, :overdraft_rate_input,
         :planned_interest_rate, :planned_interest_rate_on,
         :tax_treatment_choice, :tax_withheld_choice, :tax_allowance_allocation, :january_tax_debit,
+        :tax_joint_user_id, :tax_owner_share,
+        :loss_pot_stocks_amount, :loss_pot_general_amount, :loss_pot_as_of, :loss_pot_carry_forward,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

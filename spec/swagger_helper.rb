@@ -342,12 +342,29 @@ RSpec.configure do |config|
           },
           AccountTax: {
             type: :object,
-            required: %w[treatment withheld_at_source allowance_allocation january_tax_debit],
+            required: %w[treatment withheld_at_source allowance_allocation january_tax_debit joint_user_id owner_share loss_pots],
             properties: {
               treatment: { type: :string, nullable: true, enum: [ 'taxable', 'tax_deferred', 'tax_exempt', 'tax_advantaged', nil ], description: 'Null reads as taxable' },
               withheld_at_source: { type: :boolean, nullable: true, description: 'Whether the bank withholds the tax; null follows the owner\'s tax profile' },
               allowance_allocation: { type: :string, nullable: true, description: 'Exemption order given to this bank, in the owner\'s tax currency' },
-              january_tax_debit: { type: :string, nullable: true, description: 'Tax debited every January (such as a Vorabpauschale), in the account currency' }
+              january_tax_debit: { type: :string, nullable: true, description: 'Tax debited every January (such as a Vorabpauschale), in the account currency' },
+              joint_user_id: { type: :string, format: :uuid, nullable: true, description: 'Second person of a joint account; null when the owner alone is taxed' },
+              owner_share: { type: :string, nullable: true, description: 'Owner\'s share of the returns in percent on a joint account; null otherwise' },
+              loss_pots: {
+                type: :array,
+                description: 'Loss pots entered from bank statements (investment and crypto accounts); empty otherwise',
+                items: { '$ref' => '#/components/schemas/AccountLossPot' }
+              }
+            }
+          },
+          AccountLossPot: {
+            type: :object,
+            required: %w[kind carry_forward amount as_of],
+            properties: {
+              kind: { type: :string, enum: %w[stocks general], description: 'stocks offsets share gains only; general offsets every return' },
+              carry_forward: { type: :boolean, description: 'Whether the balance carries into the next year' },
+              amount: { type: :string, nullable: true, description: 'Latest entered balance, in the account currency' },
+              as_of: { type: :string, format: :date, nullable: true, description: 'Date of the latest entered balance' }
             }
           },
           AccountInterestRateChange: {

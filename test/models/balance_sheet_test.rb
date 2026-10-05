@@ -216,6 +216,15 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal [ 1000, 2000 ], subgroups.map(&:total)
   end
 
+  test "groups by ownership for the balance sheet's own viewer by default" do
+    viewer = users(:empty)
+    create_account(balance: 1000, accountable: Depository.new, owner: viewer)
+
+    groups = BalanceSheet.new(@family, user: viewer).account_groups(by: "ownership")
+
+    assert_equal [ I18n.t("account_grouping.ownership.mine") ], groups.map(&:name)
+  end
+
   test "account type as first level keeps the default type groups" do
     create_account(balance: 1000, accountable: Depository.new)
 

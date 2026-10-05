@@ -334,6 +334,11 @@ class Entry < ApplicationRecord
     raise ArgumentError, "unknown auto-exclusion reason: #{reason}" unless reason.in?(AUTO_EXCLUSION_REASONS)
 
     self.class.transaction do
+      # Reload under a row lock: a user who excluded the entry since it was
+      # loaded keeps a manual exclusion without a sync note.
+      lock!
+      return if excluded?
+
       if entryable.is_a?(Transaction)
         note = {
           "action" => "excluded",

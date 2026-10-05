@@ -115,6 +115,16 @@ class EntryTest < ActiveSupport::TestCase
     assert_nil entry.transaction.extra[Entry::AUTO_MUTATION_KEY]
   end
 
+  test "exclude_automatically! leaves an entry the user excluded meanwhile without a note" do
+    entry = create_transaction(account: accounts(:depository))
+    Entry.find(entry.id).update!(excluded: true)
+
+    entry.exclude_automatically!(reason: "posted_match")
+
+    assert entry.reload.excluded?
+    assert_nil entry.auto_exclusion
+  end
+
   test "exclude_automatically! rejects unknown reasons" do
     entry = create_transaction(account: accounts(:depository))
 

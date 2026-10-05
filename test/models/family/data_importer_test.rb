@@ -89,6 +89,54 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_not account.auto_renew?, "renewal needs a term"
   end
 
+  test "a re-import without availability fields keeps the account's release settings" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-cd",
+      name: "Term Deposit",
+      balance: "5000.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "cd",
+      accountable: { subtype: "cd" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(
+      liquidity: "locked", available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12
+    ) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+
+    Family::DataImporter.new(@family, build_ndjson([ { type: "Account", data: account_data } ]), import_session: session).import!
+
+    account.reload
+    assert_equal Date.new(2027, 3, 31), account.available_on
+    assert_equal 30, account.notice_period_days
+    assert account.auto_renew?
+    assert_equal 12, account.renewal_term_months
+  end
+
+  test "a re-import that clears the renewal term also stops the renewal" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-cd",
+      name: "Term Deposit",
+      balance: "5000.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "cd",
+      accountable: { subtype: "cd" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(auto_renew: true, renewal_term_months: 12) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+    assert account.auto_renew?
+
+    second = build_ndjson([ { type: "Account", data: account_data.merge(renewal_term_months: nil) } ])
+    Family::DataImporter.new(@family, second, import_session: session).import!
+
+    account.reload
+    assert_nil account.renewal_term_months
+    assert_not account.auto_renew?
+  end
+
   test "imports non-destructive account status from ndjson" do
     ndjson = build_ndjson([
       {

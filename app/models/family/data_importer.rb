@@ -355,18 +355,26 @@ class Family::DataImporter
     # Availability (Account::Liquidity). A level the user picked travels as
     # the exported lock and stays manual; without one the account takes its
     # subtype's default, as a new account would. Out-of-range values were
-    # already reported by SureImport::Preflight and are ignored here.
+    # already reported by SureImport::Preflight and are ignored here. A field
+    # missing from the record (an export from before availability existed)
+    # leaves an already imported account's value alone.
     def assign_imported_liquidity(account, data)
       level = data["liquidity"].to_s
       if level.in?(Account::Liquidity::LEVELS) && data.dig("locked_attributes", "liquidity").present?
         account.liquidity_choice = level
       end
 
-      account.available_on = parse_import_date(data["available_on"])
-      account.notice_period_days = importable_integer(data["notice_period_days"], 0..Account::Liquidity::MAX_NOTICE_PERIOD_DAYS)
-      term = importable_integer(data["renewal_term_months"], 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
-      account.renewal_term_months = term
-      account.auto_renew = term.present? && ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true
+      account.available_on = parse_import_date(data["available_on"]) if data.key?("available_on")
+      if data.key?("notice_period_days")
+        account.notice_period_days = importable_integer(data["notice_period_days"], 0..Account::Liquidity::MAX_NOTICE_PERIOD_DAYS)
+      end
+      if data.key?("renewal_term_months")
+        account.renewal_term_months = importable_integer(data["renewal_term_months"], 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
+      end
+      if data.key?("auto_renew") || data.key?("renewal_term_months")
+        renew = data.key?("auto_renew") ? ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true : account.auto_renew?
+        account.auto_renew = account.renewal_term_months.present? && renew
+      end
     end
 
     def importable_integer(value, range)

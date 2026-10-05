@@ -901,6 +901,21 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#liquidity-release-timeline [data-liquidity-bucket='within_3_months']", text: /Term deposit/
   end
 
+  test "availability widget asks once to check the classification" do
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+
+    get root_path
+    assert_select "#liquidity-review"
+
+    patch dashboard_liquidity_review_path
+    assert_redirected_to root_path
+    assert @user.reload.liquidity_review_dismissed?
+
+    get root_path
+    assert_select "#liquidity-overview"
+    assert_select "#liquidity-review", count: 0
+  end
+
   test "the hidden availability widget is not offered back without preview features" do
     @user.update_dashboard_section_hidden("liquidity", true)
 

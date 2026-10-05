@@ -741,6 +741,18 @@ class User < ApplicationRecord
     preferences&.dig("preview_features_enabled") == true
   end
 
+  # The availability widget asks once to check how accounts were classified
+  # by availability (they were set from their subtype by a backfill).
+  def liquidity_review_dismissed?
+    preferences&.dig("liquidity_review_dismissed_at").present?
+  end
+
+  def dismiss_liquidity_review!
+    with_lock do
+      update!(preferences: (preferences || {}).merge("liquidity_review_dismissed_at" => Time.current.iso8601))
+    end
+  end
+
   private
     def apply_ui_layout_defaults
       self.ui_layout = (ui_layout.presence || self.class.default_ui_layout)

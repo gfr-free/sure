@@ -87,6 +87,13 @@ class PagesController < ApplicationController
     redirect_to root_path(dashboard_view_params.merge(customize: true, **changed)), status: :see_other
   end
 
+  # Hides the one-time "please check how your accounts were classified"
+  # hint in the availability widget.
+  def dismiss_liquidity_review
+    Current.user.dismiss_liquidity_review!
+    redirect_to root_path(dashboard_view_params), status: :see_other
+  end
+
   def changelog
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.changelog"), nil ] ]
     @release_notes = github_provider.fetch_latest_release_notes

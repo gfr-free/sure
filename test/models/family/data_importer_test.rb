@@ -114,6 +114,31 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 12, account.renewal_term_months
   end
 
+  test "a re-import of an automatic availability unlocks a manual choice" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-savings",
+      name: "Savings",
+      balance: "100.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "savings",
+      accountable: { subtype: "savings" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(
+      liquidity: "long_term", locked_attributes: { liquidity: "2026-10-01T00:00:00Z" }
+    ) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+    assert account.liquidity_manual?
+
+    second = build_ndjson([ { type: "Account", data: account_data.merge(liquidity: "immediate") } ])
+    Family::DataImporter.new(@family, second, import_session: session).import!
+
+    account.reload
+    assert_equal "immediate", account.liquidity
+    assert_not account.liquidity_manual?
+  end
+
   test "a re-import with invalid availability values keeps the valid ones" do
     session = @family.import_sessions.create!(expected_chunks: 1)
     account_data = {

@@ -361,8 +361,9 @@ class Family::DataImporter
     # value clears the field.
     def assign_imported_liquidity(account, data)
       level = data["liquidity"].to_s
-      if level.in?(Account::Liquidity::LEVELS) && data.dig("locked_attributes", "liquidity").present?
-        account.liquidity_choice = level
+      if level.in?(Account::Liquidity::LEVELS)
+        manual = data.dig("locked_attributes", "liquidity").present?
+        account.liquidity_choice = manual ? level : Account::Liquidity::AUTOMATIC
       end
 
       assign_importable(account, :available_on, data) { |value| parse_import_date(value) }

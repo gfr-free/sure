@@ -1632,7 +1632,61 @@ end
     Rails.cache = original_cache
   end
 
+  test "creating a transaction runs rules set to apply immediately" do
+    create_immediate_rule
+
+    post transactions_url, params: {
+      entry: {
+        account_id: @entry.account_id, name: "New transaction", date: Date.current,
+        currency: "USD", amount: 100, nature: "outflow", entryable_type: "Transaction",
+        entryable_attributes: { category_id: "" }
+      }
+    }
+
+    created_entry = Entry.order(:created_at).last
+    assert_enqueued_with(job: ApplyImmediateRulesJob, args: [ @user.family, { transaction_ids: [ created_entry.entryable_id ] } ])
+  end
+
+  test "changing a transaction runs rules set to apply immediately" do
+    create_immediate_rule
+
+    patch transaction_url(@entry), params: { entry: { name: "Renamed" } }
+
+    assert_enqueued_with(job: ApplyImmediateRulesJob, args: [ @user.family, { transaction_ids: [ @entry.entryable_id ] } ])
+  end
+
+  test "changing a transaction queues nothing without immediate rules" do
+    patch transaction_url(@entry), params: { entry: { name: "Renamed" } }
+
+    assert_no_enqueued_jobs(only: ApplyImmediateRulesJob)
+  end
+
+  test "the drawer explains an empty category a nightly rule will set" do
+    @entry.transaction.update!(category: nil)
+    @entry.transaction.unlock_attr!(:category_id)
+    create_immediate_rule(match: "zzz-no-match")
+    @user.family.rules.create!(
+      name: "Nightly groceries", resource_type: "transaction", active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: @entry.name) ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
+    )
+
+    get transaction_url(@entry)
+
+    assert_response :success
+    assert_includes response.body, "Nightly groceries"
+    assert_includes response.body, "sets this on its next run"
+  end
+
   private
+    def create_immediate_rule(match: "Renamed")
+      @user.family.rules.create!(
+        name: "Immediate", resource_type: "transaction", active: true, apply_immediately: true,
+        conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
+        actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
+      )
+    end
+
     def rendered_entry_ids
       css_select("turbo-frame[id^='entry_']").map { |node| node["id"].delete_prefix("entry_") }
     end

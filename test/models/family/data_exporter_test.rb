@@ -442,6 +442,7 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       assert rule_data["data"].key?("active")
       assert_equal @rule.position, rule_data["data"]["position"]
       assert_equal false, rule_data["data"]["stop_processing"]
+      assert_equal false, rule_data["data"]["apply_immediately"]
       assert rule_data["data"].key?("conditions")
       assert rule_data["data"].key?("actions")
     end

@@ -62,6 +62,7 @@ de:
       tab_transactions: Transaktionen
       tab_upcoming: Anstehend
       uncategorized: (ohne Kategorie)
+      rule_pending_hint: "Wird beim nächsten Regellauf (nachts) durch die Regel „%{name}“ gesetzt."
       additional_details: Weitere Details
       attachments: Anhänge
       convert: Umwandeln

@@ -84,6 +84,7 @@ class Assistant::Function::UpdateTransaction < Assistant::Function
 
       entry.sync_account_later
       entry.lock_saved_attributes!
+      entry.apply_immediate_rules_later
     end
 
     {

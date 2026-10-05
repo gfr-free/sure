@@ -4,12 +4,13 @@ class Transactions::BulkUpdatesController < ApplicationController
 
   def create
     # Skip split parents from bulk update - update children instead
-    updated = Current.family
+    entries = Current.family
                      .entries
                      .excluding_split_parents
                      .where(id: bulk_update_params[:entry_ids])
-                     .includes(:entryable)
-                     .bulk_update!(bulk_update_params, update_tags: tags_provided?)
+    updated = entries.includes(:entryable).bulk_update!(bulk_update_params, update_tags: tags_provided?)
+
+    Rule.apply_immediately_later(Current.family, entries.where(entryable_type: "Transaction").pluck(:entryable_id)) if updated.positive?
 
     redirect_back_or_to transactions_path, notice: "#{updated} transactions updated"
   end

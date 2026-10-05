@@ -103,6 +103,7 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
       @entry.mark_user_modified! if user_modified_requested?
       @entry.sync_account_later
+      @entry.apply_immediate_rules_later
 
       @transaction = @entry.transaction
       render :show, status: :created
@@ -154,6 +155,7 @@ class Api::V1::TransactionsController < Api::V1::BaseController
         @entry.sync_account_later
         @entry.lock_saved_attributes!
         @entry.mark_user_modified! if user_modified_requested?
+        @entry.apply_immediate_rules_later
 
         @transaction = @entry.transaction
         render :show

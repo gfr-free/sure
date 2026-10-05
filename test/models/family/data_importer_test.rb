@@ -1846,6 +1846,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           active: true,
           position: position,
           stop_processing: stop_processing,
+          apply_immediately: stop_processing,
           conditions: [ { condition_type: "transaction_name", operator: "like", value: name } ],
           actions: [ { action_type: "exclude_transaction" } ]
         }
@@ -1859,6 +1860,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       @family.rules.ordered.pluck(:id).last(3)
     assert @family.rules.find_by(name: "First").stop_processing
     assert_not @family.rules.find_by(name: "Second").stop_processing
+    assert @family.rules.find_by(name: "First").apply_immediately
+    assert_not @family.rules.find_by(name: "Second").apply_immediately
   end
 
   test "imports rules with conditions and actions" do

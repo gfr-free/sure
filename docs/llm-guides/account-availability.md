@@ -71,8 +71,8 @@ count credit cards as available wealth.
 
 A transfer from available money into a depository account that is not
 available on the booking date (`locked` before its release date, or
-`long_term`) is a saving, like a contribution to a brokerage account. Its outflow leg gets the
-existing kind `investment_contribution` and the family's
+`long_term`) is a saving, like a contribution to a brokerage account. Its
+outflow leg gets the existing kind `investment_contribution` and the family's
 `investment_contributions_category` ("Investment Contributions"), so
 budgets show it as money set aside. Rules:
 
@@ -99,7 +99,7 @@ budgets show it as money set aside. Rules:
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
 UI are behind the preview switch, except the saving rule above: the form
-section, header badge, Details tab, and the budget's and paycheck planner's switch from "depository" to
-`immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
+section, header badge, Details tab, and the budget's and paycheck planner's
+switch from "depository" to `immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
 already run only for preview families. API and assistant fields are always
 returned (additive).

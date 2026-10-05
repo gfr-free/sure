@@ -113,7 +113,7 @@ class IncomeStatement
   end
 
   # Part of the period's expenses that is really saving: transfers into
-  # brokerage, crypto, locked and long-term accounts (kind
+  # brokerage, crypto, locked and long-term bank accounts (kind
   # investment_contribution). Budgets count these as spending; a savings rate
   # adds them back. Same account scoping and currency conversion as the
   # expense totals.

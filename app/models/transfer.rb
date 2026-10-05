@@ -40,10 +40,9 @@ class Transfer < ApplicationRecord
     # long-term on the booking date (term deposit, building savings, HSA)
     # counts as saving, like a contribution to a brokerage account. Property,
     # vehicles and other assets stay out: a down payment or money lent to a
-    # friend is not saving. A locked
-    # account past its release date is available again, so a transfer into it
-    # stays a plain funds movement. Moving money between two savings accounts
-    # is not new saving either.
+    # friend is not saving. A locked account past its release date is
+    # available again, so a transfer into it stays a plain funds movement.
+    # Moving money between two savings accounts is not new saving either.
     def saving_into?(destination, source: nil, date: nil)
       return false unless bound_savings_account?(destination, date)
 

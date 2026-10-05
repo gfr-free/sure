@@ -330,6 +330,7 @@ class Family::DataImporter
           notes: data["notes"],
           status: importable_account_status(data["status"])
         )
+        assign_imported_liquidity(account, data)
 
         account.save!
 
@@ -349,6 +350,28 @@ class Family::DataImporter
         @created_accounts << account if created
         increment_summary("Account", created ? :created : :updated)
       end
+    end
+
+    # Availability (Account::Liquidity). A level the user picked travels as
+    # the exported lock and stays manual; without one the account takes its
+    # subtype's default, as a new account would. Out-of-range values were
+    # already reported by SureImport::Preflight and are ignored here.
+    def assign_imported_liquidity(account, data)
+      level = data["liquidity"].to_s
+      if level.in?(Account::Liquidity::LEVELS) && data.dig("locked_attributes", "liquidity").present?
+        account.liquidity_choice = level
+      end
+
+      account.available_on = parse_import_date(data["available_on"])
+      account.notice_period_days = importable_integer(data["notice_period_days"], 0..Account::Liquidity::MAX_NOTICE_PERIOD_DAYS)
+      term = importable_integer(data["renewal_term_months"], 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
+      account.renewal_term_months = term
+      account.auto_renew = term.present? && ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true
+    end
+
+    def importable_integer(value, range)
+      integer = Integer(value.to_s, exception: false)
+      integer if integer && range.cover?(integer)
     end
 
     def importable_account_status(status)

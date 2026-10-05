@@ -13,6 +13,10 @@ json.currency account.currency
 json.classification account.classification
 json.account_type account.accountable_type&.underscore
 json.subtype account.subtype
+json.liquidity account.liquidity
+json.available_on account.available_on&.iso8601
+json.notice_period_days account.notice_period_days
+json.available_now account.available_on?
 json.status account.status
 json.institution_name account.institution_name
 json.institution_domain account.institution_domain

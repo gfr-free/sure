@@ -315,6 +315,14 @@ RSpec.configure do |config|
               classification: { type: :string },
               account_type: { type: :string, nullable: true },
               subtype: { type: :string, nullable: true },
+              liquidity: {
+                type: :string,
+                enum: %w[immediate short_term locked long_term],
+                description: 'How quickly the money can be reached. Locked accounts become available on available_on.'
+              },
+              available_on: { type: :string, format: :date, nullable: true, description: 'Release date of a locked account' },
+              notice_period_days: { type: :integer, nullable: true, description: 'Notice period in days, informational only' },
+              available_now: { type: :boolean, description: 'Whether the money counts as available today (assets only)' },
               status: { type: :string, enum: %w[active draft disabled pending_deletion] },
               institution_name: { type: :string, nullable: true },
               institution_domain: { type: :string, nullable: true },

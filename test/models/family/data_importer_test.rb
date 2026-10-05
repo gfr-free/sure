@@ -31,6 +31,64 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "Depository", account.accountable_type
   end
 
+  test "imports a manual availability with its release fields" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-cd",
+          name: "Term Deposit",
+          balance: "5000.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          accountable: { subtype: "savings" },
+          liquidity: "locked",
+          locked_attributes: { liquidity: "2026-10-01T00:00:00Z" },
+          available_on: "2027-03-31",
+          notice_period_days: 30,
+          auto_renew: true,
+          renewal_term_months: 12
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal "locked", account.liquidity
+    assert account.liquidity_manual?
+    assert_equal Date.new(2027, 3, 31), account.available_on
+    assert_equal 30, account.notice_period_days
+    assert account.auto_renew?
+    assert_equal 12, account.renewal_term_months
+  end
+
+  test "an exported automatic availability follows the subtype default on import" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-checking",
+          name: "Checking",
+          balance: "100.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          subtype: "cd",
+          accountable: { subtype: "cd" },
+          liquidity: "immediate",
+          notice_period_days: "not a number",
+          auto_renew: true
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal "locked", account.liquidity
+    assert_not account.liquidity_manual?
+    assert_nil account.notice_period_days
+    assert_not account.auto_renew?, "renewal needs a term"
+  end
+
   test "imports non-destructive account status from ndjson" do
     ndjson = build_ndjson([
       {

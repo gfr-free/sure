@@ -3,6 +3,7 @@ de:
   account_grouping:
     none: Ohne Angabe
     dimensions:
+      account_type: Kontotyp
       subtype: Unterart
       institution: Bank / Institut
       connection: Anbindung

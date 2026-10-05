@@ -6,6 +6,15 @@ class AccountGroupingTest < ActiveSupport::TestCase
     @user = users(:empty)
   end
 
+  test "groups by account type in the usual type order" do
+    loan = create_account(accountable: Loan.new)
+    cash = create_account(accountable: Depository.new)
+
+    groups = AccountGrouping.new("account_type", user: @user).group([ loan, cash ])
+
+    assert_equal [ Depository.display_name, Loan.display_name ], groups.map(&:name)
+  end
+
   test "rejects unknown dimensions" do
     assert_raises(ArgumentError) { AccountGrouping.new("name", user: @user) }
   end
@@ -63,6 +72,6 @@ class AccountGroupingTest < ActiveSupport::TestCase
 
   private
     def create_account(**attributes)
-      @family.accounts.create!(name: "Test", balance: 100, currency: "USD", accountable: Depository.new, **attributes)
+      @family.accounts.create!(name: "Test", balance: 100, currency: "USD", **{ accountable: Depository.new }.merge(attributes))
     end
 end

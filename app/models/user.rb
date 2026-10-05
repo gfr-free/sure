@@ -711,12 +711,22 @@ class User < ApplicationRecord
     always_expanded_account_groups.include?(account_group_key.to_s)
   end
 
-  # Returns the second grouping dimension chosen for an account list view
-  # ("sidebar" or "dashboard"), or nil when the view groups by type only.
-  # Unknown or stale keys read as nil. See AccountGrouping.
+  # Returns the first grouping dimension for an account list view ("sidebar"
+  # or "dashboard"); the account type unless the user picked another one.
+  # Unknown or stale keys read as the default. See AccountGrouping.
+  def account_grouping_primary_for(view)
+    key = preferences&.dig("account_grouping_primary", view.to_s)
+    AccountGrouping.valid_dimension?(key) ? key : AccountGrouping::DEFAULT_PRIMARY
+  end
+
+  # Returns the second grouping dimension for an account list view, or nil
+  # when the view has only one level. Unknown or stale keys, and a key equal
+  # to the first level, read as nil. See AccountGrouping.
   def account_grouping_for(view)
     key = preferences&.dig("account_grouping", view.to_s)
-    AccountGrouping.valid_dimension?(key) ? key : nil
+    return nil unless AccountGrouping.valid_dimension?(key)
+
+    key == account_grouping_primary_for(view) ? nil : key
   end
 
   # The user's own name for the free-text "custom group" account field.

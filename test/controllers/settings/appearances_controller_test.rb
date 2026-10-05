@@ -33,6 +33,39 @@ class Settings::AppearancesControllerTest < ActionDispatch::IntegrationTest
     assert_nil @user.reload.account_grouping_for(:dashboard)
   end
 
+  test "stores the first level per view and falls back to the account type" do
+    patch settings_appearance_path, params: { user: { account_grouping_primary_sidebar: "institution", account_grouping_sidebar: "account_type" } }
+
+    @user.reload
+    assert_equal "institution", @user.account_grouping_primary_for(:sidebar)
+    assert_equal "account_type", @user.account_grouping_for(:sidebar)
+    assert_equal "account_type", @user.account_grouping_primary_for(:dashboard)
+
+    patch settings_appearance_path, params: { user: { account_grouping_primary_sidebar: "bogus" } }
+    assert_equal "account_type", @user.reload.account_grouping_primary_for(:sidebar)
+  end
+
+  test "a second level equal to the first level reads as none" do
+    @user.update!(preferences: @user.preferences.merge(
+      "account_grouping_primary" => { "sidebar" => "currency" },
+      "account_grouping" => { "sidebar" => "currency" }
+    ))
+
+    assert_nil @user.account_grouping_for(:sidebar)
+  end
+
+  test "renders another first level in the sidebar and on the dashboard" do
+    accounts(:depository).update!(institution_name: "ING")
+    @user.update!(preferences: @user.preferences.merge("account_grouping_primary" => { "sidebar" => "institution", "dashboard" => "institution" }))
+
+    get root_path
+
+    assert_response :success
+    assert_select "#account-sidebar-tabs", text: /ING/
+    assert_select "#balance-sheet details[data-group-key^='asset_institution_']"
+    assert_select "#balance-sheet details[data-group-key='depository']", count: 0
+  end
+
   test "keeps other preferences when saving the grouping" do
     @user.update!(preferences: @user.preferences.merge("always_expanded_account_groups" => [ "depository" ]))
 

@@ -5,7 +5,10 @@ class BalanceSheet::AccountGroup
 
   attr_reader :name, :color, :accountable_type, :accounts
 
-  def initialize(name:, color:, accountable_type:, accounts:, classification_group:)
+  # accountable_type is nil for a group formed by another dimension than the
+  # account type (see AccountGrouping); such groups pass their own key.
+  def initialize(name:, color:, accountable_type:, accounts:, classification_group:, key: nil)
+    @key = key
     @name = name
     @color = color
     @accountable_type = accountable_type
@@ -30,7 +33,13 @@ class BalanceSheet::AccountGroup
   end
 
   def key
-    accountable_type.to_s.underscore
+    @key || accountable_type.to_s.underscore
+  end
+
+  # Whether this group holds exactly one account type, so type-specific
+  # extras (sparkline, "new account" link) apply.
+  def type_group?
+    accountable_type.present?
   end
 
   def total
@@ -50,6 +59,12 @@ class BalanceSheet::AccountGroup
 
   def syncing?
     accounts.any?(&:syncing?)
+  end
+
+  # Color for an account row: the group color in a type group, otherwise the
+  # account's own type color, so an account looks the same in every grouping.
+  def color_for(account)
+    type_group? ? color : account.accountable.color
   end
 
   # Splits the group's accounts by a second dimension (see AccountGrouping).

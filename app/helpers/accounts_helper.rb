@@ -36,7 +36,7 @@ module AccountsHelper
       end
 
     [
-      family.build_cache_key("account_sidebar_tabs_v3", invalidate_on_data_updates: true),
+      family.build_cache_key("account_sidebar_tabs_v4", invalidate_on_data_updates: true),
       Current.user&.id,
       shares_version,
       active_tab,
@@ -48,8 +48,23 @@ module AccountsHelper
       # (this partial renders with skip_digest: true, so the template digest
       # would not otherwise reflect the change).
       Current.user&.always_expanded_account_groups&.sort,
+      account_grouping_primary(:sidebar),
       account_grouping_dimension(:sidebar)
     ]
+  end
+
+  # The first grouping dimension for an account list view (default: account
+  # type). Preview-only for now.
+  def account_grouping_primary(view)
+    return AccountGrouping::DEFAULT_PRIMARY unless Current.user&.preview_features_enabled?
+
+    Current.user.account_grouping_primary_for(view)
+  end
+
+  # First-level account groups of a balance sheet or one of its
+  # classification groups, as chosen for the given view.
+  def account_groups_for(source, view:)
+    source.account_groups(by: account_grouping_primary(view), user: Current.user)
   end
 
   # The second grouping dimension for an account list view, or nil when the
@@ -61,7 +76,7 @@ module AccountsHelper
     Current.user&.account_grouping_for(view)
   end
 
-  # Subgroups to render inside an account type group for the given view, or
+  # Subgroups to render inside a first-level group for the given view, or
   # an empty array when the view has no second level (see AccountGrouping).
   def account_subgroups(account_group, view:)
     dimension = account_grouping_dimension(view)

@@ -80,10 +80,17 @@
             data: { controller: "auto-submit-form" } do |form| %>
         <% grouping_options = AccountGrouping::DIMENSIONS.map { |key| [ AccountGrouping.dimension_label(key, user: @user), key ] } %>
         <% AccountGrouping::VIEWS.each do |view| %>
-          <%= form.select "account_grouping_#{view}",
-                grouping_options,
-                { label: t(".account_grouping_#{view}_label"), include_blank: t(".account_grouping_none"), selected: @user.account_grouping_for(view) },
-                { data: { auto_submit_form_target: "auto" } } %>
+          <% primary = @user.account_grouping_primary_for(view) %>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <%= form.select "account_grouping_primary_#{view}",
+                  grouping_options,
+                  { label: t(".account_grouping_primary_#{view}_label"), selected: primary },
+                  { data: { auto_submit_form_target: "auto" } } %>
+            <%= form.select "account_grouping_#{view}",
+                  grouping_options.reject { |_label, key| key == primary },
+                  { label: t(".account_grouping_#{view}_label"), include_blank: t(".account_grouping_none"), selected: @user.account_grouping_for(view) },
+                  { data: { auto_submit_form_target: "auto" } } %>
+          </div>
         <% end %>
         <%= form.text_field :custom_account_group_label,
               label: t(".custom_account_group_label_label"),

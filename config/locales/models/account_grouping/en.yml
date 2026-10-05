@@ -3,6 +3,7 @@ en:
   account_grouping:
     none: Not set
     dimensions:
+      account_type: Account type
       subtype: Subtype
       institution: Institution
       connection: Connection

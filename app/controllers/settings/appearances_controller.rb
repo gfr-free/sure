@@ -31,16 +31,19 @@ class Settings::AppearancesController < ApplicationController
         selected = (account_groups.is_a?(Array) ? account_groups : [ account_groups ])
         updated_prefs["always_expanded_account_groups"] = selected.select { |k| valid_keys.include?(k) }
       end
-      # Second grouping level for the account lists. Blank means "type only";
-      # anything outside the known dimensions is dropped.
+      # Grouping levels for the account lists. Level 1 falls back to the
+      # account type, a blank level 2 means "one level only"; anything outside
+      # the known dimensions is dropped.
       AccountGrouping::VIEWS.each do |view|
-        param_key = :"account_grouping_#{view}"
-        next unless params.dig(:user, param_key)
+        { "account_grouping_primary" => :"account_grouping_primary_#{view}",
+          "account_grouping" => :"account_grouping_#{view}" }.each do |pref_key, param_key|
+          next unless params.dig(:user, param_key)
 
-        dimension = params.dig(:user, param_key).to_s
-        updated_prefs["account_grouping"] = (updated_prefs["account_grouping"] || {}).merge(
-          view => (AccountGrouping.valid_dimension?(dimension) ? dimension : nil)
-        ).compact
+          dimension = params.dig(:user, param_key).to_s
+          updated_prefs[pref_key] = (updated_prefs[pref_key] || {}).merge(
+            view => (AccountGrouping.valid_dimension?(dimension) ? dimension : nil)
+          ).compact
+        end
       end
       if (label = params.dig(:user, :custom_account_group_label))
         updated_prefs["custom_account_group_label"] = label.to_s.squish.first(AccountGrouping::CUSTOM_GROUP_MAX_LENGTH).presence

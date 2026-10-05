@@ -67,11 +67,27 @@ account.next_release_date(today)
 Assets and liabilities are separate scopes on purpose: a combined scope would
 count credit cards as available wealth.
 
+## Overview figures
+
+`BalanceSheet#liquidity(date:)` returns a `BalanceSheet::LiquidityOverview`
+built from the balance sheet's account rows (same accounts, same converted
+balances as net worth): available and locked assets, short-term liabilities,
+available net worth, assets per level, the release timeline buckets and the
+list of upcoming releases. `BalanceSheet#available_net_worth_series` is the
+history of available net worth; a locked account enters it on its release
+date (`Balance::ChartSeriesBuilder`'s `account_active_from_dates`).
+
+The dashboard widget (`pages/dashboard/_liquidity`), the reports section
+(`reports/_liquidity`), `GET /api/v1/balance_sheet` (`availability`) and the
+assistant's `get_balance_sheet` all read these two methods; shared view
+partials live in `app/views/liquidity/`.
+
 ## Preview gating
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
 UI are behind the preview switch: the form section, header badge, Details tab,
 and the budget's and paycheck planner's switch from "depository" to
-`immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
+`immediate_assets_on`, and the dashboard widget and reports section read the
+viewer's `preview_features_enabled?`. Insights
 already run only for preview families. API and assistant fields are always
 returned (additive).

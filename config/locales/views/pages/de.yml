@@ -12,6 +12,13 @@ de:
       heading: Nutzungsbedingungen
       placeholder: Der Inhalt der Nutzungsbedingungen wird hier angezeigt.
     dashboard:
+      liquidity:
+        title: Verfügbarkeit
+        available_net_worth: Verfügbares Vermögen
+        available_assets: Verfügbar
+        bound_assets: Gebunden
+        short_term_liabilities: Kurzfristige Schulden
+        view_report: Freigabetermine in den Berichten
       welcome: "Willkommen zurück, %{name}"
       subtitle: "Hier siehst du, was in deinen Finanzen passiert."
       new: "Neu"

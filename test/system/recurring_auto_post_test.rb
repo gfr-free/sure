@@ -26,6 +26,19 @@ class RecurringAutoPostTest < ApplicationSystemTestCase
     assert_text I18n.t("transactions.transaction.auto_posted")
   end
 
+  test "post an upcoming date now from its drawer" do
+    occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current + 9,
+                                                       due_on: Date.current + 9, currency: "USD")
+
+    visit bill_url(@series, occurrence: occurrence.id)
+    click_on I18n.t("bills.resolve")
+    click_on I18n.t("recurring_occurrences.show.post_now")
+
+    assert_text I18n.t("recurring_occurrences.post_now.success", date: I18n.l(Date.current, format: :long))
+    assert occurrence.reload.paid?
+    assert_equal Date.current, occurrence.allocations.sole.entry.date
+  end
+
   test "the switch is off for a linked account" do
     visit edit_recurring_transaction_url(@series)
 

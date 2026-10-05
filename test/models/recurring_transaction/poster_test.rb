@@ -245,7 +245,83 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert @occurrence.reload.paid?
   end
 
+  test "post now books an open future date today and closes it" do
+    future = occurrence_on(@rent, @today + 10)
+    existing_ids = @account.entries.ids
+
+    entry = post_now!(future)
+
+    assert_equal entry, @account.entries.where.not(id: existing_ids).sole
+    assert_equal @today, entry.date, "dated the day it was posted, not the due date"
+    assert_equal 800, entry.amount
+    assert_equal "recurring-#{future.id}", entry.idempotency_key
+    future.reload
+    assert future.paid?
+    assert future.auto_posted_at.present?
+    assert future.allocations.sole.from_auto_posted?
+  end
+
+  test "post now does not need the auto-post switch" do
+    @rent.update!(auto_post: false)
+
+    assert post_now!(@occurrence)
+    assert @occurrence.reload.paid?
+  end
+
+  test "the nightly run does not post a date posted by hand again" do
+    post_now!(@occurrence)
+
+    assert_no_difference -> { Entry.count } do
+      assert_equal 0, post!
+    end
+  end
+
+  test "post now refuses a date that already has a payment or is skipped" do
+    RecurringTransaction::Allocator.new(@occurrence).allocate!(amount: 300)
+    skipped = occurrence_on(@rent, @today + 30)
+    skipped.skip!
+
+    assert_no_difference -> { Entry.count } do
+      assert_nil post_now!(@occurrence)
+      assert_nil post_now!(skipped)
+    end
+  end
+
+  test "post now refuses a linked account or a variable amount" do
+    @rent.update_columns(account_id: accounts(:connected).id)
+    assert_nil post_now!(@occurrence.reload)
+
+    @rent.update_columns(account_id: @account.id, amount_strategy: "average")
+    assert_nil post_now!(@occurrence.reload)
+  end
+
+  test "post now can post again after its entry was deleted" do
+    post_now!(@occurrence).destroy!
+    assert @occurrence.reload.scheduled?
+
+    assert post_now!(@occurrence)
+    assert @occurrence.reload.paid?
+  end
+
+  test "post now books a transfer between two manual accounts" do
+    transfer_series = travel_to(@today) do
+      create_series(name: "Savings", amount: 200, destination_account: accounts(:credit_card))
+    end
+    occurrence = occurrence_on(transfer_series, @today + 5)
+
+    entry = nil
+    assert_difference -> { Transfer.count }, 1 do
+      entry = post_now!(occurrence)
+    end
+    assert_equal @today, entry.date
+    assert entry.transaction.transfer.present?
+  end
+
   private
+    def post_now!(occurrence, today: @today)
+      travel_to(today.in_time_zone.change(hour: 6)) { Poster.new(@family, today: today).post_now!(occurrence) }
+    end
+
     def post!(today: @today)
       travel_to(today.in_time_zone.change(hour: 6)) { Poster.new(@family, today: today).post_due! }
     end

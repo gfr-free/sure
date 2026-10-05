@@ -590,6 +590,7 @@ Rails.application.routes.draw do
   resources :recurring_occurrences, only: %i[show] do
     member do
       post :mark_paid
+      post :post_now
       post :skip
       post :reopen
       patch :snooze

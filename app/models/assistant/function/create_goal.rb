@@ -216,10 +216,11 @@ class Assistant::Function::CreateGoal < Assistant::Function
       end
     end
 
-    # The account types the goal form offers (Goal::FUNDABLE_ACCOUNT_TYPES), so
-    # the assistant cannot link less, or more, than the user could by hand.
+    # The accounts the goal form offers: fundable types the user can access
+    # (GoalsController), so the assistant can neither list nor link another
+    # member's private account.
     def fundable_accounts
-      family.accounts.where(accountable_type: Goal::FUNDABLE_ACCOUNT_TYPES).visible
+      user.accessible_accounts.where(accountable_type: Goal::FUNDABLE_ACCOUNT_TYPES).visible
     end
 
     def whole_account_claimed_ids

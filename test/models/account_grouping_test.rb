@@ -15,6 +15,15 @@ class AccountGroupingTest < ActiveSupport::TestCase
     assert_equal [ Depository.display_name, Loan.display_name ], groups.map(&:name)
   end
 
+  test "labels a merged group the same whatever the account order" do
+    upper = create_account(institution_name: "ING")
+    lower = create_account(institution_name: "ing")
+    grouping = AccountGrouping.new("institution", user: @user)
+
+    assert_equal [ "ING" ], grouping.group([ upper, lower ]).map(&:name)
+    assert_equal [ "ING" ], grouping.group([ lower, upper ]).map(&:name)
+  end
+
   test "rejects unknown dimensions" do
     assert_raises(ArgumentError) { AccountGrouping.new("name", user: @user) }
   end

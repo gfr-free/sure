@@ -59,7 +59,7 @@ class AccountGrouping
   # their usual order) with the "Not set" group last.
   def group(accounts)
     accounts.group_by { |account| value_key_for(account) }
-            .map { |key, rows| Group.new(key: key, name: name_for(key, rows.first), accounts: rows) }
+            .map { |key, rows| Group.new(key: key, name: display_name_for(key, rows), accounts: rows) }
             .sort_by { |group| [ group.key.nil? ? 1 : 0, sort_value_for(group) ] }
   end
 
@@ -78,6 +78,16 @@ class AccountGrouping
       end
 
       value.presence
+    end
+
+    # Values that only differ in case or spacing share a group; its label is
+    # the most common spelling (ties: alphabetically first), independent of
+    # account order.
+    def display_name_for(key, rows)
+      rows.map { |account| name_for(key, account) }
+          .tally
+          .min_by { |name, count| [ -count, name ] }
+          .first
     end
 
     def name_for(key, account)

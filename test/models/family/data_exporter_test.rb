@@ -448,6 +448,19 @@ class Family::DataExporterTest < ActiveSupport::TestCase
     end
   end
 
+  test "exports apply_immediately independently of stop_processing" do
+    @rule.update!(apply_immediately: true)
+
+    Zip::File.open_buffer(@exporter.generate_export) do |zip|
+      rule_data = zip.read("all.ndjson").split("\n").map { |line| JSON.parse(line) }.find do |record|
+        record["type"] == "Rule" && record["data"]["name"] == "Test Rule"
+      end
+
+      assert_equal false, rule_data["data"]["stop_processing"]
+      assert_equal true, rule_data["data"]["apply_immediately"]
+    end
+  end
+
   test "exports rule conditions with proper structure" do
     zip_data = @exporter.generate_export
 

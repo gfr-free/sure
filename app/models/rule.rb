@@ -149,12 +149,18 @@ class Rule < ApplicationRecord
 
   # Runs the "apply immediately" rules for transactions a person just created
   # or changed (web, bulk edit, API, assistant). Families without such rules
-  # enqueue nothing.
+  # enqueue nothing. Best-effort: the change is already saved and the nightly
+  # run applies the rules anyway, so a failed enqueue must not fail the request.
+  # Callers inside a database transaction call this after it, so the enqueue
+  # is not deferred to an after-commit callback outside this rescue.
   def self.apply_immediately_later(family, transaction_ids)
     transaction_ids = Array(transaction_ids).compact.uniq
     return if transaction_ids.empty? || !family.rules.applied_immediately.exists?
 
     ApplyImmediateRulesJob.perform_later(family, transaction_ids: transaction_ids)
+  rescue StandardError => e
+    Rails.logger.error("Rule.apply_immediately_later failed for family #{family.id}: #{e.class}: #{e.message}")
+    nil
   end
 
   # For one transaction, the empty fields a "nightly only" rule will set on its

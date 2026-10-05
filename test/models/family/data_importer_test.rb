@@ -1836,7 +1836,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
   test "imports rules in their exported run order after existing rules" do
     existing = @family.rules.create!(resource_type: "transaction",
       actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
-    rule_record = ->(name, position, stop_processing) do
+    rule_record = ->(name, position, stop_processing, apply_immediately) do
       {
         type: "Rule",
         version: 1,
@@ -1846,13 +1846,13 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           active: true,
           position: position,
           stop_processing: stop_processing,
-          apply_immediately: stop_processing,
+          apply_immediately: apply_immediately,
           conditions: [ { condition_type: "transaction_name", operator: "like", value: name } ],
           actions: [ { action_type: "exclude_transaction" } ]
         }
       }
     end
-    ndjson = build_ndjson([ rule_record.call("Second", 2, false), rule_record.call("First", 1, true) ])
+    ndjson = build_ndjson([ rule_record.call("Second", 2, false, true), rule_record.call("First", 1, true, false) ])
 
     Family::DataImporter.new(@family, ndjson).import!
 
@@ -1860,8 +1860,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       @family.rules.ordered.pluck(:id).last(3)
     assert @family.rules.find_by(name: "First").stop_processing
     assert_not @family.rules.find_by(name: "Second").stop_processing
-    assert @family.rules.find_by(name: "First").apply_immediately
-    assert_not @family.rules.find_by(name: "Second").apply_immediately
+    assert_not @family.rules.find_by(name: "First").apply_immediately
+    assert @family.rules.find_by(name: "Second").apply_immediately
   end
 
   test "imports rules with conditions and actions" do

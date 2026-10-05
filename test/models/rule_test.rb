@@ -397,6 +397,14 @@ class RuleTest < ActiveSupport::TestCase
     end
   end
 
+  test "apply_immediately_later does not raise when the job cannot be enqueued" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    create_category_rule("Immediate", apply_immediately: true)
+    ApplyImmediateRulesJob.stubs(:perform_later).raises(RuntimeError, "queue down")
+
+    assert_nil Rule.apply_immediately_later(@family, transaction.id)
+  end
+
   test "immediate_conflicts lists nightly rules above that set the same field on shared transactions" do
     create_transaction(account: @account, name: "Whole Foods")
     nightly = create_category_rule("Nightly")

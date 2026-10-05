@@ -254,7 +254,7 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_equal entry, @account.entries.where.not(id: existing_ids).sole
     assert_equal @today, entry.date, "dated the day it was posted, not the due date"
     assert_equal 800, entry.amount
-    assert_equal "recurring-#{future.id}", entry.idempotency_key
+    assert_match(/\Arecurring-#{future.id}-now-/, entry.idempotency_key)
     future.reload
     assert future.paid?
     assert future.auto_posted_at.present?
@@ -301,6 +301,19 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
 
     assert post_now!(@occurrence)
     assert @occurrence.reload.paid?
+  end
+
+  test "post now books a new entry when the nightly one was unlinked, not the old one" do
+    post!
+    nightly = @occurrence.allocations.sole.entry
+    RecurringTransaction::Allocator.new(@occurrence).unallocate!(@occurrence.allocations.sole)
+    assert @occurrence.reload.scheduled?
+
+    entry = post_now!(@occurrence, today: @today + 3)
+
+    assert_not_equal nightly, entry
+    assert_equal @today + 3, entry.date
+    assert_equal entry, @occurrence.reload.allocations.sole.entry
   end
 
   test "post now books a transfer between two manual accounts" do

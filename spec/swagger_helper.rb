@@ -315,6 +315,23 @@ RSpec.configure do |config|
               classification: { type: :string },
               account_type: { type: :string, nullable: true },
               subtype: { type: :string, nullable: true },
+              custom_subtype: {
+                type: :object,
+                nullable: true,
+                description: "The family's own subtype, when the account has one. Its rules replace the built-in subtype's.",
+                properties: {
+                  id: { type: :string, format: :uuid },
+                  name: { type: :string },
+                  rules: {
+                    type: :object,
+                    properties: {
+                      liquidity: { type: :string, enum: %w[immediate short_term locked long_term] },
+                      tax_treatment: { type: :string, nullable: true, enum: [ 'taxable', 'tax_deferred', 'tax_exempt', 'tax_advantaged', nil ] }
+                    }
+                  }
+                },
+                required: %w[id name rules]
+              },
               liquidity: {
                 type: :string,
                 enum: %w[immediate short_term locked long_term],

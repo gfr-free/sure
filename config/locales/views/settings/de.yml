@@ -184,6 +184,7 @@ de:
           title: Verschlüsselungsschlüssel fehlen
     settings_nav:
       accounts_label: Konten
+      account_subtypes_label: Eigene Subtypen
       advanced_section_title: Erweitert
       ai_prompts_label: KI-Eingabeaufforderungen
       api_key_label: API-Schlüssel

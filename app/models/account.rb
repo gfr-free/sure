@@ -1,5 +1,5 @@
 class Account < ApplicationRecord
-  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Liquidity
+  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Liquidity, CustomSubtype
 
   before_validation :assign_default_owner, if: -> { owner_id.blank? }
 
@@ -631,14 +631,15 @@ class Account < ApplicationRecord
     first_valuation&.amount_money || balance_money
   end
 
-  # Get short version of the subtype label
+  # Get short version of the subtype label. A family's own subtype
+  # (Account::CustomSubtype) takes precedence over the built-in one.
   def short_subtype_label
-    accountable_class.short_subtype_label_for(subtype) || accountable_class.display_name
+    custom_account_subtype&.name || accountable_class.short_subtype_label_for(subtype) || accountable_class.display_name
   end
 
   # Get long version of the subtype label
   def long_subtype_label
-    accountable_class.long_subtype_label_for(subtype) || accountable_class.display_name
+    custom_account_subtype&.name || accountable_class.long_subtype_label_for(subtype) || accountable_class.display_name
   end
 
   def supports_default?

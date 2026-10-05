@@ -180,6 +180,7 @@ de:
         title: Details
         intro_subtype: "Regeln für dieses Konto. Die Standardwerte kommen vom Subtyp %{subtype}."
         intro_type: "Regeln für dieses Konto. Die Standardwerte kommen von der Kontoart %{type}."
+        intro_custom_subtype: "Regeln für dieses Konto. Die Standardwerte kommen von deinem eigenen Subtyp %{subtype}."
         edit: Verfügbarkeit ändern
         "yes": "Ja"
         "no": "Nein"
@@ -199,10 +200,16 @@ de:
           counts_as_budget_cash: Saldo zählt im Budget als frei verfügbar
         sources:
           subtype: "Aus Subtyp %{subtype}"
+          custom_subtype: "Aus deinem Subtyp %{subtype}"
           account_type: "Aus Kontoart %{type}"
           user: Von dir gesetzt
           tax_treatment: Folgt der Steuerart
           liquidity: Folgt der Verfügbarkeit
+    custom_subtype:
+      label: Eigener Subtyp
+      none: Keiner (Subtyp oben verwenden)
+      hint: Ein eigener Subtyp ersetzt die Regeln des Subtyps oben.
+      manage: Eigene Subtypen verwalten
     tax_treatments:
       taxable: Versteuerbar
       tax_deferred: Steuerlich aufgeschoben

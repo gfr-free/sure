@@ -127,6 +127,41 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("accounts.liquidity.details.sources.subtype", subtype: @account.long_subtype_label), response.body
   end
 
+  # --- own subtypes (CustomAccountSubtype) ---------------------------------
+
+  test "the own subtype select shows with preview when the family has one for the type" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    @user.family.custom_account_subtypes.create!(accountable_type: "Investment", name: "Pension", rules: { "liquidity" => "long_term" })
+
+    set_preview(false)
+    get edit_account_url(@account)
+    assert_select "select[name='account[custom_account_subtype_id]']", 0
+
+    set_preview(true)
+    get edit_account_url(@account)
+    assert_select "select[name='account[custom_account_subtype_id]'] option[value='#{custom.id}']", 1
+    assert_select "select[name='account[custom_account_subtype_id]'] option", text: "Pension", count: 0
+  end
+
+  test "update assigns an own subtype and takes its default availability" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: custom.id, available_on: "2030-03-31" } }
+
+    @account.reload
+    assert_equal custom, @account.custom_account_subtype
+    assert_equal "locked", @account.liquidity
+    assert_equal Date.new(2030, 3, 31), @account.available_on
+  end
+
+  test "update rejects another family's subtype" do
+    foreign = families(:empty).custom_account_subtypes.create!(accountable_type: "Depository", name: "Foreign", rules: { "liquidity" => "locked" })
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: foreign.id } }
+
+    assert_nil @account.reload.custom_account_subtype_id
+  end
+
   # --- member-owned connections (issue #3579) ------------------------------
 
   test "a member sees only member-connectable providers in the method selector" do

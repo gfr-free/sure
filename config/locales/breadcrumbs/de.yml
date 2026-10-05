@@ -10,6 +10,7 @@ de:
     ai_prompts: KI-Prompts
     api_key: API-Key
     api_keys: API-Keys
+    custom_account_subtypes: Eigene Subtypen
     appearance: Darstellung
     appearances: Darstellung
     bank_sync: Bank-Sync

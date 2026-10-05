@@ -423,6 +423,8 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :custom_account_subtypes, path: "account_subtypes", except: :show
+
   resources :tags, except: :show do
     resources :deletions, only: %i[new create], module: :tag
     delete :destroy_all, on: :collection

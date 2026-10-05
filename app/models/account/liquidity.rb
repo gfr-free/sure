@@ -8,7 +8,8 @@
 # - long_term:  retirement accounts, property, vehicles
 #
 # The stored level comes from the account's type and subtype
-# (Accountable::Rules) until the user picks one on the form; a manual pick is
+# (Accountable::Rules), or from the family's own subtype when the account has
+# one (CustomAccountSubtype), until the user picks one on the form; a manual pick is
 # kept in `locked_attributes` so subtype changes and syncs never overwrite it.
 #
 # A locked account becomes available on its release date by calculation only:
@@ -104,12 +105,13 @@ module Account::Liquidity
   end
 
   def default_liquidity
-    return "immediate" if accountable_class.nil?
-
-    accountable_class.rules_for(subtype).liquidity
+    subtype_rules&.liquidity || "immediate"
   end
 
+  # The family's own subtype wins over the built-in one (Account::CustomSubtype).
   def subtype_rules
+    return custom_account_subtype.to_rules if custom_account_subtype
+
     accountable_class&.rules_for(subtype)
   end
 
@@ -191,6 +193,7 @@ module Account::Liquidity
 
     def liquidity_default_needed?
       new_record? || will_save_change_to_accountable_type? ||
+        will_save_change_to_custom_account_subtype_id? ||
         accountable&.will_save_change_to_attribute?(:subtype)
     end
 

@@ -59,6 +59,7 @@ class Family < ApplicationRecord
   has_many :holdings, through: :accounts
 
   has_many :tags, dependent: :destroy
+  has_many :custom_account_subtypes, dependent: :destroy
   has_many :categories, dependent: :destroy
   has_many :categorization_comparisons, dependent: :destroy
   has_many :merchants, dependent: :destroy, class_name: "FamilyMerchant"
@@ -552,9 +553,12 @@ class Family < ApplicationRecord
         meta[:tax_treatment].in?(%i[tax_deferred tax_exempt tax_advantaged])
       end.keys
 
+      # Accounts with the family's own subtype take its tax treatment instead
+      # (custom_subtype_tax_advantaged_account_ids).
       investment_ids = accounts
         .joins("INNER JOIN investments ON investments.id = accounts.accountable_id AND accounts.accountable_type = 'Investment'")
         .where(investments: { subtype: tax_advantaged_subtypes })
+        .where(custom_account_subtype_id: nil)
         .pluck(:id)
 
       # Crypto accounts have an explicit tax_treatment column
@@ -563,7 +567,7 @@ class Family < ApplicationRecord
         .where(cryptos: { tax_treatment: %w[tax_deferred tax_exempt] })
         .pluck(:id)
 
-      investment_ids + crypto_ids + tax_advantaged_depository_account_ids
+      investment_ids + crypto_ids + tax_advantaged_depository_account_ids + custom_subtype_tax_advantaged_account_ids
     end
   end
 
@@ -739,7 +743,22 @@ class Family < ApplicationRecord
       accounts
         .joins("INNER JOIN depositories ON depositories.id = accounts.accountable_id AND accounts.accountable_type = 'Depository'")
         .where(depositories: { subtype: Depository::TAX_ADVANTAGED_SUBTYPES })
+        .where(custom_account_subtype_id: nil)
         .pluck(:id)
+    end
+
+    # Depository and Investment accounts whose own subtype (CustomAccountSubtype)
+    # carries a tax-advantaged treatment. Other types ignore the rule, as
+    # TaxTreatable#tax_treatment does.
+    def tax_advantaged_custom_subtype_ids
+      custom_account_subtypes
+        .where(accountable_type: CustomAccountSubtype::TAX_TREATMENT_TYPES)
+        .where("custom_account_subtypes.rules->>'tax_treatment' IN (?)", CustomAccountSubtype::TAX_ADVANTAGED_TREATMENTS)
+        .select(:id)
+    end
+
+    def custom_subtype_tax_advantaged_account_ids
+      accounts.where(custom_account_subtype_id: tax_advantaged_custom_subtype_ids).pluck(:id)
     end
 
     def normalize_enabled_currencies!

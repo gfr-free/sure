@@ -89,6 +89,89 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_not account.auto_renew?, "renewal needs a term"
   end
 
+  test "imports custom subtypes and links the accounts that use them" do
+    ndjson = build_ndjson([
+      {
+        type: "CustomAccountSubtype",
+        data: { id: "old-custom", accountable_type: "Investment", name: "Company pension", rules: { liquidity: "long_term", tax_treatment: "tax_deferred" } }
+      },
+      {
+        type: "Account",
+        data: {
+          id: "old-pension",
+          name: "Pension",
+          balance: "1000.00",
+          currency: "USD",
+          accountable_type: "Investment",
+          accountable: { subtype: "brokerage" },
+          custom_account_subtype_id: "old-custom"
+        }
+      },
+      {
+        type: "Account",
+        data: {
+          id: "old-savings",
+          name: "Savings",
+          balance: "10.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          accountable: { subtype: "savings" },
+          custom_account_subtype_id: "old-custom"
+        }
+      }
+    ])
+
+    result = Family::DataImporter.new(@family, ndjson).import!
+    custom = @family.custom_account_subtypes.find_by!(name: "Company pension")
+    pension = result[:accounts].find { |account| account.name == "Pension" }
+    savings = result[:accounts].find { |account| account.name == "Savings" }
+
+    assert_equal "long_term", custom.liquidity
+    assert_equal :tax_deferred, custom.tax_treatment
+    assert_equal custom, pension.custom_account_subtype
+    assert_equal "long_term", pension.liquidity
+    assert pension.tax_advantaged?
+    assert_nil savings.custom_account_subtype, "a subtype of another account type is not assigned"
+    assert_equal 1, result[:summary]["custom_account_subtypes"]["created"]
+  end
+
+  test "an account in a later import session chunk finds its custom subtype" do
+    session = @family.import_sessions.create!
+    first = build_ndjson([
+      { type: "CustomAccountSubtype", data: { id: "old-custom", accountable_type: "Depository", name: "Fixed 2y", rules: { liquidity: "locked" } } }
+    ])
+    second = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-cd", name: "Term", balance: "10.00", currency: "USD", accountable_type: "Depository",
+          accountable: { subtype: "savings" }, custom_account_subtype_id: "old-custom"
+        }
+      }
+    ])
+
+    Family::DataImporter.new(@family, first, import_session: session).import!
+    account = Family::DataImporter.new(@family, second, import_session: session).import![:accounts].first
+
+    assert_equal "Fixed 2y", account.custom_account_subtype.name
+    assert_equal "locked", account.liquidity
+  end
+
+  test "reuses a custom subtype with the same name and takes the imported rules" do
+    existing = @family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "short_term" })
+    ndjson = build_ndjson([
+      { type: "CustomAccountSubtype", data: { id: "old", accountable_type: "Depository", name: "fixed 2Y", rules: { liquidity: "locked" } } },
+      { type: "CustomAccountSubtype", data: { id: "bad", accountable_type: "Nope", name: "Broken", rules: {} } }
+    ])
+
+    result = Family::DataImporter.new(@family, ndjson).import!
+
+    assert_equal "locked", existing.reload.liquidity
+    assert_equal 1, @family.custom_account_subtypes.count
+    assert_equal 1, result[:summary]["custom_account_subtypes"]["updated"]
+    assert_equal 1, result[:summary]["custom_account_subtypes"]["skipped"]
+  end
+
   test "imports non-destructive account status from ndjson" do
     ndjson = build_ndjson([
       {

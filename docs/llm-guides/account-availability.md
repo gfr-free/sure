@@ -26,11 +26,38 @@ Stored on `accounts.liquidity`:
 - `Account::Liquidity` (concern on `Account`): validations, the callback that
   writes the default, predicates and scopes.
 - `Accountable.rules_for(subtype)` returns `Accountable::Rules`, the rule set a
-  subtype brings: default liquidity and tax treatment. Each accountable class
+  built-in subtype brings: default liquidity and tax treatment. Each accountable class
   overrides `default_liquidity_for(subtype)` (and `default_tax_treatment_for`
   where it has one). Add a new subtype there, not in a new constant elsewhere.
 - `Account::RuleDetails` lists the rules for the account page's "Details" tab,
   with where each value comes from.
+
+## Custom subtypes
+
+A family can define its own subtypes per account type (`CustomAccountSubtype`,
+table `custom_account_subtypes`, Settings > Account subtypes). Each one has a
+name and a `rules` hash that combines the rules above: `liquidity` (one of the
+four levels) and, for Depository and Investment, `tax_treatment`. A custom
+subtype cannot add behaviour; a new rule needs code in `Accountable::Rules`
+first.
+
+An account points at one through `accounts.custom_account_subtype_id`. Then:
+
+- `Account#subtype_rules` returns the custom subtype's rules, so the default
+  availability follows them (`Account#default_liquidity`).
+- `TaxTreatable#tax_treatment` returns its tax treatment for Depository and
+  Investment, and `Family#tax_advantaged_account_ids` uses the same rule, so
+  budget and cash flow agree with the account page.
+- `short_subtype_label` / `long_subtype_label` show its name.
+
+The built-in subtype stays on the accountable underneath: provider syncs keep
+writing it, and it comes back into force when the custom subtype is removed
+from the account or deleted. Editing a custom subtype's rules moves its
+accounts to the new default unless their level was set by hand. The built-in
+subtypes are templates (`CustomAccountSubtype.build_from_template`).
+
+API (`custom_subtype`), the assistant's `get_accounts`, CSV and NDJSON export
+(`CustomAccountSubtype` records) and the Sure import carry name and rules.
 
 ## Defaults and manual choices
 
@@ -70,8 +97,11 @@ count credit cards as available wealth.
 ## Preview gating
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
-UI are behind the preview switch: the form section, header badge, Details tab,
+UI are behind the preview switch: the form section, the custom subtypes
+settings page and the account form's custom subtype select, header badge, Details tab,
 and the budget's and paycheck planner's switch from "depository" to
 `immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
 already run only for preview families. API and assistant fields are always
-returned (additive).
+returned (additive). A custom subtype already assigned to an account keeps
+its rules when preview is off: like the stored level, it is the account's
+classification.

@@ -1,0 +1,32 @@
+<%# locals: (custom_account_subtype:, account_counts:) %>
+<% accounts_count = account_counts.fetch(custom_account_subtype.id, 0) %>
+<div id="<%= dom_id(custom_account_subtype) %>" class="flex justify-between items-center gap-3 p-4 bg-container hover:bg-surface-hover">
+  <div class="min-w-0 space-y-1">
+    <p class="text-sm text-primary font-medium truncate"><%= custom_account_subtype.name %></p>
+    <p class="text-xs text-secondary">
+      <%= custom_account_subtype_rules_summary(custom_account_subtype) %>
+      <span class="text-subdued">&middot;</span>
+      <%= t(".accounts", count: accounts_count) %>
+    </p>
+  </div>
+  <% unless Current.user.guest? %>
+    <div class="justify-self-end">
+      <%= render DS::Menu.new do |menu| %>
+        <% menu.with_item(variant: "link", text: t(".edit"), href: edit_custom_account_subtype_path(custom_account_subtype), icon: "pencil", data: { turbo_frame: "modal" }) %>
+        <% menu.with_item(
+          variant: "button",
+          text: t(".delete"),
+          href: custom_account_subtype_path(custom_account_subtype),
+          icon: "trash-2",
+          method: :delete,
+          confirm: CustomConfirm.new(
+            destructive: true,
+            title: t(".delete_title", name: custom_account_subtype.name),
+            body: t(".delete_body", count: accounts_count),
+            btn_text: t(".delete")
+          )
+        ) %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

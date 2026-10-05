@@ -1,0 +1,17 @@
+---
+de:
+  activerecord:
+    models:
+      custom_account_subtype: Kontosubtyp
+    attributes:
+      custom_account_subtype:
+        accountable_type: Kontoart
+        name: Name
+        liquidity: Verfügbarkeit
+        tax_treatment: Steuerart
+    errors:
+      models:
+        custom_account_subtype:
+          attributes:
+            accountable_type:
+              in_use: kann nicht geändert werden, solange Konten diesen Subtyp verwenden

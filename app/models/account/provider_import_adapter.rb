@@ -76,8 +76,8 @@ class Account::ProviderImportAdapter
       # An automatically excluded stale pending (see Entry.auto_exclude_stale_pending)
       # that the provider now delivers as booked under the same id becomes a normal
       # entry again. Entries the user excluded are never touched.
+      # Turning `excluded` off also drops the sync's exclusion note (Entry callback).
       if entry.persisted? && !incoming_pending && entry.auto_excluded_pending?
-        entry.transaction.update!(extra: entry.transaction.extra.except(Entry::AUTO_EXCLUDED_PENDING_KEY))
         entry.update!(excluded: false)
       end
 

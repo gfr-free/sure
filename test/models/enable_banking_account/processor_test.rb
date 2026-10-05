@@ -224,7 +224,7 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_equal 50000.0, loan_account.reload.cash_balance
   end
 
-  test "excludes pending entries older than 8 days and marks the exclusion as automatic" do
+  test "excludes pending entries older than 8 days and notes the exclusion as automatic" do
     stale = create_pending_entry(external_id: "eb_stale_pending", date: 10.days.ago.to_date, amount: 42)
     recent = create_pending_entry(external_id: "eb_recent_pending", date: 3.days.ago.to_date, amount: 43)
 
@@ -249,6 +249,7 @@ class EnableBankingAccount::ProcessorTest < ActiveSupport::TestCase
     assert_not stale.excluded?
     assert_not stale.transaction.pending?
     assert_not stale.auto_excluded_pending?
+    assert_nil stale.transaction.extra[Entry::AUTO_MUTATION_KEY], "the sync's exclusion note is gone"
   end
 
   test "excluding or re-including an auto-excluded pending by hand ends its automatic state" do

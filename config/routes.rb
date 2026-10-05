@@ -446,6 +446,7 @@ Rails.application.routes.draw do
 
   resources :reports, only: %i[index] do
     patch :update_preferences, on: :collection
+    patch :update_net_worth_grouping, on: :collection
     get :export_transactions, on: :collection
     get :google_sheets_instructions, on: :collection
     get :print, on: :collection

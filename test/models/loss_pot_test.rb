@@ -52,5 +52,4 @@ class LossPotTest < ActiveSupport::TestCase
     assert_equal [ 100, 80 ], stocks.snapshots.reload.map(&:amount)
     assert_equal 1, @account.loss_pot("general").snapshots.count
   end
-
 end

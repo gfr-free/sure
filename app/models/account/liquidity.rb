@@ -161,14 +161,20 @@ module Account::Liquidity
   # Writes the subtype default straight to the column when the subtype was
   # changed outside the account form (provider syncs update the accountable
   # directly). A manual choice is left alone.
-  def refresh_default_liquidity!
+  #
+  # `keep_release_fields` keeps a release date the user entered when the new
+  # default is not locked; they only count while the level is locked, so a
+  # family's own subtype switched back to locked finds them again.
+  def refresh_default_liquidity!(keep_release_fields: false)
     return if liquidity_manual?
 
     default = default_liquidity
     return if liquidity == default
 
     attributes = { liquidity: default }
-    attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil) unless default == "locked"
+    unless default == "locked" || keep_release_fields
+      attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil)
+    end
     update_columns(attributes)
   end
 

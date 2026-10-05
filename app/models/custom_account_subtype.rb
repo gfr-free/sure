@@ -134,7 +134,7 @@ class CustomAccountSubtype < ApplicationRecord
     end
 
     def refresh_account_liquidity
-      accounts.includes(:accountable).find_each(&:refresh_default_liquidity!)
+      accounts.includes(:accountable).find_each { |account| account.refresh_default_liquidity!(keep_release_fields: true) }
     end
 
     def touch_accounts
@@ -146,7 +146,7 @@ class CustomAccountSubtype < ApplicationRecord
       # deleting the subtype.
       accounts.includes(:accountable).find_each do |account|
         account.update_columns(custom_account_subtype_id: nil, updated_at: Time.current)
-        account.refresh_default_liquidity!
+        account.refresh_default_liquidity!(keep_release_fields: true)
       end
     end
 end

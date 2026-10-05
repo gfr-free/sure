@@ -66,6 +66,20 @@ class CustomAccountSubtypeTest < ActiveSupport::TestCase
     assert_operator account.reload.updated_at, :>, 1.hour.ago
   end
 
+  test "switching the rules away from locked and back keeps the release date" do
+    custom = @family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Pot", rules: { "liquidity" => "locked" })
+    account = create_depository("Pot account", custom, available_on: Date.new(2030, 1, 1))
+
+    custom.update!(liquidity: "short_term")
+    assert_equal "short_term", account.reload.liquidity
+    assert account.available_on?(Date.new(2026, 10, 5)), "a short-term account is available despite the kept date"
+
+    custom.update!(liquidity: "locked")
+    account.reload
+    assert_equal "locked", account.liquidity
+    assert_equal Date.new(2030, 1, 1), account.available_on
+  end
+
   test "deleting a subtype returns its accounts to the built-in subtype's rules" do
     custom = @family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Pot", rules: { "liquidity" => "long_term" })
     account = create_depository("Pot account", custom, subtype: "cd", available_on: Date.new(2030, 1, 1))

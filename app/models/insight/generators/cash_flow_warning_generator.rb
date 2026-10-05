@@ -13,6 +13,10 @@ class Insight::Generators::CashFlowWarningGenerator < Insight::Generator
   HORIZON_DAYS = 30
 
   def generate
+    # The per-account warning (AccountShortfallGenerator) names the account
+    # and the payment; repeating it family-wide would say the same thing twice.
+    return [] if Account::Forecast.for_family(family).any?(&:shortfall?)
+
     accounts = cash_accounts
     return [] if accounts.empty?
 

@@ -5,6 +5,7 @@ de:
       title: Neue Finanzanalyse
       body: Öffne Sure, um deine neueste KI-Analyse anzusehen.
     actions:
+      account_shortfall: Kontoprognose ansehen
       budget: Budget ansehen
       cash_flow_warning: Wiederkehrende Buchungen prüfen
       idle_cash: Zum Konto
@@ -55,6 +56,9 @@ de:
       checking: Wird geprüft …
       queued: Wir erzeugen gerade neue Insights. Schau in einer Minute noch einmal vorbei.
     templates:
+      account_shortfall:
+        plain: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen. Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
+        with_cause: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen (%{cause}, %{cause_amount}). Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
@@ -74,6 +78,7 @@ de:
         below: Hochgerechnet gibst du diesen Monat %{projected_spend} für %{category} aus, rund %{deviation_pct} % weniger als dein jüngster Monatsschnitt von %{baseline_spend}.
       subscription_audit: "%{name} (%{amount}) ist seit dem erwarteten Termin am %{expected_on} nicht mehr aufgetaucht. Vielleicht ist das Abo gekündigt oder die Abbuchung hat sich verschoben."
     titles:
+      account_shortfall: "%{account} könnte ins Minus rutschen"
       budget_at_risk:
         one: Eine Kategorie in deinem Budget braucht Aufmerksamkeit
         other: "%{count} Kategorien in deinem Budget brauchen Aufmerksamkeit"
@@ -92,6 +97,7 @@ de:
         below: Deine Ausgaben für %{category} sinken
       subscription_audit: Läuft %{name} noch?
     types:
+      account_shortfall: Kontoprognose
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität

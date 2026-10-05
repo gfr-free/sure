@@ -29,6 +29,9 @@ module Assistant
     Function::GetBills,
     Function::GetBillDetails,
     Function::GetPaycheckPlan,
+    # Per-account forecast after expected payments (Account::Forecast); the
+    # account page shows it behind the same preview switch.
+    Function::GetAccountForecast,
     Function::GetBillAudit,
     Function::CreateBill,
     Function::UpdateBill,

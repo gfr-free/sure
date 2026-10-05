@@ -24,6 +24,8 @@
   <% unless bill_rows_empty %>
     <%= render "bills/month_pulse" %>
 
+    <%= render "bills/account_coverage", forecasts: @account_forecasts if @account_forecasts.any? %>
+
     <%= render "bills/ai_prompts", prompts: %w[due_before_paycheck subscriptions_up monthly_subscriptions] %>
   <% end %>
 

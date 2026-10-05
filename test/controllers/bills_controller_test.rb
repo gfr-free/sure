@@ -13,6 +13,27 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
     ensure_tailwind_build
   end
 
+  test "overview shows whether each account covers its expected payments" do
+    account = accounts(:depository)
+    account.update!(balance: 100)
+    today = Account.liquidity_today_for(@family)
+    series = @family.recurring_transactions.create!(
+      name: "Coverage Rent", account: account, amount: 650, currency: "USD", bill_type: "bill",
+      expected_day_of_month: 15, last_occurrence_date: today, next_expected_date: today + 30,
+      status: "active", manual: true
+    )
+    series.recurring_occurrences.delete_all
+    series.recurring_occurrences.create!(family: @family, original_due_on: today + 5, due_on: today + 5, currency: "USD")
+
+    get bills_url
+
+    assert_response :success
+    assert_select "[data-testid='bills-account-coverage']" do
+      assert_select "a[href=?]", account_path(account, tab: "forecast"), text: account.name
+      assert_select "p", text: /#{Regexp.escape(Money.new(550, "USD").format)} short/
+    end
+  end
+
   test "redirects users without preview access" do
     @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => false))
 

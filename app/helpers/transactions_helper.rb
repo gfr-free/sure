@@ -1,4 +1,16 @@
 module TransactionsHelper
+  # A counterparty's own bank account identifier is arguably more sensitive
+  # than the user's own account IBAN (it's a third party's number, not
+  # something the viewing family controls), so it's masked to the last 4
+  # characters by default -- matching the existing convention for the
+  # user's own linked-account IBAN in
+  # enable_banking_items/setup_accounts.html.erb -- rather than relying
+  # solely on the opt-in Privacy Mode blur.
+  def mask_counterparty_account_value(value)
+    return value if value.blank? || value.length <= 4
+    "•#{value.last(4)}"
+  end
+
   # @return [Array<Hash>] the filters offered above the transaction list, each
   #   with the key its partial is named for, a translated label and an icon
   def transaction_search_filters
@@ -134,7 +146,10 @@ module TransactionsHelper
         simplefin: {},
         plaid: {},
         provider_extras: [],
-        raw: pretty_json(extra)
+        # counterparty_iban/counterparty_account_id live in their own encrypted
+        # columns and are shown masked above; an already-synced row from before
+        # that change may still carry them here, so they never reach the raw dump.
+        raw: pretty_json(extra.is_a?(Hash) ? extra.except("counterparty_iban", "counterparty_account_id") : extra)
       }
     end
   end

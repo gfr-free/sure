@@ -36,7 +36,7 @@ module AccountsHelper
       end
 
     [
-      family.build_cache_key("account_sidebar_tabs_v4", invalidate_on_data_updates: true),
+      family.build_cache_key("account_sidebar_tabs_v5", invalidate_on_data_updates: true),
       Current.user&.id,
       shares_version,
       active_tab,
@@ -65,6 +65,22 @@ module AccountsHelper
   # classification groups, as chosen for the given view.
   def account_groups_for(source, view:)
     source.account_groups(by: account_grouping_primary(view), user: Current.user)
+  end
+
+  # Sections of the sidebar's "All" tab as [classification group or nil,
+  # account groups]. Grouped by account type, every group belongs to one side,
+  # so the tab stays one flat list. Grouped by another field, the same value
+  # (e.g. "Not set" or one owner) forms a group among assets and among debts,
+  # so each side gets its own section instead of two rows with one name.
+  def account_group_sections_for(balance_sheet, view:)
+    if account_grouping_primary(view) == AccountGrouping::DEFAULT_PRIMARY
+      return [ [ nil, account_groups_for(balance_sheet, view: view) ] ]
+    end
+
+    balance_sheet.classification_groups.filter_map do |classification_group|
+      groups = account_groups_for(classification_group, view: view)
+      [ classification_group, groups ] if groups.any?
+    end
   end
 
   # The second grouping dimension for an account list view, or nil when the

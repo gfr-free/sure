@@ -169,13 +169,18 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal [ 10, -10 ], subgroups.map { |subgroup| subgroup.weight.round }
   end
 
-  test "subgroups are empty when every account shares one value" do
+  test "a group whose accounts share one value still shows its one subgroup" do
     create_account(balance: 1000, accountable: Depository.new, custom_group: "Kids")
     create_account(balance: 2000, accountable: Depository.new, custom_group: "kids")
+    create_account(balance: 500, accountable: CreditCard.new)
 
-    group = BalanceSheet.new(@family).assets.account_groups.first
+    balance_sheet = BalanceSheet.new(@family)
+    group = balance_sheet.assets.account_groups.first
+    credit_cards = balance_sheet.liabilities.account_groups.first
 
-    assert_empty group.subgroups("custom_group", user: users(:empty))
+    assert_equal [ "Kids" ], group.subgroups("custom_group", user: users(:empty)).map(&:name)
+    assert_equal [ I18n.t("account_grouping.none") ], credit_cards.subgroups("custom_group", user: users(:empty)).map(&:name)
+    assert_equal [ 500 ], credit_cards.subgroups("custom_group", user: users(:empty)).map(&:total)
     assert_empty group.subgroups("unknown", user: users(:empty))
   end
 

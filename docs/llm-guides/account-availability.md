@@ -129,6 +129,9 @@ accounts, `value_at_maturity` (a term deposit paid at maturity capitalises
 once a year counted back from the release date). Future days assume today's
 balance unless the caller passes a balance path: `Account::Forecast` passes
 its own, so interest payouts in the window show up as `:interest` events.
+The API forecast endpoint leaves them out unless `include_interest=true` is
+passed, and then lists them separately as `interest_payments`, so v1 clients
+never see a new event kind.
 
 `Insight::Generators::InterestRateDropGenerator` warns 14 days before a credit
 rate drops. The account form's interest section, the account page's Interest

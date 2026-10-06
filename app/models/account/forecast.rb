@@ -69,12 +69,14 @@ class Account::Forecast
     end
 
     # The forecast for one account. `until_date` replaces the default window.
-    def for_account(account, user: nil, as_of: Account.liquidity_today_for(account.family), until_date: nil)
+    # `include_interest: false` leaves expected interest payments out, for API
+    # v1 clients that only know payment events.
+    def for_account(account, user: nil, as_of: Account.liquidity_today_for(account.family), until_date: nil, include_interest: true)
       until_date = until_date&.clamp(as_of, as_of + MAX_HORIZON_DAYS)
       ends_on = until_date || as_of + [ MAX_PAYDAY_DAYS, DEFAULT_HORIZON_DAYS ].max
       occurrences = Loader.new(account.family, account_ids: [ account.id ], user: user, as_of: as_of, ends_on: ends_on).load
 
-      new(account, as_of: as_of, occurrences: occurrences, until_date: until_date)
+      new(account, as_of: as_of, occurrences: occurrences, until_date: until_date, include_interest: include_interest)
     end
 
     def touches?(occurrence, account)
@@ -83,8 +85,9 @@ class Account::Forecast
     end
   end
 
-  def initialize(account, as_of:, occurrences:, until_date: nil)
+  def initialize(account, as_of:, occurrences:, until_date: nil, include_interest: true)
     @account = account
+    @include_interest = include_interest
     @starts_on = as_of
     @unconvertible_count = 0
 
@@ -152,7 +155,7 @@ class Account::Forecast
     def compute(occurrences)
       @starting_balance = account.balance_money
       @events = build_events(occurrences)
-      @events = (@events + interest_events(@events)).sort_by { |event| [ event.date, event.amount.amount ] }
+      @events = (@events + interest_events(@events)).sort_by { |event| [ event.date, event.amount.amount ] } if @include_interest
 
       balance = @starting_balance
       @low_balance = balance

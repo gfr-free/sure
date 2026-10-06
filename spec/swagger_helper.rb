@@ -373,11 +373,20 @@ RSpec.configure do |config|
             properties: {
               date: { type: :string, format: :date },
               name: { type: :string },
-              kind: { type: :string, enum: %w[expense income transfer_in transfer_out interest] },
+              kind: { type: :string, enum: %w[expense income transfer_in transfer_out] },
               amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               balance_after: { '$ref' => '#/components/schemas/ForecastMoney' },
-              recurring_transaction_id: { type: :string, format: :uuid, nullable: true, description: 'null for interest payments' },
-              occurrence_id: { type: :string, format: :uuid, nullable: true, description: 'null for interest payments' }
+              recurring_transaction_id: { type: :string, format: :uuid },
+              occurrence_id: { type: :string, format: :uuid }
+            }
+          },
+          AccountForecastInterestPayment: {
+            type: :object,
+            required: %w[date amount balance_after],
+            properties: {
+              date: { type: :string, format: :date },
+              amount: { '$ref' => '#/components/schemas/ForecastMoney' },
+              balance_after: { '$ref' => '#/components/schemas/ForecastMoney' }
             }
           },
           AccountForecast: {
@@ -401,7 +410,12 @@ RSpec.configure do |config|
               shortfall_amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               top_up_by: { type: :string, format: :date, nullable: true },
               unconvertible_count: { type: :integer, description: 'Payments left out for lack of an exchange rate' },
-              events: { type: :array, items: { '$ref' => '#/components/schemas/AccountForecastEvent' } }
+              events: { type: :array, items: { '$ref' => '#/components/schemas/AccountForecastEvent' } },
+              interest_payments: {
+                type: :array,
+                items: { '$ref' => '#/components/schemas/AccountForecastInterestPayment' },
+                description: 'Only with include_interest=true: expected interest payments, also counted in the balances'
+              }
             }
           },
           AccountCollection: {

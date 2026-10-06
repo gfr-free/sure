@@ -55,7 +55,9 @@ class Api::V1::AccountsController < Api::V1::BaseController
 
   # What is left in the account after its expected payments (Account::Forecast).
   # `until` (YYYY-MM-DD) replaces the default window: up to the next declared
-  # payday, else 30 days.
+  # payday, else 30 days. `include_interest=true` adds expected interest
+  # payments (Account::InterestProjection) as `interest_payments` and in the
+  # balances; without it the response stays as it was.
   def forecast
     unless valid_uuid?(params[:id])
       render json: { error: "not_found", message: "Account not found" }, status: :not_found
@@ -75,7 +77,9 @@ class Api::V1::AccountsController < Api::V1::BaseController
     until_date = parse_until_param
     return if performed?
 
-    @forecast = Account::Forecast.for_account(@account, user: current_resource_owner, until_date: until_date)
+    @include_interest = ActiveModel::Type::Boolean.new.cast(params[:include_interest]) || false
+    @forecast = Account::Forecast.for_account(@account, user: current_resource_owner, until_date: until_date,
+                                              include_interest: @include_interest)
 
     render :forecast
   rescue ActiveRecord::RecordNotFound

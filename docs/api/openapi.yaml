@@ -633,7 +633,6 @@ components:
           - income
           - transfer_in
           - transfer_out
-          - interest
         amount:
           "$ref": "#/components/schemas/ForecastMoney"
         balance_after:
@@ -641,13 +640,23 @@ components:
         recurring_transaction_id:
           type: string
           format: uuid
-          nullable: true
-          description: null for interest payments
         occurrence_id:
           type: string
           format: uuid
-          nullable: true
-          description: null for interest payments
+    AccountForecastInterestPayment:
+      type: object
+      required:
+      - date
+      - amount
+      - balance_after
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          "$ref": "#/components/schemas/ForecastMoney"
+        balance_after:
+          "$ref": "#/components/schemas/ForecastMoney"
     AccountForecast:
       type: object
       required:
@@ -713,6 +722,12 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/AccountForecastEvent"
+        interest_payments:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AccountForecastInterestPayment"
+          description: 'Only with include_interest=true: expected interest payments,
+            also counted in the balances'
     AccountCollection:
       type: object
       required:
@@ -4800,6 +4815,13 @@ paths:
           type: string
           format: date
         description: Last day of the forecast (YYYY-MM-DD), at most 366 days ahead
+      - name: include_interest
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: Add expected interest payments as interest_payments and count
+          them in the balances (default false)
       responses:
         '200':
           description: forecast computed

@@ -167,6 +167,9 @@ RSpec.describe 'API V1 Accounts', type: :request do
       parameter name: :until, in: :query, required: false,
                 schema: { type: :string, format: :date },
                 description: 'Last day of the forecast (YYYY-MM-DD), at most 366 days ahead'
+      parameter name: :include_interest, in: :query, required: false,
+                schema: { type: :boolean },
+                description: 'Add expected interest payments as interest_payments and count them in the balances (default false)'
 
       let(:id) { checking_account.id }
 

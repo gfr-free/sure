@@ -377,6 +377,29 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Rent" ], body["events"].map { |event| event["name"] }
   end
 
+  test "forecast adds interest payments only when asked" do
+    account = accounts(:depository)
+    account.update!(balance: 1000, interest_payout_frequency: "daily")
+    account.interest_rates.create!(effective_from: 1.year.ago.to_date, rate: 3.65)
+    account.family.recurring_transactions.destroy_all
+
+    get "/api/v1/accounts/#{account.id}/forecast", headers: api_headers(@api_key)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_not body.key?("interest_payments")
+    assert body["events"].none? { |event| event["kind"] == "interest" }
+    assert_equal 1000, body["ending_balance"]["amount"].to_d
+
+    get "/api/v1/accounts/#{account.id}/forecast", params: { include_interest: true }, headers: api_headers(@api_key)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert body["interest_payments"].any?
+    assert body["events"].none? { |event| event["kind"] == "interest" }
+    assert_operator body["ending_balance"]["amount"].to_d, :>, 1000
+  end
+
   test "forecast accepts an end date and rejects bad ones" do
     account = accounts(:depository)
     today = Account.liquidity_today_for(account.family)

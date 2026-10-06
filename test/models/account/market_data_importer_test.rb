@@ -147,6 +147,36 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     assert ExchangeRate.where(from_currency: "USD", to_currency: "EUR", date: trade_date).exists?
   end
 
+  test "derives bullion prices and fetches rates for their reference currency" do
+    family = Family.create!(name: "Smith", currency: "EUR")
+    account = family.accounts.create!(name: "Coins", currency: "EUR", balance: 0, accountable: Investment.new)
+
+    reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+
+    trade_date = 10.days.ago.to_date
+    Security::Price.create!(security: reference, date: trade_date, price: 4000, currency: "USD")
+    trade = Trade.new(security: coin, qty: 2, price: 3500, currency: "EUR", investment_activity_label: "Buy")
+    account.entries.create!(name: "Buy Krugerrand", date: trade_date, amount: 7000, currency: "EUR", entryable: trade)
+
+    @provider.expects(:fetch_security_prices).never
+    @provider.expects(:fetch_exchange_rates)
+             .with(from: "USD", to: "EUR", start_date: trade_date - EXCHANGE_RATE_BUFFER, end_date: anything)
+             .once
+             .returns(provider_success_response([
+               OpenStruct.new(from: "USD", to: "EUR", date: trade_date, rate: 0.9)
+             ]))
+
+    Account::MarketDataImporter.new(account).import_all
+
+    coin_price = coin.prices.find_by!(date: trade_date)
+    assert_equal "USD", coin_price.currency
+    assert_in_delta 4000, coin_price.price, 0.01
+  ensure
+    Setting.bullion_reference_securities = nil
+  end
+
   test "ignores price currencies that only occur before the account needs prices" do
     family = Family.create!(name: "Smith", currency: "USD")
 

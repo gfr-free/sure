@@ -68,6 +68,8 @@ class Account::MarketDataImporter
     all_security_ids = (current_security_ids | traded_security_ids)
     return if all_security_ids.empty?
 
+    import_bullion_prices(all_security_ids)
+
     securities = Security.online.where(id: all_security_ids).index_by(&:id)
 
     start_dates    = first_required_price_dates
@@ -109,6 +111,13 @@ class Account::MarketDataImporter
   end
 
   private
+    def import_bullion_prices(security_ids)
+      bullion_ids = BullionSpec.where(security_id: security_ids).pluck(:security_id)
+      return if bullion_ids.empty?
+
+      BullionSpec::PriceDeriver.new(security_ids: bullion_ids).derive_all
+    end
+
     def security_ids
       @security_ids ||= (account.current_holdings.pluck(:security_id) | account.trades.pluck(:security_id))
     end

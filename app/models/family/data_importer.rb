@@ -373,9 +373,6 @@ class Family::DataImporter
       assign_importable(account, :renewal_term_months, data) do |value|
         importable_integer(value, 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
       end
-      assign_importable(account, :grace_days, data) do |value|
-        importable_integer(value, 0..Account::Liquidity::MAX_GRACE_DAYS)
-      end
       if data.key?("auto_renew") || data.key?("renewal_term_months")
         renew = data.key?("auto_renew") ? ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true : account.auto_renew?
         account.auto_renew = account.renewal_term_months.present? && renew

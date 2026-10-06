@@ -19,9 +19,7 @@ Stored on `accounts.liquidity`:
 
 `available_on` is the release date of a locked account. With `auto_renew` and
 `renewal_term_months` the deposit rolls over and never releases by itself.
-`notice_period_days` is informational only. `grace_days` (renewing deposits
-only) is how long after a renewal the deposit can still be cancelled; it is
-shown and used by the reminders, never by the availability scopes.
+`notice_period_days` is informational only.
 
 ## Where the logic lives
 
@@ -74,8 +72,7 @@ count credit cards as available wealth.
 `Account::ReleaseReminder` decides which locked accounts need a reminder on a
 day: `upcoming` (released within the lead time), `released` (on the release
 date and for a week after) and `renewal` (a renewing deposit; from the lead
-time before the last day to give notice until that day or the end of the
-grace period). Both channels ask it, so they never disagree:
+time before the last day to give notice until that day). Both channels ask it, so they never disagree:
 
 - Feed: `Insight::Generators::AccountReleaseGenerator`, run by
   `GenerateInsightsJob`. The feed is per family, so it runs only when a member

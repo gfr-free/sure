@@ -9,8 +9,8 @@ class AccountAvailabilityMailerTest < ActionMailer::TestCase
   test "release digest lists each reminder" do
     upcoming = reminder(account("Term deposit", available_on: @today + 10), kind: "upcoming")
     renewal = Account::ReleaseReminder.new(
-      account: account("Rolling deposit", available_on: @today + 20, auto_renew: true, renewal_term_months: 6, grace_days: 7),
-      kind: "renewal", release_on: @today + 20, date: @today, cancel_by: @today + 20, grace_until: @today + 27
+      account: account("Rolling deposit", available_on: @today + 20, auto_renew: true, renewal_term_months: 6),
+      kind: "renewal", release_on: @today + 20, date: @today, cancel_by: @today + 20
     )
 
     mail = AccountAvailabilityMailer.release_digest(user: @user, reminders: [ upcoming, renewal ])
@@ -23,7 +23,7 @@ class AccountAvailabilityMailerTest < ActionMailer::TestCase
     assert_match "Term deposit", text
     assert_match "Available on #{I18n.l(@today + 10, format: :long)} (in 10 days)", text
     assert_match "Give notice by #{I18n.l(@today + 20, format: :long)}", text
-    assert_match "cancel until #{I18n.l(@today + 27, format: :long)}", text
+    assert_match "Renews automatically on #{I18n.l(@today + 20, format: :long)}", text
     assert_match %r{/accounts}, mail.html_part.body.decoded
   end
 

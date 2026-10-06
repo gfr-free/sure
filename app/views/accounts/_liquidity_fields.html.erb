@@ -32,12 +32,6 @@
                           label: t("accounts.liquidity.form.renewal_term_months_label"),
                           min: 1,
                           max: Account::Liquidity::MAX_RENEWAL_TERM_MONTHS %>
-
-    <%= form.number_field :grace_days,
-                          label: t("accounts.liquidity.form.grace_days_label"),
-                          min: 0,
-                          max: Account::Liquidity::MAX_GRACE_DAYS %>
-    <p class="text-xs text-secondary"><%= t("accounts.liquidity.form.grace_days_hint") %></p>
   </div>
 
   <%= form.number_field :notice_period_days,

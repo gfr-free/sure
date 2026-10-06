@@ -11,10 +11,8 @@ en:
       intro: "These accounts hold money that is locked until a date:"
       lines:
         cancel_by: "Give notice by %{date} to get the money out."
-        grace_until: "After renewing you can still cancel until %{date}."
         released: "Available since %{date}"
         renewal: "Renews automatically on %{date}."
-        renewed: "Renewed on %{date}."
         upcoming:
           one: "Available on %{date} (in %{count} day)"
           other: "Available on %{date} (in %{count} days)"

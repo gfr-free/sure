@@ -68,21 +68,21 @@ class Insight::Generators::AccountReleaseGeneratorTest < ActiveSupport::TestCase
   test "a renewing deposit names the last day to give notice" do
     enable(@admin, channel: "insight")
     term_deposit(available_on: Date.new(2026, 10, 20), auto_renew: true, renewal_term_months: 12,
-                 notice_period_days: 7, grace_days: 14)
+                 notice_period_days: 7)
 
     insight = generate.first
 
     assert_equal "renewal", insight.metadata[:kind]
-    assert_equal "account_release.renewal_notice_grace", insight.template_key
+    assert_equal "account_release.renewal_notice", insight.template_key
     assert_equal I18n.l(Date.new(2026, 10, 13), format: :long), insight.facts[:cancel_by]
   end
 
-  test "a renewal past its notice deadline but still ahead says it renews" do
+  test "a renewal past its notice deadline is not reminded again" do
     enable(@admin, channel: "insight")
     term_deposit(available_on: Date.new(2026, 10, 8), auto_renew: true, renewal_term_months: 12,
-                 notice_period_days: 7, grace_days: 14)
+                 notice_period_days: 7)
 
-    assert_equal "account_release.renewal_grace_ahead", generate.first.template_key
+    assert_empty generate
   end
 
   test "writes the reminder in German" do

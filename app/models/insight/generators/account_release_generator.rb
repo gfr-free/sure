@@ -55,7 +55,6 @@ class Insight::Generators::AccountReleaseGenerator < Insight::Generator
         days: reminder.days_until
       }
       facts[:cancel_by] = I18n.l(reminder.cancel_by, format: :long) if reminder.cancel_by
-      facts[:grace_until] = I18n.l(reminder.grace_until, format: :long) if reminder.grace_until
 
       build_insight(
         insight_type: "account_release",
@@ -75,14 +74,6 @@ class Insight::Generators::AccountReleaseGenerator < Insight::Generator
     end
 
     def template_key(reminder)
-      return "account_release.#{reminder.kind}" unless reminder.kind == "renewal"
-
-      if reminder.notice_open?
-        reminder.grace_until ? "account_release.renewal_notice_grace" : "account_release.renewal_notice"
-      elsif reminder.days_until.positive?
-        "account_release.renewal_grace_ahead"
-      else
-        "account_release.renewal_grace"
-      end
+      reminder.kind == "renewal" ? "account_release.renewal_notice" : "account_release.#{reminder.kind}"
     end
 end

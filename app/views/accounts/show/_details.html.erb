@@ -29,9 +29,6 @@
                 <%= l(row.value, format: :long) %>
                 <% if account.auto_renew? %>
                   <span class="text-secondary"><%= t("accounts.liquidity.details.renews", count: account.renewal_term_months) %></span>
-                  <% if (grace_end = account.grace_period_end(row.value)) %>
-                    <span class="block text-secondary"><%= t("accounts.liquidity.details.grace_until", date: l(grace_end, format: :long)) %></span>
-                  <% end %>
                 <% end %>
               <% else %>
                 <%= t("accounts.liquidity.details.no_release_date") %>

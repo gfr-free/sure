@@ -42,21 +42,8 @@ class Account::ReleaseReminderTest < ActiveSupport::TestCase
     assert_equal "renewal", reminder.kind
     assert_equal @today + 40, reminder.release_on
     assert_equal @today + 10, reminder.cancel_by
-    assert reminder.notice_open?
 
     assert_nil build(account, lead_days: 7, date: @today + 11)
-  end
-
-  test "a renewing deposit stays reminded during its grace period" do
-    account = locked_account(available_on: @today, auto_renew: true, renewal_term_months: 12, grace_days: 10)
-
-    reminder = build(account, lead_days: 14, date: @today + 10)
-
-    assert_equal "renewal", reminder.kind
-    assert_equal @today, reminder.release_on
-    assert_equal @today + 10, reminder.grace_until
-    assert_not reminder.notice_open?
-    assert_nil build(account, lead_days: 14, date: @today + 11)
   end
 
   test "a notice period longer than the time left moves on to the next renewal" do

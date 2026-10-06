@@ -11,10 +11,8 @@ de:
       intro: "Auf diesen Konten liegt Geld, das bis zu einem Datum gebunden ist:"
       lines:
         cancel_by: "Wenn du das Geld brauchst, kündige bis %{date}."
-        grace_until: "Nach der Verlängerung kannst du noch bis %{date} kündigen."
         released: "Verfügbar seit %{date}"
         renewal: "Verlängert sich am %{date} automatisch."
-        renewed: "Am %{date} verlängert."
         upcoming:
           one: "Verfügbar am %{date} (in %{count} Tag)"
           other: "Verfügbar am %{date} (in %{count} Tagen)"

@@ -75,7 +75,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           accountable: { subtype: "brokerage" },
           loss_pots: [
             { kind: "stocks", carry_forward: false,
-              snapshots: [ { date: "2025-12-31", amount: "1200.5" }, { date: "nope", amount: "5" }, { date: "2026-01-31", amount: "-1" } ] },
+              snapshots: [ { date: "2025-12-31", amount: "1200.5" }, { date: "nope", amount: "5" }, { date: "2026-01-31", amount: "-1" },
+                           { date: (Date.current + 1).iso8601, amount: "7" } ] },
             { kind: "options", snapshots: [ { date: "2025-12-31", amount: "10" } ] }
           ]
         }

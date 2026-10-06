@@ -385,7 +385,8 @@ class Family::DataImporter
     end
 
     # Loss pots (LossPot) with their entered balances. Unknown kinds, invalid
-    # dates and negative amounts are dropped; balances already there for the
+    # or future dates and negative amounts are dropped, as the account form
+    # would reject them; balances already there for the
     # same date are overwritten.
     def import_loss_pots(account, pots)
       return unless account.loss_pots_capable? && pots.is_a?(Array)
@@ -403,7 +404,7 @@ class Family::DataImporter
 
           date = parse_import_date(snapshot_data["date"])
           amount = importable_amount(snapshot_data["amount"])
-          next if date.nil? || amount.nil?
+          next if date.nil? || date > Date.current || amount.nil?
 
           pot.snapshots.find_or_initialize_by(date: date).update!(amount: amount, source: "manual")
         end

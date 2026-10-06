@@ -27,16 +27,13 @@
       <div class="p-4 space-y-1">
         <p class="text-sm text-secondary"><%= t(".annual_cost_label") %></p>
         <p class="text-primary font-medium text-xl privacy-sensitive">
-          <%= @total_annual_cost ? format_money(@total_annual_cost) : "–" %>
+          <%= contract_annual_amount(@total_cost) || "–" %>
         </p>
-        <% if @unconvertible_count.positive? %>
-          <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: @unconvertible_count) %></p>
-        <% end %>
       </div>
       <div class="p-4 space-y-1">
         <p class="text-sm text-secondary"><%= t(".monthly_cost_label") %></p>
         <p class="text-primary font-medium text-xl privacy-sensitive">
-          <%= @total_annual_cost ? format_money(@total_annual_cost / 12) : "–" %>
+          <%= contract_annual_amount(@total_cost, per: :month) || "–" %>
         </p>
       </div>
     </div>
@@ -57,7 +54,7 @@
     </div>
 
     <% @groups.each do |kind, contracts| %>
-      <% group_total = contracts.filter_map { |contract| @costs.dig(contract.id, 0) }.sum(Money.new(0, Current.family.currency)) %>
+      <% group_cost = @group_costs[kind] %>
       <section class="bg-container rounded-xl shadow-border-xs" aria-labelledby="contracts-<%= kind %>">
         <header class="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
           <h2 id="contracts-<%= kind %>" class="flex items-center gap-2 text-sm font-medium text-primary">
@@ -65,10 +62,10 @@
             <%= contract_kind_label(kind) %>
             <span class="text-secondary font-normal"><%= contracts.size %></span>
           </h2>
-          <% if group_total.positive? %>
+          <% if contract_cost_present?(group_cost) %>
             <p class="text-sm text-secondary privacy-sensitive">
-              <%= t("contracts.per_year", amount: format_money(group_total)) %>
-              <span class="hidden sm:inline">&middot; <%= t("contracts.per_month", amount: format_money(group_total / 12)) %></span>
+              <%= t("contracts.per_year", amount: contract_annual_amount(group_cost)) %>
+              <span class="hidden sm:inline">&middot; <%= t("contracts.per_month", amount: contract_annual_amount(group_cost, per: :month)) %></span>
             </p>
           <% end %>
         </header>

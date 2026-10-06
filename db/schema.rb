@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_150500) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2062,6 +2062,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_150500) do
     t.decimal "match_confidence", precision: 5, scale: 4
     t.jsonb "match_signals", default: {}, null: false
     t.date "paid_on"
+    t.boolean "pending_review", default: false, null: false
     t.uuid "recurring_occurrence_id", null: false
     t.string "source", null: false
     t.decimal "source_amount", precision: 19, scale: 4

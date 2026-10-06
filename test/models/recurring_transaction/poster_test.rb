@@ -35,15 +35,105 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert entry.locked?(:name)
   end
 
-  test "closes the occurrence as paid with an auto-posted allocation" do
+  test "closes the occurrence as paid with an auto-posted allocation that waits for review" do
     post!
 
     @occurrence.reload
-    assert @occurrence.paid?
+    assert @occurrence.paid?, "the posted entry counts as the payment straight away"
     assert @occurrence.auto_posted_at.present?
     allocation = @occurrence.allocations.sole
     assert allocation.from_auto_posted?
     assert allocation.allocation_confirmed?
+    assert allocation.pending_review?
+  end
+
+  test "confirming a provisional post only clears the review flag" do
+    post!
+    allocation = @occurrence.allocations.sole
+
+    RecurringTransaction::Allocator.new(@occurrence).confirm_posted!(allocation)
+
+    assert_not allocation.reload.pending_review?
+    assert allocation.from_auto_posted?, "deleting it later must still reopen the date"
+    assert @occurrence.reload.paid?
+  end
+
+  test "discarding a provisional post deletes the entry and skips the date" do
+    post!
+    allocation = @occurrence.allocations.sole
+    entry = allocation.entry
+
+    accounts = RecurringTransaction::Allocator.new(@occurrence).discard_posted!(allocation)
+
+    assert_equal [ @account ], accounts
+    assert_not Entry.exists?(entry.id)
+    assert @occurrence.reload.skipped?
+    assert_empty @occurrence.allocations
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+  end
+
+  test "discarding refuses a post that was confirmed in the meantime" do
+    post!
+    allocation = @occurrence.allocations.sole
+    stale = RecurringAllocation.find(allocation.id)
+    RecurringTransaction::Allocator.new(@occurrence).confirm_posted!(allocation)
+
+    assert_raises(RecurringTransaction::Allocator::NotPendingReviewError) do
+      RecurringTransaction::Allocator.new(@occurrence).discard_posted!(stale)
+    end
+    assert @occurrence.reload.paid?
+    assert Entry.exists?(allocation.entry_id)
+  end
+
+  test "discarding keeps the date open when another payment is recorded on it" do
+    @occurrence.override_amount!(1600)
+    post!
+    allocation = @occurrence.allocations.sole
+    RecurringTransaction::Allocator.new(@occurrence).allocate!(amount: 50)
+
+    RecurringTransaction::Allocator.new(@occurrence).discard_posted!(allocation)
+
+    assert @occurrence.reload.scheduled?, "the user's own payment must not end up on a skipped date"
+    assert_equal [ 50 ], @occurrence.allocations.pluck(:allocated_amount)
+  end
+
+  test "post now needs no review" do
+    future = occurrence_on(@rent, @today + 10)
+
+    Poster.new(@family, today: @today).post_now!(future)
+
+    assert_not future.reload.allocations.sole.pending_review?
+  end
+
+  test "discarding a provisional transfer deletes both legs" do
+    transfer_series = travel_to(@today) do
+      create_series(name: "Card payment", amount: 200, destination_account: accounts(:credit_card))
+    end
+    occurrence = occurrence_on(transfer_series, @today)
+    post!
+    allocation = occurrence.reload.allocations.sole
+    transfer = allocation.entry.transaction.transfer
+    leg_ids = [ transfer.outflow_transaction.entry.id, transfer.inflow_transaction.entry.id ]
+
+    assert_difference -> { Transfer.count }, -1 do
+      RecurringTransaction::Allocator.new(occurrence).discard_posted!(allocation)
+    end
+
+    assert_empty Entry.where(id: leg_ids)
+    assert occurrence.reload.skipped?
+  end
+
+  test "the matcher does not attach another entry to a date with a provisional post" do
+    post!
+    typed = @account.entries.create!(date: @today, name: "Rent", amount: 800, currency: "USD",
+                                     entryable: Transaction.new)
+
+    RecurringTransaction::Matcher.new(@family).run!
+
+    assert_empty RecurringAllocation.where(entry: typed)
+    assert_equal 1, @occurrence.reload.allocations.count
   end
 
   test "posts income with a negative amount" do

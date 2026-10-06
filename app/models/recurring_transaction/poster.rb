@@ -7,6 +7,10 @@ class RecurringTransaction
   # database transaction as the entry, and the entry carries an idempotency key
   # derived from the occurrence. Deleting the posted entry reopens the
   # occurrence (see Entry#release_auto_posted_allocations) without re-posting.
+  #
+  # Nightly posts are provisional: they count as paid, but wait for the user
+  # to confirm them or discard them (which skips the date), the same way an
+  # auto-matched transfer is reviewed.
   class Poster
     attr_reader :family, :today
 
@@ -28,7 +32,7 @@ class RecurringTransaction
         next unless series.auto_post_accounts_active?
 
         series.auto_postable_occurrences(today).each do |occurrence|
-          next unless post_occurrence!(series, occurrence)
+          next unless post_occurrence!(series, occurrence, pending_review: true)
 
           posted += 1
           unless series.transfer?
@@ -72,7 +76,7 @@ class RecurringTransaction
     private
       # `repost` lets the user post a date again whose posted entry they
       # deleted; the nightly run never does.
-      def post_occurrence!(series, occurrence, date: occurrence.effective_due_on, key: idempotency_key(occurrence), repost: false)
+      def post_occurrence!(series, occurrence, date: occurrence.effective_due_on, key: idempotency_key(occurrence), repost: false, pending_review: false)
         RecurringOccurrence.transaction do
           occurrence.lock!
           # Re-checked under the lock. Any existing allocation means the user
@@ -84,7 +88,7 @@ class RecurringTransaction
           next nil unless occurrence.resolved_expected_amount.positive?
 
           entry = series.transfer? ? post_transfer!(series, occurrence, date, key) : post_entry!(series, occurrence, date, key)
-          RecurringTransaction::Allocator.new(occurrence).allocate_posted!(entry: entry)
+          RecurringTransaction::Allocator.new(occurrence).allocate_posted!(entry: entry, pending_review: pending_review)
           occurrence.update!(auto_posted_at: Time.current)
           entry
         end

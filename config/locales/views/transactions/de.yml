@@ -1,6 +1,12 @@
 ---
 de:
   transactions:
+    auto_posted:
+      pending: Vorläufig
+      pending_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt. Bestätige sie oder verwirf sie, wenn die Zahlung diesmal nicht nötig ist.
+      confirm: Buchung bestätigen
+      discard: Buchung verwerfen und den Termin der Rechnung überspringen
+      discard_confirm: Diese Buchung löschen und den Termin der Rechnung überspringen?
     unknown_name: Unbekannte Transaktion
     form:
       account: Konto

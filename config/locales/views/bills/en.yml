@@ -293,6 +293,9 @@ en:
         one: "1 smaller change"
         other: "%{count} smaller changes"
       suggestion_line: "%{entry} looks like a payment of %{bill}"
+      auto_posted_line: "Sure posted %{entry} for %{bill}. Keep it?"
+      auto_posted_confirm: Confirm
+      auto_posted_discard: Discard and skip
       suggestion_unknown_entry: A transaction
       confidence: "%{percent}% match"
       accept: Apply

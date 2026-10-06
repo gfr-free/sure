@@ -94,7 +94,9 @@ class BillsController < ApplicationController
     @suggested_allocations = suggested_allocations
     # A row waiting on a match decision offers Review rather than Find.
     # Already loaded for the queue above, so indexing is free.
-    @suggestions_by_occurrence = @suggested_allocations.index_by(&:recurring_occurrence_id)
+    # A posted entry under review already pays its row, so only matcher
+    # suggestions change what the row offers.
+    @suggestions_by_occurrence = @suggested_allocations.select(&:allocation_suggested?).index_by(&:recurring_occurrence_id)
     @notices = collect_notices
 
     # The month as one chronological list, paid rows in place under a check.
@@ -617,18 +619,21 @@ class BillsController < ApplicationController
 
     def suggested_allocations
       RecurringAllocation
-        .suggested
+        .awaiting_review
         .joins(recurring_occurrence: :recurring_transaction)
         .where(recurring_occurrences: { family_id: Current.family.id })
         .merge(RecurringTransaction.accessible_by(Current.user))
         # Income never reviews here: the matcher no longer suggests it, and
         # this filter also retires any suggestion written before that rule.
-        .merge(RecurringTransaction.where.not(bill_type: "income"))
+        # A posted entry under review is the exception: a posted paycheck
+        # needs the same confirm-or-discard answer as a posted bill.
+        .where("recurring_transactions.bill_type <> 'income' OR recurring_allocations.pending_review")
         .includes(:entry, recurring_occurrence: { recurring_transaction: :merchant })
         # The confidence the matcher scored these with was sitting unused on
         # the row while the queue ordered itself by when the job happened to
         # run. Most-certain question first.
-        .order(match_confidence: :desc, created_at: :asc)
+        # Posted entries carry no confidence and go after the matcher's.
+        .order(Arel.sql("recurring_allocations.match_confidence DESC NULLS LAST"), created_at: :asc)
     end
 
     # Converted into the family currency because the headline answers "how

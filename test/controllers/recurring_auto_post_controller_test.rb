@@ -83,17 +83,98 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert_no_match recurring_transactions(:inactive_subscription).merchant.name, response.body
   end
 
-  test "the transaction list marks an auto-posted entry" do
-    @series.update!(auto_post: true)
-    occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 40,
-                                                       due_on: Date.current, currency: "USD")
-    @series.update_columns(auto_post_from: Date.current)
-    RecurringTransaction::Poster.new(@family, today: Date.current).post_due!
-    assert occurrence.reload.paid?
+  test "the transaction list offers to confirm or discard a provisional post" do
+    occurrence = post_provisionally!
+    allocation = occurrence.allocations.sole
+
+    get transactions_url
+
+    assert_response :success
+    assert_match I18n.t("transactions.auto_posted.pending_tooltip"), response.body
+    assert_match confirm_recurring_allocation_path(allocation), response.body
+    assert_match reject_recurring_allocation_path(allocation), response.body
+  end
+
+  test "the transaction list marks a confirmed post without review buttons" do
+    occurrence = post_provisionally!
+    allocation = occurrence.allocations.sole
+    RecurringTransaction::Allocator.new(occurrence).confirm_posted!(allocation)
 
     get transactions_url
 
     assert_response :success
     assert_match I18n.t("transactions.transaction.auto_posted_tooltip"), response.body
+    assert_no_match confirm_recurring_allocation_path(allocation), response.body
   end
+
+  test "the bills review queue lists a provisional post" do
+    post_provisionally!
+
+    get bills_url
+
+    assert_response :success
+    assert_match I18n.t("bills.index.auto_posted_confirm"), response.body
+    assert_match I18n.t("bills.index.auto_posted_discard"), response.body
+  end
+
+  test "confirming a provisional post clears its review" do
+    occurrence = post_provisionally!
+
+    post confirm_recurring_allocation_url(occurrence.allocations.sole), headers: { "HTTP_REFERER" => transactions_url }
+
+    assert_redirected_to transactions_path
+    assert_equal I18n.t("recurring_allocations.confirm_posted.success"), flash[:notice]
+    assert occurrence.reload.paid?
+    assert_not occurrence.allocations.sole.pending_review?
+    assert occurrence.allocations.sole.from_auto_posted?
+  end
+
+  test "discarding a provisional post deletes the entry and skips the date" do
+    occurrence = post_provisionally!
+    entry = occurrence.allocations.sole.entry
+
+    assert_difference -> { Entry.count }, -1 do
+      post reject_recurring_allocation_url(occurrence.allocations.sole), headers: { "HTTP_REFERER" => transactions_url }
+    end
+
+    assert_redirected_to transactions_path
+    assert_not Entry.exists?(entry.id)
+    assert occurrence.reload.skipped?
+    assert_equal I18n.t("recurring_allocations.discard.success"), flash[:notice]
+  end
+
+  test "a read-only share cannot discard a provisional post" do
+    occurrence = post_provisionally!
+    allocation = occurrence.allocations.sole
+    Account.stubs(:writable_by).returns(Account.none)
+
+    assert_no_difference -> { Entry.count } do
+      post reject_recurring_allocation_url(allocation)
+    end
+
+    assert_response :not_found
+    assert occurrence.reload.allocations.sole.pending_review?
+  end
+
+  test "a read-only share sees a provisional post without review buttons" do
+    occurrence = post_provisionally!
+    Account.stubs(:writable_by).returns(Account.none)
+
+    get transactions_url
+
+    assert_response :success
+    assert_match I18n.t("transactions.auto_posted.pending_tooltip"), response.body
+    assert_no_match confirm_recurring_allocation_path(occurrence.allocations.sole), response.body
+  end
+
+  private
+    def post_provisionally!
+      @series.update!(auto_post: true)
+      occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 40,
+                                                         due_on: Date.current, currency: "USD")
+      @series.update_columns(auto_post_from: Date.current)
+      RecurringTransaction::Poster.new(@family, today: Date.current).post_due!
+      assert occurrence.reload.allocations.sole.pending_review?
+      occurrence
+    end
 end

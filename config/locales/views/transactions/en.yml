@@ -1,6 +1,12 @@
 ---
 en:
   transactions:
+    auto_posted:
+      pending: Provisional
+      pending_tooltip: Sure posted this from a recurring bill. Confirm it, or discard it if the payment is not needed this time.
+      confirm: Confirm this posting
+      discard: Discard this posting and skip the bill's date
+      discard_confirm: Delete this transaction and skip this date of the bill?
     bulk_updates:
       new:
         cancel: Cancel

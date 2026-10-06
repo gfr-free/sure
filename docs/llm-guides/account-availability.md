@@ -115,13 +115,29 @@ Channel and lead time are per person in `users.preferences`
 (`User#account_release_channel`, `#account_release_lead_days`), set on the
 Preferences page.
 
+## Overview figures
+
+`BalanceSheet#liquidity(date:)` returns a `BalanceSheet::LiquidityOverview`
+built from the balance sheet's account rows (same accounts, same converted
+balances as net worth): available and locked assets, short-term liabilities,
+available net worth, assets per level, the release timeline buckets and the
+list of upcoming releases. `BalanceSheet#available_net_worth_series` is the
+history of available net worth; a locked account enters it on its release
+date (`Balance::ChartSeriesBuilder`'s `account_active_from_dates`).
+
+The dashboard widget (`pages/dashboard/_liquidity`), the reports section
+(`reports/_liquidity`), `GET /api/v1/balance_sheet` (`availability`) and the
+assistant's `get_balance_sheet` all read these two methods; shared view
+partials live in `app/views/liquidity/`.
+
 ## Preview gating
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
 UI are behind the preview switch, except the saving rule above: the form
-section, header badge, Details tab, and the budget's and paycheck planner's
-switch from "depository" to `immediate_assets_on` read the viewer's
-`preview_features_enabled?`. Insights already run only for preview families;
-release reminders, their settings and the e-mail only reach members with
-preview features on. API and assistant fields are always
+section, header badge, Details tab, the budget's and paycheck planner's switch
+from "depository" to `immediate_assets_on`, the dashboard widget and the
+reports section read the viewer's `preview_features_enabled?`. Insights
+already run only for preview families; release reminders, their settings and
+the e-mail only reach members with preview features on. API and assistant
+fields are always
 returned (additive).

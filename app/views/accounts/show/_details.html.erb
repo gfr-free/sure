@@ -35,8 +35,6 @@
               <% else %>
                 <%= t("accounts.liquidity.details.no_release_date") %>
               <% end %>
-            <% when :notice_period %>
-              <%= t("accounts.liquidity.details.days", count: row.value) %>
             <% when :tax_treatment %>
               <%= t("accounts.tax_treatments.#{row.value}") %>
             <% when :counts_in_budget, :counts_as_budget_cash %>

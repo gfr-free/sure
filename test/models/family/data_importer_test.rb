@@ -45,7 +45,6 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           liquidity: "locked",
           locked_attributes: { liquidity: "2026-10-01T00:00:00Z" },
           available_on: "2027-03-31",
-          notice_period_days: 30,
           auto_renew: true,
           renewal_term_months: 12
         }
@@ -57,9 +56,49 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "locked", account.liquidity
     assert account.liquidity_manual?
     assert_equal Date.new(2027, 3, 31), account.available_on
-    assert_equal 30, account.notice_period_days
     assert account.auto_renew?
     assert_equal 12, account.renewal_term_months
+  end
+
+  test "imports money moved from a locked deposit into investments as a funds movement" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "cd",
+          name: "Term Deposit",
+          balance: "5000.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          accountable: { subtype: "cd" },
+          liquidity: "locked",
+          locked_attributes: { liquidity: "2026-10-01T00:00:00Z" },
+          available_on: "2099-12-31"
+        }
+      },
+      {
+        type: "Account",
+        data: { id: "brokerage", name: "Brokerage", balance: "1000.00", currency: "USD", accountable_type: "Investment" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "cd-outflow", account_id: "cd", date: "2024-01-15", amount: "100.00", name: "To brokerage", currency: "USD", kind: "standard" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "brokerage-inflow", account_id: "brokerage", date: "2024-01-15", amount: "-100.00", name: "From term deposit", currency: "USD", kind: "standard" }
+      },
+      {
+        type: "Transfer",
+        data: { id: "cd-transfer", inflow_transaction_id: "brokerage-inflow", outflow_transaction_id: "cd-outflow", status: "confirmed", notes: "Locked to brokerage" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    transfer = Transfer.find_by!(notes: "Locked to brokerage")
+    assert_equal "funds_movement", transfer.outflow_transaction.kind
+    assert_equal "funds_movement", transfer.inflow_transaction.kind
   end
 
   test "an exported automatic availability follows the subtype default on import" do
@@ -75,7 +114,6 @@ class Family::DataImporterTest < ActiveSupport::TestCase
           subtype: "cd",
           accountable: { subtype: "cd" },
           liquidity: "immediate",
-          notice_period_days: "not a number",
           auto_renew: true
         }
       }
@@ -85,7 +123,6 @@ class Family::DataImporterTest < ActiveSupport::TestCase
 
     assert_equal "locked", account.liquidity
     assert_not account.liquidity_manual?
-    assert_nil account.notice_period_days
     assert_not account.auto_renew?, "renewal needs a term"
   end
 
@@ -184,7 +221,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       accountable: { subtype: "cd" }
     }
     first = build_ndjson([ { type: "Account", data: account_data.merge(
-      liquidity: "locked", available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12
+      liquidity: "locked", available_on: "2027-03-31", auto_renew: true, renewal_term_months: 12
     ) } ])
     account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
 
@@ -192,7 +229,6 @@ class Family::DataImporterTest < ActiveSupport::TestCase
 
     account.reload
     assert_equal Date.new(2027, 3, 31), account.available_on
-    assert_equal 30, account.notice_period_days
     assert account.auto_renew?
     assert_equal 12, account.renewal_term_months
   end
@@ -234,18 +270,17 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       accountable: { subtype: "cd" }
     }
     first = build_ndjson([ { type: "Account", data: account_data.merge(
-      available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12
+      available_on: "2027-03-31", auto_renew: true, renewal_term_months: 12
     ) } ])
     account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
 
     second = build_ndjson([ { type: "Account", data: account_data.merge(
-      available_on: "someday", notice_period_days: -5, renewal_term_months: "invalid"
+      available_on: "someday", renewal_term_months: "invalid"
     ) } ])
     Family::DataImporter.new(@family, second, import_session: session).import!
 
     account.reload
     assert_equal Date.new(2027, 3, 31), account.available_on
-    assert_equal 30, account.notice_period_days
     assert_equal 12, account.renewal_term_months
     assert account.auto_renew?
   end

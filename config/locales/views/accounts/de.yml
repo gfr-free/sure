@@ -174,8 +174,6 @@ de:
         available_on_label: Gebunden bis
         auto_renew_label: Verlängert sich automatisch
         renewal_term_months_label: Laufzeit in Monaten
-        notice_period_days_label: Kündigungsfrist (Tage)
-        notice_period_days_hint: Optional, nur zur Anzeige.
       details:
         title: Details
         intro_subtype: "Regeln für dieses Konto. Die Standardwerte kommen vom Subtyp %{subtype}."
@@ -188,13 +186,9 @@ de:
         renews:
           one: verlängert sich jeden Monat
           other: "verlängert sich alle %{count} Monate"
-        days:
-          one: 1 Tag
-          other: "%{count} Tage"
         rows:
           liquidity: Verfügbarkeit
           release: Frei ab
-          notice_period: Kündigungsfrist
           tax_treatment: Steuerart
           counts_in_budget: Buchungen zählen in Budget und Cashflow
           counts_as_budget_cash: Saldo zählt im Budget als frei verfügbar

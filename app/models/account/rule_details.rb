@@ -18,7 +18,6 @@ class Account::RuleDetails
     [
       liquidity_row,
       release_row,
-      notice_row,
       tax_treatment_row,
       budget_row,
       budget_cash_row
@@ -55,12 +54,6 @@ class Account::RuleDetails
       return nil unless account.liquidity == "locked"
 
       Row.new(key: :release, value: account.next_release_date(date), source: :user)
-    end
-
-    def notice_row
-      return nil if account.notice_period_days.nil?
-
-      Row.new(key: :notice_period, value: account.notice_period_days, source: :user)
     end
 
     # Crypto keeps its tax treatment in a column the user sets; Investment and

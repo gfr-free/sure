@@ -134,7 +134,7 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
 
   test "should show account availability" do
     account = accounts(:depository)
-    account.update!(subtype: "cd", available_on: Date.new(2030, 3, 31), notice_period_days: 30)
+    account.update!(subtype: "cd", available_on: Date.new(2030, 3, 31))
 
     get "/api/v1/accounts/#{account.id}", headers: api_headers(@api_key)
 
@@ -142,7 +142,6 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     response_body = JSON.parse(response.body)
     assert_equal "locked", response_body["liquidity"]
     assert_equal "2030-03-31", response_body["available_on"]
-    assert_equal 30, response_body["notice_period_days"]
     assert_equal false, response_body["available_now"]
   end
 

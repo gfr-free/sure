@@ -80,14 +80,13 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
 
   test "update stores a manual availability with its release date" do
     patch depository_path(@account), params: {
-      account: { liquidity_choice: "locked", available_on: "2030-03-31", notice_period_days: "30" }
+      account: { liquidity_choice: "locked", available_on: "2030-03-31" }
     }
 
     @account.reload
     assert_equal "locked", @account.liquidity
     assert @account.liquidity_manual?
     assert_equal Date.new(2030, 3, 31), @account.available_on
-    assert_equal 30, @account.notice_period_days
   end
 
   test "update can hand availability back to the subtype" do

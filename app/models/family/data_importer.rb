@@ -421,9 +421,6 @@ class Family::DataImporter
       end
 
       assign_importable(account, :available_on, data) { |value| parse_import_date(value) }
-      assign_importable(account, :notice_period_days, data) do |value|
-        importable_integer(value, 0..Account::Liquidity::MAX_NOTICE_PERIOD_DAYS)
-      end
       assign_importable(account, :renewal_term_months, data) do |value|
         importable_integer(value, 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
       end
@@ -1168,17 +1165,11 @@ class Family::DataImporter
     end
 
     def imported_transfer_outflow_kind(transfer)
-      source_account = transfer.outflow_transaction.entry.account
-      destination_account = transfer.inflow_transaction.entry.account
-      return "loan_payment" if destination_account.loan?
-      return "cc_payment" if destination_account.liability?
-      return "investment_contribution" if investment_account?(destination_account) && !investment_account?(source_account)
-
-      "funds_movement"
-    end
-
-    def investment_account?(account)
-      account.investment? || account.crypto?
+      Transfer.kind_for_account(
+        transfer.inflow_transaction.entry.account,
+        source: transfer.outflow_transaction.entry.account,
+        date: transfer.outflow_transaction.entry.date
+      )
     end
 
     def import_rejected_transfers(records)

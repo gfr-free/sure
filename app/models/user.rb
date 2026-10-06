@@ -588,22 +588,26 @@ class User < ApplicationRecord
     preferences&.[]("last_seen_release_tag")
   end
 
+  def release_seen?(tag)
+    tag == last_seen_release_tag || Array(preferences&.[]("seen_release_tags")).include?(tag)
+  end
+
   def mark_release_seen!(tag)
-    tag_version = parsed_release_tag_version!(tag)
+    parsed_release_tag_version!(tag)
 
     with_lock do
-      current = last_seen_release_tag
+      # Acknowledgement is about identity, not version precedence: hotfix tags
+      # sort before their base release, and users can switch release channels.
+      # Merge after reloading under the lock so stale tabs cannot lose tags.
+      seen_tags = Array(preferences&.[]("seen_release_tags"))
+      legacy_tag = last_seen_release_tag
+      seen_tags += [ legacy_tag ] if parsed_release_tag_version(legacy_tag)
+      seen_tags = (seen_tags + [ tag ]).uniq
 
-      # Never regress the marker: a stale tab (or an old app version during a
-      # rolling deploy) must not make an already-acknowledged release look
-      # unseen again. A previously stored malformed tag is overwritten by the
-      # next valid dismissal so the account can recover.
-      if current
-        current_version = parsed_release_tag_version(current)
-        next if current_version && tag_version < current_version
-      end
-
-      update!(preferences: (preferences || {}).merge("last_seen_release_tag" => tag))
+      update!(preferences: (preferences || {}).merge(
+        "seen_release_tags" => seen_tags,
+        "last_seen_release_tag" => tag
+      ))
     end
   end
 
@@ -739,6 +743,42 @@ class User < ApplicationRecord
 
   def preview_features_enabled?
     preferences&.dig("preview_features_enabled") == true
+  end
+
+  # Release reminders for locked money (decision E5): how each person hears
+  # that a term deposit is about to be released or renewed, and how many days
+  # ahead. Stored in `preferences`; the feed is the default so nobody gets an
+  # e-mail they did not ask for.
+  ACCOUNT_RELEASE_CHANNELS = %w[insight email both off].freeze
+
+  def account_release_channel
+    channel = preferences&.dig("account_release_channel")
+    channel.in?(ACCOUNT_RELEASE_CHANNELS) ? channel : "insight"
+  end
+
+  def account_release_lead_days
+    days = Integer(preferences&.dig("account_release_lead_days").to_s, exception: false)
+    days && Account::ReleaseReminder::LEAD_DAYS_RANGE.cover?(days) ? days : Account::ReleaseReminder::DEFAULT_LEAD_DAYS
+  end
+
+  def account_release_insights?
+    account_release_channel.in?(%w[insight both])
+  end
+
+  def account_release_emails?
+    account_release_channel.in?(%w[email both])
+  end
+
+  # The availability widget asks once to check how accounts were classified
+  # by availability (they were set from their subtype by a backfill).
+  def liquidity_review_dismissed?
+    preferences&.dig("liquidity_review_dismissed_at").present?
+  end
+
+  def dismiss_liquidity_review!
+    with_lock do
+      update!(preferences: (preferences || {}).merge("liquidity_review_dismissed_at" => Time.current.iso8601))
+    end
   end
 
   private

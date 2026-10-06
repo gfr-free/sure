@@ -34,10 +34,4 @@
                           min: 1,
                           max: Account::Liquidity::MAX_RENEWAL_TERM_MONTHS %>
   </div>
-
-  <%= form.number_field :notice_period_days,
-                        label: t("accounts.liquidity.form.notice_period_days_label"),
-                        min: 0,
-                        max: Account::Liquidity::MAX_NOTICE_PERIOD_DAYS %>
-  <p class="text-xs text-secondary"><%= t("accounts.liquidity.form.notice_period_days_hint") %></p>
 <% end %>

@@ -337,6 +337,7 @@ Rails.application.routes.draw do
   get "dashboard/cash_flow", to: "cash_flows#show", as: :dashboard_cash_flow
   patch "dashboard/preferences", to: "pages#update_preferences"
   patch "dashboard/sections/:section_key/hidden", to: "pages#update_section_hidden", as: :dashboard_section_hidden
+  patch "dashboard/liquidity_review", to: "pages#dismiss_liquidity_review", as: :dashboard_liquidity_review
 
   resource :current_session, only: %i[update]
 
@@ -1017,6 +1018,7 @@ Rails.application.routes.draw do
     # so name it explicitly.
     resource :system_health, only: :show, controller: "system_health" do
       get :ai_status
+      get :hosted_usage
       post :verify_worker_ai
       post :send_test_push
     end

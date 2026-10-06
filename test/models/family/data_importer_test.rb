@@ -88,6 +88,28 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_nil account.january_tax_debit
   end
 
+  test "an account replay without tax keys keeps the saved tax settings" do
+    account = Account.create!(
+      family: @family, accountable: Depository.new(subtype: "savings", tax_treatment: "tax_exempt"), name: "Savings",
+      balance: 100, currency: "EUR", tax_withheld_at_source: true, tax_allowance_allocation: 801, january_tax_debit: 5
+    )
+    importer = Family::DataImporter.new(@family, build_ndjson([]))
+    data = { "id" => "old-savings", "name" => "Savings" }
+
+    importer.send(:assign_imported_tax, account, data, {})
+
+    assert_equal true, account.tax_withheld_at_source
+    assert_equal 801, account.tax_allowance_allocation
+    assert_equal 5, account.january_tax_debit
+    assert_equal :tax_exempt, account.tax_treatment
+
+    importer.send(:assign_imported_tax, account, data.merge("tax_withheld_at_source" => nil, "january_tax_debit" => nil), {})
+
+    assert_nil account.tax_withheld_at_source
+    assert_nil account.january_tax_debit
+    assert_equal 801, account.tax_allowance_allocation
+  end
+
   test "an exported automatic availability follows the subtype default on import" do
     ndjson = build_ndjson([
       {

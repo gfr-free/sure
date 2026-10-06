@@ -172,7 +172,8 @@ class Tax::Estimate
       if withheld?(account)
         [ account.tax_allowance_allocation.to_d - income_total(account: account), 0 ].max
       else
-        used = sum(incomes.reject { |income| withheld_ids.include?(income.account_id) })
+        # Counted like `tax_on` does: positive returns of kinds with a rate.
+        used = sum(incomes.select { |income| !withheld_ids.include?(income.account_id) && income.amount.positive? && profile&.rate_for(income.kind) })
         [ deferred_allowance - used, 0 ].max
       end
     end

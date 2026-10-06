@@ -153,9 +153,10 @@ class Account::Forecast
 
     def compute(occurrences)
       @starting_balance = account.balance_money
-      @events = build_events(occurrences)
-      @events = (@events + interest_events(@events)).sort_by { |event| [ event.date, event.amount.amount ] }
-      @events = (@events + tax_debit_events).sort_by { |event| [ event.date, event.amount.amount ] }
+      # Interest is worked out on the balance after the payments, January tax
+      # debits included.
+      payments = build_events(occurrences) + tax_debit_events
+      @events = (payments + interest_events(payments)).sort_by { |event| [ event.date, event.amount.amount ] }
 
       balance = @starting_balance
       @low_balance = balance

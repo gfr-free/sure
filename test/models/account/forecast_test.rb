@@ -211,6 +211,21 @@ class Account::ForecastTest < ActiveSupport::TestCase
     end
   end
 
+  test "interest is paid on the balance after a January tax debit" do
+    travel_to Time.zone.local(2026, 1, 1, 12) do
+      @account.update!(interest_payout_frequency: "monthly", tax_withheld_at_source: false)
+      @account.interest_rates.create!(effective_from: Date.new(2025, 12, 1), rate: 3.65)
+      @account.balances.create!(date: Date.new(2026, 1, 1), balance: 1000, start_cash_balance: 1000, currency: "USD")
+      without_debit = Account::Forecast.for_account(@account.reload).events.select { |event| event.kind == :interest }.map(&:amount)
+
+      @account.update!(january_tax_debit: 500)
+      with_debit = Account::Forecast.for_account(@account.reload).events.select { |event| event.kind == :interest }.map(&:amount)
+
+      assert_equal without_debit.size, with_debit.size
+      assert_operator with_debit.last, :<, without_debit.last
+    end
+  end
+
   test "only immediate assets are forecastable" do
     assert Account::Forecast.forecastable?(@account)
     assert_not Account::Forecast.forecastable?(accounts(:credit_card))

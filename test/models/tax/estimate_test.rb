@@ -123,6 +123,19 @@ class Tax::EstimateTest < ActiveSupport::TestCase
     assert_equal 15, estimate.tax_for(bank, 100, kind: "interest")
   end
 
+  test "tax_for counts only returns with a rate against the deferred allowance" do
+    profile(rate_interest: 25, annual_allowance: 500)
+    broker = depository(withheld: false)
+    interest(broker, 300)
+    dividend(broker, 400)
+
+    estimate = Tax::Estimate.new(@user, year: @year)
+
+    # Dividends have no rate and use no allowance: 200 of it is left.
+    assert_equal 0, estimate.tax_for(broker, 100, kind: "interest")
+    assert_equal 25, estimate.tax_for(broker, 300, kind: "interest")
+  end
+
   test "the profile's withholding default applies when the account has none" do
     profile(rate_interest: 25, annual_allowance: 0, withheld_at_source_default: false)
     account = depository(withheld: nil)

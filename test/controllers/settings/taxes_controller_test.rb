@@ -50,6 +50,31 @@ class Settings::TaxesControllerTest < ActionDispatch::IntegrationTest
     assert_empty @user.tax_profiles
   end
 
+  test "an inherited profile is edited as a copy for this year" do
+    earlier = @user.tax_profiles.create!(valid_from_year: @year - 2, currency: "EUR", rate_interest: 20)
+
+    get settings_taxes_path
+
+    assert_response :success
+    assert_select "input[name='tax_profile[valid_from_year]'][value='#{@year}']"
+    assert_select "input[name='tax_profile[rate_interest]'][value='20.0']"
+
+    patch settings_taxes_path, params: { tax_profile: { valid_from_year: @year, currency: "EUR", rate_interest: "25" } }
+
+    assert_equal BigDecimal("20"), earlier.reload.rate_interest
+    assert_equal BigDecimal("25"), @user.tax_profiles.find_by!(valid_from_year: @year).rate_interest
+  end
+
+  test "a blank or malformed year is rejected" do
+    [ "", "abc" ].each do |value|
+      patch settings_taxes_path, params: { tax_profile: { valid_from_year: value, currency: "EUR", rate_interest: "25" } }
+
+      assert_redirected_to settings_taxes_path
+      assert_equal I18n.t("settings.taxes.update.invalid_year"), flash[:alert]
+    end
+    assert_empty @user.tax_profiles
+  end
+
   test "marks a year's reserve as paid and open again" do
     post settle_settings_taxes_path(year: @year - 1, settled: true)
     assert @user.reload.tax_reserve_settled?(@year - 1)

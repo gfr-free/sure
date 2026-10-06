@@ -54,6 +54,7 @@ de:
         mark_open: Wieder zählen
       update:
         saved: Steuer-Einstellungen gespeichert.
+        invalid_year: Gib ein gültiges Jahr an, ab dem dieses Steuerprofil gilt.
       settle:
         updated: Steuer-Rücklage aktualisiert.
       destroy_profile:

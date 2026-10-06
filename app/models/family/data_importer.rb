@@ -373,12 +373,16 @@ class Family::DataImporter
     # Tax settings (Account::Taxation). Values out of range are dropped, so
     # the account falls back to its owner's profile and subtype.
     def assign_imported_tax(account, data, accountable_data)
-      withheld = data["tax_withheld_at_source"]
-      account.tax_withheld_at_source = withheld.nil? ? nil : ActiveModel::Type::Boolean.new.cast(withheld)
-      account.tax_allowance_allocation = importable_amount(data["tax_allowance_allocation"])
-      account.january_tax_debit = importable_amount(data["january_tax_debit"])
+      # A key that is absent leaves the saved setting alone (an older or partial
+      # row); an explicit null clears it.
+      if data.key?("tax_withheld_at_source")
+        withheld = data["tax_withheld_at_source"]
+        account.tax_withheld_at_source = withheld.nil? ? nil : ActiveModel::Type::Boolean.new.cast(withheld)
+      end
+      account.tax_allowance_allocation = importable_amount(data["tax_allowance_allocation"]) if data.key?("tax_allowance_allocation")
+      account.january_tax_debit = importable_amount(data["january_tax_debit"]) if data.key?("january_tax_debit")
 
-      if account.accountable.is_a?(Depository)
+      if account.accountable.is_a?(Depository) && accountable_data.key?("tax_treatment")
         account.accountable.tax_treatment = accountable_data["tax_treatment"].to_s.presence_in(Depository::TAX_TREATMENTS)
       end
     end

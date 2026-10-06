@@ -301,9 +301,12 @@
                     <h4 class="text-primary"><%= t(".activity_type") %></h4>
                     <p class="text-secondary"><%= t(".activity_type_description") %></p>
                   </div>
+                  <% activity_labels = bank_income_labels ? Transaction::BANK_ACTIVITY_LABELS : Transaction::ACTIVITY_LABELS %>
+                  <% current_label = @entry.entryable.investment_activity_label %>
+                  <% activity_labels += [current_label] if current_label.present? && !activity_labels.include?(current_label) %>
                   <%= ef.select :investment_activity_label,
                         options_for_select(
-                          [["—", nil]] + (bank_income_labels ? Transaction::BANK_ACTIVITY_LABELS : Transaction::ACTIVITY_LABELS).map { |l| [t("transactions.activity_labels.#{l.parameterize(separator: '_')}"), l] },
+                          [["—", nil]] + activity_labels.map { |l| [t("transactions.activity_labels.#{l.parameterize(separator: '_')}", default: l), l] },
                           @entry.entryable.investment_activity_label
                         ),
                         { label: false },

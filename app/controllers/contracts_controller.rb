@@ -50,7 +50,7 @@ class ContractsController < ApplicationController
   def show
     @visible_bills = @contract.visible_recurring_transactions_for(Current.user).includes(:merchant).order(:next_expected_date)
     @hidden_bills = @contract.hidden_recurring_transactions_for?(Current.user)
-    @annual_cost, @unconvertible_count = @contract.annual_cost_for(Current.user)
+    @annual_cost, @unconvertible_count, @unconverted = @contract.annual_cost_for(Current.user)
     @price_changes = @contract.price_changes_for(Current.user).includes(:recurring_transaction).limit(10).to_a
     @schedule = @contract.notice_schedule
     @documents = @contract.contract_documents.with_attached_file.ordered

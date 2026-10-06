@@ -77,11 +77,20 @@ module ContractsHelper
   end
 
   def contract_annual_cost(cost)
-    money, unconvertible = cost
-    return t("contracts.cost_unknown") if money.nil?
+    amount = contract_annual_amount(cost)
+    amount ? t("contracts.per_year", amount: amount) : t("contracts.cost_unknown")
+  end
 
-    label = t("contracts.per_year", amount: format_money(money))
-    unconvertible.to_i.positive? ? "#{label}*" : label
+  # The yearly cost from an annual_costs_for result, or nil when unknown. Bills
+  # without an exchange rate show in their own currency next to the converted
+  # total, which is left out when nothing could be converted.
+  def contract_annual_amount(cost)
+    money, _, unconverted = cost
+    return if money.nil?
+
+    unconverted = unconverted.to_h.values
+    parts = unconverted.any? && money.zero? ? [] : [ money ]
+    (parts + unconverted).map { |part| format_money(part) }.join(" + ")
   end
 
   # The number a viewer is allowed to see: in full for anyone who may edit the

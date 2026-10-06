@@ -29,7 +29,6 @@
         <tbody>
           <% contracts.each do |contract| %>
             <% schedule = contract.notice_schedule %>
-            <% cost, = @costs[contract.id] %>
             <tr>
               <td>
                 <%= contract.name %>
@@ -41,7 +40,7 @@
               <td><%= contract.provider_display_name || "–" %></td>
               <td><%= contract.masked_contract_number || "–" %></td>
               <td>
-                <%= cost ? format_money(cost) : "–" %>
+                <%= contract_annual_amount(@costs[contract.id]) || "–" %>
                 <% if contract.insurance? && (sum = contract.typed_detail("sum_insured")) %>
                   <br><small><%= t("contracts.details.fields.sum_insured") %>: <%= format_money(Money.new(sum, Current.family.currency)) %></small>
                 <% end %>

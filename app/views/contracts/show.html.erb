@@ -92,7 +92,7 @@
     <%= render DS::Card.new(class: "space-y-3") do %>
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-sm font-medium text-primary"><%= t(".payments_section") %></h2>
-        <p class="text-sm text-secondary privacy-sensitive"><%= contract_annual_cost([ @annual_cost, @unconvertible_count ]) %></p>
+        <p class="text-sm text-secondary privacy-sensitive"><%= contract_annual_cost([ @annual_cost, @unconvertible_count, @unconverted ]) %></p>
       </div>
       <% if @visible_bills.any? %>
         <ul class="divide-y divide-subdued">

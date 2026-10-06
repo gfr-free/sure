@@ -411,6 +411,26 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_equal merchants(:amazon), @phone.reload.merchant
   end
 
+  test "a contract billed in a currency without exchange rate shows its cost in that currency" do
+    bill = recurring_transactions(:netflix_subscription)
+    bill.update!(contract: @phone, currency: "EUR")
+    ExchangeRate.stubs(:find_or_fetch_rate).returns(nil)
+    expected = ActionController::Base.helpers.strip_tags(
+      ApplicationController.helpers.format_money(bill.monthly_equivalent_amount.abs * 12)
+    )
+    zero = ActionController::Base.helpers.strip_tags(ApplicationController.helpers.format_money(Money.new(0, "USD")))
+
+    [ contracts_url, contract_url(@phone), overview_contracts_url ].each do |url|
+      get url
+
+      assert_response :success
+      assert_includes response.body, expected, url
+    end
+
+    get contract_url(@phone)
+    assert_not_includes response.body, zero
+  end
+
   test "the printed overview shows cost, deadline, owner and paying account" do
     bill = recurring_transactions(:netflix_subscription)
     bill.update!(contract: @phone)

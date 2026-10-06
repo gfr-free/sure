@@ -288,8 +288,21 @@ class ContractTest < ActiveSupport::TestCase
     assert_equal "USD", total.currency.iso_code
   end
 
+  test "annual cost keeps bills without an exchange rate in their own currency" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone, currency: "EUR")
+    ExchangeRate.stubs(:find_or_fetch_rate).returns(nil)
+
+    total, unconvertible, unconverted = @phone.annual_cost_for(@admin)
+
+    assert_equal Money.new(0, "USD"), total
+    assert_equal 1, unconvertible
+    assert_equal [ "EUR" ], unconverted.keys
+    assert_in_delta netflix.monthly_equivalent_amount.amount.abs * 12, unconverted["EUR"].amount, 0.01
+  end
+
   test "annual cost is unknown without linked bills" do
-    assert_equal [ nil, 0 ], @insurance.annual_cost_for(@admin)
+    assert_equal [ nil, 0, {} ], @insurance.annual_cost_for(@admin)
   end
 
   test "a price increase of a visible active bill shows on its contract" do
@@ -377,7 +390,7 @@ class ContractTest < ActiveSupport::TestCase
     assert_includes @phone.visible_recurring_transactions_for(@admin), bill
     assert_not_includes @phone.visible_recurring_transactions_for(@member), bill
     assert @phone.hidden_recurring_transactions_for?(@member)
-    assert_equal [ nil, 0 ], @phone.annual_cost_for(@member)
+    assert_equal [ nil, 0, {} ], @phone.annual_cost_for(@member)
   end
 
   test "a passed end date ends the contract for display" do

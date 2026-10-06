@@ -226,9 +226,12 @@ class Contract < ApplicationRecord
   end
 
   # Yearly cost across the active linked bills the user can see, in the family
-  # currency. Returns [money_or_nil, unconvertible_count]; nil when no active
-  # linked bills are visible. Bills raising Money::ConversionError are omitted
-  # and counted; the total is zero if every visible active bill fails conversion.
+  # currency. Returns [money_or_nil, unconvertible_count, unconverted]; nil when
+  # no active linked bills are visible. Bills raising Money::ConversionError are
+  # left out of the total and counted; unconverted holds their yearly cost in
+  # their own currency (a hash of currency code to Money), so a contract billed
+  # in another currency still shows what it costs. The total is zero if every
+  # visible active bill fails conversion.
   def annual_cost_for(user)
     self.class.annual_costs_for([ self ], user).fetch(id)
   end
@@ -248,17 +251,21 @@ class Contract < ApplicationRecord
 
     contracts.to_h do |contract|
       series = series_by_contract.fetch(contract.id, [])
-      next [ contract.id, [ nil, 0 ] ] if series.empty?
+      next [ contract.id, [ nil, 0, {} ] ] if series.empty?
 
       unconvertible = 0
+      unconverted = {}
       total = series.reduce(Money.new(0, target)) do |sum, recurring|
-        sum + (recurring.monthly_equivalent_amount.abs * 12).exchange_to(target)
+        yearly = recurring.monthly_equivalent_amount.abs * 12
+        sum + yearly.exchange_to(target)
       rescue Money::ConversionError
         unconvertible += 1
+        code = yearly.currency.iso_code
+        unconverted[code] = (unconverted[code] || Money.new(0, code)) + yearly
         sum
       end
 
-      [ contract.id, [ total, unconvertible ] ]
+      [ contract.id, [ total, unconvertible, unconverted ] ]
     end
   end
 

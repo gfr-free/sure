@@ -64,7 +64,7 @@ de:
       account_release:
         upcoming: "%{balance} auf %{account} werden am %{date} verfügbar."
         released: "%{balance} auf %{account} sind seit %{date} verfügbar. Setze ein neues Datum, wenn du das Geld neu anlegst, oder stufe das Konto als verfügbar ein."
-        renewal_notice: "%{account} (%{balance}) verlängert sich am %{date} automatisch. Wenn du das Geld brauchst, kündige bis %{cancel_by}."
+        renewal_notice: "%{account} (%{balance}) verlängert sich am %{date} automatisch. Wenn du das Geld brauchst, kündige vorher."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."

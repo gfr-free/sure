@@ -65,22 +65,20 @@ class Insight::Generators::AccountReleaseGeneratorTest < ActiveSupport::TestCase
     assert_empty generate
   end
 
-  test "a renewing deposit names the last day to give notice" do
+  test "a renewing deposit is reminded before it renews" do
     enable(@admin, channel: "insight")
-    term_deposit(available_on: Date.new(2026, 10, 20), auto_renew: true, renewal_term_months: 12,
-                 notice_period_days: 7)
+    term_deposit(available_on: Date.new(2026, 10, 13), auto_renew: true, renewal_term_months: 12)
 
     insight = generate.first
 
     assert_equal "renewal", insight.metadata[:kind]
     assert_equal "account_release.renewal_notice", insight.template_key
-    assert_equal I18n.l(Date.new(2026, 10, 13), format: :long), insight.facts[:cancel_by]
+    assert_equal I18n.l(Date.new(2026, 10, 13), format: :long), insight.facts[:date]
   end
 
-  test "a renewal past its notice deadline is not reminded again" do
+  test "a renewal outside the lead time is not reminded" do
     enable(@admin, channel: "insight")
-    term_deposit(available_on: Date.new(2026, 10, 8), auto_renew: true, renewal_term_months: 12,
-                 notice_period_days: 7)
+    term_deposit(available_on: Date.new(2026, 12, 8), auto_renew: true, renewal_term_months: 12)
 
     assert_empty generate
   end

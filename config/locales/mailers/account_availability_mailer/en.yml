@@ -10,7 +10,7 @@ en:
         other: "%{count} locked accounts need your attention"
       intro: "These accounts hold money that is locked until a date:"
       lines:
-        cancel_by: "Give notice by %{date} to get the money out."
+        cancel_hint: "To get the money out, cancel before then."
         released: "Available since %{date}"
         renewal: "Renews automatically on %{date}."
         upcoming:

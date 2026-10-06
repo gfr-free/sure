@@ -96,7 +96,7 @@ en:
       account_release:
         upcoming: "%{balance} on %{account} becomes available on %{date}."
         released: "%{balance} on %{account} has been available since %{date}. Set a new date if you reinvest it, or mark the account as available."
-        renewal_notice: "%{account} (%{balance}) renews automatically on %{date}. To get the money out, give notice by %{cancel_by}."
+        renewal_notice: "%{account} (%{balance}) renews automatically on %{date}. To get the money out, cancel before then."
       spending_anomaly:
         above: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% more than your recent monthly average of %{baseline_spend}.
         below: You're on pace to spend %{projected_spend} on %{category} this month, about %{deviation_pct}% less than your recent monthly average of %{baseline_spend}.

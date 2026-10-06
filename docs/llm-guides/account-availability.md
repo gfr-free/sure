@@ -71,7 +71,8 @@ count credit cards as available wealth.
 `Account::ReleaseReminder` decides which locked accounts need a reminder on a
 day: `upcoming` (released within the lead time), `released` (on the release
 date and for a week after) and `renewal` (a renewing deposit; from the lead
-time before the last day to give notice until that day). Both channels ask it, so they never disagree:
+time before the renewal date until that day). Both channels ask it, so they
+never disagree:
 
 - Feed: `Insight::Generators::AccountReleaseGenerator`, run by
   `GenerateInsightsJob`. The feed is per family, so it runs only when a member

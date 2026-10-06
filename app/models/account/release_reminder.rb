@@ -6,8 +6,8 @@
 # - released: the release date has come ("the money is available now"). It
 #   stays for RELEASED_WINDOW_DAYS so a missed daily run does not lose it.
 # - renewal: a deposit that renews by itself is about to roll over. The
-#   reminder starts the lead time before the last day to give notice and
-#   lasts until that day.
+#   reminder starts the lead time before the renewal date and lasts until
+#   that day, the last chance to cancel.
 #
 # Release is by calculation only (Account::Liquidity); nothing here changes
 # the account. The insight generator and the e-mail job both ask this class,
@@ -19,7 +19,7 @@ class Account::ReleaseReminder
   LEAD_DAYS_RANGE = (1..60)
   RELEASED_WINDOW_DAYS = 7
 
-  attr_reader :account, :kind, :release_on, :cancel_by, :date
+  attr_reader :account, :kind, :release_on, :date
 
   class << self
     # Accounts that can produce a reminder at all; narrows the SQL before the
@@ -56,36 +56,21 @@ class Account::ReleaseReminder
         kind && new(account: account, kind: kind, release_on: account.available_on, date: date)
       end
 
-      # When the next renewal's window has already closed (a notice period
-      # longer than the time left), the one after it may already be open, so
-      # that one is checked too.
       def renewal(account, date:, lead_days:)
         return nil unless account.renewal_term_months.to_i.positive?
 
         renews_on = account.next_release_date(date)
-        2.times do
-          reminder = renewal_on(account, renews_on, date: date, lead_days: lead_days)
-          return reminder if reminder
+        return nil unless date >= renews_on - lead_days
 
-          renews_on = account.next_release_date(renews_on + 1)
-        end
-        nil
-      end
-
-      def renewal_on(account, renews_on, date:, lead_days:)
-        cancel_by = renews_on - account.notice_period_days.to_i
-        return nil unless date.between?(cancel_by - lead_days, cancel_by)
-
-        new(account: account, kind: "renewal", release_on: renews_on, date: date, cancel_by: cancel_by)
+        new(account: account, kind: "renewal", release_on: renews_on, date: date)
       end
   end
 
-  def initialize(account:, kind:, release_on:, date:, cancel_by: nil)
+  def initialize(account:, kind:, release_on:, date:)
     @account = account
     @kind = kind
     @release_on = release_on
     @date = date
-    @cancel_by = cancel_by
   end
 
   # Negative once the date has passed.

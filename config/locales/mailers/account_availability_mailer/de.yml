@@ -10,7 +10,7 @@ de:
         other: "%{count} gebundene Konten brauchen deine Aufmerksamkeit"
       intro: "Auf diesen Konten liegt Geld, das bis zu einem Datum gebunden ist:"
       lines:
-        cancel_by: "Wenn du das Geld brauchst, kündige bis %{date}."
+        cancel_hint: "Wenn du das Geld brauchst, kündige vorher."
         released: "Verfügbar seit %{date}"
         renewal: "Verlängert sich am %{date} automatisch."
         upcoming:

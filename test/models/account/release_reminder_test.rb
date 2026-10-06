@@ -33,29 +33,23 @@ class Account::ReleaseReminderTest < ActiveSupport::TestCase
     assert_nil build(locked_account(available_on: nil), lead_days: 14)
   end
 
-  test "a renewing deposit is reminded ahead of the last day to give notice" do
-    account = locked_account(available_on: @today + 40, auto_renew: true, renewal_term_months: 12, notice_period_days: 30)
+  test "a renewing deposit is reminded ahead of its renewal" do
+    account = locked_account(available_on: @today + 10, auto_renew: true, renewal_term_months: 12)
 
     assert_nil build(account, lead_days: 7, date: @today + 2)
 
     reminder = build(account, lead_days: 7, date: @today + 3)
     assert_equal "renewal", reminder.kind
-    assert_equal @today + 40, reminder.release_on
-    assert_equal @today + 10, reminder.cancel_by
+    assert_equal @today + 10, reminder.release_on
 
-    assert_nil build(account, lead_days: 7, date: @today + 11)
+    assert_equal "renewal", build(account, lead_days: 7, date: @today + 10).kind
   end
 
-  test "a notice period longer than the time left moves on to the next renewal" do
-    # Renews every 3 months with 80 days' notice: the renewal in 5 days can no
-    # longer be stopped, but notice for the one after it (due 22 Oct) falls
-    # within the lead time.
-    account = locked_account(available_on: @today + 5, auto_renew: true, renewal_term_months: 3, notice_period_days: 80)
+  test "after a renewal the next one is reminded" do
+    account = locked_account(available_on: @today - 1, auto_renew: true, renewal_term_months: 3)
 
-    reminder = build(account, lead_days: 20)
-
-    assert_equal (@today + 5) >> 3, reminder.release_on
-    assert_equal Date.new(2026, 10, 22), reminder.cancel_by
+    assert_nil build(account, lead_days: 14)
+    assert_equal (@today - 1) >> 3, build(account, lead_days: 14, date: ((@today - 1) >> 3) - 5).release_on
   end
 
   test "lists reminders by release date" do

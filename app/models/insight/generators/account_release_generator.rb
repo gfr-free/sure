@@ -54,7 +54,6 @@ class Insight::Generators::AccountReleaseGenerator < Insight::Generator
         date: I18n.l(reminder.release_on, format: :long),
         days: reminder.days_until
       }
-      facts[:cancel_by] = I18n.l(reminder.cancel_by, format: :long) if reminder.cancel_by
 
       build_insight(
         insight_type: "account_release",

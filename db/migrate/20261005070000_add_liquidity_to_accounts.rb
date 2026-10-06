@@ -11,7 +11,7 @@
 class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
   LEVELS = %w[immediate short_term locked long_term].freeze
 
-  INVESTMENT_LOCKED_SUBTYPES = %w[fd rd nsc kvp].freeze
+  INVESTMENT_LOCKED_SUBTYPES = %w[fd rd nsc kvp vl].freeze
 
   # Investment subtypes whose tax treatment is not :taxable at the time of
   # writing (tax_deferred, tax_exempt, tax_advantaged).
@@ -20,20 +20,17 @@ class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
     isa lisa sipp workplace_pension_uk tfsa rrsp fhsa rdsp resp dpsp prpp lira
     rrif lif lrif prif rlif super smsf assurance_vie pea pillar_3a riester nps
     apy life_insurance ppf ssy infrastructure_bond tax_free_bond sgb pension
-    retirement
+    retirement ruerup bav
   ].freeze
 
   def up
     add_column :accounts, :liquidity, :string, null: false, default: "immediate"
     add_column :accounts, :available_on, :date
-    add_column :accounts, :notice_period_days, :integer
     add_column :accounts, :auto_renew, :boolean, null: false, default: false
     add_column :accounts, :renewal_term_months, :integer
 
     add_check_constraint :accounts, "liquidity IN ('immediate', 'short_term', 'locked', 'long_term')",
                          name: "chk_accounts_liquidity"
-    add_check_constraint :accounts, "notice_period_days IS NULL OR notice_period_days >= 0",
-                         name: "chk_accounts_notice_period_days"
     add_check_constraint :accounts, "renewal_term_months IS NULL OR renewal_term_months > 0",
                          name: "chk_accounts_renewal_term_months"
 
@@ -45,11 +42,9 @@ class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
   def down
     remove_index :accounts, [ :family_id, :liquidity ]
     remove_check_constraint :accounts, name: "chk_accounts_renewal_term_months"
-    remove_check_constraint :accounts, name: "chk_accounts_notice_period_days"
     remove_check_constraint :accounts, name: "chk_accounts_liquidity"
     remove_column :accounts, :renewal_term_months
     remove_column :accounts, :auto_renew
-    remove_column :accounts, :notice_period_days
     remove_column :accounts, :available_on
     remove_column :accounts, :liquidity
   end
@@ -60,14 +55,14 @@ class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
         UPDATE accounts SET liquidity = 'locked'
         FROM depositories
         WHERE accounts.accountable_type = 'Depository' AND depositories.id = accounts.accountable_id
-          AND depositories.subtype = 'cd'
+          AND depositories.subtype IN ('cd', 'building_savings')
       SQL
 
       execute <<~SQL.squish
         UPDATE accounts SET liquidity = 'short_term'
         FROM depositories
         WHERE accounts.accountable_type = 'Depository' AND depositories.id = accounts.accountable_id
-          AND depositories.subtype = 'money_market'
+          AND depositories.subtype IN ('money_market', 'notice_savings')
       SQL
 
       execute <<~SQL.squish

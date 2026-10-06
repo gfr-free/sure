@@ -6,6 +6,7 @@ de:
       body: Öffne Sure, um deine neueste KI-Analyse anzusehen.
     actions:
       account_shortfall: Kontoprognose ansehen
+      account_release: Zum Konto
       budget: Budget ansehen
       cash_flow_warning: Wiederkehrende Buchungen prüfen
       idle_cash: Zum Konto
@@ -26,6 +27,11 @@ de:
       header_new: Neu
       view_all: Alle Insights ansehen
     figures:
+      released: jetzt verfügbar
+      released_in:
+        one: frei in %{count} Tag
+        other: frei in %{count} Tagen
+      renews_on: "verlängert am %{date}"
       days_overdue:
         one: "%{count} Tag überfällig"
         other: "%{count} Tage überfällig"
@@ -59,6 +65,10 @@ de:
       account_shortfall:
         plain: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen. Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
         with_cause: "Nach den erwarteten Buchungen könnte %{account} am %{projected_low_date} auf %{projected_low} fallen (%{cause}, %{cause_amount}). Überweise bis zum %{top_up_by} mindestens %{shortfall} auf das Konto."
+      account_release:
+        upcoming: "%{balance} auf %{account} werden am %{date} verfügbar."
+        released: "%{balance} auf %{account} sind seit %{date} verfügbar. Setze ein neues Datum, wenn du das Geld neu anlegst, oder stufe das Konto als verfügbar ein."
+        renewal_notice: "%{account} (%{balance}) verlängert sich am %{date} automatisch. Wenn du das Geld brauchst, kündige vorher."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
@@ -79,6 +89,10 @@ de:
       subscription_audit: "%{name} (%{amount}) ist seit dem erwarteten Termin am %{expected_on} nicht mehr aufgetaucht. Vielleicht ist das Abo gekündigt oder die Abbuchung hat sich verschoben."
     titles:
       account_shortfall: "%{account} könnte ins Minus rutschen"
+      account_release:
+        upcoming: "%{account} wird bald frei"
+        released: "%{account} ist jetzt verfügbar"
+        renewal: "%{account} verlängert sich bald"
       budget_at_risk:
         one: Eine Kategorie in deinem Budget braucht Aufmerksamkeit
         other: "%{count} Kategorien in deinem Budget brauchen Aufmerksamkeit"
@@ -98,6 +112,7 @@ de:
       subscription_audit: Läuft %{name} noch?
     types:
       account_shortfall: Kontoprognose
+      account_release: Freigabe
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität

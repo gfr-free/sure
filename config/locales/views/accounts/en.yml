@@ -221,8 +221,6 @@ en:
         available_on_label: Locked until
         auto_renew_label: Renews automatically
         renewal_term_months_label: Term in months
-        notice_period_days_label: Notice period (days)
-        notice_period_days_hint: Optional, shown for information only.
       details:
         title: Details
         intro_subtype: "Rules for this account. Defaults come from the subtype %{subtype}."
@@ -234,13 +232,9 @@ en:
         renews:
           one: renews every month
           other: "renews every %{count} months"
-        days:
-          one: 1 day
-          other: "%{count} days"
         rows:
           liquidity: Availability
           release: Released on
-          notice_period: Notice period
           tax_treatment: Tax treatment
           counts_in_budget: Transactions count in budget and cash flow
           counts_as_budget_cash: Balance counts as free money in the budget

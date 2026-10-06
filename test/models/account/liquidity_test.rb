@@ -92,7 +92,7 @@ class Account::LiquidityTest < ActiveSupport::TestCase
 
   test "release fields are cleared when the account is not locked" do
     account = create_account(Depository, "cd")
-    account.update!(available_on: @today + 10, auto_renew: true, renewal_term_months: 12, notice_period_days: 30)
+    account.update!(available_on: @today + 10, auto_renew: true, renewal_term_months: 12)
 
     account.update!(liquidity_choice: "short_term")
 
@@ -100,7 +100,6 @@ class Account::LiquidityTest < ActiveSupport::TestCase
     assert_nil account.available_on
     assert_not account.auto_renew?
     assert_nil account.renewal_term_months
-    assert_equal 30, account.notice_period_days
   end
 
   test "an unknown choice is rejected" do

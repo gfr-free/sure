@@ -29,14 +29,10 @@ module Account::Liquidity
   # Form value for "follow the subtype again".
   AUTOMATIC = "automatic".freeze
 
-  MAX_NOTICE_PERIOD_DAYS = 3650
   MAX_RENEWAL_TERM_MONTHS = 600
 
   included do
     validates :liquidity, inclusion: { in: LEVELS }
-    validates :notice_period_days,
-              numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: MAX_NOTICE_PERIOD_DAYS },
-              allow_nil: true
     validates :renewal_term_months,
               numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_RENEWAL_TERM_MONTHS },
               allow_nil: true
@@ -195,7 +191,6 @@ module Account::Liquidity
     end
 
     # The release date and renewal only mean something on a locked account.
-    # The notice period stays: notice savings are short-term with a notice.
     def clear_release_fields
       self.available_on = nil
       self.auto_renew = false

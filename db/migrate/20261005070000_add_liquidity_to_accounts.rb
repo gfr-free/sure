@@ -26,14 +26,11 @@ class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
   def up
     add_column :accounts, :liquidity, :string, null: false, default: "immediate"
     add_column :accounts, :available_on, :date
-    add_column :accounts, :notice_period_days, :integer
     add_column :accounts, :auto_renew, :boolean, null: false, default: false
     add_column :accounts, :renewal_term_months, :integer
 
     add_check_constraint :accounts, "liquidity IN ('immediate', 'short_term', 'locked', 'long_term')",
                          name: "chk_accounts_liquidity"
-    add_check_constraint :accounts, "notice_period_days IS NULL OR notice_period_days >= 0",
-                         name: "chk_accounts_notice_period_days"
     add_check_constraint :accounts, "renewal_term_months IS NULL OR renewal_term_months > 0",
                          name: "chk_accounts_renewal_term_months"
 
@@ -45,11 +42,9 @@ class AddLiquidityToAccounts < ActiveRecord::Migration[8.1]
   def down
     remove_index :accounts, [ :family_id, :liquidity ]
     remove_check_constraint :accounts, name: "chk_accounts_renewal_term_months"
-    remove_check_constraint :accounts, name: "chk_accounts_notice_period_days"
     remove_check_constraint :accounts, name: "chk_accounts_liquidity"
     remove_column :accounts, :renewal_term_months
     remove_column :accounts, :auto_renew
-    remove_column :accounts, :notice_period_days
     remove_column :accounts, :available_on
     remove_column :accounts, :liquidity
   end

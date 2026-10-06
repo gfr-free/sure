@@ -41,8 +41,9 @@ class Tax::Estimate
     Hash.new { |hash, (user, year)| hash[[ user, year ]] = new(user, year: year) }
   end
 
-  # `viewer` limits the accounts to those that person can see, for figures
-  # shown to someone else (the household budget).
+  # `viewer` (one user or several) limits the accounts to those every one of
+  # them can see, for figures shown to someone else (the household budget,
+  # family-wide insights).
   def initialize(user, year:, as_of: nil, viewer: nil)
     @user = user
     @year = year
@@ -67,7 +68,9 @@ class Tax::Estimate
       []
     else
       scope = user.family.accounts.visible.where(owner_id: user.id, accountable_type: Account::Taxation::TAXABLE_TYPES)
-      scope = scope.merge(Account.accessible_by(@viewer)) if @viewer && @viewer != user
+      Array(@viewer).each do |viewer|
+        scope = scope.where(id: Account.accessible_by(viewer).select(:id)) unless viewer == user
+      end
       scope.includes(:accountable).to_a.select(&:returns_taxable?)
     end
   end

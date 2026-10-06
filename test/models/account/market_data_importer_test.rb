@@ -199,6 +199,30 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     Setting.bullion_reference_securities = nil
   end
 
+  test "derives bullion prices from the account start for provider holdings without trades" do
+    family = Family.create!(name: "Smith", currency: "USD")
+    account = family.accounts.create!(name: "Coins", currency: "USD", balance: 0, accountable: Investment.new)
+
+    reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
+    coin = BullionCatalog.security_for(:kangaroo, "1oz")
+
+    old_date = 90.days.ago.to_date
+    account.entries.create!(name: "Opening", date: old_date, amount: 0, currency: "USD", entryable: Valuation.new)
+    Security::Price.create!(security: reference, date: old_date, price: 3800, currency: "USD")
+    account.holdings.create!(
+      security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD",
+      account_provider: AccountProvider.new(account: account, provider: plaid_accounts(:one))
+    )
+    Security.stubs(:provider).returns(nil)
+
+    Account::MarketDataImporter.new(account).import_security_prices
+
+    assert_in_delta 3800, coin.prices.find_by!(date: old_date).price, 0.01
+  ensure
+    Setting.bullion_reference_securities = nil
+  end
+
   test "ignores price currencies that only occur before the account needs prices" do
     family = Family.create!(name: "Smith", currency: "USD")
 

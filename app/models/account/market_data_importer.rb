@@ -115,7 +115,8 @@ class Account::MarketDataImporter
       bullion_ids = BullionSpec.where(security_id: security_ids).pluck(:security_id)
       return if bullion_ids.empty?
 
-      BullionSpec::PriceDeriver.new(security_ids: bullion_ids).derive_all
+      start_date = first_required_price_dates.values_at(*bullion_ids).compact.min
+      BullionSpec::PriceDeriver.new(security_ids: bullion_ids, start_date: start_date).derive_all
     end
 
     def security_ids

@@ -150,6 +150,7 @@
           class="bg-container rounded-xl shadow-border-xs transition-all mb-6 group focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
           data-sortable-list-target="item"
           data-sortable-list-id="<%= section[:key] %>"
+          data-section-key="<%= section[:key] %>"
           data-controller="reports-section"
           data-reports-section-section-key-value="<%= section[:key] %>"
           data-reports-section-collapsed-value="<%= Current.user.reports_section_collapsed?(section[:key]) %>"

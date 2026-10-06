@@ -367,9 +367,6 @@ class Family::DataImporter
       end
 
       assign_importable(account, :available_on, data) { |value| parse_import_date(value) }
-      assign_importable(account, :notice_period_days, data) do |value|
-        importable_integer(value, 0..Account::Liquidity::MAX_NOTICE_PERIOD_DAYS)
-      end
       assign_importable(account, :renewal_term_months, data) do |value|
         importable_integer(value, 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
       end

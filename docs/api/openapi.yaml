@@ -491,10 +491,6 @@ components:
           format: date
           nullable: true
           description: Release date of a locked account
-        notice_period_days:
-          type: integer
-          nullable: true
-          description: Notice period in days, informational only
         available_now:
           type: boolean
           description: Whether the money counts as available today (assets only)

@@ -275,7 +275,7 @@ class Demo::Generator
       @ally_cd = family.accounts.create!(accountable: Depository.new(subtype: "cd"), name: "Ally 12-Month CD", balance: 0, currency: "USD",
                                          available_on: 5.months.from_now.to_date)
       @building_savings = family.accounts.create!(accountable: Depository.new(subtype: "building_savings"), name: "Building Savings Contract", balance: 0,
-                                                  currency: "USD", available_on: 3.years.from_now.to_date, notice_period_days: 90)
+                                                  currency: "USD", available_on: 3.years.from_now.to_date)
 
       # EUR checking (EUR)
       @eu_checking = family.accounts.create!(accountable: Depository.new(subtype: "checking"), name: "Deutsche Bank EUR Account", balance: 0, currency: "EUR")

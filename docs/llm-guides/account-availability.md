@@ -19,7 +19,6 @@ Stored on `accounts.liquidity`:
 
 `available_on` is the release date of a locked account. With `auto_renew` and
 `renewal_term_months` the deposit rolls over and never releases by itself.
-`notice_period_days` is informational only.
 
 ## Where the logic lives
 

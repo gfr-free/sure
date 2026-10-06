@@ -10,9 +10,8 @@
           data: { turbo_frame: :modal, controller: "auto-submit-form" } do |template_form| %>
       <%= template_form.select :template,
             grouped_options_for_select(custom_account_subtype_template_options, template),
-            { label: t(".template_label") },
+            { label: t(".template_label"), help_text: t(".template_hint") },
             { data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } } %>
-      <p class="text-xs text-secondary mt-1"><%= t(".template_hint") %></p>
     <% end %>
   <% end %>
 
@@ -34,14 +33,12 @@
 
     <%= f.select :liquidity,
           Account::Liquidity::LEVELS.map { |level| [ t("accounts.liquidity.levels.#{level}"), level ] },
-          { label: t(".liquidity_label"), selected: custom_account_subtype.liquidity } %>
-    <p class="text-xs text-secondary"><%= t(".liquidity_hint") %></p>
+          { label: t(".liquidity_label"), help_text: t(".liquidity_hint"), selected: custom_account_subtype.liquidity } %>
 
     <% if custom_account_subtype.tax_treatment_supported? %>
       <%= f.select :tax_treatment,
             CustomAccountSubtype::TAX_TREATMENTS.map { |treatment| [ t("accounts.tax_treatments.#{treatment}"), treatment ] },
-            { label: t(".tax_treatment_label"), include_blank: t(".tax_treatment_none"), selected: custom_account_subtype.tax_treatment&.to_s } %>
-      <p class="text-xs text-secondary"><%= t(".tax_treatment_hint") %></p>
+            { label: t(".tax_treatment_label"), help_text: t(".tax_treatment_hint"), include_blank: t(".tax_treatment_none"), selected: custom_account_subtype.tax_treatment&.to_s } %>
     <% end %>
 
     <% if custom_account_subtype.persisted? %>

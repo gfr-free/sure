@@ -81,16 +81,25 @@ module ContractsHelper
     amount ? t("contracts.per_year", amount: amount) : t("contracts.cost_unknown")
   end
 
-  # The yearly cost from an annual_costs_for result, or nil when unknown. Bills
-  # without an exchange rate show in their own currency next to the converted
-  # total, which is left out when nothing could be converted.
-  def contract_annual_amount(cost)
+  # The yearly cost from an annual_costs_for result, or nil when unknown; pass
+  # per: :month for the monthly average. Bills without an exchange rate show in
+  # their own currency next to the converted total, which is left out when
+  # nothing could be converted.
+  def contract_annual_amount(cost, per: :year)
     money, _, unconverted = cost
     return if money.nil?
 
     unconverted = unconverted.to_h.values
     parts = unconverted.any? && money.zero? ? [] : [ money ]
-    (parts + unconverted).map { |part| format_money(part) }.join(" + ")
+    parts += unconverted
+    parts = parts.map { |part| part / 12 } if per == :month
+    parts.map { |part| format_money(part) }.join(" + ")
+  end
+
+  # Whether a summed cost has anything to show.
+  def contract_cost_present?(cost)
+    money, _, unconverted = cost
+    money.present? && (money.positive? || unconverted.to_h.any?)
   end
 
   # The number a viewer is allowed to see: in full for anyone who may edit the

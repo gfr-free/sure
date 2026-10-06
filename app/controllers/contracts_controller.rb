@@ -23,7 +23,8 @@ class ContractsController < ApplicationController
     @price_increases = Contract.recent_price_increases_for(@open_contracts, Current.user)
     # A related account grants nothing: its name shows only to users who can see it.
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id).to_set
-    @total_annual_cost, @unconvertible_count = total_annual_cost(@open_contracts)
+    @total_cost = Contract.sum_costs(@open_contracts.map { |contract| @costs[contract.id] })
+    @group_costs = @groups.to_h { |kind, group| [ kind, Contract.sum_costs(group.map { |contract| @costs[contract.id] }) ] }
     @annual_savings, @savings_count = Contract.annual_savings_for(contracts, Current.user, costs: @costs)
     @breadcrumbs = contracts_breadcrumb_prefix + [ [ t("contracts.index.title"), nil ] ]
   end
@@ -316,13 +317,5 @@ class ContractsController < ApplicationController
 
     def contracts_breadcrumb_prefix
       [ [ t("breadcrumbs.home"), root_path ], [ t("bills.index.title"), bills_path ] ]
-    end
-
-    def total_annual_cost(contracts)
-      totals = contracts.filter_map { |contract| @costs.dig(contract.id, 0) }
-      unconvertible = contracts.sum { |contract| @costs.dig(contract.id, 1).to_i }
-      return [ nil, unconvertible ] if totals.empty?
-
-      [ totals.sum(Money.new(0, Current.family.currency)), unconvertible ]
     end
 end

@@ -429,6 +429,13 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
 
     get contract_url(@phone)
     assert_not_includes response.body, zero
+
+    get contracts_url
+    monthly = ActionController::Base.helpers.strip_tags(
+      ApplicationController.helpers.format_money(bill.monthly_equivalent_amount.abs * 12 / 12)
+    )
+    assert_includes response.body, monthly
+    assert_not_includes response.body, zero
   end
 
   test "the printed overview shows cost, deadline, owner and paying account" do

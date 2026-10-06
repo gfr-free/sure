@@ -301,6 +301,23 @@ class ContractTest < ActiveSupport::TestCase
     assert_in_delta netflix.monthly_equivalent_amount.amount.abs * 12, unconverted["EUR"].amount, 0.01
   end
 
+  test "summed costs keep bills without an exchange rate apart by currency" do
+    costs = [
+      [ Money.new(100, "USD"), 0, {} ],
+      [ Money.new(0, "USD"), 1, { "EUR" => Money.new(50, "EUR") } ],
+      [ Money.new(20, "USD"), 1, { "EUR" => Money.new(30, "EUR") } ],
+      [ nil, 0, {} ],
+      nil
+    ]
+
+    total, unconvertible, unconverted = Contract.sum_costs(costs)
+
+    assert_equal Money.new(120, "USD"), total
+    assert_equal 2, unconvertible
+    assert_equal({ "EUR" => Money.new(80, "EUR") }, unconverted)
+    assert_equal [ nil, 0, {} ], Contract.sum_costs([ [ nil, 0, {} ] ])
+  end
+
   test "annual cost is unknown without linked bills" do
     assert_equal [ nil, 0, {} ], @insurance.annual_cost_for(@admin)
   end

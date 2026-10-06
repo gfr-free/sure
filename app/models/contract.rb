@@ -269,6 +269,18 @@ class Contract < ApplicationRecord
     end
   end
 
+  # Adds up annual_costs_for results into one of the same shape, keeping the
+  # bills without an exchange rate apart by currency. [nil, 0, {}] when none
+  # of the contracts has a known cost.
+  def self.sum_costs(costs)
+    known = costs.compact.select(&:first)
+    return [ nil, 0, {} ] if known.empty?
+
+    total = known.sum(Money.new(0, known.first.first.currency)) { |money, _, _| money }
+    unconverted = known.map { |cost| cost[2].to_h }.reduce({}) { |sum, amounts| sum.merge(amounts) { |_, a, b| a + b } }
+    [ total, known.sum { |cost| cost[1].to_i }, unconverted ]
+  end
+
   # What the contracts that ended in the last twelve months cost per year, less
   # what replaced them: [money_or_nil, count]. Pass every contract the user can
   # see (successors are looked up among them) and, when at hand, their

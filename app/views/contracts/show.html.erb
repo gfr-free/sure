@@ -40,6 +40,26 @@
 
   <%= render "contracts/end_notice", contract: @contract, editable: editable %>
 
+  <% if @next_payments.any? %>
+    <% next_bill = @next_payments.first %>
+    <%= render DS::Card.new do %>
+      <dl>
+        <%= render DS::DetailRow.new(label: t(".next_payment"), align: :center) do |row| %>
+          <% row.with_value do %>
+            <span class="font-medium"><%= l(next_bill.next_due_date, format: :long) %></span>
+            <span class="font-medium privacy-sensitive">&middot; <%= safe_join(@next_payments.map { |bill| format_money(contract_next_payment_amount(bill)) }, " + ") %></span>
+            <% if next_bill.overdue? %>
+              <span class="block text-xs text-warning"><%= t(".next_payment_overdue") %></span>
+            <% end %>
+            <% if @visible_bills.count(&:active?) > 1 %>
+              <span class="block text-xs text-secondary truncate"><%= @next_payments.map(&:display_name).to_sentence %></span>
+            <% end %>
+          <% end %>
+        <% end %>
+      </dl>
+    <% end %>
+  <% end %>
+
   <% if @duplicates.any? %>
     <%= render DS::Alert.new(variant: :warning, message: t(".possible_duplicate", names: @duplicates.map(&:name).to_sentence)) %>
   <% end %>
@@ -131,6 +151,46 @@
               </li>
             <% end %>
           </ul>
+        </div>
+      <% end %>
+      <% if @payments.any? || @older_payments || @all_payments %>
+        <% payment_months = Contract::PAYMENT_HISTORY_WINDOW.in_months.to_i %>
+        <div id="contract-payment-history" class="space-y-1">
+          <p class="text-xs font-medium text-secondary uppercase">
+            <%= @all_payments ? t(".payment_history_all") : t(".payment_history", months: payment_months) %>
+          </p>
+          <% if @payments.any? %>
+            <ul class="bg-container-inset rounded-lg divide-y divide-subdued">
+              <% @payments.each do |payment| %>
+                <li>
+                  <% row_class = "flex items-center justify-between gap-3 px-3 py-2" %>
+                  <% row = capture do %>
+                    <div class="min-w-0">
+                      <p class="text-sm text-primary truncate"><%= payment.entry&.name.presence || t("bills.detail.manual_payment") %></p>
+                      <p class="text-xs text-secondary truncate">
+                        <%= l(payment.paid_on, format: :short_with_year) %><% if payment.entry %> &middot; <%= payment.entry.account.name %><% end %>
+                      </p>
+                    </div>
+                    <p class="text-sm text-primary privacy-sensitive shrink-0"><%= format_money(payment.allocated_amount_money) %></p>
+                  <% end %>
+                  <% if payment.entry %>
+                    <%= link_to row, entry_path(payment.entry), data: { turbo_frame: "drawer" }, class: "#{row_class} hover:bg-container-inset-hover" %>
+                  <% else %>
+                    <%= tag.div row, class: row_class %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-sm text-secondary"><%= @all_payments ? t(".no_payments_yet") : t(".no_recent_payments", months: payment_months) %></p>
+          <% end %>
+          <% if @older_payments %>
+            <%= render DS::Link.new(text: t(".show_all_payments"), variant: "ghost", size: :sm,
+                                    href: contract_path(@contract, payments: "all", anchor: "contract-payment-history")) %>
+          <% elsif @all_payments %>
+            <%= render DS::Link.new(text: t(".show_recent_payments", months: payment_months), variant: "ghost", size: :sm,
+                                    href: contract_path(@contract, anchor: "contract-payment-history")) %>
+          <% end %>
         </div>
       <% end %>
       <% if @annual_cost.nil? && @visible_bills.any? %>

@@ -114,6 +114,44 @@ class ContractsControllerTest < ActionDispatch::IntegrationTest
     assert_match "$12.99 → $15.99", response.body
   end
 
+  test "show states the next payment and the payments of the last year" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    occurrence = netflix.recurring_occurrences.create!(family: @family, original_due_on: 2.months.ago.to_date,
+                                                       due_on: 2.months.ago.to_date, currency: "USD")
+    entry = accounts(:depository).entries.create!(date: 2.months.ago.to_date, amount: 15.99, currency: "USD",
+                                                  name: "NETFLIX.COM", entryable: Transaction.new)
+    occurrence.allocations.create!(entry: entry, allocated_amount: 15.99, currency: "USD",
+                                   state: "confirmed", source: "user_confirmed")
+    occurrence.allocations.create!(allocated_amount: 3.21, currency: "USD", paid_on: 14.months.ago.to_date,
+                                   state: "confirmed", source: "user_created")
+
+    get contract_url(@phone)
+
+    assert_response :success
+    assert_includes response.body, I18n.t("contracts.show.next_payment")
+    assert_includes response.body, I18n.l(netflix.next_due_date, format: :long)
+    assert_includes response.body, I18n.t("contracts.show.payment_history", months: 12)
+    assert_select "a[href=?]", entry_path(entry), text: /NETFLIX\.COM.*#{accounts(:depository).name}/m
+    assert_not_includes response.body, "$3.21"
+    assert_select "a[href=?]", contract_path(@phone, payments: "all", anchor: "contract-payment-history")
+
+    get contract_url(@phone, payments: "all")
+
+    assert_response :success
+    assert_includes response.body, I18n.t("contracts.show.payment_history_all")
+    assert_includes response.body, "$3.21"
+    assert_select "a[href=?]", contract_path(@phone, anchor: "contract-payment-history")
+  end
+
+  test "show leaves out the payment sections without linked payments" do
+    get contract_url(@insurance)
+
+    assert_response :success
+    assert_not_includes response.body, I18n.t("contracts.show.next_payment")
+    assert_not_includes response.body, I18n.t("contracts.show.payment_history", months: 12)
+  end
+
   test "index only shows contracts owned by or shared with the user" do
     sign_in @member
 

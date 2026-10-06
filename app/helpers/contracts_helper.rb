@@ -93,6 +93,13 @@ module ContractsHelper
     (parts + unconverted).map { |part| format_money(part) }.join(" + ")
   end
 
+  # What the bill's next payment still asks for: the open cycle's remaining
+  # amount, so a one-off override or a partial payment shows as on Bills.
+  def contract_next_payment_amount(bill)
+    occurrence = bill.next_open_occurrence
+    occurrence ? occurrence.remaining_amount_money : bill.amount_money.abs
+  end
+
   # The number a viewer is allowed to see: in full for anyone who may edit the
   # contract, masked for a read-only share.
   def contract_number_for(contract, attribute)

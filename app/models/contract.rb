@@ -28,6 +28,7 @@ class Contract < ApplicationRecord
 
   # How far back a linked bill's price change still shows on the contract.
   PRICE_CHANGE_WINDOW = 12.months
+  PAYMENT_HISTORY_WINDOW = 12.months
 
   # How far back an ended contract still counts towards the savings.
   SAVINGS_WINDOW = 12.months
@@ -360,12 +361,31 @@ class Contract < ApplicationRecord
     self.class.price_changes_for([ self ], user)
   end
 
-  # Sorted by next_due_date, because the stored next_expected_date is only a
+  # The visible active bills due on the earliest upcoming date, so two bills
+  # due the same day show as one next payment rather than one hiding the other.
+  # Read from next_due_date, because the stored next_expected_date is only a
   # cached hint that can lag behind settled payments.
-  def next_payment_for(user)
-    visible_recurring_transactions_for(user)
-      .where(status: "active")
-      .min_by(&:next_due_date)
+  def next_payments_for(user)
+    bills = visible_recurring_transactions_for(user).where(status: "active").to_a
+    first_due = bills.map(&:next_due_date).compact.min
+    return [] unless first_due
+
+    bills.select { |bill| bill.next_due_date == first_due }
+  end
+
+  # Confirmed payments of the visible linked bills, newest first. A payment
+  # whose transaction sits in an account the user cannot see is left out, even
+  # when the bill itself is visible (a legacy bill without an account).
+  def payments_for(user, since: nil)
+    scope = RecurringAllocation.confirmed
+                               .joins(recurring_occurrence: :recurring_transaction)
+                               .merge(RecurringTransaction.accessible_by(user))
+                               .where(recurring_transactions: { contract_id: id })
+                               .left_joins(:entry)
+                               .where("recurring_allocations.entry_id IS NULL OR entries.account_id IN (?)",
+                                      Account.accessible_by(user).select(:id))
+    scope = scope.where(recurring_allocations: { paid_on: since.. }) if since
+    scope.order("recurring_allocations.paid_on DESC, recurring_allocations.created_at DESC")
   end
 
   # Records the end of the contract, whether it was cancelled or simply runs

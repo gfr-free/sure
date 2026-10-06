@@ -376,6 +376,70 @@ class ContractTest < ActiveSupport::TestCase
     assert_empty @phone.price_changes_for(@member)
   end
 
+  test "the next payment is the earliest due date across the visible active bills" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    later = @family.recurring_transactions.create!(
+      account: accounts(:depository), name: "Data add-on", amount: 8, currency: "USD",
+      expected_day_of_month: 3, last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 20.days.from_now.to_date, status: "active", contract: @phone
+    )
+    inactive = recurring_transactions(:inactive_subscription)
+    inactive.update!(contract: @phone)
+
+    # Creating a bill materializes occurrences, so read the dates back rather
+    # than assuming them.
+    first_due = [ netflix, later ].map { |bill| bill.reload.next_due_date }.min
+    expected = [ netflix, later ].select { |bill| bill.next_due_date == first_due }
+    assert_equal expected.map(&:id).sort, @phone.next_payments_for(@admin).map(&:id).sort
+
+    # Bills due the same day are one next payment; inactive ones never count.
+    RecurringTransaction.any_instance.stubs(:next_due_date).returns(first_due)
+    assert_equal [ netflix, later ].map(&:id).sort, @phone.next_payments_for(@admin).map(&:id).sort
+    assert_empty @insurance.next_payments_for(@admin)
+  end
+
+  test "payments are the confirmed allocations of the linked bills, newest first" do
+    netflix = recurring_transactions(:netflix_subscription)
+    netflix.update!(contract: @phone)
+    occurrence = netflix.recurring_occurrences.create!(family: @family, original_due_on: 2.months.ago.to_date,
+                                                       due_on: 2.months.ago.to_date, currency: "USD")
+    entry = accounts(:depository).entries.create!(date: 2.months.ago.to_date, amount: 15.99, currency: "USD",
+                                                  name: "NETFLIX.COM", entryable: Transaction.new)
+    recent = occurrence.allocations.create!(entry: entry, allocated_amount: 15.99, currency: "USD",
+                                            state: "confirmed", source: "user_confirmed")
+    old = occurrence.allocations.create!(allocated_amount: 1, currency: "USD", paid_on: 14.months.ago.to_date,
+                                         state: "confirmed", source: "user_created")
+    occurrence.allocations.create!(allocated_amount: 2, currency: "USD", state: "suggested", source: "auto_matched")
+
+    assert_equal [ recent, old ], @phone.payments_for(@admin).to_a
+    assert_equal [ recent ], @phone.payments_for(@admin, since: 12.months.ago.to_date).to_a
+    assert_empty @insurance.payments_for(@admin)
+  end
+
+  test "payments keep the visibility of their bill and their account" do
+    @family.update!(default_account_sharing: "private")
+    private_account = @family.accounts.create!(name: "Admin only", balance: 0, currency: "USD",
+                                               accountable: Depository.new, owner: @admin)
+    private_account.account_shares.delete_all
+    legacy_bill = @family.recurring_transactions.create!(
+      name: "Phone bill", amount: 40, currency: "USD", expected_day_of_month: 3,
+      last_occurrence_date: 1.month.ago.to_date, next_expected_date: 3.days.from_now.to_date,
+      status: "active", contract: @phone
+    )
+    occurrence = legacy_bill.recurring_occurrences.create!(family: @family, original_due_on: 1.month.ago.to_date,
+                                                           due_on: 1.month.ago.to_date, currency: "USD")
+    hidden_entry = private_account.entries.create!(date: 1.month.ago.to_date, amount: 40, currency: "USD",
+                                                   name: "PHONE CO", entryable: Transaction.new)
+    hidden = occurrence.allocations.create!(entry: hidden_entry, allocated_amount: 40, currency: "USD",
+                                            state: "confirmed", source: "user_confirmed")
+    manual = occurrence.allocations.create!(allocated_amount: 5, currency: "USD", paid_on: 2.days.ago.to_date,
+                                            state: "confirmed", source: "user_created")
+
+    assert_equal [ manual, hidden ], @phone.payments_for(@admin).to_a
+    assert_equal [ manual ], @phone.payments_for(@member).to_a
+  end
+
   test "linked bills keep their own visibility" do
     @family.update!(default_account_sharing: "private")
     private_account = @family.accounts.create!(name: "Admin only", balance: 0, currency: "USD",

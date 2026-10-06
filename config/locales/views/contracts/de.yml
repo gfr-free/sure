@@ -141,6 +141,14 @@ de:
       link_payments: Zahlungen verknüpfen
       add_payment: Zahlung hinzufügen
       contacts_section: Kontakte
+      next_payment: Nächste Zahlung
+      next_payment_overdue: Überfällig
+      payment_history: "Zahlungen der letzten %{months} Monate"
+      payment_history_all: Alle Zahlungen
+      no_recent_payments: "Keine Zahlungen in den letzten %{months} Monaten."
+      no_payments_yet: Noch keine Zahlungen.
+      show_all_payments: Alle anzeigen
+      show_recent_payments: "Nur die letzten %{months} Monate"
     documents:
       title: Dokumente
       resource: Dokument

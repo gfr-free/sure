@@ -141,6 +141,14 @@ en:
       link_payments: Link payments
       add_payment: Add payment
       contacts_section: Contacts
+      next_payment: Next payment
+      next_payment_overdue: Overdue
+      payment_history: "Payments in the last %{months} months"
+      payment_history_all: All payments
+      no_recent_payments: "No payments in the last %{months} months."
+      no_payments_yet: No payments yet.
+      show_all_payments: Show all
+      show_recent_payments: "Show last %{months} months only"
     documents:
       title: Documents
       resource: document

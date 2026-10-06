@@ -52,6 +52,8 @@ class ContractsController < ApplicationController
     @hidden_bills = @contract.hidden_recurring_transactions_for?(Current.user)
     @annual_cost, @unconvertible_count, @unconverted = @contract.annual_cost_for(Current.user)
     @price_changes = @contract.price_changes_for(Current.user).includes(:recurring_transaction).limit(10).to_a
+    @next_payments = @contract.next_payments_for(Current.user)
+    load_payment_history
     @schedule = @contract.notice_schedule
     @documents = @contract.contract_documents.with_attached_file.ordered
     @duplicates = @contract.editable_by?(Current.user) ? @contract.possible_duplicates.accessible_by(Current.user) : Contract.none
@@ -134,6 +136,16 @@ class ContractsController < ApplicationController
   end
 
   private
+
+    # The last year of payments by default; "show all" drops the window. A
+    # contract's bills settle a few times a month at most, so even all of its
+    # payments stay a short list.
+    def load_payment_history
+      @all_payments = params[:payments] == "all"
+      since = @all_payments ? nil : Contract::PAYMENT_HISTORY_WINDOW.ago.to_date
+      @payments = @contract.payments_for(Current.user, since: since).includes(entry: :account).to_a
+      @older_payments = !@all_payments && @contract.payments_for(Current.user).where(recurring_allocations: { paid_on: ...since }).exists?
+    end
 
     def set_contract
       @contract = Current.family.contracts.accessible_by(Current.user).find(params[:id])

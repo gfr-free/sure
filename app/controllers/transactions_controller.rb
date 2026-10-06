@@ -657,13 +657,9 @@ class TransactionsController < ApplicationController
     # "Repeat" also declares a series that starts with this entry. It shares
     # the Bills preview gate, and the form only offers it there.
     def save_new_entry
-      return @entry.save unless repeat_requested?
+      return @entry.save unless repeat_available? && repeat_settings.enabled
 
-      @entry_repeats = RecurringTransaction::FromNewEntry.new(entry: @entry, user: Current.user, attrs: repeat_params).save
-    end
-
-    def repeat_requested?
-      params.dig(:repeat, :enabled) == "1" && repeat_available?
+      @entry_repeats = RecurringTransaction::FromNewEntry.new(entry: @entry, user: Current.user, settings: repeat_settings).save
     end
 
     def repeat_available?
@@ -671,9 +667,14 @@ class TransactionsController < ApplicationController
     end
     helper_method :repeat_available?
 
-    def repeat_params
-      params.require(:repeat).permit(:frequency_preset, :frequency_interval, :frequency_interval_unit, :auto_post)
+    def repeat_settings
+      @repeat_settings ||= begin
+        raw = params[:repeat]
+        permitted = raw.is_a?(ActionController::Parameters) ? raw.permit(:enabled, :frequency_preset, :frequency_interval, :frequency_interval_unit, :auto_post).to_h : {}
+        RecurringTransaction::FromNewEntry::Settings.from_params(permitted)
+      end
     end
+    helper_method :repeat_settings
 
     def respond_with_created_entry(entry)
       flash[:notice] = @entry_repeats ? t(".created_repeating") : t(".created")

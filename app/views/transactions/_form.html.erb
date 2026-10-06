@@ -102,50 +102,7 @@
       Manual accounts only: the account picker lists nothing else, and a fixed
       account must be one too, since a bank would import the next payments. %>
   <% if repeat_available? && (entry.account.nil? || entry.account.manual?) %>
-    <% repeat = params[:repeat] || {} %>
-    <section class="space-y-3" data-controller="repeat-fields">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-sm font-medium text-primary"><%= t(".repeat_label") %></p>
-          <p class="text-xs text-secondary"><%= t(".repeat_hint") %></p>
-        </div>
-        <%= render DS::Toggle.new(id: "repeat_enabled", name: "repeat[enabled]", checked: repeat[:enabled] == "1",
-              data: { repeat_fields_target: "toggle", action: "change->repeat-fields#update" }) %>
-      </div>
-
-      <%= fields_for :repeat, nil, builder: StyledFormBuilder do |rf| %>
-        <div class="space-y-3 hidden" data-repeat-fields-target="fields" data-controller="frequency-fields">
-          <%= rf.select :frequency_preset,
-                frequency_preset_options(RecurringTransaction.new),
-                { label: t(".repeat_frequency_label"), selected: repeat[:frequency_preset].presence || "monthly" },
-                { data: { frequency_fields_target: "preset", action: "change->frequency-fields#update" } } %>
-
-          <div data-frequency-fields-target="group" data-presets="interval" class="hidden">
-            <div class="grid grid-cols-2 gap-3">
-              <%= rf.number_field :frequency_interval,
-                    label: t(".repeat_interval_label"),
-                    value: repeat[:frequency_interval].presence || 2,
-                    min: 1,
-                    max: RecurringTransaction::FrequencyPreset::MAX_INTERVAL,
-                    step: 1 %>
-              <%= rf.select :frequency_interval_unit,
-                    frequency_interval_unit_options,
-                    { label: t(".repeat_interval_unit_label"), selected: repeat[:frequency_interval_unit].presence || "monthly" },
-                    { data: { frequency_fields_target: "unit", action: "change->frequency-fields#update" } } %>
-            </div>
-          </div>
-
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-sm font-medium text-primary"><%= t(".repeat_auto_post_label") %></p>
-              <p class="text-xs text-secondary"><%= t(".repeat_auto_post_hint") %></p>
-            </div>
-            <%= render DS::Toggle.new(id: "repeat_auto_post", name: "repeat[auto_post]",
-                  checked: repeat[:enabled] != "1" || repeat[:auto_post] == "1") %>
-          </div>
-        </div>
-      <% end %>
-    </section>
+    <%= render "transactions/repeat_fields", settings: repeat_settings %>
   <% end %>
 
   <%= render DS::Disclosure.new(title: t(".details")) do %>

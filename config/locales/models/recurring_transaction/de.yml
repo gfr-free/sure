@@ -4,6 +4,7 @@ de:
     from_new_entry:
       manual_account_required: "Wiederholen gibt es nur bei manuellen Konten"
       account_currency_required: "Wiederholen geht nur, wenn die Transaktion in der Kontowährung ist"
+      failed: "Die Wiederholung konnte nicht angelegt werden: %{error}"
   activerecord:
     attributes:
       recurring_transaction:

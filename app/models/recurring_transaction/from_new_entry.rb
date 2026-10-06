@@ -9,45 +9,74 @@ class RecurringTransaction
   # payments, and an auto-posted copy would count them twice. The series is
   # built through DeclaredBill, the same path as the add-bill form.
   class FromNewEntry
-    attr_reader :entry, :user, :attrs, :series
+    # Twice a month needs a second day the form does not ask for.
+    FREQUENCY_PRESETS = (FrequencyPreset::PRESETS - %w[semimonthly]) + [ FrequencyPreset::INTERVAL ]
 
-    def initialize(entry:, user:, attrs:)
+    # What the form shows and submits under `repeat[...]`. Auto-posting is on
+    # until the user turns it off.
+    Settings = Struct.new(:enabled, :frequency_preset, :frequency_interval, :frequency_interval_unit, :auto_post,
+                          keyword_init: true) do
+      def self.from_params(params)
+        submitted = params[:enabled] == "1"
+
+        new(
+          enabled: submitted,
+          frequency_preset: params[:frequency_preset].presence || "monthly",
+          frequency_interval: params[:frequency_interval].presence || 2,
+          frequency_interval_unit: params[:frequency_interval_unit].presence || "monthly",
+          auto_post: !submitted || params[:auto_post] == "1"
+        )
+      end
+    end
+
+    attr_reader :entry, :user, :settings, :series
+
+    def initialize(entry:, user:, settings:)
       @entry = entry
       @user = user
-      @attrs = attrs
+      @settings = settings
     end
 
     # Returns true when the entry, the series and the first payment were all
     # saved. On false nothing was written, and the reason sits on the entry.
     def save
+      return false unless repeatable_entry?
+
       saved = false
 
       Entry.transaction do
-        raise ActiveRecord::Rollback unless entry.save
-        raise ActiveRecord::Rollback unless repeatable? && save_series
+        raise ActiveRecord::Rollback unless entry.save && save_series
 
         allocate_first_date!
         saved = true
       end
 
       saved
+    rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid,
+           Allocator::OverAllocationError, Allocator::MissingRateError => e
+      entry.errors.add(:base, I18n.t("recurring_transactions.from_new_entry.failed", error: e.message))
+      false
     end
 
     private
-      def repeatable?
+      # Checked before anything is written, together with the entry's own
+      # validations, so the form reports every problem at once.
+      def repeatable_entry?
+        valid = entry.valid?
+
         unless entry.account.manual?
           entry.errors.add(:base, I18n.t("recurring_transactions.from_new_entry.manual_account_required"))
-          return false
+          valid = false
         end
 
         # A series counts in its account's currency; a foreign-currency entry
         # would need an exchange rate for every future date.
         unless entry.currency == entry.account.currency
           entry.errors.add(:base, I18n.t("recurring_transactions.from_new_entry.account_currency_required"))
-          return false
+          valid = false
         end
 
-        true
+        valid
       end
 
       def save_series
@@ -66,25 +95,28 @@ class RecurringTransaction
       end
 
       def series_attrs
+        preset = settings.frequency_preset.to_s
         {
           name: entry.name,
           amount: entry.amount.abs,
           account_id: entry.account_id,
           first_due_on: entry.date.iso8601,
           is_income: entry.amount.negative?,
-          frequency_preset: attrs[:frequency_preset],
-          frequency_interval: attrs[:frequency_interval],
-          frequency_interval_unit: attrs[:frequency_interval_unit],
-          auto_post: attrs[:auto_post]
+          frequency_preset: FREQUENCY_PRESETS.include?(preset) ? preset : "monthly",
+          frequency_interval: settings.frequency_interval,
+          frequency_interval_unit: settings.frequency_interval_unit,
+          auto_post: settings.auto_post
         }
       end
 
       # Occurrences are normally generated after the series commits, which is
       # too late to attach the entry inside this transaction. Materializing
-      # the first date here is safe: the later generation upserts and skips
-      # rows that already exist.
+      # from the entry's date through today here also keeps a backdated
+      # series whole: the later generation starts at the current cycle and
+      # would leave the dates in between missing. It upserts, so the rows
+      # made here are skipped.
       def allocate_first_date!
-        OccurrenceGenerator.new(series).backfill!(from: entry.date, through: entry.date)
+        OccurrenceGenerator.new(series).backfill!(from: entry.date, through: [ entry.date, Date.current ].max)
         occurrence = series.recurring_occurrences.find_by!(due_on: entry.date)
 
         Allocator.new(occurrence).allocate!(entry: entry, paid_on: entry.date)

@@ -18,6 +18,17 @@ class Transactions::RepeatTest < ActionDispatch::IntegrationTest
     assert_select "input[name='repeat[enabled]'][type=checkbox]"
     assert_select "select[name='repeat[frequency_preset]']"
     assert_select "input[name='repeat[auto_post]'][type=checkbox][checked]"
+    # Twice a month needs a second day the form does not ask for.
+    assert_select "select[name='repeat[frequency_preset]'] option[value='semimonthly']", count: 0
+  end
+
+  test "a malformed repeat param is ignored rather than failing" do
+    get new_transaction_url(repeat: "1")
+    assert_response :success
+
+    assert_difference "Entry.count", 1 do
+      post transactions_url, params: entry_params(name: "Coffee", amount: 4).merge(repeat: "1")
+    end
   end
 
   test "the form hides repeat without preview access" do
@@ -78,7 +89,7 @@ class Transactions::RepeatTest < ActionDispatch::IntegrationTest
     assert_equal 1, series.recurring_occurrences.joins(:allocations).count
   end
 
-  test "an entry dated before the current cycle still pays the series' first date" do
+  test "a backdated entry pays the first date and keeps the dates since then" do
     travel_to Time.zone.local(2026, 10, 6, 12) do
       post transactions_url, params: entry_params(name: "Gym", amount: 30, date: Date.new(2026, 7, 15)).merge(
         repeat: { enabled: "1", frequency_preset: "monthly", auto_post: "1" }
@@ -88,6 +99,8 @@ class Transactions::RepeatTest < ActionDispatch::IntegrationTest
     series = @family.recurring_transactions.find_by!(name: "Gym")
     first = series.recurring_occurrences.find_by!(due_on: Date.new(2026, 7, 15))
     assert first.paid?
+    assert_equal [ Date.new(2026, 8, 15), Date.new(2026, 9, 15), Date.new(2026, 10, 15) ],
+                 series.recurring_occurrences.where(status: "scheduled").order(:due_on).limit(3).pluck(:due_on)
   end
 
   test "without repeat nothing but the entry is created" do

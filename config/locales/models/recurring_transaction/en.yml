@@ -9,6 +9,7 @@ en:
     from_new_entry:
       manual_account_required: "Repeat is only available for manual accounts"
       account_currency_required: "Repeat needs the transaction to use the account's currency"
+      failed: "The recurring series could not be set up: %{error}"
   activerecord:
     attributes:
       recurring_transaction:

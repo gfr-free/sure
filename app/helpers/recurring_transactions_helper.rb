@@ -33,6 +33,14 @@ module RecurringTransactionsHelper
     options << [ t("recurring_transactions.frequency_presets.interval"), RecurringTransaction::FrequencyPreset::INTERVAL ]
   end
 
+  # The new-transaction form's "Repeat" picker: the presets a first date
+  # alone can describe, plus a custom interval.
+  def repeat_frequency_options
+    RecurringTransaction::FromNewEntry::FREQUENCY_PRESETS.map do |preset|
+      [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]
+    end
+  end
+
   def frequency_interval_unit_options
     RecurringTransaction::FrequencyPreset::INTERVAL_UNITS.map do |unit|
       [ t("recurring_transactions.frequency_interval_units.#{unit}"), unit ]

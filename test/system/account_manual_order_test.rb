@@ -15,6 +15,9 @@ class AccountManualOrderTest < ApplicationSystemTestCase
 
     within_testid("account-sidebar-tabs") do
       assert_equal [ checking.id, plaid.id ], visible_depository_ids.first(2)
+      assert_no_selector "[data-account-sortable-target='item'] [role=button]", visible: true
+
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
       handle = find("[data-account-sortable-target='item'][data-account-id='#{plaid.id}'] [role=button]")
       handle.send_keys(:enter)
@@ -26,10 +29,34 @@ class AccountManualOrderTest < ApplicationSystemTestCase
 
     assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ plaid.id, checking.id ] }
 
+    within_testid("account-sidebar-tabs") do
+      click_button I18n.t("accounts.sidebar.sort_mode.done")
+      assert_no_selector "[data-account-sortable-target='item'] [role=button]", visible: true
+    end
+
     visit account_path(checking)
     within_testid("account-sidebar-tabs") do
       assert_equal [ plaid.id, checking.id ], visible_depository_ids.first(2)
     end
+  end
+
+  test "leaving sort mode saves a row still held with the keyboard" do
+    checking = accounts(:depository)
+    plaid = accounts(:connected)
+
+    visit account_path(checking)
+
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+
+      handle = find("[data-account-sortable-target='item'][data-account-id='#{plaid.id}'] [role=button]")
+      handle.send_keys(:enter)
+      handle.send_keys(:up)
+
+      click_button I18n.t("accounts.sidebar.sort_mode.done")
+    end
+
+    assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ plaid.id, checking.id ] }
   end
 
   private

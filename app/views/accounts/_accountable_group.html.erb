@@ -27,7 +27,7 @@
             controller: "account-sortable",
             account_sortable_group_value: account_group.key,
             account_sortable_url_value: reorder_accounts_path,
-            action: "dragover->account-sortable#dragOver drop->account-sortable#drop"
+            action: "dragover->account-sortable#dragOver drop->account-sortable#drop account-sort-mode:stop@window->account-sortable#releaseKeyboard"
           } : {} do %>
       <% account_group.accounts.each do |account| %>
         <%= tag.div class: "flex items-center gap-1 rounded-lg",
@@ -39,12 +39,15 @@
         <% if sortable %>
           <%# A span rather than a button: Firefox does not start a drag from a
               <button> inside a draggable row. %>
+          <%# Hidden until the sidebar is in sort mode (account-sort-mode). %>
           <%= tag.span role: "button",
                 tabindex: 0,
+                style: "display:none",
                 class: "shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-primary transition-colors cursor-grab active:cursor-grabbing touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alpha-black-100",
                 aria: { label: t("accounts.sidebar.reorder_account", account: account.name) },
                 title: t("accounts.sidebar.reorder_hint"),
                 data: {
+                  account_sort_mode_target: "handle",
                   action: "mousedown->account-sortable#enableDrag touchstart->account-sortable#touchStart touchmove->account-sortable#touchMove touchend->account-sortable#touchEnd touchcancel->account-sortable#touchEnd keydown->account-sortable#handleKeyDown"
                 } do %>
             <%= icon "grip-vertical", size: "sm" %>

@@ -177,6 +177,11 @@ export default class extends Controller {
     }
   }
 
+  // Leaving the sidebar's sort mode drops a row still held with the keyboard.
+  releaseKeyboard() {
+    if (this.keyboardItem) this.releaseKeyboardItem();
+  }
+
   grabWithKeyboard(item) {
     if (this.keyboardItem) this.releaseKeyboardItem();
 

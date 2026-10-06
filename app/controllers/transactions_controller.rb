@@ -153,7 +153,7 @@ class TransactionsController < ApplicationController
 
     @entry = account.entries.new(entry_params_with_idempotency_key(idempotency_key))
 
-    if @entry.save
+    if save_new_entry
       @entry.sync_account_later
       @entry.lock_saved_attributes!
       @entry.mark_user_modified!
@@ -654,8 +654,29 @@ class TransactionsController < ApplicationController
       @new_transaction_idempotency_key ||= submitted_idempotency_key || SecureRandom.uuid
     end
 
+    # "Repeat" also declares a series that starts with this entry. It shares
+    # the Bills preview gate, and the form only offers it there.
+    def save_new_entry
+      return @entry.save unless repeat_requested?
+
+      @entry_repeats = RecurringTransaction::FromNewEntry.new(entry: @entry, user: Current.user, attrs: repeat_params).save
+    end
+
+    def repeat_requested?
+      params.dig(:repeat, :enabled) == "1" && repeat_available?
+    end
+
+    def repeat_available?
+      preview_features_enabled? && !Current.family.recurring_transactions_disabled?
+    end
+    helper_method :repeat_available?
+
+    def repeat_params
+      params.require(:repeat).permit(:frequency_preset, :frequency_interval, :frequency_interval_unit, :auto_post)
+    end
+
     def respond_with_created_entry(entry)
-      flash[:notice] = t(".created")
+      flash[:notice] = @entry_repeats ? t(".created_repeating") : t(".created")
 
       respond_to do |format|
         format.html { redirect_back_or_to account_path(entry.account) }

@@ -30,6 +30,13 @@ de:
       category_label: Kategorie
       details: Details
       merchant_label: Händler
+      repeat_label: Wiederholen
+      repeat_hint: Legt zusätzlich unter Rechnungen eine wiederkehrende Serie an, die mit dieser Transaktion beginnt.
+      repeat_frequency_label: Wie oft
+      repeat_interval_label: Alle
+      repeat_interval_unit_label: Einheit
+      repeat_auto_post_label: Automatisch buchen
+      repeat_auto_post_hint: Sure legt die nächsten Buchungen am Fälligkeitstag selbst im Konto an.
     new:
       new_transaction: Neue Transaktion
     show:
@@ -332,6 +339,7 @@ de:
         type_income: Einnahme
     create:
       created: Transaktion erstellt
+      created_repeating: Transaktion erstellt und als Wiederholung angelegt
     pending_duplicate_merge:
       confirm_title: Mit gebuchter Transaktion zusammenführen (%{posted_amount})
       possible_duplicate: Duplikat?

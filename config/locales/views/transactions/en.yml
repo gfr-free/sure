@@ -52,8 +52,16 @@ en:
       tag_search_placeholder: Search or create tag
       tags_label: Tags
       transfer: Transfer
+      repeat_label: Repeat
+      repeat_hint: Also adds a recurring series under Bills that starts with this transaction.
+      repeat_frequency_label: How often
+      repeat_interval_label: Every
+      repeat_interval_unit_label: Unit
+      repeat_auto_post_label: Post automatically
+      repeat_auto_post_hint: Sure adds the next transactions to the account on each due date.
     create:
       created: Transaction created
+      created_repeating: Transaction created and set to repeat
     update:
       updated: Transaction updated
     new:

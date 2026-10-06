@@ -60,6 +60,16 @@ class Provider::PaperlessTest < ActiveSupport::TestCase
     assert_equal "image/webp", content_type
   end
 
+  test "document ids with leading zeros are read as decimal" do
+    stub_request(:get, "#{BASE}/api/documents/10/thumb/")
+      .to_return(status: 200, body: "webp-bytes", headers: { "Content-Type" => "image/webp" })
+    stub_request(:get, "#{BASE}/api/documents/9/thumb/")
+      .to_return(status: 200, body: "webp-bytes", headers: { "Content-Type" => "image/webp" })
+
+    assert_equal "webp-bytes", @client.file("010", kind: :thumb).first
+    assert_equal "webp-bytes", @client.file("09", kind: :thumb).first
+  end
+
   test "file rejects unknown kinds" do
     assert_raises(ArgumentError) { @client.file(5, kind: "metadata") }
   end

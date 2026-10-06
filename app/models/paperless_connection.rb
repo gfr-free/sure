@@ -38,7 +38,7 @@ class PaperlessConnection < ApplicationRecord
 
   # Link into the Paperless web UI. Opening it needs a login in Paperless itself.
   def document_url(document_id)
-    "#{base_url}/documents/#{Integer(document_id)}/details"
+    "#{base_url}/documents/#{Integer(document_id.to_s, 10)}/details"
   end
 
   # Checks the URL and token against Paperless and records the outcome, so the

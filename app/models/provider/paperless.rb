@@ -47,7 +47,7 @@ class Provider::Paperless
   end
 
   def document(id)
-    doc = get("/api/documents/#{Integer(id)}/", fields: DOCUMENT_FIELDS).body
+    doc = get("/api/documents/#{Integer(id.to_s, 10)}/", fields: DOCUMENT_FIELDS).body
     normalize_document(doc, correspondent_names([ doc["correspondent"] ].compact))
   end
 
@@ -58,7 +58,7 @@ class Provider::Paperless
     raise ArgumentError, "unknown file kind #{kind}" unless FILE_KINDS.include?(kind)
 
     body = +""
-    response = request(:get, "/api/documents/#{Integer(id)}/#{kind}/", {}, raw: true) do |req|
+    response = request(:get, "/api/documents/#{Integer(id.to_s, 10)}/#{kind}/", {}, raw: true) do |req|
       # Stream the body so an oversized file is rejected before it fills memory.
       req.options.on_data = proc do |chunk, received_bytes|
         raise Error.new("Paperless file is too large", :too_large) if received_bytes > MAX_FILE_SIZE

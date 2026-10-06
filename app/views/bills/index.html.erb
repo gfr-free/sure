@@ -67,7 +67,7 @@
           <div class="flex items-center justify-between gap-4 px-4 py-3">
             <div class="min-w-0">
               <p class="text-sm text-primary truncate">
-                <%= t(".suggestion_line",
+                <%= t(suggestion.pending_review? ? ".auto_posted_line" : ".suggestion_line",
                       entry: suggestion.entry&.name.presence || t(".suggestion_unknown_entry"),
                       bill: series.display_name) %>
               </p>
@@ -89,16 +89,17 @@
             </div>
             <div class="flex items-center gap-2 shrink-0">
               <%= render DS::Link.new(
-                    text: t("recurring_occurrences.show.link_payment"),
+                    text: suggestion.pending_review? ? t(".auto_posted_confirm") : t("recurring_occurrences.show.link_payment"),
                     variant: "primary",
                     href: confirm_recurring_allocation_path(suggestion),
                     method: :post
                   ) %>
               <%= render DS::Link.new(
-                    text: t("recurring_occurrences.show.not_this_one"),
+                    text: suggestion.pending_review? ? t(".auto_posted_discard") : t("recurring_occurrences.show.not_this_one"),
                     variant: "ghost",
                     href: reject_recurring_allocation_path(suggestion),
-                    method: :post
+                    method: :post,
+                    data: suggestion.pending_review? ? { turbo_confirm: t("transactions.auto_posted.discard_confirm") } : {}
                   ) %>
             </div>
           </div>

@@ -25,15 +25,19 @@ class RecurringAllocation < ApplicationRecord
 
   scope :confirmed, -> { where(state: :confirmed) }
   scope :suggested, -> { where(state: :suggested) }
+  # Everything the review queue asks about: matcher suggestions and entries
+  # Sure posted overnight.
+  scope :awaiting_review, -> { where(state: :suggested).or(where(pending_review: true)) }
 
   before_validation :default_paid_on
 
-  # Which of these entries Sure posted by itself, in one query for a whole
-  # transaction list.
-  def self.auto_posted_entry_ids(entry_ids)
-    return Set.new if entry_ids.empty?
+  # Which of these entries Sure posted by itself, keyed by entry id, in one
+  # query for a whole transaction list. The allocation tells the list whether
+  # the post still waits for the user's confirmation.
+  def self.auto_posted_by_entry(entry_ids)
+    return {} if entry_ids.empty?
 
-    from_auto_posted.where(entry_id: entry_ids).distinct.pluck(:entry_id).to_set
+    from_auto_posted.where(entry_id: entry_ids).index_by(&:entry_id)
   end
 
   private

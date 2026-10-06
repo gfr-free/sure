@@ -125,14 +125,8 @@
                     <% end %>
 
                     <%# Posted by an auto-posting bill %>
-                    <% if @auto_posted_entry_ids&.include?(entry.id) %>
-                      <%= render DS::Pill.new(
-                        label: t("transactions.transaction.auto_posted"),
-                        tone: :neutral,
-                        marker: false,
-                        icon: "repeat",
-                        title: t("transactions.transaction.auto_posted_tooltip")
-                      ) %>
+                    <% if (auto_posted_allocation = @auto_posted_allocations&.[](entry.id)) %>
+                      <%= render "transactions/auto_posted", allocation: auto_posted_allocation, account_id: entry.account_id %>
                     <% end %>
 
                     <%# Split indicator %>

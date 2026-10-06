@@ -29,6 +29,9 @@ de:
       paycheck: Einkommensplan
       all: Alle Rechnungen
     index:
+      auto_posted_line: "Sure hat %{entry} für %{bill} gebucht. Behalten?"
+      auto_posted_confirm: Bestätigen
+      auto_posted_discard: Verwerfen und überspringen
       title: Rechnungen
       add_bill: Rechnung hinzufügen
       add_income: Einkommen hinzufügen

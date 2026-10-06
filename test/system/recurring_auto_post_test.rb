@@ -4,6 +4,8 @@ class RecurringAutoPostTest < ApplicationSystemTestCase
   setup do
     sign_in @user = users(:family_admin)
     @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+    # The chat panel leaves the transaction list too narrow for the review buttons.
+    @user.update!(show_ai_sidebar: false)
     @family = @user.family
     @series = recurring_transactions(:netflix_subscription) # on the manual depository account
   end
@@ -23,7 +25,13 @@ class RecurringAutoPostTest < ApplicationSystemTestCase
     assert occurrence.reload.paid?
 
     visit transactions_url
+    assert_text I18n.t("transactions.auto_posted.pending")
+
+    find("button[title='#{I18n.t("transactions.auto_posted.confirm")}']").click
+
+    assert_text I18n.t("recurring_allocations.confirm_posted.success")
     assert_text I18n.t("transactions.transaction.auto_posted")
+    assert_not occurrence.allocations.sole.reload.pending_review?
   end
 
   test "post an upcoming date now from its drawer" do

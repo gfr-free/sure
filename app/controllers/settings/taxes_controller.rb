@@ -9,8 +9,7 @@ class Settings::TaxesController < ApplicationController
 
   def show
     @year = today.year
-    @profile = TaxProfile.for(Current.user, @year) ||
-               Current.user.tax_profiles.build(valid_from_year: @year, currency: Current.family.currency)
+    @profile = form_profile_for(@year)
     @profiles = Current.user.tax_profiles.chronological.to_a
     @estimates = [ @year, @year - 1 ].map { |year| Tax::Estimate.new(Current.user, year: year) }
   end
@@ -19,7 +18,11 @@ class Settings::TaxesController < ApplicationController
   # entry, so earlier years keep their rates.
   def update
     attributes = profile_params
-    year = Integer(attributes.delete(:valid_from_year).to_s, exception: false) || today.year
+    year = Integer(attributes.delete(:valid_from_year).to_s, exception: false)
+    if year.nil?
+      return redirect_to settings_taxes_path, alert: t(".invalid_year")
+    end
+
     profile = Current.user.tax_profiles.find_or_initialize_by(valid_from_year: year)
     profile.currency ||= Current.family.currency
 
@@ -45,6 +48,17 @@ class Settings::TaxesController < ApplicationController
   end
 
   private
+    # The form always edits the given year: a profile inherited from an earlier
+    # year is shown as an unsaved copy, so saving starts a new entry and the
+    # earlier year keeps its rates.
+    def form_profile_for(year)
+      current = TaxProfile.for(Current.user, year)
+      return current if current&.valid_from_year == year
+      return current.dup.tap { |copy| copy.valid_from_year = year } if current
+
+      Current.user.tax_profiles.build(valid_from_year: year, currency: Current.family.currency)
+    end
+
     def today
       Account.liquidity_today_for(Current.family)
     end

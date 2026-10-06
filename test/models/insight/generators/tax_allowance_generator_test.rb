@@ -39,6 +39,17 @@ class Insight::Generators::TaxAllowanceGeneratorTest < ActiveSupport::TestCase
     assert_equal "tax_allowance_over_allocated:#{@user.id}:#{@year}", insights.first.dedup_key
   end
 
+  test "leaves out accounts another family member cannot see" do
+    profile(annual_allowance: 1_000)
+    interest(150)
+    other = users(:family_member)
+    @account.account_shares.where(user: other).destroy_all
+    assert_not Account.accessible_by(other).exists?(@account.id)
+
+    assert_empty generate.select { |insight| insight.facts[:bank] == "Demo Bank" }
+    assert_empty generate.select { |insight| insight.template_key == "tax_allowance_over_allocated" }
+  end
+
   private
     def generate
       Insight::Generators::TaxAllowanceGenerator.new(@family).generate

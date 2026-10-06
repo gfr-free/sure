@@ -257,16 +257,16 @@ class Budget < ApplicationRecord
   # until the person marks the year as paid. Preview only, like the switch to
   # availability above.
   #
-  # Scoped to the people behind the figure: a personal budget its owner, the
-  # household one every member, each on the accounts the viewer can see, as
-  # `cash_accounts` is.
+  # Scoped to the people behind the figure and to the same accounts as
+  # `cash_accounts`: a personal budget its owner on all of the owner's accounts,
+  # the household one every member on the accounts the viewer can see.
   def tax_reserve
     @tax_reserve ||= if current_user&.preview_features_enabled?
       people = user_id.present? ? family.users.where(id: user_id) : family.users
       this_year = Account.liquidity_today_for(family).year
 
       people.to_a.product([ this_year - 1, this_year ]).sum(0.to_d) do |person, year|
-        estimate = Tax::Estimate.new(person, year: year, viewer: current_user)
+        estimate = Tax::Estimate.new(person, year: year, viewer: user_id.present? ? nil : current_user)
         reserve = estimate.reserve
         next 0.to_d if reserve.nil? || !estimate.reserve_open?
 

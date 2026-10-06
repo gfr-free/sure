@@ -14,8 +14,11 @@ class Insight::Generators::TaxAllowanceGenerator < Insight::Generator
   def generate
     year = Account.liquidity_today_for(family).year
 
-    family.users.flat_map do |person|
-      estimate = Tax::Estimate.new(person, year: year)
+    people = family.users.to_a
+
+    # Insights are shown family-wide, so only count accounts every member can see.
+    people.flat_map do |person|
+      estimate = Tax::Estimate.new(person, year: year, viewer: people)
       next [] unless estimate.profile?
 
       used_up = estimate.banks.select(&:used_up?).map { |bank| used_up_insight(person, estimate, bank) }

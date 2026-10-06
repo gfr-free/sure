@@ -72,6 +72,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
       "the preview-gated bill link must not render for a user without the flag"
   end
 
+  test "a bank transaction keeps its saved label selectable" do
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+    entry = create_transaction(account: accounts(:depository), amount: 10, name: "Labelled")
+    entry.entryable.update!(investment_activity_label: "Transfer")
+
+    get transaction_url(entry), headers: { "Turbo-Frame" => "drawer" }
+
+    assert_response :success
+    assert_select "select[name='entry[entryable_attributes][investment_activity_label]'] option[value='Transfer'][selected]"
+    assert_select "select[name='entry[entryable_attributes][investment_activity_label]'] option[value='Interest']"
+  end
+
   test "index groups subcategories immediately after their parent in the category filter" do
     get transactions_url
     assert_response :success

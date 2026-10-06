@@ -196,6 +196,21 @@ class BudgetAvailableCashTest < ActiveSupport::TestCase
     assert_equal 0, budget_for(viewer).tax_reserve
   end
 
+  test "a personal budget reserves tax on all of the owner's accounts it counts" do
+    viewer = preview_viewer
+    owner = users(:sso_only)
+    year = Account.liquidity_today_for(@family).year
+    owner.tax_profiles.create!(valid_from_year: year, currency: @family.currency, rate_interest: 25, annual_allowance: 0,
+                               withheld_at_source_default: false)
+    depository(2_000, owner: owner).entries.create!(date: Date.new(year, 1, 2).clamp(..Date.current), amount: -400, currency: @family.currency,
+                                                    name: "Interest", entryable: Transaction.new(investment_activity_label: "Interest"))
+    @family.update!(personal_budgets: true)
+    personal = Budget.find_or_bootstrap(@family, start_date: Date.current, user: owner)
+    personal.current_user = viewer
+
+    assert_equal 100, personal.tax_reserve
+  end
+
   test "without preview, no tax reserve is taken off" do
     viewer = users(:empty)
     viewer.update!(preferences: (viewer.preferences || {}).merge("preview_features_enabled" => false))

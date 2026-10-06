@@ -74,8 +74,9 @@ class Tax::Estimate
     taxes.sum if taxes.any?
   end
 
-  # `viewer` limits the accounts to those that person can see, for figures
-  # shown to someone else (the household budget).
+  # `viewer` (one user or several) limits the accounts to those every one of
+  # them can see, for figures shown to someone else (the household budget,
+  # family-wide insights).
   def initialize(user, year:, as_of: nil, viewer: nil)
     @user = user
     @year = year
@@ -123,7 +124,9 @@ class Tax::Estimate
       scope = user.family.accounts.visible
                   .where(accountable_type: Account::Taxation::TAXABLE_TYPES)
                   .where("accounts.owner_id = :id OR accounts.tax_joint_user_id = :id", id: user.id)
-      scope = scope.merge(Account.accessible_by(@viewer)) if @viewer && @viewer != user
+      Array(@viewer).each do |viewer|
+        scope = scope.where(id: Account.accessible_by(viewer).select(:id)) unless viewer == user
+      end
       scope.distinct.includes(:accountable, :owner, :tax_joint_user, :account_shares, loss_pots: :snapshots).to_a
            .select { |account| account.returns_taxable? && share(account).positive? }
     end
@@ -265,7 +268,8 @@ class Tax::Estimate
       if withheld?(account)
         [ allocation_for(account) - taxable_total(account), 0 ].max
       else
-        used = sum(offset_incomes.reject { |income| withheld_ids.include?(income.account_id) })
+        # Counted like `tax_on` does: positive returns of kinds with a rate.
+        used = sum(offset_incomes.select { |income| !withheld_ids.include?(income.account_id) && income.amount.positive? && profile&.rate_for(income.kind) })
         [ deferred_allowance - used, 0 ].max
       end
     end

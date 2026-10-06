@@ -76,6 +76,7 @@ en:
         mark_open: Count again
       update:
         saved: Tax settings saved.
+        invalid_year: Enter a valid year this tax profile applies from.
       settle:
         updated: Tax reserve updated.
       destroy_profile:

@@ -87,12 +87,41 @@ Channel and lead time are per person in `users.preferences`
 (`User#account_release_channel`, `#account_release_lead_days`), set on the
 Preferences page.
 
+## Transfers that count as saving
+
+A transfer from available money into a depository account that is not
+available on the booking date (`locked` before its release date, or
+`long_term`) is a saving, like a contribution to a brokerage account. Its
+outflow leg gets the existing kind `investment_contribution` and the family's
+`investment_contributions_category` ("Investment Contributions"), so
+budgets show it as money set aside. Rules:
+
+- The decision lives in `Transfer.kind_for_account(destination, source:, date:)`
+  and `Transfer.saving_into?`. Every path that creates or matches a transfer
+  passes the source account and the booking date: `Transfer::Creator`, the
+  automatic matcher, the manual match dialog, the "set as transfer" rule
+  action and the Sure data import.
+- Money moved between two savings accounts (brokerage, crypto, locked or
+  long-term bank accounts) is not new saving and stays `funds_movement`.
+- Property, vehicles and other assets stay out even though they are
+  long-term: a down payment or money lent to a friend is not saving.
+- Money coming back (a matured term deposit paid out to the current account)
+  stays `funds_movement`; it is not income.
+- Instant-access savings (`immediate`) stay neutral. A user who wants them to
+  count as saving classifies the account as locked.
+- The kind is stored per transaction, so this applies to everyone, without the
+  preview switch, and only to transfers created or matched from now on. Old
+  transfers are not reclassified.
+- The savings rate insight adds `IncomeStatement#savings_contributions_total`
+  back to income minus expenses, so saving does not lower the savings rate.
+
 ## Preview gating
 
 The columns, migration backfill and defaults apply to everyone. Behavior and
-UI are behind the preview switch: the form section, header badge, Details tab,
-and the budget's and paycheck planner's switch from "depository" to
-`immediate_assets_on` read the viewer's `preview_features_enabled?`. Insights
-already run only for preview families; release reminders, their settings and
-the e-mail only reach members with preview features on. API and assistant fields are always
+UI are behind the preview switch, except the saving rule above: the form
+section, header badge, Details tab, and the budget's and paycheck planner's
+switch from "depository" to `immediate_assets_on` read the viewer's
+`preview_features_enabled?`. Insights already run only for preview families;
+release reminders, their settings and the e-mail only reach members with
+preview features on. API and assistant fields are always
 returned (additive).

@@ -9,7 +9,7 @@
     <% forecasts.each do |forecast| %>
       <li class="flex items-center justify-between gap-4 py-2">
         <div class="min-w-0">
-          <%= link_to forecast.account.name, account_path(forecast.account, tab: "forecast"), class: "text-sm text-primary truncate hover:underline" %>
+          <%= link_to forecast.account.name, account_path(forecast.account, tab: "forecast"), class: "text-sm text-primary truncate hover:underline focus-ring rounded-sm" %>
           <p class="text-xs text-secondary">
             <% if forecast.shortfall? %>
               <%= t(".short", date: l(forecast.low_on, format: :short), by: l(forecast.top_up_by, format: :short)) %>

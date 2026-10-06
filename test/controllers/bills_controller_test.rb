@@ -29,7 +29,7 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "[data-testid='bills-account-coverage']" do
-      assert_select "a[href=?]", account_path(account, tab: "forecast"), text: account.name
+      assert_select "a.focus-ring[href=?]", account_path(account, tab: "forecast"), text: account.name
       assert_select "p", text: /#{Regexp.escape(Money.new(550, "USD").format)} short/
     end
   end

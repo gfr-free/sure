@@ -287,6 +287,15 @@ class RecurringTransaction < ApplicationRecord
     account&.active? && (!transfer? || destination_account&.active?)
   end
 
+  # "Post now" in an occurrence's drawer writes the same entry the nightly
+  # poster would, so it asks for what auto-posting asks for, without the
+  # switch: manual and active accounts, a fixed amount in the account's
+  # currency.
+  def postable_now?
+    auto_post_accounts_manual? && auto_post_accounts_active? && amount_fixed? &&
+      currency == account.currency
+  end
+
   # Checked when auto-posting is switched on or what it depends on is edited,
   # not on every save: linking a bank to the account changes no column here,
   # and background updates to such a series (matcher hints, cleanup) must not

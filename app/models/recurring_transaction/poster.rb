@@ -46,38 +46,63 @@ class RecurringTransaction
       posted
     end
 
+    # "Post now": the user paid an open date early (or late) and records it
+    # with one click instead of typing it in. Same entry and allocation as the
+    # nightly run, but dated today, not on the due date, and independent of the
+    # auto-post switch. Stamps `auto_posted_at` like a nightly post, so the
+    # job never posts the date again, even after the entry is deleted.
+    #
+    # Returns the posted entry, or nil when the date cannot be posted (any
+    # allocation already recorded, not open, zero amount, or the series is not
+    # postable).
+    def post_now!(occurrence)
+      series = occurrence.recurring_transaction
+      return unless series.postable_now?
+
+      # A key of its own: the nightly key may still sit on an entry the user
+      # unlinked from this date, and reusing that entry would book nothing new.
+      key = "#{idempotency_key(occurrence)}-now-#{SecureRandom.hex(6)}"
+      entry = post_occurrence!(series, occurrence, date: today, key: key, repost: true)
+      return unless entry
+
+      series.account.sync_later(window_start_date: today) unless series.transfer?
+      entry
+    end
+
     private
-      def post_occurrence!(series, occurrence)
+      # `repost` lets the user post a date again whose posted entry they
+      # deleted; the nightly run never does.
+      def post_occurrence!(series, occurrence, date: occurrence.effective_due_on, key: idempotency_key(occurrence), repost: false)
         RecurringOccurrence.transaction do
           occurrence.lock!
           # Re-checked under the lock. Any existing allocation means the user
           # (or the matcher) already recorded a payment or a candidate for this
           # date, and posting another entry would count it twice.
-          next false unless occurrence.scheduled? && occurrence.auto_posted_at.nil?
-          next false if occurrence.allocations.exists?
+          next nil unless occurrence.scheduled? && (repost || occurrence.auto_posted_at.nil?)
+          next nil if occurrence.allocations.exists?
           # A date the user set to zero has nothing to post.
-          next false unless occurrence.resolved_expected_amount.positive?
+          next nil unless occurrence.resolved_expected_amount.positive?
 
-          entry = series.transfer? ? post_transfer!(series, occurrence) : post_entry!(series, occurrence)
+          entry = series.transfer? ? post_transfer!(series, occurrence, date, key) : post_entry!(series, occurrence, date, key)
           RecurringTransaction::Allocator.new(occurrence).allocate_posted!(entry: entry)
           occurrence.update!(auto_posted_at: Time.current)
-          true
+          entry
         end
       end
 
-      def post_entry!(series, occurrence)
-        existing = series.account.entries.find_by(idempotency_key: idempotency_key(occurrence))
+      def post_entry!(series, occurrence, date, key)
+        existing = series.account.entries.find_by(idempotency_key: key)
         return existing if existing
 
         amount = occurrence.resolved_expected_amount
         entry = series.account.entries.create!(
-          date: occurrence.effective_due_on,
+          date: date,
           name: series.display_name,
           amount: series.amount.negative? ? -amount : amount,
           currency: series.currency,
           notes: series.notes,
           user_modified: true,
-          idempotency_key: idempotency_key(occurrence),
+          idempotency_key: key,
           entryable: Transaction.new(category_id: series.category_id, merchant_id: series.merchant_id)
         )
         # Rules may fill empty fields later, but never overwrite what the
@@ -86,14 +111,14 @@ class RecurringTransaction
         entry
       end
 
-      def post_transfer!(series, occurrence)
+      def post_transfer!(series, occurrence, date, key)
         transfer = Transfer::Creator.new(
           family: family,
           source_account_id: series.account_id,
           destination_account_id: series.destination_account_id,
-          date: occurrence.effective_due_on,
+          date: date,
           amount: occurrence.resolved_expected_amount,
-          idempotency_key: idempotency_key(occurrence)
+          idempotency_key: key
         ).create
 
         transfer.outflow_transaction.entry

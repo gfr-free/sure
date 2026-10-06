@@ -202,6 +202,27 @@ class TransferTest < ActiveSupport::TestCase
       Transfer.kind_for_account(term_deposit, source: building_savings, date: Date.current)
   end
 
+  test "kind_for_account keeps money moved from a locked account into investments neutral" do
+    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
+
+    assert_equal "funds_movement",
+      Transfer.kind_for_account(accounts(:investment), source: term_deposit, date: Date.current)
+    assert_equal "funds_movement",
+      Transfer.kind_for_account(accounts(:crypto), source: accounts(:investment), date: Date.current)
+    assert_equal "investment_contribution",
+      Transfer.kind_for_account(accounts(:investment), source: accounts(:depository), date: Date.current)
+    assert_equal "investment_contribution", Transfer.kind_for_account(accounts(:investment))
+  end
+
+  test "kind_for_account does not count borrowed money as saving" do
+    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
+
+    assert_equal "funds_movement",
+      Transfer.kind_for_account(term_deposit, source: accounts(:loan), date: Date.current)
+    assert_equal "funds_movement",
+      Transfer.kind_for_account(term_deposit, source: accounts(:credit_card), date: Date.current)
+  end
+
   test "kind_for_account keeps instant-access savings and money coming back neutral" do
     savings = families(:dylan_family).accounts.create!(
       name: "Savings", balance: 0, currency: "USD", accountable: Depository.new(subtype: "savings")

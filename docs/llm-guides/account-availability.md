@@ -81,7 +81,10 @@ budgets show it as money set aside. Rules:
   automatic matcher, the manual match dialog, the "set as transfer" rule
   action and the Sure data import.
 - Money moved between two savings accounts (brokerage, crypto, locked or
-  long-term bank accounts) is not new saving and stays `funds_movement`.
+  long-term bank accounts) is not new saving and stays `funds_movement`, in
+  both directions: a locked deposit moved into a brokerage account is not a
+  new contribution either.
+- Borrowed money (a loan or credit card as the source) is not saving.
 - Property, vehicles and other assets stay out even though they are
   long-term: a down payment or money lent to a friend is not saving.
 - Money coming back (a matured term deposit paid out to the current account)

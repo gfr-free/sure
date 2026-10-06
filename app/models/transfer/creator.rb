@@ -248,7 +248,7 @@ class Transfer::Creator
         "loan_payment"
       elsif destination_account.liability?
         "cc_payment"
-      elsif destination_is_investment? && !source_is_investment?
+      elsif destination_is_investment? && !Transfer.savings_account?(source_account, date)
         "investment_contribution"
       elsif Transfer.saving_into?(destination_account, source: source_account, date: date)
         "investment_contribution"
@@ -259,10 +259,6 @@ class Transfer::Creator
 
     def destination_is_investment?
       destination_account.investment? || destination_account.crypto?
-    end
-
-    def source_is_investment?
-      source_account.investment? || source_account.crypto?
     end
 
     def name_prefix

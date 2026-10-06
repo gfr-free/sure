@@ -136,6 +136,24 @@ class Transfer::CreatorTest < ActiveSupport::TestCase
     assert_equal crypto_account.currency, inflow.entry.currency
   end
 
+  test "money moved from a term deposit into an investment account stays a funds movement" do
+    term_deposit = @family.accounts.create!(
+      name: "Term deposit", balance: 1000, currency: "USD",
+      accountable: Depository.new(subtype: "cd"), available_on: 1.year.from_now.to_date
+    )
+
+    transfer = Transfer::Creator.new(
+      family: @family,
+      source_account_id: term_deposit.id,
+      destination_account_id: @destination_account.id,
+      date: @date,
+      amount: @amount
+    ).create
+
+    assert_equal "funds_movement", transfer.outflow_transaction.kind
+    assert_nil transfer.outflow_transaction.category
+  end
+
   test "creates funds_movement for investment to investment transfer (rollover)" do
     # Rollover case: investment → investment should stay as funds_movement
     other_investment = @family.accounts.create!(name: "IRA", balance: 5000, currency: "USD", accountable: Investment.new)

@@ -25,7 +25,7 @@ class Transfer < ApplicationRecord
         "loan_payment"
       elsif account.credit_card?
         "cc_payment"
-      elsif account.investment? || account.crypto?
+      elsif (account.investment? || account.crypto?) && (source.nil? || !savings_account?(source, date))
         "investment_contribution"
       elsif account.liability?
         "cc_payment"
@@ -42,11 +42,13 @@ class Transfer < ApplicationRecord
     # vehicles and other assets stay out: a down payment or money lent to a
     # friend is not saving. A locked account past its release date is
     # available again, so a transfer into it stays a plain funds movement.
-    # Moving money between two savings accounts is not new saving either.
+    # Moving money between two savings accounts is not new saving either, and
+    # neither is borrowed money (a loan or credit card as the source).
     def saving_into?(destination, source: nil, date: nil)
       return false unless bound_savings_account?(destination, date)
+      return true if source.nil?
 
-      source.nil? || !savings_account?(source, date)
+      source.available_on?(date || source.liquidity_today) && !savings_account?(source, date)
     end
 
     def savings_account?(account, date = nil)

@@ -67,7 +67,7 @@ class BullionSpec < ApplicationRecord
         Holding.where(security_id: security_id).or(Holding.where(provider_security_id: security_id)).exists?
       return unless in_use
 
-      errors.add(:base, :in_use, message: "is still used by trades or holdings")
+      errors.add(:base, :in_use)
       throw :abort
     end
 

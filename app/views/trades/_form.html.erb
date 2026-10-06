@@ -1,6 +1,8 @@
 <%# locals: (model:, account:) %>
 
 <% type = params[:type] || "buy" %>
+<% holding_kind = trade_holding_kind(account) %>
+<% bullion_trade = %w[buy sell].include?(type) && holding_kind != "security" %>
 
 <%= styled_form_with url: trades_path(account_id: account&.id), scope: :model, data: { controller: "trade-form", trade_type: type } do |form| %>
   <div class="space-y-4">
@@ -20,11 +22,52 @@
       { label: t(".type"), selected: type },
       { data: {
           action: "trade-form#changeType",
-          trade_form_url_param: new_trade_path(account_id: account&.id),
+          trade_form_url_param: new_trade_path(account_id: account&.id, holding_kind: holding_kind),
           trade_form_key_param: "type",
         }} %>
 
       <% if %w[buy sell].include?(type) %>
+        <%= form.select :holding_kind, trade_holding_kind_options,
+            { label: t(".holding_kind"), selected: holding_kind },
+            { data: {
+                action: "trade-form#changeType",
+                trade_form_url_param: new_trade_path(account_id: account&.id, type: type),
+                trade_form_key_param: "holding_kind",
+              }} %>
+      <% end %>
+
+      <% if bullion_trade && holding_kind == "bullion" %>
+        <% product = trade_bullion_product %>
+        <%= form.select :bullion_product, bullion_product_options,
+            { label: t(".bullion_product"), selected: product.key },
+            { data: {
+                action: "trade-form#changeType",
+                trade_form_url_param: new_trade_path(account_id: account&.id, type: type, holding_kind: holding_kind),
+                trade_form_key_param: "bullion_product",
+              }} %>
+        <%= form.select :bullion_size, bullion_size_options(product),
+            { label: t(".bullion_size"), selected: trade_form_param(:bullion_size) } %>
+      <% elsif bullion_trade && holding_kind == "custom_bullion" %>
+        <% custom_id = trade_form_param(:custom_bullion_id) %>
+        <% custom_options = custom_bullion_options(Current.family) %>
+        <% custom_id ||= custom_options.first.last %>
+        <%= form.select :custom_bullion_id, custom_options,
+            { label: t(".custom_bullion"), selected: custom_id },
+            { data: {
+                action: "trade-form#changeType",
+                trade_form_url_param: new_trade_path(account_id: account&.id, type: type, holding_kind: holding_kind),
+                trade_form_key_param: "custom_bullion_id",
+              }} %>
+        <% if custom_id.to_s == Trade::CreateForm::NEW_CUSTOM_BULLION %>
+          <%= form.text_field :custom_bullion_name, label: t(".custom_bullion_name"), placeholder: t(".custom_bullion_name_placeholder"),
+                value: trade_form_param(:custom_bullion_name), required: true %>
+          <%= form.select :custom_bullion_metal, bullion_metal_options,
+              { label: t(".custom_bullion_metal"), selected: trade_form_param(:custom_bullion_metal) } %>
+          <%= form.number_field :custom_bullion_fine_grams, label: t(".custom_bullion_fine_grams"), placeholder: "6.22",
+                value: trade_form_param(:custom_bullion_fine_grams), min: 0.0001, step: "any", required: true %>
+          <p class="text-xs text-secondary"><%= t(".custom_bullion_hint") %></p>
+        <% end %>
+      <% elsif %w[buy sell].include?(type) %>
         <% if Security.providers.any? %>
           <div class="form-field combobox">
             <%= form.combobox :ticker,
@@ -59,8 +102,8 @@
       <% end %>
 
       <% if %w[buy sell].include?(type) %>
-        <%= form.number_field :qty, label: t(".qty"), placeholder: "10", min: 0.000000000000000001, step: "any", required: true %>
-        <%= form.money_field :price, label: t(".price"), step: "any", precision: 10, required: true, default_currency: account&.currency %>
+        <%= form.number_field :qty, label: bullion_trade ? t(".qty_pieces") : t(".qty"), placeholder: bullion_trade ? "1" : "10", min: 0.000000000000000001, step: "any", required: true %>
+        <%= form.money_field :price, label: bullion_trade ? t(".price_per_piece") : t(".price"), step: "any", precision: 10, required: true, default_currency: account&.currency %>
         <%= form.money_field :fee, label: t(".fee"), step: "any", min: 0, default_currency: account&.currency %>
       <% end %>
     </div>

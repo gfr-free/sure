@@ -115,6 +115,8 @@ class Settings::HostingsController < ApplicationController
       Setting.securities_provider = hosting_params[:securities_provider]
     end
 
+    update_bullion_reference_securities
+
     if hosting_params.key?(:securities_providers)
       new_providers = Array(hosting_params[:securities_providers]).reject(&:blank?) & Security.valid_price_providers
       old_providers = Setting.enabled_securities_providers
@@ -321,9 +323,20 @@ class Settings::HostingsController < ApplicationController
 
   private
     # Strong parameters for the self-hosting settings form.
+    # Only the submitted metals change; each value is a security search id
+    # ("TICKER|MIC|PROVIDER") or, without a provider, a bare ticker.
+    def update_bullion_reference_securities
+      return unless hosting_params.key?(:bullion_reference_securities)
+
+      submitted = hosting_params[:bullion_reference_securities].to_h.transform_values { |value| value.to_s.strip }
+      raise Setting::ValidationError, t(".invalid_bullion_reference") if submitted.values.any? { |value| Security.parse_combobox_id(value)[:ticker].blank? }
+
+      Setting.bullion_reference_securities = Setting.bullion_reference_securities.to_h.merge(submitted)
+    end
+
     def hosting_params
       return ActionController::Parameters.new unless params.key?(:setting)
-      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
+      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [], bullion_reference_securities: BullionSpec::METALS)
     end
 
     def load_external_assistant_models

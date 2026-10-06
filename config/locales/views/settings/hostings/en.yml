@@ -2,6 +2,15 @@
 en:
   settings:
     hostings:
+      bullion_reference_settings:
+        current: "%{ticker} (%{provider})"
+        description: Coin and bar prices are the fine metal content times the price of this security. Pick it like any stock; its price provider is used. Changes apply from the next sync.
+        no_provider: no provider
+        not_set: Not set
+        save: Save
+        search_placeholder: Search for a security
+        ticker_placeholder: GC=F
+        title: Precious metal reference prices
       invite_code_settings:
         description: Control how new people sign up for your instance of %{product}.
         email_confirmation_description: When enabled, users must confirm their email
@@ -304,6 +313,7 @@ en:
         view_pricing: View Twelve Data pricing
         title: Twelve Data
       update:
+        invalid_bullion_reference: Choose a security for the metal reference price.
         invalid_demo_family: Selected family must own the configured demo email.
         select_demo_family: Select a disposable demo family first.
         failure: Invalid setting value

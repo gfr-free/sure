@@ -248,6 +248,35 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "updates one metal reference security and keeps the others" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { bullion_reference_securities: { "XAG" => "XAG/USD||twelve_data" } } }
+
+      assert_equal "XAG/USD||twelve_data", Setting.bullion_reference_securities["XAG"]
+      assert_equal "GC=F|CMX|yahoo_finance", Setting.bullion_reference_securities["XAU"]
+    end
+  ensure
+    Setting.bullion_reference_securities = nil
+  end
+
+  test "rejects a blank metal reference security" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { bullion_reference_securities: { "XAU" => " " } } }
+
+      assert_equal "GC=F|CMX|yahoo_finance", Setting.bullion_reference_securities["XAU"]
+    end
+  end
+
+  test "shows the metal reference securities" do
+    with_self_hosting do
+      get settings_hosting_url
+
+      assert_response :success
+      assert_includes response.body, "GC=F · CMX (Yahoo Finance)"
+      assert_select "form input[name='setting[bullion_reference_securities][XPD]']"
+    end
+  end
+
   test "can update settings when self hosting is enabled" do
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { twelve_data_api_key: "1234567890" } }

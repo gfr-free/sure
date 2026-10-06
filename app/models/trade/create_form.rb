@@ -19,8 +19,15 @@ class Trade::CreateForm
   TRANSFER_TYPES = %w[deposit withdrawal].freeze
   SUPPORTED_TYPES = (ACTIVITY_LABELS.keys + TRANSFER_TYPES).freeze
 
+  # What a buy or sell trades: a listed security, a catalogue coin or bar, or a
+  # family's own coin (see BullionCatalog and BullionSpec).
+  HOLDING_KINDS = %w[security bullion custom_bullion].freeze
+  NEW_CUSTOM_BULLION = "new".freeze
+
   attr_accessor :account, :date, :amount, :currency, :qty,
-                :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id
+                :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id,
+                :holding_kind, :bullion_product, :bullion_size, :custom_bullion_id,
+                :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
 
   # Either creates a trade, transaction, or transfer based on type
   # Returns the model, regardless of success or failure
@@ -56,12 +63,65 @@ class Trade::CreateForm
       ticker.present? || manual_ticker.present?
     end
 
+    def bullion_trade?
+      holding_kind.in?(%w[bullion custom_bullion])
+    end
+
+    def trade_security
+      case holding_kind
+      when "bullion" then catalog_bullion_security
+      when "custom_bullion" then custom_bullion_security
+      else security
+      end
+    end
+
+    def catalog_bullion_security
+      BullionCatalog.security_for(bullion_product, bullion_size)
+    rescue BullionCatalog::UnknownProductError
+      nil
+    end
+
+    # An existing custom coin of the family, or a new one from the inline fields.
+    def custom_bullion_security
+      if custom_bullion_id.present? && custom_bullion_id != NEW_CUSTOM_BULLION
+        return account.family.bullion_specs.custom.find_by(id: custom_bullion_id)&.security
+      end
+
+      BullionSpec.create_custom!(
+        family: account.family,
+        name: custom_bullion_name.to_s.strip,
+        metal: custom_bullion_metal,
+        fine_weight_grams: custom_bullion_fine_grams
+      ).security
+    end
+
+    def security_error_key
+      bullion_trade? ? "trades.form.trade_requires_bullion" : "trades.form.trade_requires_security"
+    end
+
+    # A new custom coin is only kept when its first trade saves too.
     def create_trade
-      sec = security
+      trade_entry = nil
+
+      Entry.transaction do
+        trade_entry = build_trade_entry
+        raise ActiveRecord::Rollback if trade_entry.errors.any? || !trade_entry.save
+      end
+
+      if trade_entry.persisted?
+        trade_entry.lock_saved_attributes!
+        account.sync_later
+      end
+
+      trade_entry
+    end
+
+    def build_trade_entry
+      sec = trade_security
 
       unless sec
         entry = account.entries.build(entryable: Trade.new)
-        entry.errors.add(:base, I18n.t("trades.form.trade_requires_security"))
+        entry.errors.add(:base, I18n.t(security_error_key))
         return entry
       end
 
@@ -69,8 +129,8 @@ class Trade::CreateForm
       signed_amount = signed_qty * price.to_d + fee.to_d
       label = SECURITY_TRADE_LABELS.fetch(type)
 
-      trade_entry = account.entries.new(
-        name: trade_name(label, signed_qty.abs, sec.ticker),
+      account.entries.new(
+        name: trade_name(label, signed_qty.abs, bullion_trade? ? sec.name : sec.ticker),
         date: date,
         amount: signed_amount,
         currency: currency,
@@ -83,13 +143,10 @@ class Trade::CreateForm
           investment_activity_label: label
         )
       )
-
-      if trade_entry.save
-        trade_entry.lock_saved_attributes!
-        account.sync_later
-      end
-
-      trade_entry
+    rescue ActiveRecord::RecordInvalid => e
+      entry = account.entries.build(entryable: Trade.new)
+      entry.errors.add(:base, e.record.errors.full_messages.to_sentence)
+      entry
     end
 
     # Dividends are always a Trade. Security is required.

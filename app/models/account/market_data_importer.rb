@@ -60,15 +60,15 @@ class Account::MarketDataImporter
   end
 
   def import_security_prices
-    return unless Security.provider
-
     current_security_ids = account.current_holdings.pluck(:security_id).to_set
     traded_security_ids  = account.trades.pluck(:security_id).uniq
 
     all_security_ids = (current_security_ids | traded_security_ids)
     return if all_security_ids.empty?
 
+    # Bullion prices derive from stored reference prices, so they need no provider.
     import_bullion_prices(all_security_ids)
+    return unless Security.provider
 
     securities = Security.online.where(id: all_security_ids).index_by(&:id)
 

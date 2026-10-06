@@ -82,6 +82,29 @@ class BullionSpecTest < ActiveSupport::TestCase
     assert spec.errors[:base].any?
   end
 
+  test "a custom coin with holdings cannot be destroyed" do
+    spec = BullionSpec.create_custom!(family: @family, name: "My coin", metal: "XAU", fine_weight_grams: 3)
+    account = accounts(:investment)
+    account.holdings.create!(security: spec.security, date: Date.current, qty: 1, price: 300, amount: 300, currency: account.currency)
+
+    assert_no_difference [ "Security.count", "BullionSpec.count" ] do
+      assert_not spec.destroy
+    end
+  end
+
+  test "a custom coin used as a provider security cannot be destroyed" do
+    spec = BullionSpec.create_custom!(family: @family, name: "My coin", metal: "XAU", fine_weight_grams: 3)
+    account = accounts(:investment)
+    account.holdings.create!(
+      security: securities(:aapl), provider_security: spec.security,
+      date: 3.years.ago.to_date, qty: 1, price: 300, amount: 300, currency: account.currency
+    )
+
+    assert_no_difference [ "Security.count", "BullionSpec.count" ] do
+      assert_not spec.destroy
+    end
+  end
+
   test "destroying a family removes its custom coins but not the catalogue" do
     family = Family.create!(name: "Coin collectors", currency: "EUR")
     BullionSpec.create_custom!(family: family, name: "My coin", metal: "XAU", fine_weight_grams: 3)

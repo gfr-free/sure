@@ -34,8 +34,12 @@ class BullionCatalog
       return existing.security if existing
 
       create_security(product, size)
-    rescue ActiveRecord::RecordNotUnique
-      BullionSpec.catalog.find_by!(catalog_key: product.key, size_key: size.key).security
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+      # A concurrent request created the same product size first.
+      existing = BullionSpec.catalog.find_by(catalog_key: product.key, size_key: size.key)
+      raise unless existing
+
+      existing.security
     end
 
     def load_products(data)

@@ -49,6 +49,15 @@ class BullionCatalogTest < ActiveSupport::TestCase
     end
   end
 
+  test "security_for returns the security a concurrent request created" do
+    first = BullionCatalog.security_for(:britannia, "1oz")
+    BullionSpec.stubs(:catalog).returns(BullionSpec.none).then.returns(BullionSpec.where(family_id: nil))
+
+    assert_no_difference "Security.count" do
+      assert_equal first, BullionCatalog.security_for(:britannia, "1oz")
+    end
+  end
+
   test "security_for rejects unknown products and sizes" do
     assert_raises(BullionCatalog::UnknownProductError) { BullionCatalog.security_for(:unknown, "1oz") }
     assert_raises(BullionCatalog::UnknownProductError) { BullionCatalog.security_for(:krugerrand, "2oz") }

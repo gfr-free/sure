@@ -56,6 +56,45 @@ class GuestReadOnlyConfigTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("shared.require_non_guest"), flash[:alert]
   end
 
+  test "guest does not see controls to change family configuration" do
+    get categories_path
+    assert_select "a[href=?]", new_category_path, count: 0
+    assert_select "form[action=?]", destroy_all_categories_path, count: 0
+    assert_select "[data-testid=category-actions]", count: 0
+
+    get tags_path
+    assert_select "a[href=?]", new_tag_path, count: 0
+    assert_select "a[href=?]", edit_tag_path(tags(:one)), count: 0
+
+    get rules_path
+    assert_select "a[href=?]", new_rule_path(resource_type: "transaction"), count: 0
+    assert_select "a[href=?]", confirm_all_rules_path, count: 0
+    assert_select "a[href=?]", edit_rule_path(rules(:one)), count: 0
+    assert_select "input[type=checkbox][name=?][disabled]", "rule[active]"
+
+    get family_merchants_path
+    assert_select "a[href=?]", new_family_merchant_path, count: 0
+    assert_select "a[href=?]", edit_family_merchant_path(merchants(:netflix)), count: 0
+  end
+
+  test "members still see controls to change family configuration" do
+    sign_in users(:family_member)
+
+    get categories_path
+    assert_select "a[href=?]", new_category_path
+    assert_select "[data-testid=category-actions]"
+
+    get tags_path
+    assert_select "a[href=?]", edit_tag_path(tags(:one))
+
+    get rules_path
+    assert_select "a[href=?]", edit_rule_path(rules(:one))
+    assert_select "input[type=checkbox][name=?]:not([disabled])", "rule[active]"
+
+    get family_merchants_path
+    assert_select "a[href=?]", edit_family_merchant_path(merchants(:netflix))
+  end
+
   test "members can still manage family configuration" do
     sign_in users(:family_member)
 

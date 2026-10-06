@@ -18,6 +18,7 @@ class BullionSpec < ApplicationRecord
   validates :security_id, uniqueness: true
   validate :custom_security_named, if: :custom?
 
+  before_destroy :ensure_custom_security_unused, if: :custom?
   after_destroy :destroy_custom_security, if: :custom?
 
   scope :catalog, -> { where(family_id: nil) }
@@ -57,6 +58,17 @@ class BullionSpec < ApplicationRecord
   private
     def custom_security_named
       errors.add(:name, :blank) if name.blank?
+    end
+
+    # A coin that still has trades or holdings stays; removing it would orphan
+    # (or, through foreign keys, block) that history.
+    def ensure_custom_security_unused
+      in_use = Trade.where(security_id: security_id).exists? ||
+        Holding.where(security_id: security_id).or(Holding.where(provider_security_id: security_id)).exists?
+      return unless in_use
+
+      errors.add(:base, :in_use, message: "is still used by trades or holdings")
+      throw :abort
     end
 
     def destroy_custom_security

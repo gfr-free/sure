@@ -103,7 +103,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       accountable: { subtype: "cd" }
     }
     first = build_ndjson([ { type: "Account", data: account_data.merge(
-      liquidity: "locked", available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12
+      liquidity: "locked", available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12,
+      grace_days: 10
     ) } ])
     account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
 
@@ -114,6 +115,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 30, account.notice_period_days
     assert account.auto_renew?
     assert_equal 12, account.renewal_term_months
+    assert_equal 10, account.grace_days
   end
 
   test "a re-import of an automatic availability unlocks a manual choice" do
@@ -153,12 +155,12 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       accountable: { subtype: "cd" }
     }
     first = build_ndjson([ { type: "Account", data: account_data.merge(
-      available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12
+      available_on: "2027-03-31", notice_period_days: 30, auto_renew: true, renewal_term_months: 12, grace_days: 10
     ) } ])
     account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
 
     second = build_ndjson([ { type: "Account", data: account_data.merge(
-      available_on: "someday", notice_period_days: -5, renewal_term_months: "invalid"
+      available_on: "someday", notice_period_days: -5, renewal_term_months: "invalid", grace_days: 365
     ) } ])
     Family::DataImporter.new(@family, second, import_session: session).import!
 
@@ -166,6 +168,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal Date.new(2027, 3, 31), account.available_on
     assert_equal 30, account.notice_period_days
     assert_equal 12, account.renewal_term_months
+    assert_equal 10, account.grace_days
     assert account.auto_renew?
   end
 

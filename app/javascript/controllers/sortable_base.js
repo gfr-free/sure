@@ -47,6 +47,9 @@ export default class SortableController extends Controller {
 
   disconnect() {
     this.cancelHold();
+    // A section still grabbed with the keyboard (e.g. Turbo navigation away)
+    // keeps the place it was moved to.
+    this.releaseKeyboardGrab();
   }
 
   get options() {

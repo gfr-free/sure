@@ -742,6 +742,73 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/#{Regexp.escape(I18n.t("reports.investment_performance.sells_count", count: 2))}/, response.body)
   end
 
+  # The activity breakdown converts every row at TODAY's rate (Money#exchange_to's
+  # default), not the booking date's. That is kept as it was here; what changed
+  # is that the rates are loaded once for the whole page instead of per row.
+  test "activity breakdown converts foreign rows at today's rate" do
+    category = @family.categories.create!(name: "Reports FX Probe", color: "#123456")
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 10.days.ago.to_date, rate: 2)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: Date.current, rate: 1.5)
+    create_transaction(name: "EUR spend", date: 10.days.ago.to_date, amount: 100, currency: "EUR", category: category)
+    create_transaction(name: "USD spend", date: 10.days.ago.to_date, amount: 10, currency: "USD", category: category)
+
+    get reports_path(period_type: :custom, start_date: 30.days.ago.to_date, end_date: Date.current)
+    assert_response :ok
+
+    assert_select "tr[data-category='category-#{category.id}']", text: /\$160\.00/
+  end
+
+  test "activity breakdown loads rates once, not per row, and never calls the provider" do
+    category = @family.categories.create!(name: "Reports FX Probe", color: "#123456")
+    ExchangeRate.stubs(:provider).returns(mock.tap { |p| p.expects(:fetch_exchange_rate).never })
+
+    # Identical per-row lookups are absorbed by the query cache, so the rows
+    # use distinct currencies: those used to cost two queries (and a provider
+    # call) each.
+    queries_for = ->(currencies) do
+      currencies.each { |c| create_transaction(date: 2.days.ago.to_date, amount: 10, currency: c, category: category) }
+      capture_sql_queries do
+        get reports_path(period_type: :custom, start_date: 30.days.ago.to_date, end_date: Date.current)
+        assert_response :ok
+      end.count { |sql| sql.include?('FROM "exchange_rates"') }
+    end
+
+    few = queries_for.call(%w[CHF JPY])
+    many = queries_for.call(%w[CAD AUD SEK NOK])
+
+    assert_equal few, many, "exchange rate lookups must not grow with the number of rows"
+    # 6 x 10 with no stored rate at all: rows fall back to the unconverted
+    # amount, as a failed lookup did before.
+    assert_select "tr[data-category='category-#{category.id}']", text: /\$60\.00/
+  end
+
+  test "export converts at today's rate from preloaded rates without calling the provider" do
+    category = @family.categories.create!(name: "Reports FX Export Probe", color: "#123456")
+    ExchangeRate.stubs(:provider).returns(mock.tap { |p| p.expects(:fetch_exchange_rate).never })
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 3.days.ago.to_date, rate: 1.5)
+    date = Date.current.beginning_of_month
+
+    queries_for = ->(rows) do
+      rows.times do
+        create_transaction(date: date, amount: 100, currency: "EUR", category: category)
+        create_transaction(date: date, amount: 1, currency: "CHF", category: category)
+      end
+      capture_sql_queries do
+        get export_transactions_reports_path(format: :csv, period_type: :monthly,
+                                             start_date: date, end_date: date.end_of_month)
+        assert_response :ok
+      end.count { |sql| sql.include?('FROM "exchange_rates"') }
+    end
+
+    few = queries_for.call(1)
+    many = queries_for.call(4)
+
+    assert_equal few, many, "exchange rate lookups must not grow with the number of rows"
+    # 5 x 100 EUR at the nearest stored rate (1.5) + 5 x 1 CHF unconverted.
+    row = CSV.parse(@response.body).find { |r| r.first == category.name }
+    assert_equal "$755.00", row.last
+  end
+
   private
     # n EUR-priced disposals in a USD account, each on its own date with its
     # own rate row, so every one needs a distinct lookup.

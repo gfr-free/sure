@@ -100,6 +100,7 @@ en:
       delete_title: Delete transaction
       details: Details
       attachments: Attachments
+      paperless: Paperless
       exclude: Exclude
       exclude_description: Excluded transactions will be removed from budgeting calculations and reports.
       auto_excluded_title: Excluded automatically

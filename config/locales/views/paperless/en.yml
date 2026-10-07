@@ -1,0 +1,92 @@
+---
+en:
+  paperless:
+    host_guard:
+      invalid_url: must be a full http(s) URL such as https://paperless.example.com
+      credentials_in_url: must not contain a username or password
+      https_required: must use HTTPS so the API token is sent encrypted
+      unresolvable: could not be resolved
+      private_address: points to a private or local network address, which this server does not allow. The operator can allow it with PAPERLESS_ALLOW_PRIVATE_HOSTS=true.
+      admin_only: is not allowed for members. Only family admins can connect a server on the local network or over plain HTTP; members can use a server an admin has already connected, or a public HTTPS address.
+  transactions:
+    paperless_links:
+      add: Link from Paperless
+      connect: Connect Paperless
+      download: Download
+      empty: No Paperless documents linked yet.
+      not_connected: Connect Paperless-ngx to link receipts and invoices from it.
+      open_in_paperless: Open in Paperless
+      preview: Preview
+      unlink: Unlink
+      unlink_confirm_body: The document stays in Paperless; only the link to this transaction is removed.
+      unlink_confirm_title: Unlink this document?
+      untitled: "Document #%{id}"
+  transaction_paperless_links:
+    not_connected: Connect Paperless first.
+    new:
+      already_linked: Linked
+      created_from_label: Created from
+      created_to_label: Created until
+      link: Link
+      no_results: No matching documents
+      no_results_hint: Try another search term or a wider date range.
+      search: Search
+      search_failed: Paperless search failed
+      subtitle: "%{name} · %{date}"
+      text_label: Search in title and content
+      text_placeholder: e.g. merchant, invoice number or amount
+      title: Link a Paperless document
+      untitled: "Document #%{id}"
+    create:
+      already_linked: This document is already linked to the transaction.
+      failed: "Could not link the document: %{error}"
+      invalid_document: This is not a valid Paperless document.
+      success: Document linked.
+    destroy:
+      success: Document unlinked.
+  settings:
+    paperless:
+      not_allowed: Only a family admin can change the shared Paperless connection.
+      show:
+        page_title: Paperless
+        mode:
+          title: Who connects
+          subtitle: Decide whether each member uses their own Paperless account or the family shares one.
+          label: Connection mode
+          options:
+            per_user: Each member connects their own Paperless account
+            family: One shared connection for the whole family
+          help:
+            per_user: Everyone only sees the documents their own Paperless user may see. Recommended.
+            family: Every member sees all documents the shared token can access. Only admins can change this connection.
+        connection:
+          title: Paperless-ngx connection
+          subtitle: Documents stay in Paperless. Sure only stores links and shows previews through your server.
+          base_url_label: Paperless URL
+          base_url_help: Changing the address detaches documents linked through the old one; they keep their title but no longer show a preview.
+          api_token_label: API token
+          api_token_placeholder: Paste the token from your Paperless profile
+          api_token_keep: Leave empty to keep the saved token
+          api_token_help: In Paperless, open My Profile and create an auth token. A Paperless user without admin rights is enough and limits what Sure can see.
+          verify_ssl_label: Verify SSL certificate
+          verify_ssl_help: Turn off only for a self-signed certificate on your own network.
+          save: Save and test
+          verify: Test connection
+          disconnect: Disconnect
+          disconnect_confirm_title: Disconnect Paperless?
+          disconnect_confirm_body: Existing links keep their title and date, but previews stop working until you connect again.
+          connected: "Connected to Paperless %{version} (last checked %{time})."
+          error_title: Connection problem
+          managed_by_admin: "Your family uses a shared connection to %{url}, managed by an admin."
+          not_set_up_by_admin: An admin has not set up the shared connection yet.
+      update:
+        success: "Paperless connected (version %{version})."
+        saved_but_unreachable: "Saved, but Paperless could not be reached: %{error}"
+      verify:
+        success: "Connection works (Paperless %{version})."
+        failure: "Connection failed: %{error}"
+        not_connected: no connection set up
+      destroy:
+        success: Paperless disconnected.
+      mode:
+        success: Connection mode updated.

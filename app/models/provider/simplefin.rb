@@ -27,6 +27,12 @@ class Provider::Simplefin
     EOFError
   ].freeze
 
+  # Address ranges for the SimpleFIN URL check (see ensure_allowed_url!).
+  # Always blocked: unspecified addresses and AWS's IPv6 metadata endpoint,
+  # which sits in fc00::/7 rather than the link-local range.
+  ALWAYS_BLOCKED_NETWORKS = [ IPAddr.new("0.0.0.0/8"), IPAddr.new("::/128"), IPAddr.new("fd00:ec2::254/128") ].freeze
+  CARRIER_GRADE_NAT = IPAddr.new("100.64.0.0/10")
+
   def initialize
   end
 
@@ -34,17 +40,25 @@ class Provider::Simplefin
     # Decode the base64 setup token to get the claim URL
     claim_url = Base64.decode64(setup_token)
 
+    # The setup token is user input, so it must not point the server at
+    # internal services (cloud metadata, localhost, private networks).
+    ensure_allowed_url!(claim_url)
+
     # Use retry logic for transient network failures during token claim
     # Claim should be fast; keep request-path latency bounded.
-    # Use self.class.post to inherit class-level SSL and timeout defaults
+    # Use self.class.post to inherit class-level SSL and timeout defaults.
+    # No redirects: a redirect target would bypass the address check.
     response = with_retries("POST /claim", max_retries: 1, backoff: false) do
-      self.class.post(claim_url, timeout: 15)
+      self.class.post(claim_url, timeout: 15, follow_redirects: false)
     end
 
     case response.code
     when 200
-      # The response body contains the access URL with embedded credentials
-      response.body.strip
+      # The response body contains the access URL with embedded credentials.
+      # It comes from the same untrusted bridge and is used for every sync.
+      access_url = response.body.strip
+      ensure_allowed_url!(access_url)
+      access_url
     when 403
       raise SimplefinError.new("Setup token may be compromised, expired, or already used", :token_compromised)
     else
@@ -73,6 +87,9 @@ class Provider::Simplefin
     # spec-compliant way to exclude pending is to omit the param entirely.
     query_params["pending"] = "1" if pending
 
+    # The stored access URL came from the bridge; re-check it on every sync.
+    ensure_allowed_url!(access_url)
+
     accounts_url = "#{access_url}/accounts"
     accounts_url += "?#{URI.encode_www_form(query_params)}" unless query_params.empty?
 
@@ -80,7 +97,7 @@ class Provider::Simplefin
     # Use retry logic with exponential backoff for transient network failures
     # Use self.class.get to inherit class-level SSL and timeout defaults
     response = with_retries("GET /accounts") do
-      self.class.get(accounts_url)
+      self.class.get(accounts_url, follow_redirects: false)
     end
 
     case response.code
@@ -88,7 +105,7 @@ class Provider::Simplefin
       JSON.parse(response.body, symbolize_names: true)
     when 400
       Rails.logger.error "SimpleFin API: Bad request - #{response.body}"
-      raise SimplefinError.new("Bad request to SimpleFin API: #{response.body}", :bad_request)
+      raise SimplefinError.new("Bad request to SimpleFin API", :bad_request)
     when 403
       raise SimplefinError.new("Access URL is no longer valid", :access_forbidden)
     when 402
@@ -101,13 +118,15 @@ class Provider::Simplefin
       raise SimplefinError.new("SimpleFin server error (#{response.code}). Please try again later.", :server_error)
     else
       Rails.logger.error "SimpleFin API: Unexpected response - Code: #{response.code}, Body: #{response.body}"
-      raise SimplefinError.new("Failed to fetch accounts: #{response.code} #{response.message} - #{response.body}", :fetch_failed)
+      raise SimplefinError.new("Failed to fetch accounts: #{response.code} #{response.message}", :fetch_failed)
     end
   end
 
   def get_info(base_url)
+    ensure_allowed_url!(base_url)
+
     # Use self.class.get to inherit class-level SSL and timeout defaults
-    response = self.class.get("#{base_url}/info")
+    response = self.class.get("#{base_url}/info", follow_redirects: false)
 
     case response.code
     when 200
@@ -127,6 +146,49 @@ class Provider::Simplefin
   end
 
   private
+    # Link-local covers cloud metadata endpoints (169.254.169.254) and is
+    # never a valid bridge address. Managed instances additionally block
+    # loopback and private networks; self-hosters may run a bridge on their
+    # own network, so those stay allowed there. The check resolves the host
+    # separately from the request, so it does not stop DNS rebinding.
+    def ensure_allowed_url!(url)
+      uri = URI.parse(url.to_s)
+      raise SimplefinError.new("SimpleFIN URL must use http or https", :invalid_url) unless uri.is_a?(URI::HTTP) && uri.host.present?
+      raise SimplefinError.new("SimpleFIN URL must use https", :invalid_url) if managed_mode? && uri.scheme != "https"
+
+      addresses = resolve_addresses(uri.hostname)
+      # A failed lookup is usually transient DNS, so it is a network error, not
+      # a bad URL: callers treat :invalid_url as a broken connection.
+      raise SimplefinError.new("SimpleFIN host could not be resolved", :network_error) if addresses.empty?
+
+      if addresses.any? { |address| disallowed_address?(address) }
+        raise SimplefinError.new("SimpleFIN URL points to a disallowed network address", :invalid_url)
+      end
+    rescue URI::InvalidURIError
+      raise SimplefinError.new("SimpleFIN URL is invalid", :invalid_url)
+    end
+
+    # Uses the system resolver, like the HTTP request itself (mDNS, hosts file).
+    def resolve_addresses(host)
+      Addrinfo.getaddrinfo(host, nil, nil, :STREAM).map(&:ip_address).uniq
+    rescue SocketError
+      []
+    end
+
+    def disallowed_address?(address)
+      ip = IPAddr.new(address)
+      ip = ip.native if ip.ipv4_mapped?
+      return true if ip.link_local? || ALWAYS_BLOCKED_NETWORKS.any? { |network| network.include?(ip) }
+      return false unless managed_mode?
+
+      ip.loopback? || ip.private? || CARRIER_GRADE_NAT.include?(ip)
+    rescue IPAddr::InvalidAddressError
+      true
+    end
+
+    def managed_mode?
+      Rails.application.config.app_mode.managed?
+    end
 
     # Execute a block with retry logic and exponential backoff for transient network errors.
     # This helps handle temporary network issues that cause autosync failures while

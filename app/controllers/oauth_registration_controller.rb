@@ -8,6 +8,12 @@ class OauthRegistrationController < ApplicationController
   # (e.g. "Sure Mobile"), so a registered client cannot pose as one on the
   # consent screen or share the mobile app's name.
   RESERVED_CLIENT_NAME_WORD = "sure"
+  # Lowercase Cyrillic, Greek and Armenian letters that look like the Latin
+  # letters of "sure mobile" (NFKC keeps them apart), e.g. "Ѕurе" with a
+  # Cyrillic Ѕ and е. Uppercase look-alikes such as М and В arrive here
+  # already downcased.
+  CONFUSABLE_LETTERS = "ѕսυеοоіιӏмв"
+  CONFUSABLE_LATIN = "suueooiilmb"
 
   skip_authentication
   skip_before_action :verify_authenticity_token
@@ -96,10 +102,12 @@ class OauthRegistrationController < ApplicationController
   private
 
     # Matches "Sure" as a whole word, ignoring case, punctuation, invisible
-    # format characters and full-width letters, plus words starting with
-    # "SureMobile". "Surefire" or "Measure Mobile" stay allowed.
+    # format characters, full-width letters and common look-alike letters,
+    # plus words starting with "SureMobile". "Surefire" or "Measure Mobile"
+    # stay allowed.
     def reserved_client_name?(name)
       normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/\p{Cf}/, "")
+        .tr(CONFUSABLE_LETTERS, CONFUSABLE_LATIN)
       words = normalized.scan(/[[:alnum:]]+/)
       words.any? { |word| word == RESERVED_CLIENT_NAME_WORD || word.start_with?("#{RESERVED_CLIENT_NAME_WORD}mobile") }
     end

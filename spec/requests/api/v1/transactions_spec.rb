@@ -393,6 +393,14 @@ RSpec.describe 'API V1 Transactions', type: :request do
         run_test!
       end
 
+      response '404', 'transaction not found, or its account is shared with the API user read-only' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { SecureRandom.uuid }
+
+        run_test!
+      end
+
       response '422', 'validation error - category, merchant or tag outside the family' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
@@ -400,14 +408,6 @@ RSpec.describe 'API V1 Transactions', type: :request do
           other_family = Family.create!(name: 'Other Family', currency: 'USD', locale: 'en', date_format: '%m-%d-%Y')
           { transaction: { category_id: other_family.categories.create!(name: 'Other', color: '#000000').id } }
         end
-
-        run_test!
-      end
-
-      response '404', 'transaction not found, or its account is shared with the API user read-only' do
-        schema '$ref' => '#/components/schemas/ErrorResponse'
-
-        let(:id) { SecureRandom.uuid }
 
         run_test!
       end

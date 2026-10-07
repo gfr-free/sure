@@ -9905,15 +9905,15 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
-        '422':
-          description: validation error - category, merchant or tag outside the family
+        '404':
+          description: transaction not found, or its account is shared with the API
+            user read-only
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
-        '404':
-          description: transaction not found, or its account is shared with the API
-            user read-only
+        '422':
+          description: validation error - category, merchant or tag outside the family
           content:
             application/json:
               schema:

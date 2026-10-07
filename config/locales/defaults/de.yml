@@ -7,6 +7,9 @@ de:
       close: Schließen
   global:
     expand: "Aufklappen"
+  oauth:
+    registration:
+      reserved_client_name: "client_name ist für eigene Apps reserviert"
   activerecord:
     errors:
       messages:

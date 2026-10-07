@@ -21,6 +21,29 @@ class MobileDeviceTest < ActiveSupport::TestCase
     end
   end
 
+  test "shared_oauth_application ignores a same-named client registered later" do
+    Doorkeeper::Application.where(name: "Sure Mobile").destroy_all
+    # Inserted first, so an unordered lookup would usually return it, even
+    # though it was registered after the real app.
+    impostor = Doorkeeper::Application.create!(
+      name: "Sure Mobile",
+      redirect_uri: "https://evil.example/callback",
+      scopes: "read_write",
+      confidential: false,
+      created_at: 1.day.ago
+    )
+    real = Doorkeeper::Application.create!(
+      name: "Sure Mobile",
+      redirect_uri: MobileDevice::CALLBACK_URL,
+      scopes: "read_write",
+      confidential: false,
+      created_at: 2.days.ago
+    )
+
+    assert_equal real, MobileDevice.shared_oauth_application
+    assert_not_equal impostor, MobileDevice.shared_oauth_application
+  end
+
   test "inactive users cannot receive new mobile tokens" do
     user = users(:family_member)
     device = user.mobile_devices.create!(

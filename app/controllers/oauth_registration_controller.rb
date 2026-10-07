@@ -4,6 +4,10 @@ class OauthRegistrationController < ApplicationController
   # or are not OAuth redirects.
   FORBIDDEN_SCHEMES = %w[javascript data file about blob ws wss ftp mailto tel sms intent].freeze
   SCHEME_PATTERN = /\A[a-z][a-z0-9+\-.]*\z/.freeze
+  # Client names starting with this prefix are reserved for first-party apps
+  # (e.g. "Sure Mobile"), so a registered client cannot pose as one on the
+  # consent screen or share the mobile app's name.
+  RESERVED_CLIENT_NAME_PREFIX = "sure"
 
   skip_authentication
   skip_before_action :verify_authenticity_token
@@ -50,6 +54,14 @@ class OauthRegistrationController < ApplicationController
 
     client_name = body["client_name"].presence || "MCP Client"
 
+    if reserved_client_name?(client_name)
+      render json: {
+        error: "invalid_client_metadata",
+        error_description: t("oauth.registration.reserved_client_name")
+      }, status: :bad_request
+      return
+    end
+
     app = Doorkeeper::Application.new(
       name: client_name,
       redirect_uri: redirect_uris.join("\n"),
@@ -82,6 +94,13 @@ class OauthRegistrationController < ApplicationController
   end
 
   private
+
+    # Compares letters and digits only, after Unicode compatibility
+    # normalization, so "SURE-Mobile" or full-width letters match too.
+    def reserved_client_name?(name)
+      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/[^[:alnum:]]/, "")
+      normalized.start_with?(RESERVED_CLIENT_NAME_PREFIX)
+    end
 
     # Returns true for https, loopback http, and RFC 8252 private-use schemes
     # (cursor://, vscode://). Rejects fragments, userinfo, handler schemes, and

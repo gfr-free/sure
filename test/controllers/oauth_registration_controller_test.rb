@@ -336,4 +336,28 @@ class OauthRegistrationControllerTest < ActionDispatch::IntegrationTest
       assert_equal [ redirect_uri ], json["redirect_uris"]
     end
   end
+
+  test "rejects client names reserved for first-party apps" do
+    [ "Sure Mobile", "sure mobile", "SURE-Mobile", "Sure", " Sure Mobile App", "\uFF33\uFF55\uFF52\uFF45 Mobile" ].each do |client_name|
+      assert_no_difference "Doorkeeper::Application.count", client_name do
+        post "/register",
+          params: { client_name: client_name, redirect_uris: [ "https://evil.example/callback" ] }.to_json,
+          headers: { "Content-Type" => "application/json" }
+      end
+
+      assert_response :bad_request, client_name
+      json = JSON.parse(response.body)
+      assert_equal "invalid_client_metadata", json["error"]
+      assert_equal I18n.t("oauth.registration.reserved_client_name"), json["error_description"]
+    end
+  end
+
+  test "allows client names that only contain the reserved word later" do
+    post "/register",
+      params: { client_name: "Measure MCP", redirect_uris: [ "https://claude.ai/callback" ] }.to_json,
+      headers: { "Content-Type" => "application/json" }
+
+    assert_response :created
+    assert_equal "Measure MCP", JSON.parse(response.body)["client_name"]
+  end
 end

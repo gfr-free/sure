@@ -11,6 +11,11 @@
   <% dialog.with_header(title: title) %>
 
   <% dialog.with_body do %>
+    <% if (conflicts = @rule.immediate_conflicts).any? %>
+      <div class="mb-4">
+        <%= render "rules/immediate_conflicts", rule: @rule, conflicts: conflicts %>
+      </div>
+    <% end %>
     <%= render "rules/form", rule: @rule %>
   <% end %>
 <% end %>

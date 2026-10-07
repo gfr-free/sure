@@ -92,6 +92,9 @@
                     blank_label: t(".uncategorized")
                   ) %>
             <% end %>
+            <% if (hint_rule = @pending_field_hints&.dig(:category_id)) %>
+              <p class="text-xs text-secondary"><%= t(".rule_pending_hint", name: hint_rule.display_name) %></p>
+            <% end %>
           <% end %>
         <% end %>
       </div>
@@ -122,6 +125,9 @@
                     disabled: @entry.split_child? || !can_annotate_entry?,
                     auto_submit: true
                   ) %>
+              <% if (hint_rule = @pending_field_hints&.dig(:merchant_id)) %>
+                <p class="text-xs text-secondary"><%= t(".rule_pending_hint", name: hint_rule.display_name) %></p>
+              <% end %>
               <%= render DS::TagSelect.new(
                     form: ef,
                     tags: Current.family.tags.alphabetically,

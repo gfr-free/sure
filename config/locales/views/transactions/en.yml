@@ -107,6 +107,7 @@ en:
       tab_transactions: Transactions
       tab_upcoming: Upcoming
       uncategorized: "(uncategorized)"
+      rule_pending_hint: "Rule \"%{name}\" sets this on its next run (overnight)."
       additional_details: "Additional details"
       payee: "Payee"
       description: "Description"

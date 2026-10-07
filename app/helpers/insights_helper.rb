@@ -110,7 +110,10 @@ module InsightsHelper
     when "cash_flow_warning"
       { text: t("insights.actions.cash_flow_warning"), href: recurring_transactions_path }
     when "account_shortfall"
-      account = insight.family.accounts.visible.find_by(id: metadata["account_id"])
+      # The generator only names accounts every member can access; a page
+      # render still checks the viewer's own access. Broadcasts have no viewer.
+      accounts = Current.user ? Current.user.accessible_accounts : insight.family.accounts
+      account = accounts.visible.find_by(id: metadata["account_id"])
       account && { text: t("insights.actions.account_shortfall"), href: account_path(account, tab: "forecast") }
     when "savings_rate_change"
       return nil unless insight.period_start && insight.period_end

@@ -165,11 +165,13 @@ into it (`destination_account_id`).
   converted at today's rate or counted in `unconvertible_count`.
 - `Account::Forecast.for_family(family, user:)` builds every account's
   forecast from one occurrence query and one allocation-sum query. Pass the
-  user wherever a person sees the result, so series on accounts they cannot
-  see stay out.
+  user wherever a person sees the result: only accounts they can access are
+  forecast, and a transfer from or to an account they cannot access still
+  counts but is marked `restricted` (generic name, no link or ids).
 
 It feeds the account page's Forecast tab, the Bills page's account coverage
-card, `Insight::Generators::AccountShortfallGenerator` (which also silences
-the family-wide cash-flow warning while an account warning stands),
+card, `Insight::Generators::AccountShortfallGenerator` (family-wide, so only
+accounts every active member can access; it also silences the family-wide
+cash-flow warning while such an account warning stands),
 `GET /api/v1/accounts/:id/forecast` and the assistant's
 `get_account_forecast`.

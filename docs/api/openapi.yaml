@@ -533,6 +533,7 @@ components:
       - kind
       - amount
       - balance_after
+      - restricted
       - recurring_transaction_id
       - occurrence_id
       properties:
@@ -541,6 +542,7 @@ components:
           format: date
         name:
           type: string
+          description: Series name; a generic label when restricted is true
         kind:
           type: string
           enum:
@@ -552,12 +554,18 @@ components:
           "$ref": "#/components/schemas/ForecastMoney"
         balance_after:
           "$ref": "#/components/schemas/ForecastMoney"
+        restricted:
+          type: boolean
+          description: A transfer from or to an account the API key user cannot access.
+            It counts in the balance, but name is generic and the ids are null.
         recurring_transaction_id:
           type: string
           format: uuid
+          nullable: true
         occurrence_id:
           type: string
           format: uuid
+          nullable: true
     AccountForecast:
       type: object
       required:
@@ -4750,9 +4758,12 @@ paths:
       summary: Forecast an account after its expected payments
       tags:
       - Accounts
-      description: What is left in the account after the open bill occurrences, income
+      description: 'What is left in the account after the open bill occurrences, income
         and recurring transfers on it. The window runs up to the day before the next
-        declared payday on the account, else 30 days.
+        declared payday on the account, else 30 days. Preview feature: the API key
+        user must have preview features enabled. Transfers from or to accounts that
+        user cannot access count in the balance but are marked restricted, with a
+        generic name and no ids.'
       security:
       - apiKeyAuth: []
       parameters:
@@ -4772,6 +4783,12 @@ paths:
                 "$ref": "#/components/schemas/AccountForecast"
         '401':
           description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: insufficient scope or preview features disabled
           content:
             application/json:
               schema:

@@ -139,13 +139,46 @@ class Account::ForecastTest < ActiveSupport::TestCase
     assert_equal 2, queries.size
   end
 
-  test "a user only sees series on accounts shared with them" do
+  test "a transfer from an account the viewer cannot access still counts, without its name" do
     other = @family.accounts.create!(name: "Private", balance: 100, currency: "USD", owner: users(:family_member),
                                      accountable: Depository.new(subtype: "checking"))
     occurrence(series(name: "From private", amount: 300, account: other, destination: @account), due_on: @today + 2)
+    occurrence(series(name: "Rent", amount: 1200), due_on: @today + 5)
 
-    assert_equal 1, Account::Forecast.for_account(@account).events.size
-    assert_empty Account::Forecast.for_account(@account, user: users(:family_admin)).events
+    owner_view = Account::Forecast.for_account(@account)
+    viewer = Account::Forecast.for_account(@account, user: users(:family_admin))
+
+    assert_equal owner_view.low_balance, viewer.low_balance
+    assert_not viewer.shortfall?
+    transfer = viewer.events.find { |event| event.kind == :transfer_in }
+    assert transfer.restricted
+    assert_equal I18n.t("account_forecast.restricted_transfer.transfer_in"), transfer.name
+    assert_not viewer.events.find { |event| event.kind == :expense }.restricted
+
+    family_view = Account::Forecast.for_family(@family, user: users(:family_admin)).find { |forecast| forecast.account == @account }
+    assert_equal viewer.ending_balance, family_view.ending_balance
+    assert family_view.events.find { |event| event.kind == :transfer_in }.restricted
+  end
+
+  test "a transfer out to an account the viewer cannot access is anonymised" do
+    other = @family.accounts.create!(name: "Private", balance: 100, currency: "USD", owner: users(:family_member),
+                                     accountable: Depository.new(subtype: "checking"))
+    occurrence(series(name: "To private", amount: 300, destination: other), due_on: @today + 2)
+
+    event = Account::Forecast.for_account(@account, user: users(:family_admin)).events.sole
+
+    assert event.restricted
+    assert_equal I18n.t("account_forecast.restricted_transfer.transfer_out"), event.name
+    assert_not Account::Forecast.for_account(@account).events.sole.restricted
+  end
+
+  test "a viewer gets nothing for an account they cannot access" do
+    other = @family.accounts.create!(name: "Private", balance: 100, currency: "USD", owner: users(:family_member),
+                                     accountable: Depository.new(subtype: "checking"))
+    occurrence(series(name: "Private rent", amount: 50, account: other), due_on: @today + 2)
+
+    assert_empty Account::Forecast.for_account(other, user: users(:family_admin)).events
+    assert_not_includes Account::Forecast.for_family(@family, user: users(:family_admin)).map(&:account), other
   end
 
   test "only immediate assets are forecastable" do

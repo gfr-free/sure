@@ -13,8 +13,17 @@ class Insight::Generators::AccountShortfallGenerator < Insight::Generator
   # night (see CashFlowWarningGenerator).
   LOW_BUCKET = 50
 
+  # The feed, push and API insights are family-wide, so only accounts every
+  # active member can access take part: the name and balance of a private
+  # account must not reach the others (same rule as AccountReleaseGenerator).
+  def self.shortfalls(family)
+    shared = family.users.where(active: true).map { |user| family.accounts.accessible_by(user).pluck(:id) }.reduce(:&) || []
+
+    Account::Forecast.for_family(family).select { |forecast| forecast.shortfall? && forecast.account.id.in?(shared) }
+  end
+
   def generate
-    Account::Forecast.for_family(family).select(&:shortfall?).map { |forecast| insight_for(forecast) }
+    self.class.shortfalls(family).map { |forecast| insight_for(forecast) }
   end
 
   private

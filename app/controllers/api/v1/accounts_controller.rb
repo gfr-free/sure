@@ -5,6 +5,8 @@ class Api::V1::AccountsController < Api::V1::BaseController
 
   # Ensure proper scope authorization for read access
   before_action :ensure_read_scope
+  # The forecast is a preview feature on the web and in the assistant too.
+  before_action :require_preview_features_for_api, only: :forecast
 
   def index
     @per_page = safe_per_page_param

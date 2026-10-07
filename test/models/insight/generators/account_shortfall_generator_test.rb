@@ -42,6 +42,19 @@ class Insight::Generators::AccountShortfallGeneratorTest < ActiveSupport::TestCa
     assert_nil insight.facts[:cause]
   end
 
+  test "a private account gets no family-wide warning and does not silence the cash flow warning" do
+    private_account = @family.accounts.create!(name: "Member private", balance: 100, currency: "USD", owner: users(:family_member),
+                                               accountable: Depository.new(subtype: "checking"))
+    add_bill("Private rent", 650, @today + 10, account: private_account)
+
+    assert_empty Insight::Generators::AccountShortfallGenerator.new(@family).generate
+
+    generator = Insight::Generators::CashFlowWarningGenerator.new(@family)
+    # Reaching cash_accounts means the warning did not step back early.
+    generator.expects(:cash_accounts).returns(Account.none)
+    assert_empty generator.generate
+  end
+
   test "stays quiet when the account is covered" do
     add_bill("Rent", 400, @today + 10)
 
@@ -82,9 +95,9 @@ class Insight::Generators::AccountShortfallGeneratorTest < ActiveSupport::TestCa
   end
 
   private
-    def add_bill(name, amount, due_on)
+    def add_bill(name, amount, due_on, account: @account)
       series = @family.recurring_transactions.create!(
-        name: name, account: @account, amount: amount, currency: "USD", bill_type: "bill",
+        name: name, account: account, amount: amount, currency: "USD", bill_type: "bill",
         expected_day_of_month: 15, last_occurrence_date: @today, next_expected_date: @today + 30,
         status: "active", manual: true
       )

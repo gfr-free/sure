@@ -339,15 +339,19 @@ RSpec.configure do |config|
           },
           AccountForecastEvent: {
             type: :object,
-            required: %w[date name kind amount balance_after recurring_transaction_id occurrence_id],
+            required: %w[date name kind amount balance_after restricted recurring_transaction_id occurrence_id],
             properties: {
               date: { type: :string, format: :date },
-              name: { type: :string },
+              name: { type: :string, description: 'Series name; a generic label when restricted is true' },
               kind: { type: :string, enum: %w[expense income transfer_in transfer_out] },
               amount: { '$ref' => '#/components/schemas/ForecastMoney' },
               balance_after: { '$ref' => '#/components/schemas/ForecastMoney' },
-              recurring_transaction_id: { type: :string, format: :uuid },
-              occurrence_id: { type: :string, format: :uuid }
+              restricted: {
+                type: :boolean,
+                description: 'A transfer from or to an account the API key user cannot access. It counts in the balance, but name is generic and the ids are null.'
+              },
+              recurring_transaction_id: { type: :string, format: :uuid, nullable: true },
+              occurrence_id: { type: :string, format: :uuid, nullable: true }
             }
           },
           AccountForecast: {

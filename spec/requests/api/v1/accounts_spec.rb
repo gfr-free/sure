@@ -161,7 +161,9 @@ RSpec.describe 'API V1 Accounts', type: :request do
     get 'Forecast an account after its expected payments' do
       tags 'Accounts'
       description 'What is left in the account after the open bill occurrences, income and recurring transfers on it. ' \
-                  'The window runs up to the day before the next declared payday on the account, else 30 days.'
+                  'The window runs up to the day before the next declared payday on the account, else 30 days. ' \
+                  'Preview feature: the API key user must have preview features enabled. Transfers from or to accounts ' \
+                  'that user cannot access count in the balance but are marked restricted, with a generic name and no ids.'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'
       parameter name: :until, in: :query, required: false,
@@ -169,6 +171,8 @@ RSpec.describe 'API V1 Accounts', type: :request do
                 description: 'Last day of the forecast (YYYY-MM-DD), at most 366 days ahead'
 
       let(:id) { checking_account.id }
+
+      before { user.update!(preferences: { 'preview_features_enabled' => true }) }
 
       response '200', 'forecast computed' do
         schema '$ref' => '#/components/schemas/AccountForecast'
@@ -180,6 +184,14 @@ RSpec.describe 'API V1 Accounts', type: :request do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:'X-Api-Key') { nil }
+
+        run_test!
+      end
+
+      response '403', 'insufficient scope or preview features disabled' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:'X-Api-Key') { api_key_without_read_scope.plain_key }
 
         run_test!
       end

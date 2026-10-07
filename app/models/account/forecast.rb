@@ -27,7 +27,10 @@ class Account::Forecast
   # far enough to find one whose original due date has passed.
   SNOOZE_LOOKBACK_DAYS = 90
 
-  Event = Data.define(:date, :name, :kind, :amount, :balance_after, :occurrence, :series)
+  # `restricted` marks a transfer whose other end the viewer cannot access:
+  # it still moves this account's balance, but is shown without its name or a
+  # link to the series.
+  Event = Data.define(:date, :name, :kind, :amount, :balance_after, :occurrence, :series, :restricted)
 
   attr_reader :account, :starts_on, :ends_on, :horizon, :payday, :events,
               :starting_balance, :ending_balance, :low_balance, :low_on, :unconvertible_count
@@ -45,22 +48,24 @@ class Account::Forecast
 
     # One forecast per forecastable account that has expected payments, built
     # from two queries for the whole family rather than per account. `user`
-    # limits the series to what that user may see (RecurringTransaction
-    # .accessible_by); nil reads the family as a whole (nightly insights).
+    # limits the accounts to the ones that user can access and anonymises
+    # transfers from or to accounts they cannot; nil reads the family as a
+    # whole (nightly insights).
     def for_family(family, user: nil, as_of: Account.liquidity_today_for(family))
       accounts = forecastable_scope(family, as_of: as_of)
       accounts = accounts.merge(Account.accessible_by(user)) if user
       accounts = accounts.to_a
       return [] if accounts.empty?
 
-      occurrences = Loader.new(family, account_ids: accounts.map(&:id), user: user, as_of: as_of,
-                               ends_on: as_of + [ MAX_PAYDAY_DAYS, DEFAULT_HORIZON_DAYS ].max).load
+      loader = Loader.new(family, account_ids: accounts.map(&:id), user: user, as_of: as_of,
+                          ends_on: as_of + [ MAX_PAYDAY_DAYS, DEFAULT_HORIZON_DAYS ].max)
+      occurrences = loader.load
 
       accounts.filter_map do |account|
         mine = occurrences.select { |occurrence| touches?(occurrence, account) }
         next if mine.empty?
 
-        new(account, as_of: as_of, occurrences: mine)
+        new(account, as_of: as_of, occurrences: mine, visible_account_ids: loader.visible_account_ids)
       end
     end
 
@@ -68,9 +73,10 @@ class Account::Forecast
     def for_account(account, user: nil, as_of: Account.liquidity_today_for(account.family), until_date: nil)
       until_date = until_date&.clamp(as_of, as_of + MAX_HORIZON_DAYS)
       ends_on = until_date || as_of + [ MAX_PAYDAY_DAYS, DEFAULT_HORIZON_DAYS ].max
-      occurrences = Loader.new(account.family, account_ids: [ account.id ], user: user, as_of: as_of, ends_on: ends_on).load
+      loader = Loader.new(account.family, account_ids: [ account.id ], user: user, as_of: as_of, ends_on: ends_on)
 
-      new(account, as_of: as_of, occurrences: occurrences, until_date: until_date)
+      new(account, as_of: as_of, occurrences: loader.load, until_date: until_date,
+                   visible_account_ids: loader.visible_account_ids)
     end
 
     def touches?(occurrence, account)
@@ -79,8 +85,11 @@ class Account::Forecast
     end
   end
 
-  def initialize(account, as_of:, occurrences:, until_date: nil)
+  # `visible_account_ids` (nil: all) are the accounts whose transfers may be
+  # shown by name.
+  def initialize(account, as_of:, occurrences:, until_date: nil, visible_account_ids: nil)
     @account = account
+    @visible_account_ids = visible_account_ids
     @starts_on = as_of
     @unconvertible_count = 0
 
@@ -184,9 +193,11 @@ class Account::Forecast
 
         signed = kind.in?(%i[income transfer_in]) ? amount : -amount
         series = occurrence.recurring_transaction
+        restricted = restricted?(series, kind)
+        name = restricted ? I18n.t("account_forecast.restricted_transfer.#{kind}") : series.display_name
 
-        Event.new(date: date, name: series.display_name, kind: kind, amount: signed, balance_after: nil,
-                  occurrence: occurrence, series: series)
+        Event.new(date: date, name: name, kind: kind, amount: signed, balance_after: nil,
+                  occurrence: occurrence, series: series, restricted: restricted)
       end.sort_by { |event| [ event.date, event.amount.amount ] }
     end
 
@@ -202,6 +213,13 @@ class Account::Forecast
       end
     end
 
+    def restricted?(series, kind)
+      return false if @visible_account_ids.nil?
+
+      other_end = kind == :transfer_in ? series.account_id : series.destination_account_id
+      other_end.present? && !@visible_account_ids.include?(other_end)
+    end
+
     def in_account_currency(money)
       money.exchange_to(account.currency)
     rescue Money::ConversionError
@@ -212,6 +230,12 @@ class Account::Forecast
     # Open occurrences of active series on the given accounts, with their
     # confirmed allocation sums preloaded so remaining amounts issue no
     # per-row SUM.
+    #
+    # With a user, only accounts that user can access are read. A series on
+    # such an account counts even when its other end is hidden from them
+    # (RecurringTransaction.accessible_by would drop it): a standing transfer
+    # from a private account still funds a shared bills account. The forecast
+    # shows such a transfer without its name (`visible_account_ids`).
     class Loader
       def initialize(family, account_ids:, user:, as_of:, ends_on:)
         @family = family
@@ -221,10 +245,19 @@ class Account::Forecast
         @ends_on = ends_on
       end
 
+      # Accounts in the family the user can access; nil without a user.
+      def visible_account_ids
+        return nil unless user
+
+        @visible_account_ids ||= family.accounts.accessible_by(user).pluck(:id).to_set
+      end
+
       def load
+        ids = user ? account_ids.select { |id| visible_account_ids.include?(id) } : account_ids
+        return [] if ids.empty?
+
         series = family.recurring_transactions.active
-                       .where(account_id: account_ids).or(family.recurring_transactions.active.where(destination_account_id: account_ids))
-        series = series.merge(RecurringTransaction.accessible_by(user)) if user
+                       .where(account_id: ids).or(family.recurring_transactions.active.where(destination_account_id: ids))
 
         occurrences = family.recurring_occurrences
                             .open_status

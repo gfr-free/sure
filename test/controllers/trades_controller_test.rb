@@ -383,6 +383,119 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 9.95, @entry.trade.fee.to_f, 0.001
   end
 
+  test "buys a catalogue coin by product and size" do
+    assert_difference [ "Entry.count", "Trade.count", "BullionSpec.count" ], 1 do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_product: "krugerrand", bullion_size: "1-2oz",
+          date: Date.current, qty: 2, price: 1500, currency: "USD"
+        }
+      }
+    end
+
+    trade = Entry.order(created_at: :desc).first.trade
+    assert_equal BullionSpec.catalog.find_by!(catalog_key: "krugerrand", size_key: "1-2oz").security, trade.security
+    assert_equal 2, trade.qty
+    assert_redirected_to account_url(@entry.account)
+  end
+
+  test "buys a new custom coin created inline" do
+    assert_difference [ "Entry.count", "Trade.count" ], 1 do
+      assert_difference -> { @user.family.bullion_specs.custom.count }, 1 do
+        post trades_url(account_id: @entry.account_id), params: {
+          model: {
+            type: "buy", holding_kind: "custom_bullion", custom_bullion_id: "new",
+            custom_bullion_name: "20 Mark Wilhelm II", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "7.168",
+            date: Date.current, qty: 1, price: 900, currency: "USD"
+          }
+        }
+      end
+    end
+
+    spec = @user.family.bullion_specs.custom.last
+    assert_equal "20 Mark Wilhelm II", spec.name
+    assert_equal BigDecimal("7.168"), spec.fine_weight_grams
+    assert_equal spec.security, Entry.order(created_at: :desc).first.trade.security
+  end
+
+  test "buys an existing custom coin of the family" do
+    spec = BullionSpec.create_custom!(family: @user.family, name: "Vreneli 20 Fr", metal: "XAU", fine_weight_grams: 5.806)
+
+    assert_difference "Trade.count", 1 do
+      assert_no_difference "BullionSpec.count" do
+        post trades_url(account_id: @entry.account_id), params: {
+          model: {
+            type: "buy", holding_kind: "custom_bullion", custom_bullion_id: spec.id,
+            date: Date.current, qty: 3, price: 700, currency: "USD"
+          }
+        }
+      end
+    end
+
+    assert_equal spec.security, Entry.order(created_at: :desc).first.trade.security
+  end
+
+  test "an invalid custom coin creates neither the coin nor the trade" do
+    assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "custom_bullion", custom_bullion_id: "new",
+          custom_bullion_name: "", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "7",
+          date: Date.current, qty: 1, price: 900, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "a custom coin is dropped again when its trade does not save" do
+    assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "custom_bullion", custom_bullion_id: "new",
+          custom_bullion_name: "Ducat", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "3.44",
+          date: "", qty: 1, price: 900, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "another family's custom coin cannot be traded" do
+    other_spec = BullionSpec.create_custom!(family: families(:empty), name: "Other coin", metal: "XAG", fine_weight_grams: 31)
+
+    assert_no_difference "Trade.count" do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "custom_bullion", custom_bullion_id: other_spec.id,
+          date: Date.current, qty: 1, price: 30, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "the new trade form shows the bullion pickers" do
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_product: "panda")
+
+    assert_response :success
+    assert_select "select[name='model[bullion_product]'] option[selected][value='panda']"
+    assert_select "select[name='model[bullion_size]'] option[value='30g']"
+    assert_select "input[name='model[manual_ticker]']", count: 0
+  end
+
+  test "the new trade form offers inline custom coin fields" do
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "custom_bullion")
+
+    assert_response :success
+    assert_select "input[name='model[custom_bullion_name]']"
+    assert_select "select[name='model[custom_bullion_metal]']"
+    assert_select "input[name='model[custom_bullion_fine_grams]']"
+  end
+
   test "creates trade buy entry" do
     assert_difference [ "Entry.count", "Trade.count", "Security.count" ], 1 do
       post trades_url(account_id: @entry.account_id), params: {

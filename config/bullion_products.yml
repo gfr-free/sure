@@ -1,0 +1,188 @@
+# Catalogue of common, currently minted bullion coins and bars.
+#
+# Every size of a product becomes one offline Security (see BullionCatalog).
+# Weights are the FINE metal content, not the gross weight of the piece:
+#   fine_oz:    troy ounces of pure metal (1 oz = 31.1034768 g)
+#   fine_grams: grams of pure metal
+# Size keys are stable identifiers stored in bullion_specs.size_key; never
+# rename one that has shipped.
+#
+# metal: XAU gold, XAG silver, XPT platinum, XPD palladium
+# form:  coin or bar
+
+products:
+  # --- Gold coins ---
+  - key: krugerrand
+    name: Krugerrand
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+
+  - key: maple_leaf
+    name: Maple Leaf
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+      - { key: 1-20oz, label: "1/20 oz", fine_oz: 0.05 }
+
+  - key: philharmonic
+    name: Vienna Philharmonic
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+      - { key: 1-25oz, label: "1/25 oz", fine_oz: 0.04 }
+
+  - key: kangaroo
+    name: Kangaroo
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+
+  - key: britannia
+    name: Britannia
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+
+  - key: american_eagle
+    name: American Eagle
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+
+  - key: american_buffalo
+    name: American Buffalo
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: panda
+    name: Panda
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: 30g, label: "30 g", fine_grams: 30 }
+      - { key: 15g, label: "15 g", fine_grams: 15 }
+      - { key: 8g, label: "8 g", fine_grams: 8 }
+      - { key: 3g, label: "3 g", fine_grams: 3 }
+      - { key: 1g, label: "1 g", fine_grams: 1 }
+
+  # 22 carat (916.7/1000); fine content per the Royal Mint specification.
+  - key: sovereign
+    name: Sovereign
+    metal: XAU
+    form: coin
+    sizes:
+      - { key: double, label: "Double Sovereign", fine_grams: 14.6448 }
+      - { key: full, label: "Sovereign", fine_grams: 7.3224 }
+      - { key: half, label: "Half Sovereign", fine_grams: 3.6612 }
+
+  # --- Silver coins ---
+  - key: silver_krugerrand
+    name: Krugerrand Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_maple_leaf
+    name: Maple Leaf Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_philharmonic
+    name: Vienna Philharmonic Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_britannia
+    name: Britannia Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_kangaroo
+    name: Kangaroo Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_american_eagle
+    name: American Eagle Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  # --- Bars ---
+  - key: gold_bar
+    name: Gold bar
+    metal: XAU
+    form: bar
+    sizes:
+      - { key: 1g, label: "1 g", fine_grams: 1 }
+      - { key: 2g, label: "2 g", fine_grams: 2 }
+      - { key: 5g, label: "5 g", fine_grams: 5 }
+      - { key: 10g, label: "10 g", fine_grams: 10 }
+      - { key: 20g, label: "20 g", fine_grams: 20 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 50g, label: "50 g", fine_grams: 50 }
+      - { key: 100g, label: "100 g", fine_grams: 100 }
+      - { key: 250g, label: "250 g", fine_grams: 250 }
+      - { key: 500g, label: "500 g", fine_grams: 500 }
+      - { key: 1kg, label: "1 kg", fine_grams: 1000 }
+
+  - key: silver_bar
+    name: Silver bar
+    metal: XAG
+    form: bar
+    sizes:
+      - { key: 100g, label: "100 g", fine_grams: 100 }
+      - { key: 250g, label: "250 g", fine_grams: 250 }
+      - { key: 500g, label: "500 g", fine_grams: 500 }
+      - { key: 1kg, label: "1 kg", fine_grams: 1000 }
+
+  - key: platinum_bar
+    name: Platinum bar
+    metal: XPT
+    form: bar
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: palladium_bar
+    name: Palladium bar
+    metal: XPD
+    form: bar
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }

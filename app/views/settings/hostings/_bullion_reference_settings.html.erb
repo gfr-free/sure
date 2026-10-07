@@ -1,0 +1,43 @@
+<div class="space-y-4">
+  <div>
+    <h2 class="font-medium mb-1"><%= t(".title") %></h2>
+    <p class="text-secondary text-sm"><%= t(".description") %></p>
+  </div>
+
+  <% references = Setting.bullion_reference_securities.to_h %>
+  <% BullionSpec::METALS.each do |metal| %>
+    <% current = Security.parse_combobox_id(references[metal]) %>
+    <div class="space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-medium text-sm"><%= t("trades.form.metals.#{metal}") %></h3>
+        <p class="text-xs text-secondary">
+          <% if current[:ticker].present? %>
+            <%= t(".current",
+                  ticker: [ current[:ticker], current[:exchange_operating_mic] ].compact.join(" · "),
+                  provider: current[:price_provider].present? ? t("securities.providers.#{current[:price_provider]}", default: current[:price_provider].humanize) : t(".no_provider")) %>
+          <% else %>
+            <%= t(".not_set") %>
+          <% end %>
+        </p>
+      </div>
+
+      <%= styled_form_with url: settings_hosting_path, method: :patch, scope: "setting[bullion_reference_securities]",
+                           class: "flex items-center gap-2" do |form| %>
+        <div class="grow">
+          <% if Security.providers.any? %>
+            <div class="form-field combobox">
+              <%= form.combobox metal,
+                                securities_path(country_code: Current.family.country),
+                                id: "bullion_reference_#{metal}",
+                                placeholder: t(".search_placeholder"),
+                                required: true %>
+            </div>
+          <% else %>
+            <%= form.text_field metal, placeholder: current[:ticker] || t(".ticker_placeholder"), required: true %>
+          <% end %>
+        </div>
+        <%= render DS::Button.new(text: t(".save"), type: "submit", variant: :secondary) %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

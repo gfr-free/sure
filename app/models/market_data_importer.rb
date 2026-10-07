@@ -12,6 +12,7 @@ class MarketDataImporter
 
   def import_all
     import_security_prices
+    import_bullion_prices
     import_exchange_rates
   end
 
@@ -32,6 +33,11 @@ class MarketDataImporter
 
       security.import_provider_details(clear_cache: clear_cache)
     end
+  end
+
+  # Bullion securities are offline; their prices derive from a metal reference.
+  def import_bullion_prices
+    BullionSpec::PriceDeriver.new(start_date: (default_start_date if snapshot?), end_date: end_date).derive_all
   end
 
   def import_exchange_rates

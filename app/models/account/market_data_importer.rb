@@ -60,13 +60,15 @@ class Account::MarketDataImporter
   end
 
   def import_security_prices
-    return unless Security.provider
-
     current_security_ids = account.current_holdings.pluck(:security_id).to_set
     traded_security_ids  = account.trades.pluck(:security_id).uniq
 
     all_security_ids = (current_security_ids | traded_security_ids)
     return if all_security_ids.empty?
+
+    # Bullion prices derive from stored reference prices, so they need no provider.
+    import_bullion_prices(all_security_ids)
+    return unless Security.provider
 
     securities = Security.online.where(id: all_security_ids).index_by(&:id)
 
@@ -109,6 +111,14 @@ class Account::MarketDataImporter
   end
 
   private
+    def import_bullion_prices(security_ids)
+      bullion_ids = BullionSpec.where(security_id: security_ids).pluck(:security_id)
+      return if bullion_ids.empty?
+
+      start_date = first_required_price_dates.values_at(*bullion_ids).compact.min
+      BullionSpec::PriceDeriver.new(security_ids: bullion_ids, start_date: start_date).derive_all
+    end
+
     def security_ids
       @security_ids ||= (account.current_holdings.pluck(:security_id) | account.trades.pluck(:security_id))
     end

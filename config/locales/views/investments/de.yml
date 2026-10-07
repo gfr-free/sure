@@ -137,6 +137,9 @@ de:
       gold:
         long: Gold (physisch oder digital)
         short: Gold
+      precious_metals:
+        long: Edelmetall-Depot (Münzen und Barren)
+        short: Edelmetall-Depot
       gold_etf:
         long: Gold-ETF
         short: Gold-ETF

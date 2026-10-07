@@ -2,6 +2,32 @@
 de:
   trades:
     form:
+      bullion_groups:
+        bar: Barren
+        coin_XAG: Silbermünzen
+        coin_XAU: Goldmünzen
+      bullion_product: Münze oder Barren
+      bullion_size: Größe
+      custom_bullion: Münze
+      custom_bullion_fine_grams: Feingewicht (g)
+      custom_bullion_hint: Das Feingewicht ist der reine Metallanteil eines Stücks. Der Kurs folgt dem Referenz-Wertpapier des Metalls.
+      custom_bullion_metal: Metall
+      custom_bullion_name: Name
+      custom_bullion_name_placeholder: 20 Mark Wilhelm II.
+      custom_bullion_new: Eigene Münze anlegen…
+      holding_kind: Anlage
+      holding_kinds:
+        bullion: Münze oder Barren
+        custom_bullion: Eigene Münze
+        security: Wertpapier
+      metals:
+        XAG: Silber
+        XAU: Gold
+        XPD: Palladium
+        XPT: Platin
+      price_per_piece: Preis pro Stück
+      qty_pieces: Anzahl (Stück)
+      trade_requires_bullion: Für Käufe und Verkäufe bitte eine Münze oder einen Barren wählen
       account: Überweisungskonto (optional)
       account_prompt: Konto suchen
       amount: Betrag

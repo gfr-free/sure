@@ -1,0 +1,36 @@
+<%# locals: (settings:) %>
+
+<%= fields_for :repeat, settings, builder: StyledFormBuilder do |rf| %>
+  <section class="space-y-3" data-controller="repeat-fields">
+    <%= render "transactions/switch_row",
+          label: t("transactions.form.repeat_label"),
+          hint: t("transactions.form.repeat_hint"),
+          toggle: rf.toggle(:enabled, data: { repeat_fields_target: "toggle", action: "change->repeat-fields#update" }) %>
+
+    <div class="space-y-3 hidden" data-repeat-fields-target="fields" data-controller="frequency-fields">
+      <%= rf.select :frequency_preset,
+            repeat_frequency_options,
+            { label: t("transactions.form.repeat_frequency_label") },
+            { data: { frequency_fields_target: "preset", action: "change->frequency-fields#update" } } %>
+
+      <div data-frequency-fields-target="group" data-presets="interval" class="hidden">
+        <div class="grid grid-cols-2 gap-3">
+          <%= rf.number_field :frequency_interval,
+                label: t("transactions.form.repeat_interval_label"),
+                min: 1,
+                max: RecurringTransaction::FrequencyPreset::MAX_INTERVAL,
+                step: 1 %>
+          <%= rf.select :frequency_interval_unit,
+                frequency_interval_unit_options,
+                { label: t("transactions.form.repeat_interval_unit_label") },
+                { data: { frequency_fields_target: "unit", action: "change->frequency-fields#update" } } %>
+        </div>
+      </div>
+
+      <%= render "transactions/switch_row",
+            label: t("transactions.form.repeat_auto_post_label"),
+            hint: t("transactions.form.repeat_auto_post_hint"),
+            toggle: rf.toggle(:auto_post) %>
+    </div>
+  </section>
+<% end %>

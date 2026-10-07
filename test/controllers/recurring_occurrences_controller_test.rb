@@ -285,6 +285,32 @@ class RecurringOccurrencesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @occurrence.expected_amount, @occurrence.allocations.sum(:allocated_amount)
   end
 
+  test "post now books the open date today and settles it" do
+    get recurring_occurrence_url(@occurrence), headers: { "Turbo-Frame" => "drawer" }
+    assert_match post_now_recurring_occurrence_path(@occurrence), response.body
+
+    assert_difference -> { @series.account.entries.count }, 1 do
+      post post_now_recurring_occurrence_url(@occurrence)
+    end
+
+    assert_redirected_to bills_url
+    @occurrence.reload
+    assert @occurrence.paid?
+    assert_equal Date.current, @occurrence.allocations.sole.entry.date
+  end
+
+  test "post now is not offered or accepted on a linked account" do
+    @series.update_columns(account_id: accounts(:connected).id)
+
+    get recurring_occurrence_url(@occurrence), headers: { "Turbo-Frame" => "drawer" }
+    assert_no_match post_now_recurring_occurrence_path(@occurrence), response.body
+
+    assert_no_difference -> { Entry.count } do
+      post post_now_recurring_occurrence_url(@occurrence)
+    end
+    assert @occurrence.reload.scheduled?
+  end
+
   test "skip and reopen round trip" do
     post skip_recurring_occurrence_url(@occurrence)
     assert @occurrence.reload.skipped?
@@ -484,6 +510,10 @@ class RecurringOccurrencesControllerTest < ActionDispatch::IntegrationTest
     patch override_amount_recurring_occurrence_url(occurrence, amount: "1")
     assert_response :not_found
     assert_nil occurrence.reload.expected_amount
+
+    post post_now_recurring_occurrence_url(occurrence)
+    assert_response :not_found
+    assert occurrence.reload.scheduled?
 
     get recurring_occurrence_url(occurrence), headers: { "Turbo-Frame" => "drawer" }
     assert_response :success, "reading the shared bill stays allowed"

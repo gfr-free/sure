@@ -32,6 +32,8 @@ de:
       manual_amount_label: Betrag
       manual_date_label: Datum
       record_payment: Zahlung erfassen
+      post_now: Jetzt buchen
+      post_now_hint: "Legt eine Buchung über %{amount} mit heutigem Datum an und ordnet sie diesem Termin zu."
       mark_paid: Als bezahlt markieren
       mark_paid_hint: Markiert den Restbetrag als bezahlt, ohne eine Transaktion zu erfassen.
       skip: Überspringen
@@ -40,6 +42,9 @@ de:
       view_bill: Vollständige Rechnung anzeigen
     mark_paid:
       success: Rechnung als bezahlt markiert
+    post_now:
+      success: "Buchung am %{date} angelegt"
+      failure: Dieser Termin kann nicht mehr gebucht werden.
     skip:
       success: Rechnung übersprungen
     reopen:

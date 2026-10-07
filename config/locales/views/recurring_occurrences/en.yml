@@ -34,6 +34,8 @@ en:
       manual_amount_label: Amount
       manual_date_label: Date
       record_payment: Record payment
+      post_now: Post now
+      post_now_hint: "Creates a %{amount} transaction dated today and links it to this date."
       mark_paid: Mark paid
       mark_paid_hint: Settles the rest without recording a transaction.
       skip: Skip
@@ -42,6 +44,9 @@ en:
       view_bill: View full bill
     mark_paid:
       success: Bill marked paid
+    post_now:
+      success: "Transaction posted on %{date}"
+      failure: This date can no longer be posted.
     skip:
       success: Bill skipped
     reopen:

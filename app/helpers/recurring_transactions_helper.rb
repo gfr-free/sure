@@ -13,6 +13,12 @@ module RecurringTransactionsHelper
     end
   end
 
+  # Which of these accounts are manual, for the bill form's auto-post switch.
+  # One query instead of Account#manual? per option.
+  def recurring_manual_account_ids(accounts)
+    accounts.reorder(nil).manual.pluck(:id)
+  end
+
   def frequency_preset_options(recurring_transaction)
     options = RecurringTransaction::FrequencyPreset::PRESETS.map do |preset|
       [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]
@@ -25,6 +31,14 @@ module RecurringTransactionsHelper
     end
 
     options << [ t("recurring_transactions.frequency_presets.interval"), RecurringTransaction::FrequencyPreset::INTERVAL ]
+  end
+
+  # The new-transaction form's "Repeat" picker: the presets a first date
+  # alone can describe, plus a custom interval.
+  def repeat_frequency_options
+    RecurringTransaction::FromNewEntry::FREQUENCY_PRESETS.map do |preset|
+      [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]
+    end
   end
 
   def frequency_interval_unit_options

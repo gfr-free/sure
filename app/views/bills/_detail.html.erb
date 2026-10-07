@@ -1,5 +1,6 @@
-<%# locals: (series:, history:, upcoming:, analytics:, payment_history:,
-             yearly_metrics:, last_account:) %>
+<%# locals: (series:, current_occurrence:, history:, upcoming:, analytics:, upcoming_occurrences: {},
+             payment_history:, yearly_metrics:, last_account:,
+             recent_allocations:, dense: false) %>
 
 <%# The sections under bills/_summary in a bill's drawer, collapsible like a
     transaction's or a budget category's: why it matches and what it has
@@ -126,10 +127,18 @@
     <%= render DS::Disclosure.new(title: t("bills.detail.upcoming")) do %>
       <div class="bg-container-inset rounded-lg divide-y divide-subdued">
         <% upcoming.each do |date| %>
-          <div class="flex items-center justify-between px-3 py-2">
-            <p class="text-sm text-primary"><%= l(date, format: :long) %></p>
+          <% occurrence = upcoming_occurrences[date] %>
+          <div class="flex items-center justify-between gap-3 px-3 py-2">
+            <p class="text-sm text-primary">
+              <% if occurrence %>
+                <%= link_to l(date, format: :long), recurring_occurrence_path(occurrence),
+                      data: { turbo_frame: :drawer }, class: "hover:underline" %>
+              <% else %>
+                <%= l(date, format: :long) %>
+              <% end %>
+            </p>
             <p class="text-sm text-secondary privacy-sensitive">
-              ~<%= format_money(Money.new(series.amount.abs, series.currency)) %>
+              ~<%= format_money(occurrence ? occurrence.resolved_expected_amount_money : Money.new(series.amount.abs, series.currency)) %>
             </p>
           </div>
         <% end %>
@@ -137,9 +146,33 @@
     <% end %>
   <% end %>
 
-  <%# Settled cycles with what paid them: "did I pay it that month" and "which
-      transaction paid it" in one list, rather than a cycle list and a payment
-      list that mostly repeat each other. %>
+  <%# Individual payments, which is the answer to "what actually paid this". %>
+  <% if recent_allocations.any? %>
+    <div class="space-y-1">
+      <p class="text-xs font-medium text-secondary uppercase"><%= t("bills.detail.recent_payments") %></p>
+      <div class="bg-container-inset rounded-lg divide-y divide-subdued">
+        <% recent_allocations.each do |allocation| %>
+          <div class="flex items-center justify-between gap-3 px-3 py-2">
+            <div class="min-w-0">
+              <p class="text-sm text-primary truncate"><%= allocation.entry&.name.presence || t("bills.detail.manual_payment") %></p>
+              <% if allocation.paid_on %>
+                <p class="text-xs text-secondary">
+                  <%= l(allocation.paid_on, format: :short_with_year) %>
+                  <% if allocation.from_auto_posted? %>
+                    &middot; <%= t("bills.detail.auto_posted") %>
+                  <% end %>
+                </p>
+              <% end %>
+            </div>
+            <p class="text-sm text-primary privacy-sensitive shrink-0"><%= format_money(allocation.allocated_amount_money) %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Settled cycles, which answers "did I pay it that month" rather than
+      "which transaction paid it". %>
   <% if history.any? %>
     <%= render DS::Disclosure.new(title: t("bills.detail.history")) do %>
       <div class="bg-container-inset rounded-lg divide-y divide-subdued">

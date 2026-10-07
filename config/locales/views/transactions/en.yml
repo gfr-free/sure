@@ -1,6 +1,12 @@
 ---
 en:
   transactions:
+    auto_posted:
+      pending: Provisional
+      pending_tooltip: Sure posted this from a recurring bill. Confirm it, or discard it if the payment is not needed this time.
+      confirm: Confirm this posting
+      discard: Discard this posting and skip the bill's date
+      discard_confirm: Delete this transaction and skip this date of the bill?
     bulk_updates:
       new:
         cancel: Cancel
@@ -55,8 +61,16 @@ en:
       tag_search_placeholder: Search or create tag
       tags_label: Tags
       transfer: Transfer
+      repeat_label: Repeat
+      repeat_hint: Also adds a recurring series under Bills that starts with this transaction.
+      repeat_frequency_label: How often
+      repeat_interval_label: Every
+      repeat_interval_unit_label: Unit
+      repeat_auto_post_label: Post automatically
+      repeat_auto_post_hint: Sure adds the next transactions to the account on each due date.
     create:
       created: Transaction created
+      created_repeating: Transaction created and set to repeat
     update:
       updated: Transaction updated
     new:
@@ -71,6 +85,7 @@ en:
       applied_to_title: Bills this paid
       applied_to_detail: "%{amount} toward the bill due %{date}"
       applied_to_unreviewed: Needs review
+      applied_to_auto_posted: Posted automatically
       merge_duplicate: Yes, merge them
       potential_duplicate_description: This pending transaction may be the same as the posted transaction below. If so, merge them to avoid double-counting.
       potential_duplicate_title: Possible duplicate detected
@@ -179,6 +194,8 @@ en:
       review_recommended_tooltip: Large amount difference — review recommended to check if this is a duplicate
       split: Split
       split_tooltip: This transaction has been split into multiple entries
+      auto_posted: Recurring
+      auto_posted_tooltip: Sure posted this transaction from a recurring bill
       split_child_tooltip: Part of a split transaction
     merge_duplicate:
       success: Transactions merged successfully

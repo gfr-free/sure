@@ -1,6 +1,12 @@
 ---
 de:
   transactions:
+    auto_posted:
+      pending: Vorläufig
+      pending_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt. Bestätige sie oder verwirf sie, wenn die Zahlung diesmal nicht nötig ist.
+      confirm: Buchung bestätigen
+      discard: Buchung verwerfen und den Termin der Rechnung überspringen
+      discard_confirm: Diese Buchung löschen und den Termin der Rechnung überspringen?
     unknown_name: Unbekannte Transaktion
     form:
       account: Konto
@@ -33,6 +39,13 @@ de:
       category_label: Kategorie
       details: Details
       merchant_label: Händler
+      repeat_label: Wiederholen
+      repeat_hint: Legt zusätzlich unter Rechnungen eine wiederkehrende Serie an, die mit dieser Transaktion beginnt.
+      repeat_frequency_label: Wie oft
+      repeat_interval_label: Alle
+      repeat_interval_unit_label: Einheit
+      repeat_auto_post_label: Automatisch buchen
+      repeat_auto_post_hint: Sure legt die nächsten Buchungen am Fälligkeitstag selbst im Konto an.
     new:
       new_transaction: Neue Transaktion
     show:
@@ -78,6 +91,7 @@ de:
       applied_to_title: Damit bezahlte Rechnungen
       applied_to_detail: "%{amount} für die am %{date} fällige Rechnung"
       applied_to_unreviewed: Prüfung erforderlich
+      applied_to_auto_posted: Automatisch gebucht
       memo: Memo
       merge_duplicate: Ja, zusammenführen
       open_matcher: Zuordnung öffnen
@@ -123,6 +137,8 @@ de:
       split: Geteilt
       split_child_tooltip: Teil einer geteilten Transaktion
       split_tooltip: Diese Transaktion wurde in mehrere Einträge geteilt
+      auto_posted: Wiederkehrend
+      auto_posted_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt
     merge_duplicate:
       success: Transaktionen erfolgreich zusammengeführt
       failure: Transaktionen konnten nicht zusammengeführt werden
@@ -332,6 +348,7 @@ de:
         type_income: Einnahme
     create:
       created: Transaktion erstellt
+      created_repeating: Transaktion erstellt und als Wiederholung angelegt
     pending_duplicate_merge:
       confirm_title: Mit gebuchter Transaktion zusammenführen (%{posted_amount})
       possible_duplicate: Duplikat?

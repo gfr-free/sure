@@ -75,6 +75,11 @@ class TransactionsController < ApplicationController
       Set.new
     end
 
+    # Bills are a preview feature, and so is the marker for what they posted.
+    @auto_posted_allocations = RecurringAllocation.auto_posted_by_entry(entry_ids) if preview_features_enabled?
+    # The review buttons only for accounts this user may change.
+    @auto_post_writable_account_ids = Account.writable_by(Current.user).pluck(:id).to_set if @auto_posted_allocations&.values&.any?(&:pending_review?)
+
     @uncategorized_count = Rails.cache.fetch(uncategorized_count_cache_key) do
       Current.accessible_entries.uncategorized_transactions.count
     end
@@ -157,7 +162,7 @@ class TransactionsController < ApplicationController
 
     @entry = account.entries.new(entry_params_with_idempotency_key(idempotency_key))
 
-    if @entry.save
+    if save_new_entry
       @entry.sync_account_later
       @entry.lock_saved_attributes!
       @entry.mark_user_modified!
@@ -696,8 +701,30 @@ class TransactionsController < ApplicationController
       @new_transaction_idempotency_key ||= submitted_idempotency_key || SecureRandom.uuid
     end
 
+    # "Repeat" also declares a series that starts with this entry. It shares
+    # the Bills preview gate, and the form only offers it there.
+    def save_new_entry
+      return @entry.save unless repeat_available? && repeat_settings.enabled
+
+      @entry_repeats = RecurringTransaction::FromNewEntry.new(entry: @entry, user: Current.user, settings: repeat_settings).save
+    end
+
+    def repeat_available?
+      preview_features_enabled? && !Current.family.recurring_transactions_disabled?
+    end
+    helper_method :repeat_available?
+
+    def repeat_settings
+      @repeat_settings ||= begin
+        raw = params[:repeat]
+        permitted = raw.is_a?(ActionController::Parameters) ? raw.permit(:enabled, :frequency_preset, :frequency_interval, :frequency_interval_unit, :auto_post).to_h : {}
+        RecurringTransaction::FromNewEntry::Settings.from_params(permitted)
+      end
+    end
+    helper_method :repeat_settings
+
     def respond_with_created_entry(entry)
-      flash[:notice] = t(".created")
+      flash[:notice] = @entry_repeats ? t(".created_repeating") : t(".created")
 
       respond_to do |format|
         format.html { redirect_back_or_to account_path(entry.account) }

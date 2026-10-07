@@ -98,8 +98,9 @@
               <p class="text-sm font-medium text-primary privacy-sensitive">
                 <%= format_money(Money.new(series.amount.abs, series.currency)) %>
               </p>
-              <p class="text-xs">
+              <p class="text-xs flex justify-end gap-1">
                 <%= render DS::Pill.new(label: t("recurring_transactions.status.#{series.status}"), tone: recurring_status_pill_tone(series.status), marker: false) %>
+                <%= render "bills/auto_post_pill" if series.auto_post? %>
               </p>
             </div>
           <% end %>
@@ -153,7 +154,10 @@
         <%= series.next_expected_date ? bills_upcoming_date(series.next_expected_date) : "–" %>
       <% end %>
       <% table.with_column(t(".col_status")) do |series| %>
-        <%= render DS::Pill.new(label: t("recurring_transactions.status.#{series.status}"), tone: recurring_status_pill_tone(series.status), marker: false) %>
+        <div class="flex items-center gap-1">
+          <%= render DS::Pill.new(label: t("recurring_transactions.status.#{series.status}"), tone: recurring_status_pill_tone(series.status), marker: false) %>
+          <%= render "bills/auto_post_pill" if series.auto_post? %>
+        </div>
       <% end %>
       <% table.with_column(t(".col_actions"), align: :right) do |series| %>
         <%= render DS::Menu.new do |menu| %>

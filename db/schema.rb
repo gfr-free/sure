@@ -31,6 +31,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["provider_type", "provider_id"], name: "index_account_providers_on_provider_type_and_provider_id", unique: true
   end
 
+  create_table "account_release_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "account_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.date "release_on", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["account_id", "user_id", "kind", "release_on"], name: "index_account_release_notices_uniqueness", unique: true
+    t.index ["user_id"], name: "index_account_release_notices_on_user_id"
+  end
+
   create_table "account_shares", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "account_id", null: false
     t.datetime "created_at", null: false
@@ -100,11 +111,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.integer "account_providers_count", default: 0, null: false
     t.uuid "accountable_id"
     t.string "accountable_type"
+    t.boolean "auto_renew", default: false, null: false
+    t.date "available_on"
     t.decimal "balance", precision: 19, scale: 4
     t.decimal "cash_balance", precision: 19, scale: 4, default: "0.0"
     t.virtual "classification", type: :string, as: "\nCASE\n    WHEN ((accountable_type)::text = ANY (ARRAY[('Loan'::character varying)::text, ('CreditCard'::character varying)::text, ('OtherLiability'::character varying)::text])) THEN 'liability'::text\n    ELSE 'asset'::text\nEND", stored: true
     t.datetime "created_at", null: false
     t.string "currency"
+    t.string "custom_group"
     t.datetime "disabled_at"
     t.boolean "enable_category_matcher", default: true, null: false
     t.boolean "exclude_from_reports", default: false, null: false
@@ -112,11 +126,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.uuid "import_id"
     t.string "institution_domain"
     t.string "institution_name"
+    t.string "liquidity", default: "immediate", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "name"
     t.text "notes"
     t.uuid "owner_id"
     t.uuid "plaid_account_id"
+    t.integer "renewal_term_months"
     t.uuid "simplefin_account_id"
     t.string "status", default: "active"
     t.string "subtype"
@@ -127,6 +143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["family_id", "accountable_type"], name: "index_accounts_on_family_id_and_accountable_type"
     t.index ["family_id", "exclude_from_reports"], name: "index_accounts_on_family_id_and_exclude_from_reports"
     t.index ["family_id", "id"], name: "index_accounts_on_family_id_and_id"
+    t.index ["family_id", "liquidity"], name: "index_accounts_on_family_id_and_liquidity"
     t.index ["family_id", "status", "accountable_type"], name: "index_accounts_on_family_id_status_accountable_type"
     t.index ["family_id", "status"], name: "index_accounts_on_family_id_and_status"
     t.index ["family_id"], name: "index_accounts_on_family_id"
@@ -135,6 +152,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["plaid_account_id"], name: "index_accounts_on_plaid_account_id"
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
+    t.check_constraint "liquidity::text = ANY (ARRAY['immediate'::character varying, 'short_term'::character varying, 'locked'::character varying, 'long_term'::character varying]::text[])", name: "chk_accounts_liquidity"
+    t.check_constraint "renewal_term_months IS NULL OR renewal_term_months > 0", name: "chk_accounts_renewal_term_months"
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -657,6 +676,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.string "account_id"
     t.string "account_status"
     t.string "account_type"
+    t.boolean "balance_evidence_verified", default: false, null: false
+    t.boolean "balance_verified", default: false, null: false
     t.datetime "created_at", null: false
     t.decimal "credit_limit", precision: 19, scale: 4
     t.string "currency"
@@ -748,7 +769,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["account_id"], name: "index_entries_on_account_id"
     t.index ["currency", "amount", "date", "account_id"], name: "index_entries_on_transfer_match_lookup", where: "(((entryable_type)::text = 'Transaction'::text) AND (excluded = false))"
     t.index ["date"], name: "index_entries_on_date"
-    t.index ["entryable_type"], name: "index_entries_on_entryable_type"
+    t.index ["entryable_type", "entryable_id"], name: "index_entries_on_entryable"
     t.index ["import_id"], name: "index_entries_on_import_id"
     t.index ["import_locked"], name: "index_entries_on_import_locked_true", where: "(import_locked = true)"
     t.index ["parent_entry_id"], name: "index_entries_on_parent_entry_id"
@@ -851,6 +872,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["from_currency", "to_currency", "date"], name: "index_exchange_rates_on_base_converted_date_unique", unique: true
     t.index ["from_currency"], name: "index_exchange_rates_on_from_currency"
     t.index ["to_currency"], name: "index_exchange_rates_on_to_currency"
+    t.index ["updated_at"], name: "index_exchange_rates_on_updated_at"
   end
 
   create_table "families", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -877,6 +899,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.string "moniker", default: "Family", null: false
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
+    t.string "paperless_connection_mode", default: "per_user", null: false
     t.boolean "personal_budgets", default: false, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
@@ -889,6 +912,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.check_constraint "categorization_shadow_rate >= 0::numeric AND categorization_shadow_rate <= 1::numeric", name: "chk_families_categorization_shadow_rate"
     t.check_constraint "default_account_sharing::text = ANY (ARRAY['shared'::character varying::text, 'private'::character varying::text])", name: "chk_families_default_account_sharing"
     t.check_constraint "month_start_day >= 1 AND month_start_day <= 28", name: "month_start_day_range"
+    t.check_constraint "paperless_connection_mode::text = ANY (ARRAY['per_user'::character varying, 'family'::character varying]::text[])", name: "chk_families_paperless_connection_mode"
   end
 
   create_table "family_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1917,6 +1941,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "paperless_connections", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "api_token", null: false
+    t.string "base_url", null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.datetime "last_connected_at"
+    t.text "last_error"
+    t.string "server_version"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id"
+    t.boolean "verify_ssl", default: true, null: false
+    t.index ["family_id"], name: "index_paperless_connections_on_family_id"
+    t.index ["family_id"], name: "index_paperless_connections_on_family_id_shared", unique: true, where: "(user_id IS NULL)"
+    t.index ["user_id"], name: "index_paperless_connections_on_user_id", unique: true
+  end
+
+  create_table "paperless_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "correspondent_name"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id"
+    t.date "document_created_on"
+    t.integer "document_id", null: false
+    t.uuid "family_id", null: false
+    t.uuid "linkable_id", null: false
+    t.string "linkable_type", null: false
+    t.string "mime_type"
+    t.uuid "paperless_connection_id"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_paperless_links_on_created_by_id"
+    t.index ["family_id"], name: "index_paperless_links_on_family_id"
+    t.index ["linkable_type", "linkable_id", "paperless_connection_id", "document_id"], name: "index_paperless_links_on_linkable_and_document", unique: true
+    t.index ["paperless_connection_id"], name: "index_paperless_links_on_paperless_connection_id"
+  end
+
   create_table "plaid_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "available_balance", precision: 19, scale: 4
     t.datetime "created_at", null: false
@@ -2079,6 +2138,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.decimal "match_confidence", precision: 5, scale: 4
     t.jsonb "match_signals", default: {}, null: false
     t.date "paid_on"
+    t.boolean "pending_review", default: false, null: false
     t.uuid "recurring_occurrence_id", null: false
     t.string "source", null: false
     t.decimal "source_amount", precision: 19, scale: 4
@@ -2089,7 +2149,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.index ["recurring_occurrence_id", "entry_id"], name: "idx_recurring_allocations_entry_once", unique: true, where: "(entry_id IS NOT NULL)"
     t.index ["recurring_occurrence_id"], name: "index_recurring_allocations_on_recurring_occurrence_id"
     t.check_constraint "allocated_amount > 0::numeric", name: "chk_recurring_allocations_amount_positive"
-    t.check_constraint "source::text = ANY (ARRAY['auto_matched'::character varying::text, 'user_confirmed'::character varying::text, 'user_created'::character varying::text])", name: "chk_recurring_allocations_source"
+    t.check_constraint "source::text = ANY (ARRAY['auto_matched'::character varying, 'user_confirmed'::character varying, 'user_created'::character varying, 'auto_posted'::character varying]::text[])", name: "chk_recurring_allocations_source"
     t.check_constraint "state::text = ANY (ARRAY['suggested'::character varying::text, 'confirmed'::character varying::text])", name: "chk_recurring_allocations_state"
   end
 
@@ -2103,6 +2163,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
   end
 
   create_table "recurring_occurrences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "auto_posted_at"
     t.datetime "closed_at"
     t.string "closed_source"
     t.datetime "created_at", null: false
@@ -2145,6 +2206,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.string "amount_strategy", default: "fixed", null: false
     t.decimal "amount_tolerance_pct", precision: 5, scale: 2, default: "7.5", null: false
     t.date "anchor_date"
+    t.boolean "auto_post", default: false, null: false
+    t.date "auto_post_from"
     t.boolean "autopay", default: false, null: false
     t.string "bill_type", default: "bill", null: false
     t.date "cancelled_on"
@@ -2290,12 +2353,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
 
   create_table "rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: false, null: false
+    t.boolean "apply_immediately", default: false, null: false
     t.datetime "created_at", null: false
     t.date "effective_date"
     t.uuid "family_id", null: false
     t.string "name"
+    t.integer "position", default: 0, null: false
     t.string "resource_type", null: false
+    t.boolean "stop_processing", default: false, null: false
     t.datetime "updated_at", null: false
+    t.index ["family_id", "position"], name: "index_rules_on_family_id_and_position"
     t.index ["family_id"], name: "index_rules_on_family_id"
   end
 
@@ -2604,6 +2671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.jsonb "data"
     t.string "error"
     t.datetime "failed_at"
+    t.datetime "last_attempted_at"
     t.uuid "parent_id"
     t.datetime "pending_at"
     t.string "status", default: "pending"
@@ -2776,8 +2844,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.index ["inflow_transaction_id", "outflow_transaction_id"], name: "idx_on_inflow_transaction_id_outflow_transaction_id_8cd07a28bd", unique: true
-    t.index ["inflow_transaction_id"], name: "index_transfers_on_inflow_transaction_id"
-    t.index ["outflow_transaction_id"], name: "index_transfers_on_outflow_transaction_id"
+    t.index ["inflow_transaction_id"], name: "index_transfers_on_inflow_transaction_id", unique: true
+    t.index ["outflow_transaction_id"], name: "index_transfers_on_outflow_transaction_id", unique: true
     t.index ["status"], name: "index_transfers_on_status"
     t.check_constraint "amount >= 0::numeric", name: "check_transfer_amount_non_negative"
   end
@@ -2940,6 +3008,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
   end
 
   add_foreign_key "account_providers", "accounts", on_delete: :cascade
+  add_foreign_key "account_release_notices", "accounts", on_delete: :cascade
+  add_foreign_key "account_release_notices", "users", on_delete: :cascade
   add_foreign_key "account_shares", "accounts"
   add_foreign_key "account_shares", "users"
   add_foreign_key "account_statements", "accounts", column: "suggested_account_id", on_delete: :nullify
@@ -3063,6 +3133,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_161500) do
   add_foreign_key "oidc_identities", "users"
   add_foreign_key "onchain_wallet_accounts", "onchain_wallet_items"
   add_foreign_key "onchain_wallet_items", "families"
+  add_foreign_key "paperless_connections", "families", on_delete: :cascade
+  add_foreign_key "paperless_connections", "users", on_delete: :cascade
+  add_foreign_key "paperless_links", "families", on_delete: :cascade
+  add_foreign_key "paperless_links", "paperless_connections", on_delete: :nullify
+  add_foreign_key "paperless_links", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "plaid_accounts", "plaid_items"
   add_foreign_key "plaid_items", "families"
   add_foreign_key "plaid_items", "users", column: "owner_id", on_delete: :nullify

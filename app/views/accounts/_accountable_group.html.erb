@@ -26,20 +26,48 @@
     <div class="space-y-1">
       <% subgroups = account_subgroups(account_group, view: :sidebar) %>
       <% if subgroups.any? %>
+        <% sortable = Current.user&.account_order&.manual? %>
         <% subgroups.each do |subgroup| %>
           <div id="<%= subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" class="space-y-1" data-subgroup-key="<%= subgroup.key %>">
             <div class="flex items-center justify-between gap-2 px-3 pt-2">
               <%= tag.p subgroup.name, class: class_names("text-xs font-medium text-secondary truncate", "animate-pulse" => subgroup.syncing?) %>
               <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
             </div>
-            <% subgroup.accounts.each do |account| %>
-              <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account) %>
+            <% if sortable %>
+              <%= tag.div data: {
+                controller: "account-sortable",
+                account_sortable_group_value: "#{account_group.key}:#{subgroup.key}",
+                account_sortable_url_value: reorder_accounts_path,
+                action: "dragover->account-sortable#dragOver drop->account-sortable#drop account-sort-mode:stop@window->account-sortable#releaseKeyboard"
+              } do %>
+                <% subgroup.accounts.each do |account| %>
+                  <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), sortable: true %>
+                <% end %>
+              <% end %>
+            <% else %>
+              <% subgroup.accounts.each do |account| %>
+                <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account) %>
+              <% end %>
             <% end %>
           </div>
         <% end %>
       <% else %>
-        <% account_group.accounts.each do |account| %>
-          <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account) %>
+        <% sortable = Current.user&.account_order&.manual? %>
+        <% if sortable %>
+          <%= tag.div data: {
+            controller: "account-sortable",
+            account_sortable_group_value: account_group.key,
+            account_sortable_url_value: reorder_accounts_path,
+            action: "dragover->account-sortable#dragOver drop->account-sortable#drop account-sort-mode:stop@window->account-sortable#releaseKeyboard"
+          } do %>
+            <% account_group.accounts.each do |account| %>
+              <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), sortable: true %>
+            <% end %>
+          <% end %>
+        <% else %>
+          <% account_group.accounts.each do |account| %>
+            <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account) %>
+          <% end %>
         <% end %>
       <% end %>
     </div>

@@ -49,6 +49,9 @@ class Settings::AppearancesController < ApplicationController
         updated_prefs["custom_account_group_label"] = label.to_s.squish.first(AccountGrouping::CUSTOM_GROUP_MAX_LENGTH).presence
         updated_prefs.delete("custom_account_group_label") if updated_prefs["custom_account_group_label"].nil?
       end
+      # Account order is a column, not a preference; unknown keys are ignored.
+      account_order = params.dig(:user, :default_account_order)
+      @user.default_account_order = account_order if AccountOrder::ORDERS.key?(account_order.to_s)
       @user.update!(preferences: updated_prefs)
     end
     redirect_to settings_appearance_path

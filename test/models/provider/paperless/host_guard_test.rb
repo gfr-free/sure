@@ -66,4 +66,11 @@ class Provider::Paperless::HostGuardTest < ActiveSupport::TestCase
       assert_raises(Provider::Paperless::HostGuard::BlockedHost) { Provider::Paperless::HostGuard.check!("https://user:pass@paperless.example.com") }
     end
   end
+
+  test "private hosts switch is documented in hosting docs and env example" do
+    doc = Rails.root.join("docs/hosting/paperless.md").read
+    assert_includes doc, "PAPERLESS_ALLOW_PRIVATE_HOSTS"
+
+    assert_includes Rails.root.join(".env.example").read, "PAPERLESS_ALLOW_PRIVATE_HOSTS"
+  end
 end

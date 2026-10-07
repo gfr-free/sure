@@ -1,7 +1,15 @@
+<%
+  # One connection per Puma thread. The Sidekiq process runs SIDEKIQ_CONCURRENCY
+  # job threads (see config/sidekiq.yml), so its pool must be at least that big.
+  rails_max_threads = ENV.fetch("RAILS_MAX_THREADS") { 3 }.to_i
+  sidekiq_concurrency = ENV["SIDEKIQ_CONCURRENCY"].to_s.strip
+  sidekiq_concurrency = sidekiq_concurrency.empty? ? rails_max_threads : sidekiq_concurrency.to_i
+  db_pool = defined?(Sidekiq::CLI) ? [ rails_max_threads, sidekiq_concurrency ].max : rails_max_threads
+%>
 default: &default
   adapter: postgresql
   encoding: unicode
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 3 } %>
+  pool: <%= db_pool %>
   host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
   port: <%= ENV.fetch("DB_PORT") { "5432" } %>
   username: <%= ENV.fetch("POSTGRES_USER") { nil } %>

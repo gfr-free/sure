@@ -334,6 +334,10 @@ services:
     environment:
       <<: *rails_env
       # BINDING: "::"  # Uncomment for IPv6 dual-stack inside the container
+      # Puma sizing (defaults: 1 process x 3 threads). Hosts with 1 GB+ RAM can
+      # serve pages faster with more; see docs/hosting/docker.md "Tuning concurrency".
+      # WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+      # RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-3}
     depends_on:
       db:
         condition: service_healthy
@@ -365,6 +369,10 @@ services:
       - 1.1.1.1
     environment:
       <<: *rails_env
+      # Number of background job threads (defaults to RAILS_MAX_THREADS, then 3).
+      # Raise to 5 or more if user-triggered syncs wait behind scheduled jobs.
+      # See docs/hosting/docker.md "Tuning concurrency".
+      SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-}
     networks:
       - sure_net
 

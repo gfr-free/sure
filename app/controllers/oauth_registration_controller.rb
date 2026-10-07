@@ -50,6 +50,16 @@ class OauthRegistrationController < ApplicationController
 
     client_name = body["client_name"].presence || "MCP Client"
 
+    # The mobile app's shared client is looked up by name, and the name is
+    # shown on the consent screen, so anonymous registrations must not take it.
+    if reserved_client_name?(client_name)
+      render json: {
+        error: "invalid_client_metadata",
+        error_description: t("oauth.registration.reserved_client_name")
+      }, status: :bad_request
+      return
+    end
+
     app = Doorkeeper::Application.new(
       name: client_name,
       redirect_uri: redirect_uris.join("\n"),
@@ -82,6 +92,10 @@ class OauthRegistrationController < ApplicationController
   end
 
   private
+
+    def reserved_client_name?(name)
+      name.to_s.squish.casecmp?(MobileDevice::SHARED_OAUTH_APPLICATION_NAME)
+    end
 
     # Returns true for https, loopback http, and RFC 8252 private-use schemes
     # (cursor://, vscode://). Rejects fragments, userinfo, handler schemes, and

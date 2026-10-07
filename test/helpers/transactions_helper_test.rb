@@ -141,4 +141,13 @@ class TransactionsHelperTest < ActionView::TestCase
     assert_empty details[:provider_extras]
     assert_equal({ "someprovider" => { "a" => 1 } }, JSON.parse(details[:raw]))
   end
+
+  test "leaves the sync's exclusion note out of the raw dump" do
+    note = { "action" => "excluded", "reason" => "stale_pending", "by" => "sync:enable_banking", "at" => "2026-10-03T06:00:00Z" }
+
+    details = build_transaction_extra_details(transaction_with({ "enable_banking" => { "pending" => true }, Entry::AUTO_MUTATION_KEY => note }))
+    assert_equal({ "enable_banking" => { "pending" => true } }, JSON.parse(details[:raw]))
+
+    assert_nil build_transaction_extra_details(transaction_with({ Entry::AUTO_MUTATION_KEY => note }))
+  end
 end

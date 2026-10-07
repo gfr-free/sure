@@ -26,7 +26,9 @@ class Rule::ConditionFilter::TransactionDetails < Rule::ConditionFilter
 
     if operator == "is_null"
       # Check if extra field is empty or null
-      scope.where("transactions.extra IS NULL OR transactions.extra = '{}'::jsonb")
+      # The note a sync leaves when it excludes a row (Entry::AUTO_MUTATION_KEY)
+      # is Sure's own bookkeeping, not provider detail, so it is ignored here.
+      scope.where("transactions.extra IS NULL OR (transactions.extra - '#{Entry::AUTO_MUTATION_KEY}') = '{}'::jsonb")
     else
       # For both "like" and "=" operators, perform contains search
       # "like" is case-insensitive (ILIKE), "=" is case-sensitive (LIKE)
@@ -44,7 +46,7 @@ class Rule::ConditionFilter::TransactionDetails < Rule::ConditionFilter
 
       scope.where(<<~SQL.squish, sanitized_value)
         EXISTS (
-          SELECT 1 FROM jsonb_path_query(transactions.extra, 'strict $.**') AS node
+          SELECT 1 FROM jsonb_path_query(transactions.extra - '#{Entry::AUTO_MUTATION_KEY}', 'strict $.**') AS node
           WHERE jsonb_typeof(node) IN ('string', 'number')
             AND node #>> '{}' #{sql_operator} ?
         )

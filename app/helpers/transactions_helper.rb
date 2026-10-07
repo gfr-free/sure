@@ -59,11 +59,33 @@ module TransactionsHelper
   #     raw: String (pretty JSON) — only set for :raw, where we have no
   #       structured rendering for the provider
   #   }
+  # Sentence explaining a note left by Entry#exclude_automatically! or
+  # Entry.auto_exclude_stale_pending, e.g. "On 3 October 2026 the sync excluded …".
+  def auto_exclusion_description(note)
+    at = begin
+      Time.zone.parse(note["at"].to_s)
+    rescue ArgumentError
+      nil
+    end
+    date = at ? l(at.to_date, format: :long) : note["at"].to_s
+
+    case note["reason"]
+    when "stale_pending"
+      t("transactions.show.auto_excluded_stale_pending", date: date, days: note["days"].presence || 8)
+    when "posted_match"
+      t("transactions.show.auto_excluded_posted_match", date: date)
+    else
+      t("transactions.show.auto_excluded_other", date: date)
+    end
+  end
+
   def build_transaction_extra_details(obj)
     tx = obj.respond_to?(:transaction) ? obj.transaction : obj
     return nil unless tx.respond_to?(:extra) && tx.extra.present?
 
-    extra = tx.extra
+    # The sync's exclusion note has its own explanation in the Settings section.
+    extra = tx.extra.is_a?(Hash) ? tx.extra.except(Entry::AUTO_MUTATION_KEY) : tx.extra
+    return nil if extra.blank?
 
     if extra.is_a?(Hash) && extra["simplefin"].present?
       sf = extra["simplefin"]

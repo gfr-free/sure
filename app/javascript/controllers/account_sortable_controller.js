@@ -14,6 +14,9 @@ export default class extends Controller {
     group: String,
     url: String,
     holdDelay: { type: Number, default: 400 },
+    // A save that has not answered by then counts as failed, so a stalled
+    // request cannot hold up every later save of the group.
+    saveTimeout: { type: Number, default: 10000 },
   };
 
   connect() {
@@ -281,6 +284,7 @@ export default class extends Controller {
           "X-CSRF-Token": csrfToken?.content ?? "",
         },
         body: JSON.stringify({ group: this.groupValue, account_ids: order }),
+        signal: AbortSignal.timeout(this.saveTimeoutValue),
       });
 
       if (!response.ok) {

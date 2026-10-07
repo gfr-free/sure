@@ -32,7 +32,7 @@
                 <% end %>
                 <span>&middot; <%= number_to_human_size(document.byte_size) %></span>
                 <% if document.ai_searchable? %>
-                  <span>&middot; <%= t("contracts.documents.searchable") %></span>
+                  <span>&middot; <%= t(document.family_document_id ? "contracts.documents.searchable" : "contracts.documents.search_pending") %></span>
                 <% end %>
               </div>
             </div>

@@ -154,6 +154,7 @@ de:
       resource: Dokument
       count: "%{count} von %{max}"
       searchable: Für den Assistenten durchsuchbar
+      search_pending: Wartet auf Aufnahme in die Suche des Assistenten
       allow_search: Für den Assistenten freigeben
       stop_search: Freigabe beenden
       search_hint: Der Assistent kann Dokumente nur durchsuchen, wenn du das einschaltest, und nur für Personen, die diesen Vertrag sehen dürfen.

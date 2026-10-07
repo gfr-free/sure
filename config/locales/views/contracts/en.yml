@@ -154,6 +154,7 @@ en:
       resource: document
       count: "%{count} of %{max}"
       searchable: Searchable by the assistant
+      search_pending: Waiting to be added to the assistant's search
       allow_search: Let the assistant search
       stop_search: Stop assistant search
       search_hint: Documents are only searchable by the assistant when you switch this on, and only for people who can see this contract.

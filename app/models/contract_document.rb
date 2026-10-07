@@ -49,7 +49,8 @@ class ContractDocument < ApplicationRecord
   # Brings the vector store in line with the opt-in. The uploaded copy carries
   # the contract id, so search results can be filtered to contracts the asking
   # user may see.
-  # Returns false when an opt-out could not be removed from the store yet.
+  # Returns false when the store could not be brought in line yet (an opt-in
+  # upload or an opt-out removal failed), so the job retries.
   def sync_search_index!
     family = contract.family
 
@@ -59,7 +60,9 @@ class ContractDocument < ApplicationRecord
         filename: file.filename.to_s,
         metadata: { "type" => "contract", "contract_id" => contract_id, "contract_document_id" => id }
       )
-      return true unless document
+      # Without a configured store there is nothing to retry; with one, a
+      # failed upload (rate limit, outage) is retried by the job.
+      return VectorStore.adapter.nil? unless document
 
       # The upload takes a while; the contract may have moved to another
       # family or been opted out meanwhile. Then the fresh copy goes again.

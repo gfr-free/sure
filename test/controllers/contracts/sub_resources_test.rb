@@ -232,6 +232,15 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     end
 
     assert document.reload.ai_searchable?
+
+    # Until the upload reaches the store, the list says so instead of "searchable".
+    get contract_url(@contract)
+    assert_includes response.body, ERB::Util.html_escape(I18n.t("contracts.documents.search_pending"))
+
+    document.update!(family_document: @contract.family.family_documents.create!(filename: "policy.pdf", status: "ready", provider_file_id: "file-5"))
+    get contract_url(@contract)
+    assert_includes response.body, I18n.t("contracts.documents.searchable")
+    assert_not_includes response.body, ERB::Util.html_escape(I18n.t("contracts.documents.search_pending"))
   end
 
   test "read-only shares can view documents but not upload" do

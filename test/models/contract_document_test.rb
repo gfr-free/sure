@@ -63,6 +63,39 @@ class ContractDocumentTest < ActiveSupport::TestCase
     assert_equal family_document, document.reload.family_document
   end
 
+  test "a failed opt-in upload is retried and logged once the retries run out" do
+    document = build_document("policy.pdf", "application/pdf")
+    document.ai_searchable = true
+    document.save!
+    VectorStore.stubs(:adapter).returns(mock("adapter"))
+    Family.any_instance.stubs(:upload_document).returns(nil)
+
+    assert_not document.sync_search_index!
+    assert_enqueued_with(job: ContractDocumentIndexJob, args: [ document ]) do
+      ContractDocumentIndexJob.perform_now(document)
+    end
+
+    assert_difference -> { DebugLogEntry.where(source: "ContractDocumentIndexJob").count }, 1 do
+      job = ContractDocumentIndexJob.new(document)
+      job.exception_executions = { "[ContractDocumentIndexJob::SyncFailed]" => 4 }
+      job.perform_now
+    end
+    entry = DebugLogEntry.where(source: "ContractDocumentIndexJob").last
+    assert_equal "upload", entry.metadata["action"]
+    assert document.reload.ai_searchable?
+    assert_nil document.family_document_id
+  end
+
+  test "without a document store an opt-in has nothing to retry" do
+    document = build_document("policy.pdf", "application/pdf")
+    document.ai_searchable = true
+    document.save!
+    VectorStore.stubs(:adapter).returns(nil)
+    Family.any_instance.stubs(:upload_document).returns(nil)
+
+    assert document.sync_search_index!
+  end
+
   test "deleting an indexed document removes its copy from the store" do
     document = build_document("policy.pdf", "application/pdf")
     family_document = @family.family_documents.create!(filename: "policy.pdf", status: "ready", provider_file_id: "file-2")

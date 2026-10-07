@@ -20,6 +20,9 @@
           &middot; <%= t("bills.installment_progress", done_plus_one: [ progress.first + 1, progress.last ].min, total: progress.last) %>
         <% end %>
         &middot; <%= t("recurring_transactions.status.#{@series.status}") %>
+        <% if @series.auto_post? %>
+          &middot; <%= t("bills.show.auto_posting_since", date: I18n.l(@series.auto_post_from, format: :long)) %>
+        <% end %>
       </p>
     </div>
 

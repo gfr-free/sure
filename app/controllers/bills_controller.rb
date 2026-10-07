@@ -9,7 +9,10 @@ class BillsController < ApplicationController
   # only by import or the v1 API; `ended` only by dismissing a suggestion.
   LIFECYCLE_STATUSES = { "paused" => %w[inactive paused], "ended" => %w[ended] }.freeze
   LIFECYCLE_FILTERS = LIFECYCLE_STATUSES.keys.freeze
-  STATUS_FILTERS = (PAYMENT_FILTERS + LIFECYCLE_FILTERS).freeze
+  # Not a status, but the question "which of these post by themselves?" is
+  # asked from the same place.
+  AUTO_POST_FILTER = "auto_post"
+  STATUS_FILTERS = (PAYMENT_FILTERS + LIFECYCLE_FILTERS + [ AUTO_POST_FILTER ]).freeze
   # Enough to answer "what happens next" without becoming a second bill list.
   NEXT_UP_LIMIT = 4
   # Six covers a month of weekly paydays with room for a leading bridge.
@@ -62,17 +65,17 @@ class BillsController < ApplicationController
     active_open, @dormant = open_occurrences.partition { |occurrence| occurrence.recurring_transaction.active? }
 
     @overdue, upcoming = active_open.partition { |occurrence| occurrence.derived_state == :overdue }
-    this_month, later = upcoming.partition { |occurrence| occurrence.due_on <= month_end }
-    @this_month = this_month.sort_by(&:due_on)
-    @overdue = @overdue.sort_by(&:due_on)
-    @dormant = @dormant.sort_by(&:due_on)
+    this_month, later = upcoming.partition { |occurrence| occurrence.effective_due_on <= month_end }
+    @this_month = this_month.sort_by(&:effective_due_on)
+    @overdue = @overdue.sort_by(&:effective_due_on)
+    @dormant = @dormant.sort_by(&:effective_due_on)
 
     # Beyond this month, one row per series: a weekly bill's next six
     # occurrences are not six separate things to think about yet.
     @later = later.group_by(&:recurring_transaction_id)
                   .values
-                  .map { |group| group.min_by(&:due_on) }
-                  .sort_by(&:due_on)
+                  .map { |group| group.min_by(&:effective_due_on) }
+                  .sort_by(&:effective_due_on)
 
     @paid_this_month = closed.select { |occurrence| occurrence.paid? && occurrence.due_on >= today.beginning_of_month }
                              .sort_by(&:due_on)
@@ -80,6 +83,9 @@ class BillsController < ApplicationController
     compute_kpis(today, month_end)
 
     @month_pay_periods = month_pay_periods(today, month_end)
+    # Per account: do the expected payments leave it above zero (decision
+    # E13)? Only accounts with payments on them appear.
+    @account_forecasts = Account::Forecast.for_family(Current.family, user: Current.user)
 
     @detected_awaiting_review = detected_awaiting_review
     # Fresh detections wait here for confirm/dismiss. Reviewing them is bill
@@ -88,15 +94,17 @@ class BillsController < ApplicationController
     # iterates, which would otherwise be separate queries.
     @suggested_series = accessible_suggested_series.includes(:merchant).order(next_expected_date: :asc).load
     @has_transaction_history = Current.family.entries.where(entryable_type: "Transaction").exists?
-    @suggested_allocations = suggested_allocations
+    @suggested_allocations = suggested_allocations(occurrences)
     # A row waiting on a match decision offers Review rather than Find.
     # Already loaded for the queue above, so indexing is free.
-    @suggestions_by_occurrence = @suggested_allocations.index_by(&:recurring_occurrence_id)
+    # A posted entry under review already pays its row, so only matcher
+    # suggestions change what the row offers.
+    @suggestions_by_occurrence = @suggested_allocations.select(&:allocation_suggested?).index_by(&:recurring_occurrence_id)
     @notices = collect_notices
 
     # The month as one chronological list, paid rows in place under a check.
     # Overdue rows are excluded: they get their own section.
-    @month_rows = (@this_month + @paid_this_month).sort_by(&:due_on)
+    @month_rows = (@this_month + @paid_this_month).sort_by(&:effective_due_on)
 
     # Next up filters on the DATE, not derived_state: a bill two days late is
     # still :due within its grace period, and nothing already past its due date
@@ -143,7 +151,7 @@ class BillsController < ApplicationController
                      .includes(:merchant)
                      .find(params[:id])
 
-    # A row expansion names the cycle it was opened from; the bill's own page
+    # The drawer names the cycle its row was opened from; the bill's own page
     # has no cycle in mind and asks the series. Looked up through the series, so
     # an id from another bill resolves to nothing rather than to someone else's
     # occurrence.
@@ -156,6 +164,9 @@ class BillsController < ApplicationController
 
     @history = @series.recurring_occurrences.closed.order(due_on: :desc).limit(12).includes(:allocations)
     @upcoming = @series.schedule.occurrences_between(Date.current + 1, Date.current + 400).first(3)
+    # The materialized rows behind those dates, so each one opens its drawer to
+    # skip it or change its amount before it posts.
+    @upcoming_occurrences = @series.recurring_occurrences.open_status.where(due_on: @upcoming).index_by(&:due_on)
 
     # What each settled cycle actually cost. The frozen `expected_amount` is an
     # estimate, so reading it here would report averages of estimates beside the
@@ -179,25 +190,83 @@ class BillsController < ApplicationController
       }
     end
 
-    if params[:display] == "pane"
-      # The expansion renders into whichever row frame asked for it; the id
-      # is reflected back sanitized. close returns the empty frame, which
-      # collapses the row.
-      @pane_frame_id = params[:frame].to_s.gsub(/[^a-zA-Z0-9_-]/, "").presence || "bill_detail"
-      if params[:close].present?
-        render :pane_close, layout: false
-        return
-      end
-    end
-
     load_summary_extras
 
-    if params[:display] == "pane"
-      # A pending suggestion is the one thing that changes what the expansion
+    # Outside a frame (a new tab, a pasted link) there is nothing to open the
+    # dialog into, so the same URL is the bill's page.
+    if params[:display] == "drawer" && turbo_frame_request?
+      # A pending suggestion is the one thing that changes what the drawer
       # should offer, so it is worth the one query.
-      @pane_suggestion = @current_occurrence && RecurringAllocation.suggested
-        .where(recurring_occurrence_id: @current_occurrence.id).first
-      render :pane, layout: false
+      @drawer_suggestion = @current_occurrence&.allocations&.suggested&.first
+      render :drawer, layout: false
+      return
+    end
+
+    # The lazy frame inside the drawer fetches the history separately.
+    if params[:display] == "history" && turbo_frame_request?
+      load_deep_extras
+      render :history, layout: false
+      return
+    end
+
+    # A bill visited directly opens over its list view. When view: "all" etc is
+    # named, that view; otherwise the overview. The drawer loads via its own
+    # turbo-frame.
+    if params[:view].present? || (params[:display] == "drawer" && !turbo_frame_request?)
+      view_name = params[:view]&.to_sym || :overview
+
+      # For "all" and other views, load the series; for overview, load the overview data
+      case view_name
+      when :all, :calendar, :paycheck
+        load_all_series
+        # For calendar and paycheck, we'd call load_calendar / load_paycheck_plan
+        # but for now just let it render with @all_series
+      else # overview
+        # Load the overview data (overdue, this month, later, dormant)
+        occurrences = payable_occurrences
+        preload_allocation_sums(occurrences)
+
+        today = Date.current
+        month_end = today.end_of_month
+
+        open_occurrences, closed = occurrences.partition(&:scheduled?)
+        active_open, @dormant = open_occurrences.partition { |occurrence| occurrence.recurring_transaction.active? }
+
+        @overdue, upcoming = active_open.partition { |occurrence| occurrence.derived_state == :overdue }
+        this_month, later = upcoming.partition { |occurrence| occurrence.effective_due_on <= month_end }
+        @this_month = this_month.sort_by(&:effective_due_on)
+        @overdue = @overdue.sort_by(&:effective_due_on)
+        @dormant = @dormant.sort_by(&:effective_due_on)
+
+        @later = later.group_by(&:recurring_transaction_id)
+                      .values
+                      .map { |group| group.min_by(&:effective_due_on) }
+                      .sort_by(&:effective_due_on)
+
+        @paid_this_month = closed.select { |occurrence| occurrence.paid? && occurrence.due_on >= today.beginning_of_month }
+                                 .sort_by(&:due_on)
+
+        @month_rows = (@this_month + @paid_this_month).sort_by(&:effective_due_on)
+
+        # Load KPIs and additional overview data
+        compute_kpis(today, month_end)
+        @month_pay_periods = month_pay_periods(today, month_end)
+        @account_forecasts = Account::Forecast.for_family(Current.family, user: Current.user)
+        @suggested_series = accessible_suggested_series.includes(:merchant).order(next_expected_date: :asc).load
+        @has_transaction_history = Current.family.entries.where(entryable_type: "Transaction").exists?
+        @suggested_allocations = suggested_allocations(occurrences)
+        @suggestions_by_occurrence = @suggested_allocations.select(&:allocation_suggested?).index_by(&:recurring_occurrence_id)
+        @notices = collect_notices
+        @month_bill_count = @overdue.size + @month_rows.size
+        @next_up = (@this_month + @later)
+                     .select { |occurrence| occurrence.effective_due_on >= today }
+                     .sort_by(&:effective_due_on)
+                     .first(NEXT_UP_LIMIT)
+      end
+
+      @detected_awaiting_review = detected_awaiting_review
+      @drawer_open = true
+      render "#{view_name == :overview ? :index : view_name}"
       return
     end
 
@@ -243,7 +312,7 @@ class BillsController < ApplicationController
     end
     helper_method :paycheck_income_plans?
 
-    # What the expansion needs: the handful of payments that actually settled
+    # What the drawer needs: the handful of payments that actually settled
     # this bill lately. Cheap enough to run on every row someone opens.
     def load_summary_extras
       @recent_allocations = confirmed_allocations.includes(:entry).order(paid_on: :desc, created_at: :desc).limit(6)
@@ -251,7 +320,7 @@ class BillsController < ApplicationController
 
     # The bill's financial story: a year of payments by month, per-year totals,
     # and where the money last came from. Three grouped aggregates, which is
-    # why they no longer run every time a row is expanded.
+    # why they no longer run every time a row is opened.
     def load_deep_extras
       confirmed = confirmed_allocations
 
@@ -309,6 +378,8 @@ class BillsController < ApplicationController
         scope = scope.where(status: LIFECYCLE_STATUSES.fetch(status))
       end
 
+      scope = scope.where(auto_post: true) if status == AUTO_POST_FILTER
+
       if (bill_type = params.dig(:q, :bill_type)).presence_in(RecurringTransaction.bill_types.keys)
         scope = scope.where(bill_type: bill_type)
       end
@@ -333,6 +404,8 @@ class BillsController < ApplicationController
       series_list.to_a.select do |series|
         occurrence = series.current_occurrence
         next false if occurrence.nil?
+        # Paused bills (inactive) don't have payment state; they're only in the paused filter
+        next false if !series.active?
 
         case status
         when "overdue" then occurrence.overdue?
@@ -552,7 +625,9 @@ class BillsController < ApplicationController
     def collect_notices
       today = Date.current
       window = today..(today + 14)
-      series_scope = Current.family.recurring_transactions.accessible_by(Current.user).active
+      # The bills the overview lists, so no notice speaks for a series the
+      # page doesn't show (income, transfers, suggestions, ended bills).
+      series_scope = Current.family.recurring_transactions.where(id: payable_series_ids).active
 
       notices = []
       series_scope.where(trial_ends_on: window).find_each do |series|
@@ -561,9 +636,7 @@ class BillsController < ApplicationController
       series_scope.where(renews_on: window).find_each do |series|
         notices << Notice.new(kind: :renewal, series: series, date: series.renews_on, detail: nil)
       end
-      RecurringPriceChange.joins(:recurring_transaction)
-                          .merge(RecurringTransaction.accessible_by(Current.user))
-                          .where(recurring_transactions: { family_id: Current.family.id })
+      RecurringPriceChange.where(recurring_transaction_id: series_scope.select(:id))
                           .where("effective_on >= ?", today - 30)
                           .includes(:recurring_transaction)
                           .find_each do |change|
@@ -589,7 +662,9 @@ class BillsController < ApplicationController
                                         .where(recurring_occurrences: { family_id: Current.family.id })
       return 0 if user_touched.exists?
 
-      series.where(manual: false, status: :active).count
+      # Only bills the overview lists: the banner points at its totals, which
+      # leave detected income and transfers out.
+      series.where(manual: false, status: :active, id: payable_series_ids).count
     end
 
     def accessible_suggested_series
@@ -607,20 +682,28 @@ class BillsController < ApplicationController
       end
     end
 
-    def suggested_allocations
+    # Only occurrences the overview lists: open rows and this month's paid ones.
+    # Ending a bill leaves its scheduled occurrences behind and the matcher
+    # still scores them, and skipping closes an occurrence but keeps its
+    # suggestion, so neither may ask about a row the page doesn't show.
+    def suggested_allocations(occurrences)
+      listed_ids = occurrences.select { |occurrence| occurrence.scheduled? || occurrence.paid? }.map(&:id)
+
       RecurringAllocation
-        .suggested
+        .awaiting_review
         .joins(recurring_occurrence: :recurring_transaction)
-        .where(recurring_occurrences: { family_id: Current.family.id })
-        .merge(RecurringTransaction.accessible_by(Current.user))
+        .where(recurring_occurrence_id: listed_ids)
         # Income never reviews here: the matcher no longer suggests it, and
         # this filter also retires any suggestion written before that rule.
-        .merge(RecurringTransaction.where.not(bill_type: "income"))
+        # A posted entry under review is the exception: a posted paycheck
+        # needs the same confirm-or-discard answer as a posted bill.
+        .where("recurring_transactions.bill_type <> 'income' OR recurring_allocations.pending_review")
         .includes(:entry, recurring_occurrence: { recurring_transaction: :merchant })
         # The confidence the matcher scored these with was sitting unused on
         # the row while the queue ordered itself by when the job happened to
         # run. Most-certain question first.
-        .order(match_confidence: :desc, created_at: :asc)
+        # Posted entries carry no confidence and go after the matcher's.
+        .order(Arel.sql("recurring_allocations.match_confidence DESC NULLS LAST"), created_at: :asc)
     end
 
     # Converted into the family currency because the headline answers "how

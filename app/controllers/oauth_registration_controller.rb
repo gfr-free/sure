@@ -96,12 +96,12 @@ class OauthRegistrationController < ApplicationController
   private
 
     # Matches "Sure" as a whole word, ignoring case, punctuation, invisible
-    # format characters and full-width letters, plus "SureMobile" written as
-    # one word. "Surefire" or "Measure" stay allowed.
+    # format characters and full-width letters, plus words starting with
+    # "SureMobile". "Surefire" or "Measure Mobile" stay allowed.
     def reserved_client_name?(name)
       normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/\p{Cf}/, "")
       words = normalized.scan(/[[:alnum:]]+/)
-      words.include?(RESERVED_CLIENT_NAME_WORD) || words.join.include?("#{RESERVED_CLIENT_NAME_WORD}mobile")
+      words.any? { |word| word == RESERVED_CLIENT_NAME_WORD || word.start_with?("#{RESERVED_CLIENT_NAME_WORD}mobile") }
     end
 
     # Returns true for https, loopback http, and RFC 8252 private-use schemes

@@ -2,7 +2,7 @@
 # These are the only OAuth apps that will exist - external developers use API keys
 
 # Sure Mobile App (shared across iOS and Android)
-mobile_app = MobileDevice.shared_oauth_application # Public client (mobile app)
+mobile_app = MobileDevice.shared_oauth_application
 
 puts "Created OAuth applications:"
 puts "Mobile App - Client ID: #{mobile_app.uid}"

@@ -32,6 +32,7 @@ class MobileDevice < ApplicationRecord
       Doorkeeper::Application.order(:created_at, :id).find_by!(name: OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL)
     end
   end
+
   def self.upsert_device!(user, attrs)
     device = user.mobile_devices.find_or_initialize_by(device_id: attrs[:device_id])
     device.assign_attributes(

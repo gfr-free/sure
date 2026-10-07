@@ -239,14 +239,21 @@ services:
     depends_on:
       - ollama
     ports:
-      - "8080:8080"
+      # Published on the host's loopback only. To reach Open WebUI from another
+      # machine, change this to "8080:8080" or put it behind a reverse proxy,
+      # after the admin account has a strong password.
+      - "127.0.0.1:8080:8080"
     environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
       # Existing installs keep the Ollama URL saved in Open WebUI's database.
       # If models stop loading after upgrading, set the connection to
       # http://ollama:11434 under Admin Settings > Connections.
       - OLLAMA_BASE_URLS=http://ollama:11434 #comma separated ollama hosts
       - ENV=dev
-      # Open WebUI asks you to create an admin account on first visit.
+      # New installs: Open WebUI asks you to create an admin account on first visit.
+      # Upgrading from WEBUI_AUTH=False: that mode already created the admin
+      # account admin@localhost with the password "admin", and accounts signed
+      # up later are not admins. Sign in with those credentials and change the
+      # password right away under Settings > Account.
       - WEBUI_AUTH=True
       - WEBUI_NAME=AI
       - WEBUI_URL=http://localhost:8080

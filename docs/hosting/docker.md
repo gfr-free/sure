@@ -238,6 +238,14 @@ docker compose -f compose.ai.yml up -d
 docker compose -f compose.ai.yml --profile local-ai up -d
 ```
 
+### Upgrading an existing `local-ai` setup
+
+Older versions of `compose.example.ai.yml` ran Open WebUI without a login and published Ollama, Open WebUI and OpenClaw on all host interfaces. The current file changes that for installs that pull it again:
+
+- **Open WebUI login.** `WEBUI_AUTH` is now `True`. If your instance ran with `WEBUI_AUTH=False`, Open WebUI already created the admin account `admin@localhost` with the password `admin`. Sign in with those credentials at `http://localhost:8080`, then change the password under Settings > Account. Accounts signed up afterwards are not admins.
+- **Loopback only.** Ollama (`11434`), Open WebUI (`8080`) and OpenClaw (`18789`) are published on `127.0.0.1` only. To reach Open WebUI from another machine, change its port line back to `"8080:8080"` or put it behind a reverse proxy, after changing the admin password.
+- **Ollama URL.** Open WebUI now reaches Ollama at `http://ollama:11434`. Existing installs keep the URL saved in Open WebUI's database; if models stop loading, set the connection to `http://ollama:11434` under Admin Settings > Connections.
+
 ### Setting up the external AI assistant
 
 The external assistant delegates chat to a remote AI agent instead of calling LLMs directly. The agent calls back to Sure's `/mcp` endpoint for financial data (accounts, transactions, balance sheet).

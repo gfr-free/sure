@@ -288,12 +288,24 @@ export default class extends Controller {
           "[Account Sortable] Failed to save account order:",
           response.status,
         );
+        this.showSaveFailure();
       }
     } catch (error) {
       console.error(
         "[Account Sortable] Network error saving account order:",
         error,
       );
+      this.showSaveFailure();
     }
+  }
+
+  // The list already moved on screen, so say it was not saved instead of
+  // letting it pass for saved until the next page load restores the old order.
+  showSaveFailure() {
+    const template = document.getElementById("account-order-save-failed");
+    const tray = document.getElementById("notification-tray");
+    if (!template || !tray) return;
+
+    tray.appendChild(template.content.cloneNode(true));
   }
 }

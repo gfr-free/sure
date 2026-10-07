@@ -17,7 +17,15 @@ class ApplyImmediateRulesJob < ApplicationJob
       transaction_ids: transaction_ids
     ).run
 
-    # Show the result in open pages without a manual reload.
-    family.broadcast_refresh if rule_runs.any? { |rule_run| rule_run.pending? || rule_run.transactions_modified.to_i.positive? }
+    return unless rule_runs.any? { |rule_run| rule_run.pending? || rule_run.transactions_modified.to_i.positive? }
+
+    # Offer the result through the sync toast, like Family::SyncCompleteEvent.
+    # A full-page refresh would wipe forms that are still open, such as the
+    # drawer the person just edited in; the toast waits until they are done.
+    family.broadcast_replace_to(
+      family,
+      target: "sync-toast",
+      partial: "shared/notifications/sync_toast"
+    )
   end
 end

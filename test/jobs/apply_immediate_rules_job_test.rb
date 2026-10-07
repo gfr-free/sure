@@ -62,13 +62,17 @@ class ApplyImmediateRulesJobTest < ActiveJob::TestCase
     assert_empty rule.rule_runs
   end
 
-  test "refreshes open pages only when a rule changed something" do
+  test "offers a refresh toast only when a rule changed something" do
     create_rule("Groceries", category: @groceries, apply_immediately: true)
 
-    Family.any_instance.expects(:broadcast_refresh).once
+    # A full-page refresh would wipe forms that are still open (the drawer the
+    # person just edited in, or another family member's), so only the toast is sent.
+    Family.any_instance.expects(:broadcast_refresh).never
+    Family.any_instance.expects(:broadcast_replace_to)
+      .with(@family, target: "sync-toast", partial: "shared/notifications/sync_toast").once
     ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
 
-    Family.any_instance.expects(:broadcast_refresh).never
+    Family.any_instance.expects(:broadcast_replace_to).never
     ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
   end
 

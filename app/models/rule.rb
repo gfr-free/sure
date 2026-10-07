@@ -166,8 +166,9 @@ class Rule < ApplicationRecord
   # For one transaction, the empty fields a "nightly only" rule will set on its
   # next run, as { attribute => rule }. Follows the run order like
   # Rule::Runner: the top rule claiming a field wins, "stop processing" ends the
-  # walk. One query per active rule, so it is only worth it in families with
-  # "apply immediately" rules, where such fields are otherwise unexplained.
+  # walk. Only rules that stop processing or could still claim an open field
+  # are matched, one query each, and only in families with "apply immediately"
+  # rules, where such fields are otherwise unexplained.
   def self.pending_field_hints(transaction)
     family = transaction.entry.account.family
     open_attributes = HINTED_ATTRIBUTES.select { |attribute| transaction.public_send(attribute).blank? && !transaction.locked?(attribute) }
@@ -175,7 +176,10 @@ class Rule < ApplicationRecord
 
     claimed = {}
     family.rules.ordered.where(active: true).includes(:actions, conditions: :sub_conditions).each do |rule|
-      next unless rule.matching_scope.where(id: transaction.id).exists?
+      unclaimed = open_attributes - claimed.keys
+      relevant = rule.stop_processing? ||
+        rule.actions.any? { |action| action.reserves_claimed_attributes? && (action.claimed_attributes & unclaimed).any? }
+      next unless relevant && rule.matching_scope.where(id: transaction.id).exists?
 
       rule.actions.each do |action|
         next unless action.reserves_claimed_attributes?
@@ -205,8 +209,11 @@ class Rule < ApplicationRecord
   # least one transaction it matches today. Top rule wins, so on those
   # transactions the immediate rule waits for the nightly run.
   # ordered_rules: all rules of one family in run order.
+  # Each involved rule's matches are loaded once and compared in Ruby, so the
+  # query count grows with the number of rules, not with the pairs of rules.
   def self.immediate_conflicts(ordered_rules)
     ordered_rules = ordered_rules.to_a
+    matching_ids = Hash.new { |ids, rule| ids[rule] = rule.matching_scope.pluck(:id).to_set }
 
     ordered_rules.each_with_index.each_with_object({}) do |(rule, index), conflicts|
       next unless rule.active? && rule.apply_immediately?
@@ -218,7 +225,7 @@ class Rule < ApplicationRecord
         shared = above.actions.select(&:reserves_claimed_attributes?).flat_map(&:claimed_attributes) & own_attributes
         next false unless above.stop_processing? || shared.any?
 
-        rule.matching_scope.where(id: above.matching_scope.select(:id)).exists?
+        matching_ids[rule].any? && matching_ids[rule].intersect?(matching_ids[above])
       end
 
       conflicts[rule.id] = blocking if blocking.any?

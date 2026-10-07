@@ -462,7 +462,40 @@ class RuleTest < ActiveSupport::TestCase
     assert_empty Rule.pending_field_hints(transaction)
   end
 
+  test "immediate_conflicts runs one matching query per involved rule, not per pair" do
+    create_transaction(account: @account, name: "Whole Foods")
+    nightly = 4.times.map { |i| create_category_rule("Nightly #{i}") }
+    immediate = 3.times.map { |i| create_category_rule("Immediate #{i}", apply_immediately: true) }
+    rules = @family.rules.ordered.includes(:actions, conditions: :sub_conditions).to_a
+
+    conflicts = nil
+    queries = count_transaction_queries { conflicts = Rule.immediate_conflicts(rules) }
+
+    immediate.each { |rule| assert_equal nightly, conflicts[rule.id] }
+    assert_operator queries, :<=, nightly.size + immediate.size
+  end
+
+  test "pending_field_hints only checks rules that could fill an open field" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    5.times { |i| create_category_rule("Rename #{i}", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF #{i}")) }
+    nightly = create_category_rule("Nightly")
+    create_category_rule("Immediate", apply_immediately: true)
+
+    hints = nil
+    queries = count_transaction_queries { hints = Rule.pending_field_hints(transaction) }
+
+    assert_equal({ category_id: nightly }, hints)
+    assert_operator queries, :<=, 2
+  end
+
   private
+    def count_transaction_queries
+      count = 0
+      callback = ->(*, payload) { count += 1 if payload[:sql].include?('FROM "transactions"') && payload[:name] != "SCHEMA" }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+      count
+    end
+
     def create_exclude_rule
       @family.rules.create!(resource_type: "transaction", actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
     end

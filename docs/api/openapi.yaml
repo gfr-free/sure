@@ -9882,6 +9882,9 @@ paths:
       summary: Update a transaction
       tags:
       - Transactions
+      description: Owners and full_control account shares can change every field.
+        A read_write share can only change notes, category_id, merchant_id, tag_ids
+        and user_modified; a read_only share cannot change anything.
       security:
       - apiKeyAuth: []
       parameters: []
@@ -9892,6 +9895,18 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Transaction"
+        '403':
+          description: account share does not allow this change
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: validation error - category, merchant or tag outside the family
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '404':
           description: transaction not found
           content:
@@ -9951,6 +9966,7 @@ paths:
       summary: Delete a transaction
       tags:
       - Transactions
+      description: Requires ownership of the account or a full_control account share.
       security:
       - apiKeyAuth: []
       responses:
@@ -9960,6 +9976,12 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/DeleteResponse"
+        '403':
+          description: account share does not allow this change
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '404':
           description: transaction not found
           content:

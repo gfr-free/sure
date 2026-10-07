@@ -296,6 +296,8 @@ RSpec.describe 'API V1 Transactions', type: :request do
 
     patch 'Update a transaction' do
       tags 'Transactions'
+      description 'Owners and full_control account shares can change every field. A read_write share can only change ' \
+                  'notes, category_id, merchant_id, tag_ids and user_modified; a read_only share cannot change anything.'
       security [ { apiKeyAuth: [] } ]
       consumes 'application/json'
       produces 'application/json'
@@ -343,6 +345,42 @@ RSpec.describe 'API V1 Transactions', type: :request do
         run_test!
       end
 
+      response '403', 'account share does not allow this change' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:shared_user) do
+          family.users.create!(
+            email: 'api-shared-user@example.com',
+            password: 'password123',
+            password_confirmation: 'password123'
+          )
+        end
+
+        let(:'X-Api-Key') do
+          account.share_with!(shared_user, permission: 'read_only')
+          ApiKey.create!(
+            user: shared_user,
+            name: 'Shared Docs Key',
+            key: ApiKey.generate_secure_key,
+            scopes: %w[read_write],
+            source: 'web'
+          ).plain_key
+        end
+
+        run_test!
+      end
+
+      response '422', 'validation error - category, merchant or tag outside the family' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:body) do
+          other_family = Family.create!(name: 'Other Family', currency: 'USD', locale: 'en', date_format: '%m-%d-%Y')
+          { transaction: { category_id: other_family.categories.create!(name: 'Other', color: '#000000').id } }
+        end
+
+        run_test!
+      end
+
       response '404', 'transaction not found' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
@@ -354,6 +392,7 @@ RSpec.describe 'API V1 Transactions', type: :request do
 
     delete 'Delete a transaction' do
       tags 'Transactions'
+      description 'Requires ownership of the account or a full_control account share.'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'
 
@@ -361,6 +400,31 @@ RSpec.describe 'API V1 Transactions', type: :request do
 
       response '200', 'transaction deleted' do
         schema '$ref' => '#/components/schemas/DeleteResponse'
+
+        run_test!
+      end
+
+      response '403', 'account share does not allow this change' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:shared_user) do
+          family.users.create!(
+            email: 'api-shared-user@example.com',
+            password: 'password123',
+            password_confirmation: 'password123'
+          )
+        end
+
+        let(:'X-Api-Key') do
+          account.share_with!(shared_user, permission: 'read_only')
+          ApiKey.create!(
+            user: shared_user,
+            name: 'Shared Docs Key',
+            key: ApiKey.generate_secure_key,
+            scopes: %w[read_write],
+            source: 'web'
+          ).plain_key
+        end
 
         run_test!
       end

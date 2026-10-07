@@ -894,7 +894,182 @@ end
     assert_empty queries.grep(/SELECT "accounts"\.\* FROM "accounts" WHERE "accounts"\."id" =/)
   end
 
+  # Account share permission tests
+  test "should reject update on a read_only shared account" do
+    shared_entry = create_shared_account_entry(permission: "read_only")
+
+    put api_v1_transaction_url(shared_entry.transaction),
+        params: { transaction: { notes: "Changed" } },
+        headers: api_headers(member_api_key)
+
+    assert_response :forbidden
+    assert_equal "forbidden", JSON.parse(response.body)["error"]
+    assert_nil shared_entry.reload.notes
+  end
+
+  test "should allow annotation-only update on a read_write shared account" do
+    shared_entry = create_shared_account_entry(permission: "read_write")
+    category = @family.categories.first
+    tag = @family.tags.first
+
+    put api_v1_transaction_url(shared_entry.transaction),
+        params: { transaction: { notes: "Annotated", category_id: category.id, tag_ids: [ tag.id ] } },
+        headers: api_headers(member_api_key)
+
+    assert_response :success
+    shared_entry.reload
+    assert_equal "Annotated", shared_entry.notes
+    assert_equal category, shared_entry.transaction.category
+    assert_equal [ tag ], shared_entry.transaction.tags.to_a
+  end
+
+  test "should reject financial field update on a read_write shared account" do
+    shared_entry = create_shared_account_entry(permission: "read_write")
+    original_date = shared_entry.date
+
+    [ { name: "Renamed" }, { description: "Renamed" }, { amount: 99 }, { date: Date.current - 1.day } ].each do |attrs|
+      put api_v1_transaction_url(shared_entry.transaction),
+          params: { transaction: attrs },
+          headers: api_headers(member_api_key)
+
+      assert_response :forbidden, "expected #{attrs.keys.first} to be rejected"
+    end
+
+    shared_entry.reload
+    assert_equal "Shared account transaction", shared_entry.name
+    assert_equal 25, shared_entry.amount
+    assert_equal original_date, shared_entry.date
+  end
+
+  test "should reject mixed annotation and financial update on a read_write shared account" do
+    shared_entry = create_shared_account_entry(permission: "read_write")
+
+    [ { notes: "Changed", amount: 1 }, { notes: "Changed", nature: "income" }, { notes: "Changed", currency: "EUR" } ].each do |attrs|
+      put api_v1_transaction_url(shared_entry.transaction),
+          params: { transaction: attrs },
+          headers: api_headers(member_api_key)
+
+      assert_response :forbidden, "expected #{attrs.keys.last} to be rejected"
+    end
+
+    assert_nil shared_entry.reload.notes
+  end
+
+  test "should reject update without transaction body on a read_write shared account" do
+    shared_entry = create_shared_account_entry(permission: "read_write")
+
+    put api_v1_transaction_url(shared_entry.transaction), headers: api_headers(member_api_key)
+
+    assert_response :forbidden
+  end
+
+  test "should allow full update on a full_control shared account" do
+    shared_entry = create_shared_account_entry(permission: "full_control")
+
+    put api_v1_transaction_url(shared_entry.transaction),
+        params: { transaction: { name: "Renamed", amount: 40 } },
+        headers: api_headers(member_api_key)
+
+    assert_response :success
+    assert_equal "Renamed", shared_entry.reload.name
+  end
+
+  test "should reject destroy on read_only and read_write shared accounts" do
+    %w[read_only read_write].each do |permission|
+      shared_entry = create_shared_account_entry(permission: permission)
+
+      assert_no_difference("Entry.count") do
+        delete api_v1_transaction_url(shared_entry.transaction), headers: api_headers(member_api_key)
+      end
+
+      assert_response :forbidden, "expected destroy to be rejected for #{permission}"
+    end
+  end
+
+  test "should allow destroy on a full_control shared account" do
+    shared_entry = create_shared_account_entry(permission: "full_control")
+
+    assert_difference("Entry.count", -1) do
+      delete api_v1_transaction_url(shared_entry.transaction), headers: api_headers(member_api_key)
+    end
+
+    assert_response :success
+  end
+
+  # Family-scoped reference tests
+  test "should reject update with another family's category, merchant or tag" do
+    other_family = families(:empty)
+    foreign = {
+      category_id: other_family.categories.create!(name: "Foreign category", color: "#000000").id,
+      merchant_id: other_family.merchants.create!(name: "Foreign merchant").id,
+      tag_ids: [ other_family.tags.create!(name: "Foreign tag").id ]
+    }
+
+    foreign.each do |key, value|
+      put api_v1_transaction_url(@transaction),
+          params: { transaction: { key => value } },
+          headers: api_headers(@api_key)
+
+      assert_response :unprocessable_entity, "expected foreign #{key} to be rejected"
+    end
+
+    @transaction.reload
+    assert_not_equal foreign[:category_id], @transaction.category_id
+    assert_not_equal foreign[:merchant_id], @transaction.merchant_id
+    assert_not_includes @transaction.tag_ids, foreign[:tag_ids].first
+  end
+
+  test "should accept unchanged references on update" do
+    @transaction.update!(category: @family.categories.first, tags: [ @family.tags.first ])
+
+    put api_v1_transaction_url(@transaction),
+        params: { transaction: { notes: "Same refs", category_id: @transaction.category_id, tag_ids: @transaction.tag_ids } },
+        headers: api_headers(@api_key)
+
+    assert_response :success
+  end
+
+  test "should reject create with another family's category" do
+    foreign_category = families(:empty).categories.create!(name: "Foreign category", color: "#000000")
+
+    assert_no_difference("Entry.count") do
+      post api_v1_transactions_url,
+           params: { transaction: { account_id: @account.id, name: "Foreign", amount: 5, date: Date.current, nature: "expense", category_id: foreign_category.id } },
+           headers: api_headers(@api_key)
+    end
+
+    assert_response :unprocessable_entity
+  end
+
   private
+
+    def member_api_key
+      @member_api_key ||= begin
+        member = users(:family_member)
+        member.api_keys.active.destroy_all
+        key = ApiKey.create!(
+          user: member,
+          name: "Member Read-Write Key",
+          scopes: [ "read_write" ],
+          display_key: "test_member_rw_#{SecureRandom.hex(8)}"
+        )
+        Redis.new.del("api_rate_limit:#{key.id}")
+        key
+      end
+    end
+
+    # credit_card is owned by family_admin and shared with family_member.
+    def create_shared_account_entry(permission:)
+      account = accounts(:credit_card)
+      account.account_shares.find_by!(user: users(:family_member)).update!(permission: permission)
+      account.entries.create!(
+        name: "Shared account transaction",
+        amount: 25,
+        currency: "USD",
+        date: Date.current,
+        entryable: Transaction.new
+      )
+    end
 
     def api_headers(api_key)
       { "X-Api-Key" => api_key.display_key }

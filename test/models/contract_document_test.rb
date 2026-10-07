@@ -6,6 +6,7 @@ class ContractDocumentTest < ActiveSupport::TestCase
   setup do
     @contract = contracts(:liability_insurance)
     @family = @contract.family
+    VectorStore.stubs(:configured?).returns(true)
   end
 
   test "accepts PDFs and images only" do
@@ -67,7 +68,6 @@ class ContractDocumentTest < ActiveSupport::TestCase
     document = build_document("policy.pdf", "application/pdf")
     document.ai_searchable = true
     document.save!
-    VectorStore.stubs(:adapter).returns(mock("adapter"))
     Family.any_instance.stubs(:upload_document).returns(nil)
 
     assert_not document.sync_search_index!
@@ -82,17 +82,22 @@ class ContractDocumentTest < ActiveSupport::TestCase
     end
     entry = DebugLogEntry.where(source: "ContractDocumentIndexJob").last
     assert_equal "upload", entry.metadata["action"]
-    assert document.reload.ai_searchable?
+    # The opt-in ends, so the list does not say "waiting" forever.
+    assert_not document.reload.ai_searchable?
     assert_nil document.family_document_id
   end
 
-  test "without a document store an opt-in has nothing to retry" do
+  test "without a document store nothing is opted in or uploaded" do
     document = build_document("policy.pdf", "application/pdf")
-    document.ai_searchable = true
     document.save!
-    VectorStore.stubs(:adapter).returns(nil)
-    Family.any_instance.stubs(:upload_document).returns(nil)
+    VectorStore.stubs(:configured?).returns(false)
+    Family.any_instance.expects(:upload_document).never
 
+    document.set_ai_searchable!(true)
+    assert_not document.reload.ai_searchable?
+
+    # An opt-in from before the store went away has nothing to retry.
+    document.update_columns(ai_searchable: true)
     assert document.sync_search_index!
   end
 

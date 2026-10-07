@@ -87,6 +87,7 @@ contract_notice_reminders:
   cron: "45 6 * * *" # daily at 6:45 AM UTC
   class: "ContractNoticeRemindersJob"
   queue: "scheduled"
+  active_job: true
   description: "Emails contract owners ahead of their notice deadlines"
 
 generate_insights:

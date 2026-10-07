@@ -180,7 +180,8 @@ de:
         too_many: "Ein Vertrag kann höchstens %{max} Dokumente enthalten."
       update:
         ai_disabled: Schalte den Assistenten in deinen Einstellungen ein, um Dokumente durchsuchbar zu machen.
-        searchable: Der Assistent kann dieses Dokument jetzt durchsuchen.
+        searchable: Der Assistent kann dieses Dokument durchsuchen, sobald es aufgenommen ist. Das dauert einen Moment.
+        store_unavailable: Für den Assistenten ist kein Dokumentenspeicher eingerichtet, daher lassen sich Dokumente nicht durchsuchbar machen.
         not_searchable: Der Assistent kann dieses Dokument nicht mehr durchsuchen.
         role_updated: Dokumentart gespeichert
       destroy:

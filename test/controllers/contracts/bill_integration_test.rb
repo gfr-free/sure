@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Where contracts surface outside their own pages: the bill page and pane, the
+# Where contracts surface outside their own pages: the bill drawer, the
 # transaction page, and ending bills that outlive their contract.
 class Contracts::BillIntegrationTest < ActionDispatch::IntegrationTest
   setup do
@@ -13,27 +13,27 @@ class Contracts::BillIntegrationTest < ActionDispatch::IntegrationTest
     ensure_tailwind_build
   end
 
-  test "bill page links its contract" do
+  test "bill drawer links its contract" do
     @bill.update!(contract: @contract)
 
-    get bill_url(@bill)
+    get bill_url(@bill, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
 
     assert_response :success
     assert_select "a[href=?]", contract_path(@contract), text: /#{@contract.name}/
   end
 
-  test "bill page offers to record a contract when none is linked" do
-    get bill_url(@bill)
+  test "bill drawer offers to record a contract when none is linked" do
+    get bill_url(@bill, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
 
     assert_select "a[href=?]", new_contract_path(recurring_transaction_id: @bill.id)
   end
 
-  test "bill page hides a contract the viewer cannot see" do
+  test "bill drawer hides a contract the viewer cannot see" do
     @contract.contract_shares.delete_all
     @bill.update!(contract: @contract)
     sign_in @member
 
-    get bill_url(@bill)
+    get bill_url(@bill, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
 
     assert_response :success
     assert_select "a[href=?]", contract_path(@contract), count: 0
@@ -43,7 +43,7 @@ class Contracts::BillIntegrationTest < ActionDispatch::IntegrationTest
     @bill.update!(contract: @contract)
     @contract.update!(ends_on: 3.days.ago.to_date)
 
-    get bill_url(@bill)
+    get bill_url(@bill, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
     assert_includes response.body, I18n.t("bills.contract_line.ended_on", date: I18n.l(@contract.ends_on, format: :long))
 
     post end_linked_bills_contract_url(@contract)
@@ -52,7 +52,7 @@ class Contracts::BillIntegrationTest < ActionDispatch::IntegrationTest
     assert @bill.ends_on_date?
     assert_equal @contract.ends_on, @bill.end_on
 
-    get bill_url(@bill)
+    get bill_url(@bill, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
     assert_not_includes response.body, I18n.t("bills.contract_line.ended_on", date: I18n.l(@contract.ends_on, format: :long))
   end
 

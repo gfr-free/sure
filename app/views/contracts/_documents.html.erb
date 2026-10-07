@@ -1,4 +1,5 @@
 <%# locals: (contract:, documents:, editable:) %>
+<% store_configured = Current.user.ai_enabled? && VectorStore.configured? %>
 <%= render DS::Card.new(class: "space-y-3", id: "contract_documents") do %>
   <div class="flex items-center justify-between gap-2">
     <h2 class="text-sm font-medium text-primary"><%= t("contracts.documents.title") %></h2>
@@ -40,7 +41,7 @@
 
           <% if editable %>
             <div class="flex items-center gap-2 shrink-0">
-              <% if Current.user.ai_enabled? && document.indexable? %>
+              <% if Current.user.ai_enabled? && document.indexable? && (document.ai_searchable? || store_configured) %>
                 <%= render DS::Button.new(
                       href: contract_document_path(contract, document, contract_document: { ai_searchable: !document.ai_searchable? }),
                       method: :patch,

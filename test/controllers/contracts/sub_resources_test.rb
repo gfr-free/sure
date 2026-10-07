@@ -226,6 +226,7 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "policy.pdf", content_type: "application/pdf")
     document.save!
     User.any_instance.stubs(:ai_enabled?).returns(true)
+    VectorStore.stubs(:configured?).returns(true)
 
     assert_enqueued_with(job: ContractDocumentIndexJob) do
       patch contract_document_url(@contract, document), params: { contract_document: { ai_searchable: "1" } }
@@ -241,6 +242,20 @@ class Contracts::SubResourcesTest < ActionDispatch::IntegrationTest
     get contract_url(@contract)
     assert_includes response.body, I18n.t("contracts.documents.searchable")
     assert_not_includes response.body, ERB::Util.html_escape(I18n.t("contracts.documents.search_pending"))
+  end
+
+  test "document search opt-in needs a document store" do
+    document = @contract.contract_documents.new
+    document.file.attach(io: StringIO.new("%PDF-1.4"), filename: "policy.pdf", content_type: "application/pdf")
+    document.save!
+    User.any_instance.stubs(:ai_enabled?).returns(true)
+    VectorStore.stubs(:configured?).returns(false)
+
+    patch contract_document_url(@contract, document), params: { contract_document: { ai_searchable: "1" } }
+
+    assert_redirected_to contract_url(@contract)
+    assert_equal I18n.t("contracts.documents.update.store_unavailable"), flash[:alert]
+    assert_not document.reload.ai_searchable?
   end
 
   test "read-only shares can view documents but not upload" do

@@ -42,6 +42,7 @@ class ContractDocument < ApplicationRecord
   # The owner opted this document in or out of the assistant's document
   # search. The vector-store upload runs in the background.
   def set_ai_searchable!(searchable)
+    searchable &&= VectorStore.configured?
     update!(ai_searchable: searchable && indexable?)
     ContractDocumentIndexJob.perform_later(self)
   end
@@ -55,14 +56,16 @@ class ContractDocument < ApplicationRecord
     family = contract.family
 
     if ai_searchable? && family_document.nil? && indexable?
+      # Without a configured store there is nothing to upload to or retry.
+      return true unless VectorStore.configured?
+
       document = family.upload_document(
         file_content: file.download,
         filename: file.filename.to_s,
         metadata: { "type" => "contract", "contract_id" => contract_id, "contract_document_id" => id }
       )
-      # Without a configured store there is nothing to retry; with one, a
-      # failed upload (rate limit, outage) is retried by the job.
-      return VectorStore.adapter.nil? unless document
+      # A failed upload (rate limit, outage) is retried by the job.
+      return false unless document
 
       # The upload takes a while; the contract may have moved to another
       # family or been opted out meanwhile. Then the fresh copy goes again.

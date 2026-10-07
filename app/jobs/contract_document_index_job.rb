@@ -6,9 +6,16 @@ class ContractDocumentIndexJob < ApplicationJob
   discard_on ActiveJob::DeserializationError
   # A failed opt-in upload or opt-out removal is retried. An opted-out document
   # stays out of search results meanwhile; an opted-in one shows as pending.
+  # An upload that keeps failing (a file the store cannot read, a long outage)
+  # ends the opt-in, so the list does not say "waiting" forever and the owner
+  # can try again.
   retry_on SyncFailed, wait: :polynomially_longer, attempts: 5 do |job, error|
     contract_document = job.arguments.first
-    action = contract_document.ai_searchable? ? "upload" : "removal"
+    action = error.message
+    if action == "upload"
+      ContractDocument.where(id: contract_document.id, ai_searchable: true, family_document_id: nil)
+                      .update_all(ai_searchable: false, updated_at: Time.current)
+    end
     DebugLogEntry.capture(
       category: "background_jobs",
       level: "warn",
@@ -20,8 +27,9 @@ class ContractDocumentIndexJob < ApplicationJob
   end
 
   def perform(contract_document)
+    action = contract_document.ai_searchable? ? "upload" : "removal"
     return if contract_document.sync_search_index!
 
-    raise SyncFailed, "Could not sync contract document #{contract_document.id} with the document store"
+    raise SyncFailed, action
   end
 end

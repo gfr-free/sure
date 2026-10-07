@@ -180,7 +180,8 @@ en:
         too_many: "A contract can hold at most %{max} documents."
       update:
         ai_disabled: Turn on the assistant in your settings to make documents searchable.
-        searchable: The assistant can now search this document.
+        searchable: The assistant can search this document once it has been added, which takes a moment.
+        store_unavailable: No document store is set up for the assistant, so documents cannot be made searchable.
         not_searchable: The assistant can no longer search this document.
         role_updated: Document type saved
       destroy:

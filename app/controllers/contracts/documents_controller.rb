@@ -50,6 +50,10 @@ class Contracts::DocumentsController < Contracts::BaseController
       return redirect_to contract_path(@contract), alert: t(".ai_disabled")
     end
 
+    if searchable && !VectorStore.configured?
+      return redirect_to contract_path(@contract), alert: t(".store_unavailable")
+    end
+
     @document.set_ai_searchable!(searchable)
     redirect_to contract_path(@contract), notice: t(searchable ? ".searchable" : ".not_searchable")
   end

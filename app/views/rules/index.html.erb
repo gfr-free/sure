@@ -80,7 +80,7 @@
                 <%= icon("grip-vertical", size: "sm") %>
               </button>
               <div class="grow min-w-0">
-                <%= render "rule", rule: rule %>
+                <%= render "rule", rule: rule, conflicts: @immediate_conflicts.fetch(rule.id, []) %>
               </div>
             </div>
           <% end %>

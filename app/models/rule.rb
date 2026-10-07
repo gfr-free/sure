@@ -15,6 +15,11 @@ class Rule < ApplicationRecord
   # Rules run top to bottom. created_at breaks ties, e.g. for rules created at
   # the same moment before anyone reordered them.
   scope :ordered, -> { order(:position, :created_at, :id) }
+  scope :applied_immediately, -> { where(active: true, apply_immediately: true) }
+
+  # Fields shown in the transaction drawer that a held-back rule can leave
+  # empty until the nightly run.
+  HINTED_ATTRIBUTES = %i[category_id merchant_id].freeze
 
   validates :resource_type, presence: true
   validates :name, length: { minimum: 1 }, allow_nil: true
@@ -147,8 +152,100 @@ class Rule < ApplicationRecord
     end
   end
 
+  # Runs the "apply immediately" rules for transactions a person just created
+  # or changed (web, bulk edit, API, assistant). Families without such rules
+  # enqueue nothing. Best-effort: the change is already saved and the nightly
+  # run applies the rules anyway, so a failed enqueue must not fail the request.
+  # Callers inside a database transaction call this after it, so the enqueue
+  # is not deferred to an after-commit callback outside this rescue.
+  def self.apply_immediately_later(family, transaction_ids)
+    transaction_ids = Array(transaction_ids).compact.uniq
+    return if transaction_ids.empty? || !family.rules.applied_immediately.exists?
+
+    ApplyImmediateRulesJob.perform_later(family, transaction_ids: transaction_ids)
+  rescue StandardError => e
+    Rails.logger.error("Rule.apply_immediately_later failed for family #{family.id}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  # For one transaction, the empty fields a "nightly only" rule will set on its
+  # next run, as { attribute => rule }. Follows the run order like
+  # Rule::Runner: the top rule claiming a field wins, "stop processing" ends the
+  # walk. One query per active rule, so it is only worth it in families with
+  # "apply immediately" rules, where such fields are otherwise unexplained.
+  def self.pending_field_hints(transaction)
+    family = transaction.entry.account.family
+    open_attributes = HINTED_ATTRIBUTES.select { |attribute| transaction.public_send(attribute).blank? && !transaction.locked?(attribute) }
+    return {} if open_attributes.empty? || !family.rules.applied_immediately.exists?
+
+    claimed = {}
+    family.rules.ordered.where(active: true).includes(:actions, conditions: :sub_conditions).each do |rule|
+      next unless rule.matching_scope.where(id: transaction.id).exists?
+
+      rule.actions.each do |action|
+        next unless action.reserves_claimed_attributes?
+
+        action.claimed_attributes.each { |attribute| claimed[attribute] ||= rule }
+      end
+
+      break if rule.stop_processing? || open_attributes.all? { |attribute| claimed.key?(attribute) }
+    end
+
+    open_attributes.each_with_object({}) do |attribute, hints|
+      rule = claimed[attribute]
+      hints[attribute] = rule if rule && !rule.apply_immediately?
+    end
+  end
+
+  # Active "nightly only" rules above this "apply immediately" rule that keep
+  # it from setting a field right away. See Rule.immediate_conflicts.
+  def immediate_conflicts
+    return [] unless persisted? && active? && apply_immediately?
+
+    Rule.immediate_conflicts(family.rules.ordered.includes(:actions, conditions: :sub_conditions)).fetch(id, [])
+  end
+
+  # Maps each active "apply immediately" rule id to the active "nightly only"
+  # rules above it that set one of its fields or stop processing, and match at
+  # least one transaction it matches today. Top rule wins, so on those
+  # transactions the immediate rule waits for the nightly run.
+  # ordered_rules: all rules of one family in run order.
+  def self.immediate_conflicts(ordered_rules)
+    ordered_rules = ordered_rules.to_a
+
+    ordered_rules.each_with_index.each_with_object({}) do |(rule, index), conflicts|
+      next unless rule.active? && rule.apply_immediately?
+
+      own_attributes = rule.actions.flat_map(&:claimed_attributes)
+      blocking = ordered_rules.take(index).select do |above|
+        next false unless above.active? && !above.apply_immediately?
+
+        shared = above.actions.select(&:reserves_claimed_attributes?).flat_map(&:claimed_attributes) & own_attributes
+        next false unless above.stop_processing? || shared.any?
+
+        rule.matching_scope.where(id: above.matching_scope.select(:id)).exists?
+      end
+
+      conflicts[rule.id] = blocking if blocking.any?
+    end
+  end
+
+  # Moves this rule directly above other_rule, keeping everything else in place.
+  def move_above!(other_rule)
+    return if other_rule.id == id
+
+    ids = family.rules.ordered.pluck(:id)
+    ids.delete(id)
+    ids.insert(ids.index(other_rule.id), id)
+    Rule.update_positions!(family, ids)
+  end
+
   def apply_later(ignore_attribute_locks: false)
     RuleJob.perform_later(self, ignore_attribute_locks: ignore_attribute_locks)
+  end
+
+  def display_name
+    name.presence || primary_condition_title
   end
 
   def primary_condition_title

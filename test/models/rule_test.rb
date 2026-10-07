@@ -1,7 +1,7 @@
 require "test_helper"
 
 class RuleTest < ActiveSupport::TestCase
-  include EntriesTestHelper
+  include EntriesTestHelper, ActiveJob::TestHelper
 
   setup do
     @family = families(:empty)
@@ -378,8 +378,104 @@ class RuleTest < ActiveSupport::TestCase
     assert_equal [ first, second ], @family.rules.ordered.to_a
   end
 
+  test "apply_immediately_later enqueues only when the family has active immediate rules" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    create_category_rule("Nightly")
+    create_category_rule("Paused", apply_immediately: true, active: false)
+
+    assert_no_enqueued_jobs(only: ApplyImmediateRulesJob) do
+      Rule.apply_immediately_later(@family, transaction.id)
+    end
+
+    create_category_rule("Immediate", apply_immediately: true)
+
+    assert_enqueued_with(job: ApplyImmediateRulesJob, args: [ @family, { transaction_ids: [ transaction.id ] } ]) do
+      Rule.apply_immediately_later(@family, [ transaction.id, transaction.id, nil ])
+    end
+    assert_no_enqueued_jobs(only: ApplyImmediateRulesJob) do
+      Rule.apply_immediately_later(@family, [])
+    end
+  end
+
+  test "apply_immediately_later does not raise when the job cannot be enqueued" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    create_category_rule("Immediate", apply_immediately: true)
+    ApplyImmediateRulesJob.stubs(:perform_later).raises(RuntimeError, "queue down")
+
+    assert_nil Rule.apply_immediately_later(@family, transaction.id)
+  end
+
+  test "immediate_conflicts lists nightly rules above that set the same field on shared transactions" do
+    create_transaction(account: @account, name: "Whole Foods")
+    nightly = create_category_rule("Nightly")
+    create_category_rule("Other field", match: "Whole", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF"))
+    create_category_rule("No overlap", match: "Hardware")
+    create_category_rule("Immediate above", apply_immediately: true)
+    immediate = create_category_rule("Immediate", apply_immediately: true)
+    below = create_category_rule("Below")
+
+    assert_equal [ nightly ], immediate.immediate_conflicts
+    assert_equal [ nightly ], Rule.immediate_conflicts(@family.rules.ordered)[immediate.id]
+    assert_empty below.immediate_conflicts
+  end
+
+  test "immediate_conflicts includes a nightly stop-processing rule above" do
+    create_transaction(account: @account, name: "Whole Foods")
+    stopper = create_category_rule("Stopper", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF"), stop_processing: true)
+    immediate = create_category_rule("Immediate", apply_immediately: true)
+
+    assert_equal [ stopper ], immediate.immediate_conflicts
+  end
+
+  test "move_above! puts the rule directly above the other one" do
+    first = create_exclude_rule
+    second = create_exclude_rule
+    third = create_exclude_rule
+
+    third.move_above!(second)
+    assert_equal [ first, third, second ], @family.rules.ordered.to_a
+
+    third.move_above!(third)
+    assert_equal [ first, third, second ], @family.rules.ordered.to_a
+  end
+
+  test "pending_field_hints names the nightly rule that will fill an empty field" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    nightly = create_category_rule("Nightly")
+    create_category_rule("Immediate", apply_immediately: true)
+
+    assert_equal({ category_id: nightly }, Rule.pending_field_hints(transaction))
+
+    transaction.lock_attr!(:category_id)
+    assert_empty Rule.pending_field_hints(transaction.reload)
+  end
+
+  test "pending_field_hints is empty without immediate rules or when an immediate rule wins" do
+    transaction = create_transaction(account: @account, name: "Whole Foods").transaction
+    create_category_rule("Nightly", match: "Whole")
+
+    assert_empty Rule.pending_field_hints(transaction)
+
+    immediate = create_category_rule("Immediate", apply_immediately: true)
+    immediate.move_above!(@family.rules.find_by(name: "Nightly"))
+
+    assert_empty Rule.pending_field_hints(transaction)
+  end
+
   private
     def create_exclude_rule
       @family.rules.create!(resource_type: "transaction", actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+    end
+
+    def create_category_rule(name, match: "Whole Foods", apply_immediately: false, active: true, stop_processing: false, action: nil)
+      @family.rules.create!(
+        name: name,
+        resource_type: "transaction",
+        active: active,
+        apply_immediately: apply_immediately,
+        stop_processing: stop_processing,
+        conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
+        actions: [ action || Rule::Action.new(action_type: "set_transaction_category", value: @groceries_category.id) ]
+      )
     end
 end

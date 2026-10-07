@@ -1428,7 +1428,8 @@ class Family::DataImporter
           resource_type: data["resource_type"] || "transaction",
           active: data["active"] || false,
           effective_date: data["effective_date"].present? ? Date.parse(data["effective_date"].to_s) : nil,
-          stop_processing: data["stop_processing"] || false
+          stop_processing: data["stop_processing"] || false,
+          apply_immediately: data["apply_immediately"] || false
         )
 
         rule.conditions.destroy_all unless created

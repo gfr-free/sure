@@ -2,10 +2,11 @@ class RulesController < ApplicationController
   include StreamExtensions
 
   before_action :require_non_guest!, except: %i[index]
-  before_action :set_rule, only: [  :edit, :update, :destroy, :apply, :confirm ]
+  before_action :set_rule, only: [  :edit, :update, :destroy, :apply, :confirm, :apply_immediately, :move_above ]
 
   def index
-    @rules = Current.family.rules.includes(conditions: :sub_conditions).ordered
+    @rules = Current.family.rules.includes(:actions, conditions: :sub_conditions).ordered
+    @immediate_conflicts = Rule.immediate_conflicts(@rules)
 
     # Fetch recent rule runs with pagination
     recent_runs_scope = RuleRun
@@ -81,6 +82,19 @@ class RulesController < ApplicationController
   def destroy
     @rule.destroy
     redirect_to rules_path, notice: t(".success")
+  end
+
+  # One-click fixes from the "held back" hint of an "apply immediately" rule:
+  # also run the rule above immediately, or move this rule above it.
+  def apply_immediately
+    @rule.update!(apply_immediately: true)
+    redirect_back_or_to rules_path, notice: t(".success", name: @rule.name.presence || @rule.primary_condition_title)
+  end
+
+  def move_above
+    other_rule = Current.family.rules.find(params.require(:other_rule_id))
+    @rule.move_above!(other_rule)
+    redirect_back_or_to rules_path, notice: t(".success")
   end
 
   def reorder
@@ -191,7 +205,7 @@ class RulesController < ApplicationController
 
     def rule_params
       params.require(:rule).permit(
-        :resource_type, :effective_date, :active, :name, :stop_processing,
+        :resource_type, :effective_date, :active, :name, :stop_processing, :apply_immediately,
         conditions_attributes: [
           :id, :condition_type, :operator, :value, :_destroy,
           sub_conditions_attributes: [ :id, :condition_type, :operator, :value, :_destroy ]

@@ -19,6 +19,11 @@ class Transactions::BulkUpdatesController < ApplicationController
     updated = bulk_update_entries(full_ids, scoped_params) +
               bulk_update_entries(annotate_ids, scoped_params.except(:date, :name))
 
+    if updated.positive?
+      transaction_ids = Current.family.entries.where(id: full_ids + annotate_ids, entryable_type: "Transaction").pluck(:entryable_id)
+      Rule.apply_immediately_later(Current.family, transaction_ids)
+    end
+
     redirect_back_or_to transactions_path, notice: "#{updated} transactions updated"
   end
 

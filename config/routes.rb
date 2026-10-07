@@ -666,6 +666,8 @@ Rails.application.routes.draw do
     member do
       get :confirm
       post :apply
+      patch :apply_immediately
+      patch :move_above
     end
 
     collection do

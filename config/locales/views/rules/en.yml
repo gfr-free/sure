@@ -27,6 +27,9 @@ en:
       on_or_after: "%{resource} on or after %{date}"
       stop_processing: Stop
       stop_processing_hint: Rules further down don't change transactions matched by this rule.
+      apply_immediately: Immediately
+      apply_immediately_hint: Also runs right after a transaction is created or changed by hand, in a bulk edit or via the API.
+      held_back_hint: "%{names} sits above this rule, sets the same field (or stops processing) and only runs overnight. On transactions both rules match, this rule waits for the nightly run. Edit the rule to fix it with one click."
     form:
       rule_name_label: Rule name (optional)
       rule_name_placeholder: Enter a name for this rule
@@ -38,6 +41,18 @@ en:
       then: THEN
       stop_processing_label: Stop processing further rules
       stop_processing_description: Rules further down the list don't change transactions this rule matches.
+      apply_immediately_label: Apply immediately to new and changed transactions
+      apply_immediately_description: Runs right after a transaction is created or changed by hand, in a bulk edit or via the API, and still overnight. Off means overnight only. Fields you set yourself stay as they are.
+      apply_immediately_ai_cost: With AI actions, every new or changed transaction this rule matches costs one AI request.
+    immediate_conflicts:
+      title: This rule waits for the nightly run on some transactions
+      message: "Rule \"%{name}\" sits above this rule, sets the same field (or stops processing) and only runs overnight. The top rule wins, so on transactions both rules match this rule leaves the field empty until the nightly run."
+      apply_other_immediately: "Apply \"%{name}\" immediately too"
+      move_above: "Move this rule above \"%{name}\""
+    apply_immediately:
+      success: "Rule \"%{name}\" now also applies immediately"
+    move_above:
+      success: Rule order updated
     index:
       page_title: Rules
       delete_all_rules: Delete all rules
@@ -102,6 +117,7 @@ en:
       execution_types:
         manual: Manual
         scheduled: Scheduled
+        immediate: Immediate
       statuses:
         pending: Pending
         success: Success

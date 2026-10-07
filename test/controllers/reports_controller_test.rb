@@ -98,6 +98,18 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "index sections keep data-section-key next to the sortable id" do
+    get reports_path
+    assert_response :ok
+
+    assert_select "section[data-sortable-list-id]" do |sections|
+      assert sections.any?
+      sections.each do |section|
+        assert_equal section["data-sortable-list-id"], section["data-section-key"]
+      end
+    end
+  end
+
   test "net worth section groups accounts by the field picked in the report" do
     @user.update!(preferences: @user.preferences.merge(
       "preview_features_enabled" => true,

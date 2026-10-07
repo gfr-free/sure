@@ -6,6 +6,7 @@ de:
         current: "%{ticker} (%{provider})"
         description: Münz- und Barrenkurse ergeben sich aus dem Feingewicht mal dem Kurs dieses Wertpapiers. Die Auswahl funktioniert wie bei Aktien, der Kurs kommt vom Anbieter des Wertpapiers. Änderungen gelten ab der nächsten Synchronisierung.
         no_provider: kein Anbieter
+        provider_disabled: "%{provider} ist nicht als Kursanbieter aktiviert, deshalb bekommen Münzen und Barren dieses Metalls keine neuen Preise. Aktiviere ihn unter „Anbieter für Wertpapierkurse“ oder wähle eine Referenz mit einem aktiven Anbieter."
         not_set: Nicht festgelegt
         save: Speichern
         search_placeholder: Wertpapier suchen

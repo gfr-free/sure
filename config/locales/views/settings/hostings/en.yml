@@ -6,6 +6,7 @@ en:
         current: "%{ticker} (%{provider})"
         description: Coin and bar prices are the fine metal content times the price of this security. Pick it like any stock; its price provider is used. Changes apply from the next sync.
         no_provider: no provider
+        provider_disabled: "%{provider} is not enabled as a price provider, so coins and bars of this metal get no new prices. Enable it under Securities Providers or pick a reference with an enabled provider."
         not_set: Not set
         save: Save
         search_placeholder: Search for a security

@@ -279,6 +279,26 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "warns when a metal reference uses a provider that is not enabled" do
+    with_self_hosting do
+      Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
+      get settings_hosting_url
+
+      assert_response :success
+      assert_includes response.body, I18n.t("settings.hostings.bullion_reference_settings.provider_disabled", provider: "Yahoo Finance")
+    end
+  end
+
+  test "shows no provider warning for metal references with an enabled provider" do
+    with_self_hosting do
+      Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
+      get settings_hosting_url
+
+      assert_response :success
+      assert_not_includes response.body, I18n.t("settings.hostings.bullion_reference_settings.provider_disabled", provider: "Yahoo Finance")
+    end
+  end
+
   test "can update settings when self hosting is enabled" do
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { twelve_data_api_key: "1234567890" } }

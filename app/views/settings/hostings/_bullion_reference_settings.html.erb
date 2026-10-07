@@ -21,6 +21,13 @@
         </p>
       </div>
 
+      <% if BullionSpec::PriceDeriver.reference_provider_disabled?(metal) %>
+        <%= render DS::Alert.new(
+              message: t(".provider_disabled", provider: t("securities.providers.#{current[:price_provider]}", default: current[:price_provider].humanize)),
+              variant: :warning
+            ) %>
+      <% end %>
+
       <%= styled_form_with url: settings_hosting_path, method: :patch, scope: "setting[bullion_reference_securities]",
                            class: "flex items-center gap-2" do |form| %>
         <div class="grow">

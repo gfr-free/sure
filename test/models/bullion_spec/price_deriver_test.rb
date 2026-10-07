@@ -78,6 +78,71 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert_nil BullionSpec::PriceDeriver.reference_security("XPT")
   end
 
+  test "logs a warning instead of importing when the reference provider is not enabled" do
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
+    @reference.update!(offline: false, price_provider: "yahoo_finance")
+    Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
+    Security.any_instance.expects(:import_provider_prices).never
+
+    assert_difference -> { DebugLogEntry.where(level: "warn", source: "BullionSpec::PriceDeriver").count }, 1 do
+      BullionSpec::PriceDeriver.new.derive_all
+    end
+
+    entry = DebugLogEntry.order(:created_at).last
+    assert_equal "XAU", entry.metadata["metal"]
+    assert_equal "yahoo_finance", entry.metadata["price_provider"]
+    assert @coin.prices.exists?, "derives from the prices the reference already has"
+  end
+
+  test "reference_provider_disabled? reports a configured provider that is not enabled" do
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance", "XAG" => "SI=F|CMX|" }
+    Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
+
+    assert BullionSpec::PriceDeriver.reference_provider_disabled?("XAU")
+    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XAG")
+    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XPT")
+
+    Setting.stubs(:enabled_securities_providers).returns([ "twelve_data", "yahoo_finance" ])
+    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XAU")
+  end
+
+  test "reference_security applies a changed provider to an existing reference" do
+    @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: "provider_disabled")
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
+    Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
+
+    assert_no_difference "Security.count" do
+      BullionSpec::PriceDeriver.reference_security("XAU")
+    end
+
+    @reference.reload
+    assert_equal "yahoo_finance", @reference.price_provider
+    assert_not @reference.offline?
+  end
+
+  test "reference_security keeps a reference offline while the new provider is not enabled" do
+    @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: "provider_disabled")
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
+    Setting.stubs(:enabled_securities_providers).returns([])
+
+    BullionSpec::PriceDeriver.reference_security("XAU")
+
+    @reference.reload
+    assert_equal "yahoo_finance", @reference.price_provider
+    assert_equal "provider_disabled", @reference.offline_reason
+  end
+
+  test "reference_security keeps a manually offline reference offline" do
+    @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: nil)
+    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
+
+    BullionSpec::PriceDeriver.reference_security("XAU")
+
+    @reference.reload
+    assert_equal "yahoo_finance", @reference.price_provider
+    assert @reference.offline?
+  end
+
   test "ships Yahoo futures as default references" do
     Setting.bullion_reference_securities = nil
 

@@ -13,12 +13,39 @@ class BullionSpec::PriceDeriver
     attrs = Security.parse_combobox_id(combobox_id)
     return nil if attrs[:ticker].blank?
 
-    Security.find_or_create_by!(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase) do |security|
-      security.price_provider = attrs[:price_provider]
+    security = begin
+      Security.find_or_create_by!(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase) do |new_security|
+        new_security.price_provider = attrs[:price_provider]
+      end
+    rescue ActiveRecord::RecordNotUnique
+      Security.find_by(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase)
     end
-  rescue ActiveRecord::RecordNotUnique
-    Security.find_by(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase)
+
+    adopt_configured_provider(security, attrs[:price_provider])
   end
+
+  # True when the setting names a price provider that is not enabled, so the
+  # reference (and every coin of that metal) would get no new prices.
+  def self.reference_provider_disabled?(metal)
+    provider = Security.parse_combobox_id(Setting.bullion_reference_securities.to_h[metal.to_s])[:price_provider]
+    provider.present? && Setting.enabled_securities_providers.exclude?(provider)
+  end
+
+  # The reference may already exist with another provider (picked earlier or
+  # held as a stock). The setting decides, so a changed provider takes effect.
+  def self.adopt_configured_provider(security, provider)
+    return security if security.nil? || provider.blank? || security.price_provider == provider
+
+    attrs = { price_provider: provider }
+    # Taken offline because the old provider was disabled: back online once
+    # the new one is enabled, matching Settings::HostingsController.
+    if security.offline_reason == "provider_disabled" && Setting.enabled_securities_providers.include?(provider)
+      attrs.merge!(offline: false, offline_reason: nil, failed_fetch_count: 0, failed_fetch_at: nil)
+    end
+    security.update!(attrs)
+    security
+  end
+  private_class_method :adopt_configured_provider
 
   # security_ids limits derivation to those bullion securities (an account
   # sync); nil derives every catalogue and custom piece (the daily import).
@@ -45,7 +72,11 @@ class BullionSpec::PriceDeriver
       return if reference.nil?
 
       start_date = start_date_for(specs)
-      reference.import_provider_prices(start_date: start_date, end_date: end_date) unless reference.offline?
+      if reference.provider_status == :provider_unavailable
+        capture_unavailable_provider(metal, reference)
+      elsif !reference.offline?
+        reference.import_provider_prices(start_date: start_date, end_date: end_date)
+      end
 
       reference_prices = Security::Price.where(security_id: reference.id, date: start_date..end_date).to_a
       rows = specs.flat_map do |spec|
@@ -70,6 +101,18 @@ class BullionSpec::PriceDeriver
         message: "Could not derive bullion prices",
         source: self.class.name,
         metadata: { metal: metal, reference_security_id: reference&.id, error: "#{e.class}: #{e.message}" }
+      )
+    end
+
+    # Without this the sync succeeds silently and coins keep their last price.
+    def capture_unavailable_provider(metal, reference)
+      DebugLogEntry.capture(
+        category: "security_price_fetch",
+        level: "warn",
+        message: "Bullion reference price provider is not enabled",
+        source: self.class.name,
+        provider: reference.price_provider,
+        metadata: { metal: metal, reference_security_id: reference.id, ticker: reference.ticker, price_provider: reference.price_provider }
       )
     end
 

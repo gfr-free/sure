@@ -101,6 +101,19 @@ class ReportsTest < ApplicationSystemTestCase
     assert_operator saved_order.index(second), :<, saved_order.index(first)
   end
 
+  test "a section still grabbed when the page unloads keeps its new place" do
+    first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
+    record_saved_section_order("reports-sortable")
+
+    find("section[data-section-key='#{first}']").send_keys(:enter)
+    page.send_keys(:arrow_down)
+    page.execute_script("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
+
+    assert_selector "html[data-order-saved='200']"
+    saved_order = users(:family_admin).reload.reports_section_order
+    assert_operator saved_order.index(second), :<, saved_order.index(first)
+  end
+
   private
     def clicked_hotkeys
       page.evaluate_script("window.clickedHotkeys")

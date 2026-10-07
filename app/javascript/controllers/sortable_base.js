@@ -43,9 +43,15 @@ export default class SortableController extends Controller {
     this.keyboardGrabbedElement = null;
     this.holdTimer = null;
     this.holdActivated = false;
+
+    // A full page load or closing the tab skips disconnect(), so release
+    // the grab on pagehide too.
+    this.releaseOnPageHide = () => this.releaseKeyboardGrab();
+    window.addEventListener("pagehide", this.releaseOnPageHide);
   }
 
   disconnect() {
+    window.removeEventListener("pagehide", this.releaseOnPageHide);
     this.cancelHold();
     // A section still grabbed with the keyboard (e.g. Turbo navigation away)
     // keeps the place it was moved to.
@@ -415,6 +421,8 @@ export default class SortableController extends Controller {
     try {
       const response = await fetch(saveUrl, {
         method: "PATCH",
+        // Lets the save finish when it is sent while the page unloads.
+        keepalive: true,
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken.content,

@@ -5,7 +5,11 @@
             "block flex items-center gap-2 px-3 py-2 rounded-lg",
             page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
           ),
-          data: page_active?(account_path(account)) ? { active_account: true } : {},
+          data: {
+            active_account: page_active?(account_path(account)),
+            account_sortable_target: sortable ? "item" : nil,
+            account_id: sortable ? account.id : nil
+          }.compact,
           title: account.name do %>
   <%= render "accounts/logo", account: account, size: "sm", color: color %>
 

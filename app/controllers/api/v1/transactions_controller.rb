@@ -3,15 +3,13 @@
 class Api::V1::TransactionsController < Api::V1::BaseController
   include Pagy::Backend
 
-  # Fields a read_write account share may change (same set as the web UI).
-  ANNOTATION_PARAMS = %w[notes category_id merchant_id tag_ids user_modified].freeze
-
   # Ensure proper scope authorization for read vs write access
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :create, :update, :destroy ]
   before_action :set_transaction, only: [ :show, :update, :destroy ]
-  before_action :ensure_update_permission, only: :update
-  before_action :ensure_destroy_permission, only: :destroy
+
+  # What a read_write (annotate only) share may change, as in the web UI.
+  ANNOTATE_FIELDS = %w[notes category_id merchant_id tag_ids user_modified].freeze
 
   def index
     family = current_resource_owner.family
@@ -95,7 +93,11 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       return
     end
 
-    account = family.accounts.writable_by(current_resource_owner).find(account_id_param)
+    account = family.accounts.writable_by(current_resource_owner).find_by(id: account_id_param)
+    unless account
+      render json: { error: "not_found", message: "Account not found" }, status: :not_found
+      return
+    end
 
     if idempotency_key_requested? && (existing_entry = existing_idempotent_entry(account))
       return render_existing_idempotent_entry(existing_entry)
@@ -138,6 +140,14 @@ class Api::V1::TransactionsController < Api::V1::BaseController
   end
 
   def update
+    if annotate_only_violation?
+      render json: {
+        error: "forbidden",
+        message: "This account is shared with you to annotate only: category, merchant, tags and notes can be changed"
+      }, status: :forbidden
+      return
+    end
+
     if @entry.split_child?
       render json: { error: "validation_failed", message: "Split child transactions cannot be edited directly. Use the split editor." }, status: :unprocessable_entity
       return
@@ -216,8 +226,8 @@ class Api::V1::TransactionsController < Api::V1::BaseController
 
       family = current_resource_owner.family
       @transaction = family.transactions
-        .joins(entry: :account)
-        .merge(Account.accessible_by(current_resource_owner))
+        .joins(:entry)
+        .where(entries: { account_id: accounts_with_permission(required_account_permission).select(:id) })
         .find(params[:id])
       @entry = @transaction.entry
     rescue ActiveRecord::RecordNotFound
@@ -227,72 +237,22 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       }, status: :not_found
     end
 
-    # Same rights as the web UI (TransactionsController#permitted_entry_params):
-    # owners and full_control shares may edit everything, read_write shares
-    # may only annotate, read_only shares may change nothing. Unlike the web
-    # form, which drops fields silently, the API rejects the whole request
-    # so a client never gets a 200 for changes that were not applied.
-    def ensure_update_permission
-      permission = @entry.account.permission_for(current_resource_owner)
-      return if permission.in?([ :owner, :full_control ])
-      return if permission == :read_write && annotation_only_update?
-
-      render_account_permission_denied
-    end
-
-    def ensure_destroy_permission
-      return if @entry.account.permission_for(current_resource_owner).in?([ :owner, :full_control ])
-
-      render_account_permission_denied
-    end
-
-    def annotation_only_update?
-      transaction = params[:transaction]
-      return false unless transaction.respond_to?(:keys)
-
-      (transaction.keys.map(&:to_s) - ANNOTATION_PARAMS).empty?
-    end
-
-    # New category, merchant and tag IDs must belong to the key owner's
-    # family (merchants: the ones the user can pick in the UI), as in the web
-    # bulk update. Values the transaction already has stay accepted, so a
-    # client can send back the object it read. Renders a validation error and
-    # returns true when an ID does not resolve.
-    def render_invalid_references
-      family = current_resource_owner.family
-      errors = []
-
-      current = @entry&.transaction
-
-      category_id = transaction_params[:category_id]
-      if category_id.present? && category_id != current&.category_id && !family.categories.exists?(id: category_id)
-        errors << "Category not found"
+    # Same rule as the web UI: reading needs any share, editing needs a
+    # read_write (annotate only) or full_control share, anything else needs
+    # full_control. Missing and not permitted both answer 404.
+    def required_account_permission
+      case action_name
+      when "show" then :read
+      when "update" then :annotate
+      else :write
       end
-
-      merchant_id = transaction_params[:merchant_id]
-      if merchant_id.present? && merchant_id != current&.merchant_id &&
-         !family.available_merchants_for(current_resource_owner).exists?(id: merchant_id)
-        errors << "Merchant not found"
-      end
-
-      tag_ids = Array(transaction_params[:tag_ids]).compact_blank.uniq - Array(current&.tag_ids)
-      errors << "Tag not found" if tag_ids.any? && family.tags.where(id: tag_ids).count != tag_ids.size
-
-      return false if errors.empty?
-
-      render json: {
-        error: "validation_failed",
-        message: "Transaction references records outside your family",
-        errors: errors
-      }, status: :unprocessable_entity
-      true
     end
 
-    def render_account_permission_denied
-      render json: {
-        error: "forbidden",
-        message: "You do not have permission to change transactions on this account"
-      }, status: :forbidden
+    # A read_write share may only change category, merchant, tags and notes.
+    def annotate_only_violation?
+      return false if @entry.account.permission_for(current_resource_owner).in?([ :owner, :full_control ])
+
+      (transaction_params.keys - ANNOTATE_FIELDS).any?
     end
 
     def ensure_read_scope
@@ -533,5 +493,39 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       else
         25  # Default
       end
+    end
+
+    # New category, merchant and tag IDs must belong to the key owner's
+    # family (merchants: the ones the user can pick in the UI), as in the web
+    # bulk update. Values the transaction already has stay accepted, so a
+    # client can send back the object it read. Renders a validation error and
+    # returns true when an ID does not resolve.
+    def render_invalid_references
+      family = current_resource_owner.family
+      current = @entry&.transaction
+      errors = []
+
+      category_id = transaction_params[:category_id]
+      if category_id.present? && category_id != current&.category_id && !family.categories.exists?(id: category_id)
+        errors << "Category not found"
+      end
+
+      merchant_id = transaction_params[:merchant_id]
+      if merchant_id.present? && merchant_id != current&.merchant_id &&
+         !family.available_merchants_for(current_resource_owner).exists?(id: merchant_id)
+        errors << "Merchant not found"
+      end
+
+      tag_ids = Array(transaction_params[:tag_ids]).compact_blank.uniq - Array(current&.tag_ids)
+      errors << "Tag not found" if tag_ids.any? && family.tags.where(id: tag_ids).count != tag_ids.size
+
+      return false if errors.empty?
+
+      render json: {
+        error: "validation_failed",
+        message: "Transaction references records outside your family",
+        errors: errors
+      }, status: :unprocessable_entity
+      true
     end
 end

@@ -9770,6 +9770,12 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Transaction"
+        '404':
+          description: account not found or not writable by the API user
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         '422':
           description: validation error - missing required fields
           content:
@@ -9882,9 +9888,6 @@ paths:
       summary: Update a transaction
       tags:
       - Transactions
-      description: Owners and full_control account shares can change every field.
-        A read_write share can only change notes, category_id, merchant_id, tag_ids
-        and user_modified; a read_only share cannot change anything.
       security:
       - apiKeyAuth: []
       parameters: []
@@ -9896,7 +9899,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Transaction"
         '403':
-          description: account share does not allow this change
+          description: account is shared with the API user to annotate only; only
+            category, merchant, tags and notes can change
           content:
             application/json:
               schema:
@@ -9908,7 +9912,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '404':
-          description: transaction not found
+          description: transaction not found, or its account is shared with the API
+            user read-only
           content:
             application/json:
               schema:
@@ -9966,7 +9971,6 @@ paths:
       summary: Delete a transaction
       tags:
       - Transactions
-      description: Requires ownership of the account or a full_control account share.
       security:
       - apiKeyAuth: []
       responses:
@@ -9976,14 +9980,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/DeleteResponse"
-        '403':
-          description: account share does not allow this change
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/ErrorResponse"
         '404':
-          description: transaction not found
+          description: transaction not found, or the API user has no full_control
+            on its account
           content:
             application/json:
               schema:

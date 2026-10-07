@@ -58,7 +58,7 @@ export default class extends TimeSeriesChartController {
           <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-1.5 text-secondary">
               <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${group.color};"></span>
-              ${group.name}
+              ${this._escapeHtml(group.name)}
             </div>
             <span class="text-primary tabular-nums">${this._extractFormattedValue(group.value)}</span>
           </div>
@@ -69,11 +69,19 @@ export default class extends TimeSeriesChartController {
     return `
       <div class="space-y-1 text-xs">
         <div class="flex items-center justify-between gap-4 font-medium">
-          <span class="text-secondary uppercase">${label}</span>
+          <span class="text-secondary uppercase">${this._escapeHtml(label)}</span>
           <span class="text-primary tabular-nums">${this._extractFormattedValue(total)}</span>
         </div>
         ${rows}
       </div>
     `;
+  }
+
+  // Group names can be free text (custom group, institution, owner), and the
+  // tooltip is inserted as HTML, so escape them.
+  _escapeHtml(value) {
+    const element = document.createElement("span");
+    element.textContent = value ?? "";
+    return element.innerHTML;
   }
 }

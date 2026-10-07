@@ -34,6 +34,7 @@ en:
       budget_at_risk: Budget
       budget_on_track: Budget
       maintained_goal_depleted: Reserve
+      exchange_rate_jump: Exchange rate
     meta:
       next_n_days:
         one: Next day
@@ -72,6 +73,7 @@ en:
         negative: Your cash balance may go negative
       net_worth_milestone: "Net worth milestone: %{milestone}"
       maintained_goal_depleted: "%{goal} has dropped below its level"
+      exchange_rate_jump: "Unusual %{pair} exchange rate"
       subscription_audit: "Is %{name} still active?"
       savings_rate_change:
         up: Your savings rate improved in %{month}
@@ -100,3 +102,4 @@ en:
         over: "%{categories} went over budget this month. You've used %{budget_spent_pct}% of your total budget so far."
         near: "%{categories} are close to their limits this month. You've used %{budget_spent_pct}% of your total budget so far."
       budget_on_track: You've spent %{spent} of your %{budgeted} budget (%{budget_spent_pct}%) and everything is within its limit.
+      exchange_rate_jump: "The %{pair} exchange rate moved %{change_pct}% on %{date}, from %{previous_rate} to %{rate}. A move this large is often a data error, and it affects every amount converted from %{from}."

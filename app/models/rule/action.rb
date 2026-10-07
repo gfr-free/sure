@@ -52,6 +52,18 @@ class Rule::Action < ApplicationRecord
     executor.options
   end
 
+  def claimed_attributes
+    executor.claimed_attributes
+  end
+
+  def blocking_attributes
+    executor.blocking_attributes
+  end
+
+  def reserves_claimed_attributes?
+    executor.reserves_claimed_attributes?
+  end
+
   def value_display
     return "" if value.blank?
 

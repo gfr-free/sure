@@ -513,6 +513,117 @@ components:
         updated_at:
           type: string
           format: date-time
+    ForecastMoney:
+      type: object
+      required:
+      - amount
+      - formatted
+      properties:
+        amount:
+          type: string
+          description: Signed decimal amount in the account currency
+        formatted:
+          type: string
+          description: Locale-formatted money string
+    AccountForecastEvent:
+      type: object
+      required:
+      - date
+      - name
+      - kind
+      - amount
+      - balance_after
+      - recurring_transaction_id
+      - occurrence_id
+      properties:
+        date:
+          type: string
+          format: date
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+          - expense
+          - income
+          - transfer_in
+          - transfer_out
+        amount:
+          "$ref": "#/components/schemas/ForecastMoney"
+        balance_after:
+          "$ref": "#/components/schemas/ForecastMoney"
+        recurring_transaction_id:
+          type: string
+          format: uuid
+        occurrence_id:
+          type: string
+          format: uuid
+    AccountForecast:
+      type: object
+      required:
+      - account_id
+      - currency
+      - starts_on
+      - ends_on
+      - horizon
+      - starting_balance
+      - ending_balance
+      - low_balance
+      - low_on
+      - shortfall
+      - shortfall_amount
+      - unconvertible_count
+      - events
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        starts_on:
+          type: string
+          format: date
+        ends_on:
+          type: string
+          format: date
+        horizon:
+          type: string
+          enum:
+          - payday
+          - default
+          - custom
+          description: 'payday: up to the day before the next declared payday; default:
+            30 days; custom: the until parameter'
+        next_payday:
+          type: string
+          format: date
+          nullable: true
+        starting_balance:
+          "$ref": "#/components/schemas/ForecastMoney"
+        ending_balance:
+          "$ref": "#/components/schemas/ForecastMoney"
+        low_balance:
+          "$ref": "#/components/schemas/ForecastMoney"
+        low_on:
+          type: string
+          format: date
+        shortfall:
+          type: boolean
+          description: Whether an expected payment, today or later, takes the balance
+            below zero
+        shortfall_amount:
+          "$ref": "#/components/schemas/ForecastMoney"
+        top_up_by:
+          type: string
+          format: date
+          nullable: true
+        unconvertible_count:
+          type: integer
+          description: Payments left out for lack of an exchange rate
+        events:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AccountForecastEvent"
     AccountCollection:
       type: object
       required:
@@ -4622,6 +4733,57 @@ paths:
                 "$ref": "#/components/schemas/ErrorResponse"
         '404':
           description: account not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/accounts/{id}/forecast":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      description: Account ID
+      schema:
+        type: string
+        format: uuid
+    get:
+      summary: Forecast an account after its expected payments
+      tags:
+      - Accounts
+      description: What is left in the account after the open bill occurrences, income
+        and recurring transfers on it. The window runs up to the day before the next
+        declared payday on the account, else 30 days.
+      security:
+      - apiKeyAuth: []
+      parameters:
+      - name: until
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+        description: Last day of the forecast (YYYY-MM-DD), at most 366 days ahead
+      responses:
+        '200':
+          description: forecast computed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AccountForecast"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '404':
+          description: account not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: account cannot be forecast or until is invalid
           content:
             application/json:
               schema:

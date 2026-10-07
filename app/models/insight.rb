@@ -28,6 +28,7 @@ class Insight < ApplicationRecord
     budget_on_track
     maintained_goal_depleted
     exchange_rate_jump
+    account_shortfall
     account_release
   ].freeze
 

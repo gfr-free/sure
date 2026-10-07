@@ -70,6 +70,12 @@ en:
       cancelled_chip: "Cancelled %{date}"
       price_changes: Price changes
       price_change_line: "%{from} → %{to}"
+    account_coverage:
+      title: Accounts after expected payments
+      covered: Covered until %{date}
+      short: Falls below zero on %{date}, top up by %{by}
+      left_over: "%{amount} left"
+      missing: "%{amount} short"
     month_pulse:
       bill_count:
         one: 1 bill

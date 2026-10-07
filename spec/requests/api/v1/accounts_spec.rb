@@ -50,6 +50,7 @@ RSpec.describe 'API V1 Accounts', type: :request do
     Account.create!(
       family: family,
       name: 'Checking Account',
+      owner: user,
       balance: 1500.50,
       currency: 'USD',
       accountable: Depository.create!
@@ -70,6 +71,7 @@ RSpec.describe 'API V1 Accounts', type: :request do
     Account.create!(
       family: family,
       name: 'Credit Card',
+      owner: user,
       balance: -500.00,
       currency: 'USD',
       accountable: CreditCard.create!
@@ -146,6 +148,54 @@ RSpec.describe 'API V1 Accounts', type: :request do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:id) { SecureRandom.uuid }
+
+        run_test!
+      end
+    end
+  end
+
+  path '/api/v1/accounts/{id}/forecast' do
+    parameter name: :id, in: :path, required: true, description: 'Account ID',
+              schema: { type: :string, format: :uuid }
+
+    get 'Forecast an account after its expected payments' do
+      tags 'Accounts'
+      description 'What is left in the account after the open bill occurrences, income and recurring transfers on it. ' \
+                  'The window runs up to the day before the next declared payday on the account, else 30 days.'
+      security [ { apiKeyAuth: [] } ]
+      produces 'application/json'
+      parameter name: :until, in: :query, required: false,
+                schema: { type: :string, format: :date },
+                description: 'Last day of the forecast (YYYY-MM-DD), at most 366 days ahead'
+
+      let(:id) { checking_account.id }
+
+      response '200', 'forecast computed' do
+        schema '$ref' => '#/components/schemas/AccountForecast'
+
+        run_test!
+      end
+
+      response '401', 'unauthorized' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:'X-Api-Key') { nil }
+
+        run_test!
+      end
+
+      response '404', 'account not found' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { SecureRandom.uuid }
+
+        run_test!
+      end
+
+      response '422', 'account cannot be forecast or until is invalid' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { credit_card.id }
 
         run_test!
       end

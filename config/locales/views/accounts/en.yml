@@ -91,6 +91,7 @@ en:
         schedule: Schedule
         statements: Statements
         details: Details
+        forecast: Forecast
       activity:
         amount: Amount
         balance: Balance
@@ -179,6 +180,34 @@ en:
       credit_card: Credit Cards
       loan: Loans
       other_liability: Other Liabilities
+    forecast:
+      title: Account forecast
+      horizon:
+        payday: Expected payments on this account until the day before your next paycheck arrives on %{date}.
+        default:
+          one: Expected payments on this account for the next day, until %{date}.
+          other: Expected payments on this account for the next %{count} days, until %{date}.
+        custom: Expected payments on this account until %{date}.
+      today: Today
+      low: Lowest point (%{date})
+      left_over: Left over on %{date}
+      shortfall: "On %{date} this account falls to %{low}. Move at least %{amount} into it by %{by}."
+      unconvertible:
+        one: One payment in another currency is left out because no exchange rate is available.
+        other: "%{count} payments in another currency are left out because no exchange rate is available."
+      events_title: Expected payments
+      empty: No payments are expected on this account until %{date}, so the forecast is today's balance.
+      view_bills: View bills
+      columns:
+        date: Date
+        name: Payment
+        amount: Amount
+        balance: Balance after
+      kinds:
+        expense: Bill
+        income: Income
+        transfer_in: Transfer in
+        transfer_out: Transfer out
     liquidity:
       preview: Preview
       levels:

@@ -11,6 +11,12 @@ de:
       auto_post_off: Automatisches Buchen beenden
       auto_posting_since: "Bucht automatisch seit %{date}"
       auto_posting_stopped_linked: Automatisches Buchen wurde beendet, weil ein Konto dieser Rechnung jetzt mit einer Bank verknüpft ist.
+    account_coverage:
+      title: Konten nach erwarteten Buchungen
+      covered: Gedeckt bis %{date}
+      short: Fällt am %{date} unter null, auffüllen bis %{by}
+      left_over: "%{amount} übrig"
+      missing: "%{amount} fehlen"
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}

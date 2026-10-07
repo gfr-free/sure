@@ -329,6 +329,51 @@ RSpec.configure do |config|
               updated_at: { type: :string, format: :'date-time' }
             }
           },
+          ForecastMoney: {
+            type: :object,
+            required: %w[amount formatted],
+            properties: {
+              amount: { type: :string, description: 'Signed decimal amount in the account currency' },
+              formatted: { type: :string, description: 'Locale-formatted money string' }
+            }
+          },
+          AccountForecastEvent: {
+            type: :object,
+            required: %w[date name kind amount balance_after recurring_transaction_id occurrence_id],
+            properties: {
+              date: { type: :string, format: :date },
+              name: { type: :string },
+              kind: { type: :string, enum: %w[expense income transfer_in transfer_out] },
+              amount: { '$ref' => '#/components/schemas/ForecastMoney' },
+              balance_after: { '$ref' => '#/components/schemas/ForecastMoney' },
+              recurring_transaction_id: { type: :string, format: :uuid },
+              occurrence_id: { type: :string, format: :uuid }
+            }
+          },
+          AccountForecast: {
+            type: :object,
+            required: %w[account_id currency starts_on ends_on horizon starting_balance ending_balance low_balance low_on shortfall shortfall_amount unconvertible_count events],
+            properties: {
+              account_id: { type: :string, format: :uuid },
+              currency: { type: :string },
+              starts_on: { type: :string, format: :date },
+              ends_on: { type: :string, format: :date },
+              horizon: {
+                type: :string, enum: %w[payday default custom],
+                description: 'payday: up to the day before the next declared payday; default: 30 days; custom: the until parameter'
+              },
+              next_payday: { type: :string, format: :date, nullable: true },
+              starting_balance: { '$ref' => '#/components/schemas/ForecastMoney' },
+              ending_balance: { '$ref' => '#/components/schemas/ForecastMoney' },
+              low_balance: { '$ref' => '#/components/schemas/ForecastMoney' },
+              low_on: { type: :string, format: :date },
+              shortfall: { type: :boolean, description: 'Whether an expected payment, today or later, takes the balance below zero' },
+              shortfall_amount: { '$ref' => '#/components/schemas/ForecastMoney' },
+              top_up_by: { type: :string, format: :date, nullable: true },
+              unconvertible_count: { type: :integer, description: 'Payments left out for lack of an exchange rate' },
+              events: { type: :array, items: { '$ref' => '#/components/schemas/AccountForecastEvent' } }
+            }
+          },
           AccountCollection: {
             type: :object,
             required: %w[accounts pagination],

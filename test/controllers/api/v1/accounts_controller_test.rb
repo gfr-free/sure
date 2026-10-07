@@ -326,6 +326,54 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal account_names.sort, account_names
   end
 
+  test "forecast returns what is left after the expected payments" do
+    account = accounts(:depository)
+    account.update!(balance: 500)
+    family = account.family
+    family.recurring_transactions.destroy_all
+    today = Account.liquidity_today_for(family)
+    series = family.recurring_transactions.create!(
+      name: "Rent", account: account, amount: 650, currency: "USD", bill_type: "bill",
+      expected_day_of_month: 15, last_occurrence_date: today, next_expected_date: today + 30,
+      status: "active", manual: true
+    )
+    series.recurring_occurrences.delete_all
+    series.recurring_occurrences.create!(family: family, original_due_on: today + 5, due_on: today + 5, currency: "USD")
+
+    get "/api/v1/accounts/#{account.id}/forecast", headers: api_headers(@api_key)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "default", body["horizon"]
+    assert body["shortfall"]
+    assert_equal(-150, body["low_balance"]["amount"].to_d)
+    assert_equal (today + 4).iso8601, body["top_up_by"]
+    assert_equal [ "Rent" ], body["events"].map { |event| event["name"] }
+  end
+
+  test "forecast accepts an end date and rejects bad ones" do
+    account = accounts(:depository)
+    today = Account.liquidity_today_for(account.family)
+
+    get "/api/v1/accounts/#{account.id}/forecast", params: { until: (today + 60).iso8601 }, headers: api_headers(@api_key)
+    assert_response :success
+    assert_equal "custom", JSON.parse(response.body)["horizon"]
+
+    get "/api/v1/accounts/#{account.id}/forecast", params: { until: "tomorrow" }, headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+
+    get "/api/v1/accounts/#{account.id}/forecast", params: { until: (today + 400).iso8601 }, headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+  end
+
+  test "forecast refuses accounts without available money and other families' accounts" do
+    get "/api/v1/accounts/#{accounts(:credit_card).id}/forecast", headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+
+    get "/api/v1/accounts/#{accounts(:depository).id}/forecast", headers: api_headers(@other_family_api_key)
+    assert_response :not_found
+  end
+
   private
 
     def api_headers(api_key)

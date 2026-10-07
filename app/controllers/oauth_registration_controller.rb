@@ -4,10 +4,10 @@ class OauthRegistrationController < ApplicationController
   # or are not OAuth redirects.
   FORBIDDEN_SCHEMES = %w[javascript data file about blob ws wss ftp mailto tel sms intent].freeze
   SCHEME_PATTERN = /\A[a-z][a-z0-9+\-.]*\z/.freeze
-  # Client names starting with this prefix are reserved for first-party apps
+  # Client names containing the word "Sure" are reserved for first-party apps
   # (e.g. "Sure Mobile"), so a registered client cannot pose as one on the
   # consent screen or share the mobile app's name.
-  RESERVED_CLIENT_NAME_PREFIX = "sure"
+  RESERVED_CLIENT_NAME_WORD = "sure"
 
   skip_authentication
   skip_before_action :verify_authenticity_token
@@ -95,11 +95,13 @@ class OauthRegistrationController < ApplicationController
 
   private
 
-    # Compares letters and digits only, after Unicode compatibility
-    # normalization, so "SURE-Mobile" or full-width letters match too.
+    # Matches "Sure" as a whole word, ignoring case, punctuation, invisible
+    # format characters and full-width letters, plus "SureMobile" written as
+    # one word. "Surefire" or "Measure" stay allowed.
     def reserved_client_name?(name)
-      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/[^[:alnum:]]/, "")
-      normalized.start_with?(RESERVED_CLIENT_NAME_PREFIX)
+      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/\p{Cf}/, "")
+      words = normalized.scan(/[[:alnum:]]+/)
+      words.include?(RESERVED_CLIENT_NAME_WORD) || words.join.include?("#{RESERVED_CLIENT_NAME_WORD}mobile")
     end
 
     # Returns true for https, loopback http, and RFC 8252 private-use schemes

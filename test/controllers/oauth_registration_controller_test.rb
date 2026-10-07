@@ -338,7 +338,10 @@ class OauthRegistrationControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejects client names reserved for first-party apps" do
-    [ "Sure Mobile", "sure mobile", "SURE-Mobile", "Sure", " Sure Mobile App", "\uFF33\uFF55\uFF52\uFF45 Mobile" ].each do |client_name|
+    [
+      "Sure Mobile", "sure mobile", "SURE-Mobile", "Sure", "Official Sure App", "SureMobile",
+      "Su\u200Bre Mobile", "\uFF33\uFF55\uFF52\uFF45 Mobile"
+    ].each do |client_name|
       assert_no_difference "Doorkeeper::Application.count", client_name do
         post "/register",
           params: { client_name: client_name, redirect_uris: [ "https://evil.example/callback" ] }.to_json,
@@ -352,12 +355,14 @@ class OauthRegistrationControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "allows client names that only contain the reserved word later" do
-    post "/register",
-      params: { client_name: "Measure MCP", redirect_uris: [ "https://claude.ai/callback" ] }.to_json,
-      headers: { "Content-Type" => "application/json" }
+  test "allows client names that only contain sure inside another word" do
+    [ "Measure MCP", "Surefire Agent" ].each do |client_name|
+      post "/register",
+        params: { client_name: client_name, redirect_uris: [ "https://claude.ai/callback" ] }.to_json,
+        headers: { "Content-Type" => "application/json" }
 
-    assert_response :created
-    assert_equal "Measure MCP", JSON.parse(response.body)["client_name"]
+      assert_response :created, client_name
+      assert_equal client_name, JSON.parse(response.body)["client_name"]
+    end
   end
 end

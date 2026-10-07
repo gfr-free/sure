@@ -20,19 +20,18 @@ class MobileDevice < ApplicationRecord
   scope :active, -> { where("last_seen_at > ?", 90.days.ago) }
 
   def self.shared_oauth_application
-    # Oldest match wins, so a same-named client registered later (e.g. via
-    # dynamic client registration before names were reserved) never takes over.
+    # Matches on the app's callback too and lets the oldest row win, so a
+    # same-named client from dynamic registration (before names were reserved)
+    # with its own redirect URI is never picked as the mobile app.
     @shared_oauth_application ||= begin
-      Doorkeeper::Application.order(:created_at, :id).find_or_create_by!(name: OAUTH_APPLICATION_NAME) do |app|
-        app.redirect_uri = CALLBACK_URL
+      Doorkeeper::Application.order(:created_at, :id).find_or_create_by!(name: OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL) do |app|
         app.scopes = "read_write"
         app.confidential = false
       end
     rescue ActiveRecord::RecordNotUnique
-      Doorkeeper::Application.order(:created_at, :id).find_by!(name: OAUTH_APPLICATION_NAME)
+      Doorkeeper::Application.order(:created_at, :id).find_by!(name: OAUTH_APPLICATION_NAME, redirect_uri: CALLBACK_URL)
     end
   end
-
   def self.upsert_device!(user, attrs)
     device = user.mobile_devices.find_or_initialize_by(device_id: attrs[:device_id])
     device.assign_attributes(

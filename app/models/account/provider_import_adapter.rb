@@ -53,11 +53,11 @@ class Account::ProviderImportAdapter
     # they get their own deterministically encrypted transaction columns
     # (see Transaction), not the plain jsonb `extra` column. Popped out here,
     # before any of the jsonb-merging logic below runs, so they never land in
-    # the unencrypted column even transiently. `key?`, not `present?`: a
-    # caller (EnableBankingEntry::Processor) that explicitly includes one of
-    # these keys with a nil value means "no counterparty for this sync,
-    # clear any stale value" -- a caller that omits the keys entirely (every
-    # other provider) must leave the columns untouched.
+    # the unencrypted column even transiently. A nil value from a caller
+    # that always sends the keys (EnableBankingEntry::Processor) means "no
+    # counterparty data in this payload" and never clears a value an earlier
+    # sync captured; a caller that omits the keys entirely (every other
+    # provider) leaves the columns untouched as well.
     counterparty_keys_present = extra.is_a?(Hash) && (extra.with_indifferent_access.key?(:counterparty_iban) || extra.with_indifferent_access.key?(:counterparty_account_id))
     if extra.is_a?(Hash)
       extra = extra.with_indifferent_access
@@ -288,11 +288,13 @@ class Account::ProviderImportAdapter
       # Persist extra provider metadata on the transaction (non-enriched; always merged)
       apply_provider_extra(entry, extra, replace_extra_namespaces)
 
-      # Always assigned -- even to nil -- unlike the protected path above:
-      # a corrected or removed counterparty on a later sync must actually
-      # clear a stale value here, not leave it in place. See
-      # EnableBankingEntry::Processor#extra for why this is deliberate.
-      if counterparty_keys_present && entry.entryable.is_a?(Transaction)
+      # Unlike the protected path above, a later sync that does carry
+      # counterparty data replaces both columns, so a corrected IBAN wins.
+      # A blank redelivery leaves them alone: some ASPSPs drop the account
+      # data once a pending transaction is booked, and clearing here would
+      # lose an IBAN that an earlier sync of the same transaction captured.
+      if counterparty_keys_present && entry.entryable.is_a?(Transaction) &&
+          (incoming_counterparty_iban.present? || incoming_counterparty_account_id.present?)
         entry.transaction.counterparty_iban = incoming_counterparty_iban
         entry.transaction.counterparty_account_id = incoming_counterparty_account_id
         entry.transaction.save! if entry.transaction.changed?

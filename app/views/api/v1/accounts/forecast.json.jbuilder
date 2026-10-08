@@ -1,0 +1,31 @@
+# frozen_string_literal: true
+
+money = ->(value) { { amount: value.amount.to_s, formatted: value.format } }
+
+json.account_id @forecast.account.id
+json.currency @forecast.currency
+json.starts_on @forecast.starts_on.iso8601
+json.ends_on @forecast.ends_on.iso8601
+json.horizon @forecast.horizon.to_s
+json.next_payday @forecast.payday&.iso8601
+json.starting_balance money.call(@forecast.starting_balance)
+json.ending_balance money.call(@forecast.ending_balance)
+json.low_balance money.call(@forecast.low_balance)
+json.low_on @forecast.low_on.iso8601
+json.shortfall @forecast.shortfall?
+json.shortfall_amount money.call(@forecast.shortfall_amount)
+json.top_up_by @forecast.top_up_by&.iso8601
+json.unconvertible_count @forecast.unconvertible_count
+
+json.events @forecast.events do |event|
+  json.date event.date.iso8601
+  json.name event.name
+  json.kind event.kind.to_s
+  json.amount money.call(event.amount)
+  json.balance_after money.call(event.balance_after)
+  # A transfer from or to an account the key's user cannot access stays in
+  # the balance but carries no name or ids.
+  json.restricted event.restricted
+  json.recurring_transaction_id event.restricted ? nil : event.series.id
+  json.occurrence_id event.restricted ? nil : event.occurrence.id
+end

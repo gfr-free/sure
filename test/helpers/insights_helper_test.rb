@@ -178,6 +178,24 @@ class InsightsHelperTest < ActionView::TestCase
     assert_nil insight_action(dangling)
   end
 
+  test "account shortfall links only to an account the viewer can access" do
+    family = families(:dylan_family)
+    private_account = family.accounts.create!(name: "Member private", balance: 0, currency: "USD", owner: users(:family_member),
+                                              accountable: Depository.new(subtype: "checking"))
+    shared = build_insight("account_shortfall", metadata: { "account_id" => accounts(:depository).id })
+    hidden = build_insight("account_shortfall", metadata: { "account_id" => private_account.id })
+    Current.session = users(:family_admin).sessions.create!
+
+    assert_equal account_path(accounts(:depository), tab: "forecast"), insight_action(shared)[:href]
+    assert_nil insight_action(hidden)
+
+    # Broadcast renders run without a viewer and keep the link.
+    Current.reset
+    assert_equal account_path(accounts(:depository), tab: "forecast"), insight_action(shared)[:href]
+  ensure
+    Current.reset
+  end
+
   test "maintained reserve metadata and action render in German" do
     family = families(:dylan_family)
     goal = family.goals.first

@@ -1,0 +1,97 @@
+<%# locals: (account:, forecast:) %>
+<%# What is left in the account after its expected payments (Account::Forecast,
+    decision E13). Preview only. The event list doubles as the text
+    alternative for the day-by-day balance. %>
+<% bills_enabled = !account.family.recurring_transactions_disabled? %>
+<div class="space-y-4" data-testid="account-forecast">
+  <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-4">
+    <div class="flex items-center gap-2">
+      <h3 class="font-medium text-primary"><%= t("accounts.forecast.title") %></h3>
+      <%= render DS::Pill.new(label: t("accounts.liquidity.preview")) %>
+    </div>
+
+    <p class="text-sm text-secondary">
+      <% case forecast.horizon %>
+      <% when :payday %>
+        <%= t("accounts.forecast.horizon.payday", date: l(forecast.payday, format: :long)) %>
+      <% when :custom %>
+        <%= t("accounts.forecast.horizon.custom", date: l(forecast.ends_on, format: :long)) %>
+      <% else %>
+        <%= t("accounts.forecast.horizon.default", count: forecast.days, date: l(forecast.ends_on, format: :long)) %>
+      <% end %>
+    </p>
+
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <%= summary_card title: t("accounts.forecast.today") do %>
+        <%= format_money forecast.starting_balance %>
+      <% end %>
+      <%= summary_card title: t("accounts.forecast.low", date: l(forecast.low_on, format: :short)) do %>
+        <%= format_money forecast.low_balance %>
+      <% end %>
+      <%= summary_card title: t("accounts.forecast.left_over", date: l(forecast.ends_on, format: :short)) do %>
+        <%= format_money forecast.ending_balance %>
+      <% end %>
+    </div>
+
+    <% if forecast.shortfall? %>
+      <%= render DS::Alert.new(
+            variant: :error,
+            message: t("accounts.forecast.shortfall",
+                       date: l(forecast.low_on, format: :long),
+                       low: format_money(forecast.low_balance),
+                       amount: format_money(forecast.shortfall_amount),
+                       by: l(forecast.top_up_by, format: :long))
+          ) %>
+    <% end %>
+
+    <% if forecast.unconvertible_count.positive? %>
+      <p class="text-xs text-secondary"><%= t("accounts.forecast.unconvertible", count: forecast.unconvertible_count) %></p>
+    <% end %>
+  </div>
+
+  <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-2">
+    <h3 class="font-medium text-primary"><%= t("accounts.forecast.events_title") %></h3>
+
+    <% if forecast.events.empty? %>
+      <p class="text-sm text-secondary"><%= t("accounts.forecast.empty", date: l(forecast.ends_on, format: :long)) %></p>
+    <% else %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-secondary">
+              <th scope="col" class="py-2 pr-4 font-normal"><%= t("accounts.forecast.columns.date") %></th>
+              <th scope="col" class="py-2 pr-4 font-normal"><%= t("accounts.forecast.columns.name") %></th>
+              <th scope="col" class="py-2 pr-4 font-normal text-right"><%= t("accounts.forecast.columns.amount") %></th>
+              <th scope="col" class="py-2 font-normal text-right"><%= t("accounts.forecast.columns.balance") %></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-subdued">
+            <% forecast.events.each do |event| %>
+              <tr>
+                <td class="py-2 pr-4 text-secondary whitespace-nowrap"><%= l(event.date, format: :short) %></td>
+                <td class="py-2 pr-4 text-primary">
+                  <% if bills_enabled && !event.restricted %>
+                    <%= link_to event.name, recurring_occurrence_path(event.occurrence), data: { turbo_frame: :drawer }, class: "hover:underline" %>
+                  <% else %>
+                    <%= event.name %>
+                  <% end %>
+                  <span class="block text-xs text-secondary"><%= t("accounts.forecast.kinds.#{event.kind}") %></span>
+                </td>
+                <td class="py-2 pr-4 text-right whitespace-nowrap privacy-sensitive <%= event.amount.negative? ? "text-primary" : "text-success" %>">
+                  <%= format_money event.amount %>
+                </td>
+                <td class="py-2 text-right whitespace-nowrap privacy-sensitive <%= event.balance_after.negative? ? "text-destructive" : "text-primary" %>">
+                  <%= format_money event.balance_after %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+    <% if bills_enabled %>
+      <%= render DS::Link.new(text: t("accounts.forecast.view_bills"), href: bills_path, variant: :outline, size: :sm) %>
+    <% end %>
+  </div>
+</div>

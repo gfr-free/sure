@@ -9,7 +9,8 @@ class InvestmentFlowStatement
     "COALESCE(ABS(SUM(CASE WHEN transactions.investment_activity_label = 'Withdrawal' " \
     "THEN entries.amount ELSE 0 END)), 0)"
   )
-  private_constant :CONTRIBUTIONS_TOTAL_SQL, :WITHDRAWALS_TOTAL_SQL
+  INVESTMENT_ACCOUNT_TYPES = %w[Investment Crypto].freeze
+  private_constant :CONTRIBUTIONS_TOTAL_SQL, :WITHDRAWALS_TOTAL_SQL, :INVESTMENT_ACCOUNT_TYPES
 
   attr_reader :family, :user
 
@@ -27,7 +28,7 @@ class InvestmentFlowStatement
       .where(investment_activity_label: %w[Contribution Withdrawal])
 
     scope = base.where(kind: %w[standard investment_contribution])
-      .or(matched_contribution_inflows(base))
+      .or(matched_investment_flows(base))
 
     if user
       account_ids = family.accounts.included_in_finances_for(user).included_in_reports.select(:id)
@@ -49,25 +50,28 @@ class InvestmentFlowStatement
   PeriodTotals = Data.define(:contributions, :withdrawals, :net_flow)
 
   private
-    # Matching a provider "Contribution" on an investment/crypto account to its
-    # cash outflow turns the inflow leg into funds_movement (Transfer#kind_for_leg),
-    # so the kind filter above would drop it. Count that leg as a contribution when
-    # the money comes from outside the investment/crypto accounts, the same
+    # Matching a provider "Contribution" or "Withdrawal" on an investment/crypto
+    # account to its cash counterpart turns that leg into funds_movement
+    # (Transfer#kind_for_leg), so the kind filter above would drop it. Count it
+    # when the other leg is outside the investment/crypto accounts, the same
     # endpoint rule Transfer.kind_for_account uses. Movements between investment
     # or crypto accounts stay internal and are not counted.
-    def matched_contribution_inflows(base)
-      investment_types = %w[Investment Crypto]
+    def matched_investment_flows(base)
+      matched_flow(base, label: "Contribution", leg: :inflow_transaction_id, counterpart: :outflow_transaction)
+        .or(matched_flow(base, label: "Withdrawal", leg: :outflow_transaction_id, counterpart: :inflow_transaction))
+    end
 
+    def matched_flow(base, label:, leg:, counterpart:)
       base
         .where(kind: "funds_movement")
-        .where("transactions.investment_activity_label = 'Contribution'")
-        .where(entries: { account_id: family.accounts.where(accountable_type: investment_types).select(:id) })
+        .where("transactions.investment_activity_label = ?", label)
+        .where(entries: { account_id: family.accounts.where(accountable_type: INVESTMENT_ACCOUNT_TYPES).select(:id) })
         .where(
           id: Transfer
-            .joins(outflow_transaction: { entry: :account })
+            .joins(counterpart => { entry: :account })
             .where(accounts: { family_id: family.id })
-            .where.not(accounts: { accountable_type: investment_types })
-            .select(:inflow_transaction_id)
+            .where.not(accounts: { accountable_type: INVESTMENT_ACCOUNT_TYPES })
+            .select(leg)
         )
     end
 end

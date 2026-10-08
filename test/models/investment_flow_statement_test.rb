@@ -76,6 +76,27 @@ class InvestmentFlowStatementTest < ActiveSupport::TestCase
     assert_equal 500, expenses_after - expenses_before, "the contribution is budgeted once, on the cash leg"
   end
 
+  test "a matched provider withdrawal still counts once" do
+    family = families(:dylan_family)
+    period = Period.custom(start_date: Date.current, end_date: Date.current)
+
+    outflow = accounts(:investment).entries.create!(
+      name: "Withdrawal", amount: 300, date: Date.current, currency: "USD",
+      entryable: Transaction.new(kind: "standard", investment_activity_label: "Withdrawal")
+    )
+    accounts(:depository).entries.create!(
+      name: "From brokerage", amount: -300, date: Date.current, currency: "USD",
+      entryable: Transaction.new(kind: "standard")
+    )
+    family.auto_match_transfers!
+    assert outflow.transaction.reload.transfer.present?, "expected the two legs to be auto-matched"
+    assert_equal "funds_movement", outflow.transaction.kind
+
+    totals = InvestmentFlowStatement.new(family).period_totals(period: period)
+    assert_equal Money.new(300, "USD"), totals.withdrawals
+    assert_equal Money.new(0, "USD"), totals.contributions
+  end
+
   test "movements between investment and crypto accounts are not contributions" do
     family = families(:dylan_family)
     period = Period.custom(start_date: Date.current, end_date: Date.current)

@@ -194,7 +194,10 @@ module Family::AutoTransferMatchable
     counterparty_iban = transaction.counterparty_iban
     return nil if counterparty_iban.blank?
 
-    accounts.writable_by(user).visible.where.not(id: entry.account_id).find_by(iban: normalize_iban(counterparty_iban))
+    # One IBAN can back several currency sub-accounts (Revolut, Wise), so
+    # prefer the one in the outflow's own currency.
+    candidates = accounts.writable_by(user).visible.where.not(id: entry.account_id).where(iban: normalize_iban(counterparty_iban)).to_a
+    candidates.find { |candidate| candidate.currency == entry.currency } || candidates.first
   end
 
   # Family-wide counterpart to missing_transfer_suggestion_for: instead of
@@ -216,13 +219,33 @@ module Family::AutoTransferMatchable
   # destination account is eligible, keeping the fabricated entry's amount
   # exact rather than dependent on same-day exchange-rate availability.
   def auto_create_missing_transfer_counterparts!(account: nil)
+    # Only same-currency manual accounts that carry an IBAN can ever receive a
+    # fabricated counterpart, so look them up once and skip every outflow whose
+    # counterparty IBAN isn't one of theirs (rent, utilities and other third
+    # parties) before running any per-entry candidate query.
+    target_accounts_by_iban = accounts.visible_manual.to_a
+      .select { |target| target.iban.present? }
+      .group_by { |target| normalize_iban(target.iban) }
+    return if target_accounts_by_iban.empty?
+
+    # Narrow in SQL to outflows that still could need a counterpart: they
+    # carry a counterparty IBAN, aren't already a transfer, and the user
+    # hasn't dismissed the suggestion.
     outflow_entries = Entry.joins(:account)
+      .joins("INNER JOIN transactions ON transactions.id = entries.entryable_id")
       .where(accounts: { family_id: id, status: [ "draft", "active" ] })
       .where(entryable_type: "Transaction", excluded: false)
       .where("entries.amount > 0")
+      .where.not(transactions: { counterparty_iban: nil })
+      .where.not(transactions: { kind: Transaction::TRANSFER_KINDS })
+      .where.not("transactions.extra @> ?", { "counterparty_transfer_suggestion_dismissed" => true }.to_json)
     outflow_entries = outflow_entries.where(account_id: account.id) if account
 
-    outflow_entries.includes(:account).find_each do |entry|
+    writable_account_ids_by_owner = Hash.new do |ids, owner|
+      ids[owner] = accounts.writable_by(owner).pluck(:id).to_set
+    end
+
+    outflow_entries.preload(:entryable, account: :owner).find_each do |entry|
       transaction = entry.entryable
       next unless transaction.is_a?(Transaction)
       next if transaction.transfer?
@@ -231,16 +254,26 @@ module Family::AutoTransferMatchable
       counterparty_iban = transaction.counterparty_iban
       next if counterparty_iban.blank?
 
+      # The sync runs without a user, so act on behalf of the outflow
+      # account's owner: only fabricate into an account they could pick in
+      # the manual match dialog (TransferMatchesController#new), never into
+      # another member's private account. An account without an owner has
+      # nobody to act for, so it gets no automatic counterpart (the manual
+      # match dialog still works for it).
+      owner = entry.account.owner
+      next unless owner
+
+      target_account = target_accounts_by_iban[normalize_iban(counterparty_iban)]&.find do |candidate|
+        candidate.id != entry.account_id &&
+          candidate.currency == entry.currency &&
+          writable_account_ids_by_owner[owner].include?(candidate.id)
+      end
+      next unless target_account
+
       # A real match candidate (an inflow transaction that already exists)
       # is handled by auto_match_transfers! -- only fabricate a counterpart
       # when there's genuinely nothing to match against yet.
       next if transfer_match_candidates(outflow_transaction_id: transaction.id, account_id: account&.id).any?
-
-      target_account = accounts.where(status: [ "draft", "active" ])
-        .where.not(id: entry.account_id)
-        .find_by(iban: normalize_iban(counterparty_iban))
-      next unless target_account&.manual?
-      next unless target_account.currency == entry.currency
 
       create_missing_transfer_counterpart!(entry, transaction, target_account)
     end
@@ -253,7 +286,14 @@ module Family::AutoTransferMatchable
     # rolls back the whole attempt instead of leaving an orphaned entry
     # with no Transfer behind it.
     def create_missing_transfer_counterpart!(entry, transaction, target_account)
-      Transfer.transaction(requires_new: true) do
+      created = Transfer.transaction(requires_new: true) do
+        # The batch was loaded before this point; the user may have rejected
+        # or matched this outflow in the meantime. Re-check under a row lock
+        # so a reject during a running sync isn't undone right away.
+        transaction.lock!
+        next false if transaction.transfer?
+        next false if transaction.extra&.dig("counterparty_transfer_suggestion_dismissed") == true
+
         inflow_transaction = Transaction.new(
           kind: "funds_movement",
           extra: { "auto_generated_transfer_counterpart" => true },
@@ -261,7 +301,7 @@ module Family::AutoTransferMatchable
             amount: -entry.amount,
             currency: target_account.currency,
             date: entry.date,
-            name: "Transfer from #{entry.account.name}"
+            name: I18n.with_locale(locale) { I18n.t("transfer.counterpart_name", from_account: entry.account.name) }
           )
         )
         inflow_transaction.save!
@@ -273,9 +313,10 @@ module Family::AutoTransferMatchable
         )
 
         transaction.update!(kind: Transfer.kind_for_account(target_account))
+        true
       end
 
-      target_account.sync_later
+      target_account.sync_later if created
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
       nil
     end

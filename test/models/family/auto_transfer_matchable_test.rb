@@ -795,6 +795,16 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal @loan, @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
   end
 
+  test "missing_transfer_suggestion_for prefers the account in the outflow's currency when several share the iban" do
+    # Revolut and Wise expose one IBAN for several currency sub-accounts.
+    @family.accounts.create!(name: "EUR sub-account", balance: 0, currency: "EUR", accountable: Depository.new, iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    usd_account = @family.accounts.create!(name: "USD sub-account", balance: 0, currency: "USD", accountable: Depository.new, iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500, currency: "USD")
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    assert_equal usd_account, @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
+  end
+
   test "missing_transfer_suggestion_for returns nil without a counterparty iban" do
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
 
@@ -940,6 +950,131 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     # The real, bank-provided leg survives and is simply unlinked.
     assert Entry.exists?(outflow_entry.id)
     assert_equal "standard", outflow_entry.reload.entryable.kind
+  end
+
+  test "a rejected fabricated counterpart is not recreated by the next sync" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+    Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).reject!
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+    assert_equal true, outflow_entry.reload.entryable.extra["counterparty_transfer_suggestion_dismissed"]
+  end
+
+  test "an unlinked fabricated counterpart is not recreated by the next sync" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+    Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).unlink!
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+  end
+
+  test "a system-side destroy of a fabricated transfer does not dismiss the suggestion" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+
+    # e.g. Account#cleanup_transfers when the target account is deleted
+    Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).destroy!
+
+    assert_nil outflow_entry.reload.entryable.extra["counterparty_transfer_suggestion_dismissed"]
+  end
+
+  test "rejecting keeps other extra keys on the outflow" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+    transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
+    transfer.outflow_transaction.extra # load the outflow before the concurrent write
+
+    # A provider import writes metadata after the transfer was loaded.
+    Transaction.where(id: outflow_entry.entryable_id).update_all(extra: { "provider" => { "ref" => "abc" } })
+    transfer.reject!
+
+    extra = outflow_entry.reload.entryable.extra
+    assert_equal({ "ref" => "abc" }, extra["provider"])
+    assert_equal true, extra["counterparty_transfer_suggestion_dismissed"]
+  end
+
+  test "a reject that lands while the sync is running is not undone" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    stale_transaction = Transaction.find(outflow_entry.entryable_id)
+
+    # The user dismisses it after the sync loaded its batch.
+    Transaction.find(outflow_entry.entryable_id).dismiss_counterparty_transfer_suggestion!
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.send(:create_missing_transfer_counterpart!, outflow_entry, stale_transaction, @loan)
+    end
+  end
+
+  test "auto_create_missing_transfer_counterparts! skips outflow accounts without an owner" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @depository.update_column(:owner_id, nil)
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+  end
+
+  test "unlinking a real transfer does not dismiss the counterpart suggestion" do
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    inflow_entry = create_transaction(date: Date.current, account: @loan, amount: -500)
+    transfer = Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable)
+
+    transfer.reject!
+
+    assert_nil outflow_entry.reload.entryable.extra&.dig("counterparty_transfer_suggestion_dismissed")
+  end
+
+  test "auto_create_missing_transfer_counterparts! does not fabricate into an account the outflow's owner cannot write to" do
+    other_member = users(:family_member)
+    @loan.update!(iban: "DE89370400440532013000", owner: other_member) # pipelock:ignore IBAN
+    @loan.account_shares.where(user: @user).destroy_all
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+  end
+
+  test "auto_create_missing_transfer_counterparts! skips third-party ibans without querying candidates" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "AT611904300234573201") # pipelock:ignore IBAN
+
+    @family.expects(:transfer_match_candidates).never
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+  end
+
+  test "auto_create_missing_transfer_counterparts! names the fabricated entry in the family locale" do
+    @family.update!(locale: "de")
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    @family.auto_create_missing_transfer_counterparts!
+
+    transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
+    assert_equal "Überweisung von #{@depository.name}", transfer.inflow_transaction.entry.name
   end
 
   private

@@ -39,7 +39,7 @@ class RecurringAutoPostTest < ApplicationSystemTestCase
                                                        due_on: Date.current + 9, currency: "USD")
 
     visit bill_url(@series, occurrence: occurrence.id)
-    click_on I18n.t("bills.resolve")
+    click_on I18n.t("bills.find_payment")
     click_on I18n.t("recurring_occurrences.show.post_now")
 
     assert_text I18n.t("recurring_occurrences.post_now.success", date: I18n.l(Date.current, format: :long))

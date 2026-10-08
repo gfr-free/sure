@@ -70,7 +70,7 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match I18n.t("bills.show.auto_posting_since", date: I18n.l(@series.auto_post_from, format: :long)), response.body
-    assert_select "form[action=?][data-turbo-frame=_top]", toggle_auto_post_recurring_transaction_path(@series)
+    assert_select "dialog header form[action=?] [data-turbo-frame=_top]", toggle_auto_post_recurring_transaction_path(@series)
     assert_match I18n.t("bills.show.auto_post_off"), response.body
   end
 

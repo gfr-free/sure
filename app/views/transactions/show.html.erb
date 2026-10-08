@@ -94,6 +94,11 @@
                     blank_label: t(".uncategorized")
                   ) %>
             <% end %>
+          <% elsif @entry.transaction.category_set_on_transfer_outflow? %>
+            <%= render DS::Note.new do %>
+              <p><%= t(".category_set_on_outflow",
+                       category: @entry.transaction.transfer.outflow_transaction.category&.display_name || t(".uncategorized")) %></p>
+            <% end %>
           <% end %>
         <% end %>
       </div>

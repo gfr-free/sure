@@ -1,6 +1,8 @@
 <span id="category_name_mobile_<%= transaction.id %>" class="text-secondary lg:hidden min-w-0 truncate">
   <% if transaction.category_editable? %>
     <%= transaction.category&.display_name || Category.uncategorized.display_name %>
+  <% elsif transaction.category_set_on_transfer_outflow? %>
+    <%= transaction.transfer.outflow_transaction.category&.display_name || Category.uncategorized.display_name %>
   <% else %>
     <%= transaction.payment? ? payment_category.display_name : transfer_category.display_name %>
   <% end %>

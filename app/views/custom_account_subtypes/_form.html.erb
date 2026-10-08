@@ -1,0 +1,50 @@
+<%# locals: (custom_account_subtype:, template:) %>
+<div class="space-y-4">
+  <% if custom_account_subtype.errors.any? %>
+    <%= render DS::Alert.new(message: custom_account_subtype.errors.full_messages.to_sentence, variant: :error) %>
+  <% end %>
+
+  <% if custom_account_subtype.new_record? %>
+    <%# Picking a template reloads the dialog with that subtype's rules. %>
+    <%= styled_form_with url: new_custom_account_subtype_path, method: :get,
+          data: { turbo_frame: :modal, controller: "auto-submit-form" } do |template_form| %>
+      <%= template_form.select :template,
+            grouped_options_for_select(custom_account_subtype_template_options, template),
+            { label: t(".template_label"), help_text: t(".template_hint") },
+            { data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } } %>
+    <% end %>
+  <% end %>
+
+  <%= styled_form_with model: custom_account_subtype, class: "space-y-4" do |f| %>
+    <% if custom_account_subtype.new_record? %>
+      <%= f.hidden_field :accountable_type %>
+    <% else %>
+      <p class="text-sm text-secondary">
+        <%= t(".account_type", type: custom_account_subtype.accountable_class.singular_display_name) %>
+      </p>
+    <% end %>
+
+    <%= f.text_field :name,
+          label: t(".name_label"),
+          placeholder: t(".name_placeholder"),
+          required: true,
+          autofocus: true,
+          maxlength: CustomAccountSubtype::MAX_NAME_LENGTH %>
+
+    <%= f.select :liquidity,
+          Account::Liquidity::LEVELS.map { |level| [ t("accounts.liquidity.levels.#{level}"), level ] },
+          { label: t(".liquidity_label"), help_text: t(".liquidity_hint"), selected: custom_account_subtype.liquidity } %>
+
+    <% if custom_account_subtype.tax_treatment_supported? %>
+      <%= f.select :tax_treatment,
+            CustomAccountSubtype::TAX_TREATMENTS.map { |treatment| [ t("accounts.tax_treatments.#{treatment}"), treatment ] },
+            { label: t(".tax_treatment_label"), help_text: t(".tax_treatment_hint"), include_blank: t(".tax_treatment_none"), selected: custom_account_subtype.tax_treatment&.to_s } %>
+    <% end %>
+
+    <% if custom_account_subtype.persisted? %>
+      <p class="text-xs text-secondary"><%= t(".update_hint") %></p>
+    <% end %>
+
+    <%= f.submit %>
+  <% end %>
+</div>

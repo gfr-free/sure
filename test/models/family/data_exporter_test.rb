@@ -167,13 +167,20 @@ class Family::DataExporterTest < ActiveSupport::TestCase
   end
 
   test "generates valid CSV files" do
+    custom = @family.custom_account_subtypes.create!(
+      accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" }
+    )
+    @account.update!(custom_account_subtype: custom)
+
     zip_data = @exporter.generate_export
 
     Zip::File.open_buffer(zip_data) do |zip|
       # Check accounts.csv
       accounts_csv = zip.read("accounts.csv")
-      assert_equal [ "id", "name", "type", "subtype", "balance", "currency", "created_at", "liquidity", "available_on" ],
+      assert_equal [ "id", "name", "type", "subtype", "balance", "currency", "created_at", "liquidity", "available_on", "custom_subtype" ],
                    CSV.parse(accounts_csv, headers: true).headers
+      exported = CSV.parse(accounts_csv, headers: true).find { |row| row["id"] == @account.id }
+      assert_equal "Fixed 2y", exported["custom_subtype"]
 
       # Check version marker
       version_txt = zip.read("version.txt")
@@ -202,6 +209,30 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       rules_csv = zip.read("rules.csv")
       assert rules_csv.include?("name,resource_type,active,effective_date,conditions,actions")
     end
+  end
+
+  test "exports custom subtypes so an import into another family restores them" do
+    custom = @family.custom_account_subtypes.create!(
+      accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" }
+    )
+    @account.update!(custom_account_subtype: custom)
+    families(:empty).custom_account_subtypes.create!(accountable_type: "Depository", name: "Not exported", rules: { "liquidity" => "immediate" })
+
+    ndjson = nil
+    Zip::File.open_buffer(@exporter.generate_export) { |zip| ndjson = zip.read("all.ndjson") }
+    records = ndjson.lines.map { |line| JSON.parse(line) }
+    exported = records.select { |record| record["type"] == "CustomAccountSubtype" }
+
+    assert_equal [ "Fixed 2y" ], exported.map { |record| record.dig("data", "name") }
+    assert_equal({ "liquidity" => "locked", "tax_treatment" => nil }, exported.first.dig("data", "rules"))
+
+    target = families(:empty)
+    account_lines = records.select { |record| record["type"].in?(%w[CustomAccountSubtype Account]) }
+    result = Family::DataImporter.new(target, account_lines.map(&:to_json).join("\n")).import!
+    imported = result[:accounts].find { |account| account.name == "Test Account" }
+
+    assert_equal "Fixed 2y", imported.custom_account_subtype.name
+    assert_equal target, imported.custom_account_subtype.family
   end
 
   test "exports merchants in CSV format scoped to the family" do

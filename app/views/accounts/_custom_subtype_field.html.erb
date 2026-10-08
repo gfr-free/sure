@@ -1,0 +1,12 @@
+<%# locals: (form:, account:, options:) %>
+<%# The family's own subtype (CustomAccountSubtype, decision E22 stage 2).
+    Preview only, decision E10. Its rules replace the built-in subtype's. %>
+<div class="space-y-1">
+  <%= form.select :custom_account_subtype_id,
+                  options,
+                  { label: t("accounts.custom_subtype.label"), include_blank: t("accounts.custom_subtype.none") } %>
+  <p class="text-xs text-secondary">
+    <%= t("accounts.custom_subtype.hint") %>
+    <%= link_to t("accounts.custom_subtype.manage"), custom_account_subtypes_path, class: "underline", data: { turbo_frame: "_top" } %>
+  </p>
+</div>

@@ -63,13 +63,36 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert flash[:alert].present?
   end
 
-  test "the bill page says since when it posts automatically" do
+  test "the bill drawer says since when it posts automatically and offers to stop" do
     @series.update!(auto_post: true)
 
-    get bill_url(@series)
+    get bill_url(@series, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
 
     assert_response :success
     assert_match I18n.t("bills.show.auto_posting_since", date: I18n.l(@series.auto_post_from, format: :long)), response.body
+    assert_select "form[action=?][data-turbo-frame=_top]", toggle_auto_post_recurring_transaction_path(@series)
+    assert_match I18n.t("bills.show.auto_post_off"), response.body
+  end
+
+  test "the bill drawer offers to switch auto-posting on for a manual account" do
+    get bill_url(@series, display: "drawer"), headers: { "Turbo-Frame" => "drawer" }
+
+    assert_response :success
+    assert_match I18n.t("bills.show.auto_post_on"), response.body
+    assert_no_match I18n.t("bills.show.auto_post_off"), response.body
+  end
+
+  test "the bill drawer history marks a payment Sure posted and links upcoming dates" do
+    post_provisionally!
+    upcoming_date = @series.schedule.occurrences_between(Date.current + 1, Date.current + 400).first
+    upcoming = @series.recurring_occurrences.create!(family: @family, original_due_on: upcoming_date,
+                                                     due_on: upcoming_date, currency: "USD")
+
+    get bill_url(@series, display: "history"), headers: { "Turbo-Frame" => ActionView::RecordIdentifier.dom_id(@series, :history) }
+
+    assert_response :success
+    assert_match I18n.t("bills.detail.auto_posted"), response.body
+    assert_select "a[href=?][data-turbo-frame=drawer]", recurring_occurrence_path(upcoming)
   end
 
   test "all bills can be filtered to the ones posting automatically" do

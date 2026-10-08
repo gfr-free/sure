@@ -27,7 +27,7 @@ class Category < ApplicationRecord
   validates :name, exclusion: { in: [ UNCATEGORIZED_FILTER_VALUE ] }
 
   validate :category_level_limit
-  validate :parent_belongs_to_family
+  validate :parent_in_same_family
 
   before_save :inherit_color_from_parent
 
@@ -413,8 +413,10 @@ class Category < ApplicationRecord
       end
     end
 
-    def parent_belongs_to_family
-      errors.add(:parent, :invalid) if parent && parent.family_id != family_id
+    def parent_in_same_family
+      return if parent.nil? || parent.family_id == family_id
+
+      errors.add(:parent, :invalid)
     end
 
     def monetizable_currency

@@ -65,6 +65,7 @@ class InvestmentFlowStatement
         .where(
           id: Transfer
             .joins(outflow_transaction: { entry: :account })
+            .where(accounts: { family_id: family.id })
             .where.not(accounts: { accountable_type: investment_types })
             .select(:inflow_transaction_id)
         )

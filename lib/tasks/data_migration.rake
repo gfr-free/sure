@@ -262,7 +262,8 @@ namespace :data_migration do
     scope = Transfer.all
 
     if ENV["FAMILY_ID"].present?
-      family = Family.find(ENV["FAMILY_ID"])
+      family = Family.find_by(id: ENV["FAMILY_ID"])
+      abort "No family with id #{ENV["FAMILY_ID"]}" unless family
       scope = scope.where(inflow_transaction_id: family.transactions.select(:id))
     end
 

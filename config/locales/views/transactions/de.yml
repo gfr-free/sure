@@ -38,6 +38,7 @@ de:
     transaction_category:
       set_on_outflow: "Die Kategorie wird an der Abbuchung des Transfers gepflegt"
     show:
+      category_set_on_hidden_outflow: "Die Kategorie dieses Transfers wird an der Abbuchung gepflegt."
       category_set_on_outflow: "Die Kategorie dieses Transfers wird an der Abbuchung gepflegt: %{category}."
       account_label: Konto
       amount: Betrag

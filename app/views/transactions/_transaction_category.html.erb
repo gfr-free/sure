@@ -3,19 +3,16 @@
 <div id="<%= dom_id(transaction, "category_menu_#{variant}") %>" class="min-w-0 overflow-hidden">
   <% if transaction.category_editable? %>
     <%= render "categories/menu", transaction: transaction, in_split_group: in_split_group %>
-  <% elsif transaction.category_set_on_transfer_outflow? %>
-    <div class="hidden lg:flex" title="<%= t("transactions.transaction_category.set_on_outflow") %>">
-      <%= render "categories/badge", category: transaction.transfer.outflow_transaction.category %>
-    </div>
-    <div class="flex lg:hidden" title="<%= t("transactions.transaction_category.set_on_outflow") %>">
-      <%= render "categories/badge_mobile", category: transaction.transfer.outflow_transaction.category %>
-    </div>
   <% else %>
-    <div class="hidden lg:flex">
-      <%= render "categories/badge", category: transaction.payment? ? payment_category : transfer_category %>
+    <% category = read_only_category(transaction) %>
+    <div class="hidden lg:flex items-center gap-1 min-w-0">
+      <%= render "categories/badge", category: category %>
+      <% if transaction.category_set_on_transfer_outflow? %>
+        <%= render DS::Tooltip.new(text: t("transactions.transaction_category.set_on_outflow")) %>
+      <% end %>
     </div>
     <div class="flex lg:hidden">
-      <%= render "categories/badge_mobile", category: transaction.payment? ? payment_category : transfer_category %>
+      <%= render "categories/badge_mobile", category: category %>
     </div>
   <% end %>
 </div>

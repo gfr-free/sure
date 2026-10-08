@@ -43,15 +43,18 @@ class Transfer::InvestmentKindReconcilerTest < ActiveSupport::TestCase
     assert_equal "funds_movement", outflow.transaction.reload.kind
   end
 
-  test "keeps kinds the user chose and excluded entries" do
+  test "keeps kinds the user chose, excluded entries and locked kinds" do
     one_time = create_transfer(from: accounts(:crypto), to: accounts(:investment), outflow_kind: "one_time")
     excluded = create_transfer(from: accounts(:crypto), to: accounts(:investment), outflow_kind: "investment_contribution")
     excluded.outflow_transaction.entry.update_columns(excluded: true)
+    locked = create_transfer(from: accounts(:crypto), to: accounts(:investment), outflow_kind: "investment_contribution")
+    locked.outflow_transaction.lock_attr!(:kind)
 
     Transfer::InvestmentKindReconciler.new.run
 
     assert_equal "one_time", one_time.outflow_transaction.reload.kind
     assert_equal "investment_contribution", excluded.outflow_transaction.reload.kind
+    assert_equal "investment_contribution", locked.outflow_transaction.reload.kind
   end
 
   test "leaves transfers into other account types alone" do

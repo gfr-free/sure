@@ -64,6 +64,7 @@ en:
     transaction_category:
       set_on_outflow: "Category is set on the outgoing transfer leg"
     show:
+      category_set_on_hidden_outflow: "The category of this transfer is set on its outgoing leg."
       category_set_on_outflow: "The category of this transfer is set on its outgoing leg: %{category}."
       keep_both: No, keep both
       loan_payment: Loan Payment

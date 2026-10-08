@@ -11,7 +11,7 @@
 # - only transfers whose destination is an investment or crypto account;
 # - only legs whose current kind is one of Transaction::TRANSFER_KINDS, so a
 #   kind the user chose (standard, one_time) is never overwritten;
-# - excluded entries are left alone;
+# - excluded entries and transactions with a locked kind are left alone;
 # - a second run finds nothing to change.
 #
 # Entries created or matched through Transfer::Creator and the match dialog
@@ -59,7 +59,9 @@ class Transfer::InvestmentKindReconciler
     end
 
     def repairable?(transaction)
-      Transaction::TRANSFER_KINDS.include?(transaction.kind) && !transaction.entry.excluded?
+      Transaction::TRANSFER_KINDS.include?(transaction.kind) &&
+        !transaction.entry.excluded? &&
+        !transaction.locked?(:kind)
     end
 
     def repair!(transaction, kind)

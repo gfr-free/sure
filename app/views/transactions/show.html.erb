@@ -96,8 +96,8 @@
             <% end %>
           <% elsif @entry.transaction.category_set_on_transfer_outflow? %>
             <%= render DS::Note.new do %>
-              <p><%= t(".category_set_on_outflow",
-                       category: @entry.transaction.transfer.outflow_transaction.category&.display_name || t(".uncategorized")) %></p>
+              <% outflow_category = transfer_outflow_category(@entry.transaction) %>
+              <p><%= outflow_category ? t(".category_set_on_outflow", category: outflow_category.display_name) : t(".category_set_on_hidden_outflow") %></p>
             <% end %>
           <% end %>
         <% end %>

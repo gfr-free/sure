@@ -101,17 +101,26 @@ class ReportsTest < ApplicationSystemTestCase
     assert_operator saved_order.index(second), :<, saved_order.index(first)
   end
 
-  test "a section still grabbed when the page unloads keeps its new place" do
+  # Navigates away for real, so the browser's own unload (and the keepalive
+  # request) has to carry the save. The order is read back from the database
+  # once the destination page has loaded, not from a synthetic event.
+  test "a section still grabbed when the user navigates away keeps its new place" do
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
+
     record_saved_section_order("reports-sortable")
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)
-    page.execute_script("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
 
-    assert_selector "html[data-order-saved='200']"
-    saved_order = users(:family_admin).reload.reports_section_order
-    assert_operator saved_order.index(second), :<, saved_order.index(first)
+    visit settings_profile_path
+    assert_current_path settings_profile_path
+
+    page.document.synchronize do
+      saved_order = users(:family_admin).reload.reports_section_order
+      unless saved_order.index(second) && saved_order.index(first) && saved_order.index(second) < saved_order.index(first)
+        raise Capybara::ExpectationNotMet, "section order was not saved on navigation"
+      end
+    end
   end
 
   private

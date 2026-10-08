@@ -101,12 +101,12 @@ class OauthRegistrationController < ApplicationController
 
   private
 
-    # Matches "Sure" as a whole word, ignoring case, punctuation, invisible
+    # Matches "Sure" as a whole word, ignoring case, punctuation, invisible (including the combining grapheme joiner)
     # format characters, full-width letters and common look-alike letters,
     # plus words starting with "SureMobile". "Surefire" or "Measure Mobile"
     # stay allowed.
     def reserved_client_name?(name)
-      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/\p{Cf}/, "")
+      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/[\p{Cf}\u034F]/, "")
         .tr(CONFUSABLE_LETTERS, CONFUSABLE_LATIN)
       words = normalized.scan(/[[:alnum:]]+/)
       words.any? { |word| word == RESERVED_CLIENT_NAME_WORD || word.start_with?("#{RESERVED_CLIENT_NAME_WORD}mobile") }

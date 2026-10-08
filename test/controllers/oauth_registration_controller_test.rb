@@ -340,7 +340,7 @@ class OauthRegistrationControllerTest < ActionDispatch::IntegrationTest
   test "rejects client names reserved for first-party apps" do
     [
       "Sure Mobile", "sure mobile", "SURE-Mobile", "Sure", "Official Sure App", "SureMobile", "SureMobileApp",
-      "Su\u200Bre Mobile", "\uFF33\uFF55\uFF52\uFF45 Mobile",
+      "Su\u200Bre Mobile", "Su\u034Fre Mobile", "\uFF33\uFF55\uFF52\uFF45 Mobile",
       "\u0405ur\u0435 Mobile", "S\u057Dre", "\u0405URE \u041C\u041EBILE"
     ].each do |client_name|
       assert_no_difference "Doorkeeper::Application.count", client_name do

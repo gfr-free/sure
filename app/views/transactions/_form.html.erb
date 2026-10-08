@@ -98,6 +98,13 @@
       destination_input: destination_input %>
   </section>
 
+  <%# "Repeat" starts a series with this transaction (RecurringTransaction::FromNewEntry).
+      Manual accounts only: the account picker lists nothing else, and a fixed
+      account must be one too, since a bank would import the next payments. %>
+  <% if repeat_available? && (entry.account.nil? || entry.account.manual?) %>
+    <%= render "transactions/repeat_fields", settings: repeat_settings %>
+  <% end %>
+
   <%= render DS::Disclosure.new(title: t(".details")) do %>
     <section class="space-y-2">
       <%= f.fields_for :entryable do |ef| %>

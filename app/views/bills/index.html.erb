@@ -74,20 +74,21 @@
         <%= render DS::ReviewRow.new do |row| %>
           <% row.with_actions do %>
             <%= render DS::Link.new(
-                  text: t("recurring_occurrences.show.link_payment"),
+                  text: suggestion.pending_review? ? t(".auto_posted_confirm") : t("recurring_occurrences.show.link_payment"),
                   variant: "primary",
                   href: confirm_recurring_allocation_path(suggestion),
                   method: :post
                 ) %>
             <%= render DS::Link.new(
-                  text: t("recurring_occurrences.show.not_this_one"),
+                  text: suggestion.pending_review? ? t(".auto_posted_discard") : t("recurring_occurrences.show.not_this_one"),
                   variant: "ghost",
                   href: reject_recurring_allocation_path(suggestion),
-                  method: :post
+                  method: :post,
+                  data: suggestion.pending_review? ? { turbo_confirm: t("transactions.auto_posted.discard_confirm") } : {}
                 ) %>
           <% end %>
           <p class="text-sm text-primary @md:truncate">
-            <%= t(".suggestion_line",
+            <%= t(suggestion.pending_review? ? ".auto_posted_line" : ".suggestion_line",
                   entry: suggestion.entry&.name.presence || t(".suggestion_unknown_entry"),
                   bill: series.display_name) %>
           </p>

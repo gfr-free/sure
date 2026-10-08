@@ -20,7 +20,8 @@ class Entry < ApplicationRecord
 
   has_many :child_entries, class_name: "Entry", foreign_key: :parent_entry_id, dependent: :destroy
   # Read side only, so a transaction can say which bills it paid. The foreign key
-  # already nullifies on delete, so this adds no lifecycle behaviour.
+  # already nullifies on delete, which keeps a payment the user recorded. The
+  # one exception is below: an entry Sure posted by itself.
   has_many :recurring_allocations, dependent: nil, inverse_of: :entry
 
   delegated_type :entryable, types: Entryable::TYPES, dependent: :destroy
@@ -35,6 +36,7 @@ class Entry < ApplicationRecord
   validate :split_child_date_matches_parent
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
+  before_destroy :release_auto_posted_allocations
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   scope :visible, -> {
@@ -582,6 +584,15 @@ class Entry < ApplicationRecord
   end
 
   private
+
+    # Deleting an entry Sure auto-posted means the payment did not happen as
+    # posted, so its occurrence reopens and waits for another payment or a
+    # skip. It never posts again: `auto_posted_at` stays set.
+    def release_auto_posted_allocations
+      recurring_allocations.from_auto_posted.includes(:recurring_occurrence).find_each do |allocation|
+        RecurringTransaction::Allocator.new(allocation.recurring_occurrence).unallocate!(allocation)
+      end
+    end
 
     # Remembers the earliest date this entry had before any save that changed
     # it, for sync_account_later to use as the sync window start.

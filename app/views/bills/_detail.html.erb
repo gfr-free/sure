@@ -1,5 +1,5 @@
 <%# locals: (series:, history:, upcoming:, analytics:, payment_history:,
-             yearly_metrics:, last_account:) %>
+             yearly_metrics:, last_account:, upcoming_occurrences: {}) %>
 
 <%# The sections under bills/_summary in a bill's drawer, collapsible like a
     transaction's or a budget category's: why it matches and what it has
@@ -126,10 +126,18 @@
     <%= render DS::Disclosure.new(title: t("bills.detail.upcoming")) do %>
       <div class="bg-container-inset rounded-lg divide-y divide-subdued">
         <% upcoming.each do |date| %>
-          <div class="flex items-center justify-between px-3 py-2">
-            <p class="text-sm text-primary"><%= l(date, format: :long) %></p>
+          <% occurrence = upcoming_occurrences[date] %>
+          <div class="flex items-center justify-between gap-3 px-3 py-2">
+            <p class="text-sm text-primary">
+              <% if occurrence %>
+                <%= link_to l(date, format: :long), recurring_occurrence_path(occurrence),
+                      data: { turbo_frame: :drawer }, class: "hover:underline" %>
+              <% else %>
+                <%= l(date, format: :long) %>
+              <% end %>
+            </p>
             <p class="text-sm text-secondary privacy-sensitive">
-              ~<%= format_money(Money.new(series.amount.abs, series.currency)) %>
+              ~<%= format_money(occurrence ? occurrence.resolved_expected_amount_money : Money.new(series.amount.abs, series.currency)) %>
             </p>
           </div>
         <% end %>
@@ -154,6 +162,9 @@
                   &middot; <%= t("bills.detail.payment_count", count: payments.size) %>
                 <% elsif (payment = payments.first) %>
                   &middot; <%= payment.entry&.name.presence || t("bills.detail.manual_payment") %>
+                <% end %>
+                <% if payments.any?(&:from_auto_posted?) %>
+                  &middot; <%= t("bills.detail.auto_posted") %>
                 <% end %>
               </p>
             </div>

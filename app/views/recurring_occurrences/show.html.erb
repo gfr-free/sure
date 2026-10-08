@@ -273,6 +273,18 @@
           the keyboard up its buttons cannot be reached. %>
       <div class="pt-2 border-t border-subdued space-y-3">
         <% if @occurrence.scheduled? %>
+          <%# Paid early, or by hand, on a manual account: one click records the
+              payment instead of typing it in. Dated today, never the due date. %>
+          <% if @can_post_now %>
+            <div class="min-w-0">
+              <%= render DS::Link.new(text: t(".post_now"), variant: "secondary",
+                    href: post_now_recurring_occurrence_path(@occurrence), method: :post) %>
+              <p class="text-xs text-secondary pt-1 privacy-sensitive">
+                <%= t(".post_now_hint", amount: format_money(@occurrence.resolved_expected_amount_money)) %>
+              </p>
+            </div>
+          <% end %>
+
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <%= render DS::Link.new(text: t(".mark_paid"), variant: "secondary",

@@ -55,10 +55,29 @@
       </div>
     <% end %>
 
-    <%= f.collection_select :account_id,
-          Current.user.accessible_accounts.visible.alphabetically,
-          :id, :name,
-          { label: income ? t(".income_account_label") : t(".account_label"), include_blank: t(".account_blank") } %>
+    <%# Posting an entry by itself only makes sense where no bank delivers
+        one, so the switch follows the chosen account and turns off on a
+        linked one. The model validates the same rule on save. %>
+    <% accounts = Current.user.accessible_accounts.visible.alphabetically %>
+    <div class="space-y-4" data-controller="recurring-auto-post"
+         data-recurring-auto-post-manual-ids-value="<%= recurring_manual_account_ids(accounts).to_json %>">
+      <%= f.collection_select :account_id,
+            accounts,
+            :id, :name,
+            { label: income ? t(".income_account_label") : t(".account_label"), include_blank: t(".account_blank") },
+            { data: { recurring_auto_post_target: "account", action: "change->recurring-auto-post#update" } } %>
+
+      <% if recurring_transaction.amount_fixed? %>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-primary"><%= t(".auto_post_label") %></p>
+            <p class="text-xs text-secondary"><%= income ? t(".income_auto_post_hint") : t(".auto_post_hint") %></p>
+            <p class="text-xs text-secondary hidden" data-recurring-auto-post-target="unavailable"><%= t(".auto_post_manual_only") %></p>
+          </div>
+          <%= f.toggle :auto_post, data: { recurring_auto_post_target: "toggle" } %>
+        </div>
+      <% end %>
+    </div>
 
     <%# Which kind this is was decided by the entry point that opened the
         dialog, so the form only has to carry the answer. Offering it as a

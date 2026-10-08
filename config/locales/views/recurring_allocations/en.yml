@@ -12,4 +12,8 @@ en:
     confirm:
       success: Payment applied to the bill
     reject:
-      success: "Dismissed. That transaction won't be suggested for this bill again." 
+      success: "Dismissed. That transaction won't be suggested for this bill again."
+    discard:
+      success: Posting discarded and the bill's date skipped
+    confirm_posted:
+      success: Posting confirmed

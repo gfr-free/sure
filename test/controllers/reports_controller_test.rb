@@ -98,6 +98,70 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "net worth section groups accounts by the field picked in the report" do
+    @user.update!(preferences: @user.preferences.merge(
+      "preview_features_enabled" => true,
+      "reports_net_worth_grouping" => "custom_group"
+    ))
+    accounts(:depository).update!(custom_group: "Reserve")
+    accounts(:investment).update!(custom_group: "Reserve")
+
+    get reports_path
+    assert_response :ok
+
+    assert_select "select[name='net_worth_grouping'] option[selected][value='custom_group']"
+    assert_select "section[data-section-key='net_worth'] td", text: "Reserve"
+    assert_select "section[data-section-key='net_worth'] td", text: Depository.display_name, count: 0
+  end
+
+  test "net worth section ignores the stored field without preview access" do
+    @user.update!(preferences: @user.preferences.merge(
+      "preview_features_enabled" => false,
+      "reports_net_worth_grouping" => "custom_group"
+    ))
+    accounts(:depository).update!(custom_group: "Reserve")
+
+    get reports_path
+    assert_response :ok
+
+    assert_select "select[name='net_worth_grouping']", count: 0
+    assert_select "section[data-section-key='net_worth'] td", text: "Reserve", count: 0
+    assert_select "section[data-section-key='net_worth'] td", text: Depository.display_name
+  end
+
+  test "saves the net worth grouping and returns to the report" do
+    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => true))
+
+    patch update_net_worth_grouping_reports_path,
+          params: { net_worth_grouping: "institution" },
+          headers: { "HTTP_REFERER" => reports_url(period_type: :ytd) }
+
+    assert_redirected_to reports_url(period_type: :ytd)
+    assert_response :see_other
+    assert_equal "institution", @user.reload.reports_net_worth_grouping
+  end
+
+  test "an unknown net worth grouping falls back to the account type" do
+    @user.update!(preferences: @user.preferences.merge(
+      "preview_features_enabled" => true,
+      "reports_net_worth_grouping" => "institution"
+    ))
+
+    patch update_net_worth_grouping_reports_path, params: { net_worth_grouping: "balance" }
+
+    assert_redirected_to reports_path
+    assert_equal "account_type", @user.reload.reports_net_worth_grouping
+  end
+
+  test "does not save the net worth grouping without preview access" do
+    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => false))
+
+    patch update_net_worth_grouping_reports_path, params: { net_worth_grouping: "institution" }
+
+    assert_redirected_to reports_path
+    assert_nil @user.reload.preferences["reports_net_worth_grouping"]
+  end
+
   # The desktop app clones these into the tray when a download such as the CSV
   # export ends, since it has no download list of its own, and reads their data
   # attributes for its native notification.

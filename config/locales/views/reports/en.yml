@@ -139,6 +139,7 @@ en:
       total_liabilities: Liabilities
       no_assets: No assets
       no_liabilities: No liabilities
+      group_by: Group by
     investment_performance:
       title: Investment Performance
       portfolio_value: Portfolio Value

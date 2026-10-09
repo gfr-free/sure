@@ -61,8 +61,7 @@ class BalanceSheet::ClassificationGroup
 
     def dimension_groups(dimension, user:)
       AccountGrouping.new(dimension, user: user).group(accounts).map do |group|
-        # Prefixed so an asset and a debt group with the same value stay apart.
-        key = "#{classification}_#{AccountGrouping.group_key(dimension, group.key)}"
+        key = AccountGrouping.classified_group_key(classification, dimension, group.key)
 
         BalanceSheet::AccountGroup.new(
           key: key,

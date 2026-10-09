@@ -35,6 +35,13 @@ class AccountGrouping
       "#{dimension}_#{Digest::SHA256.hexdigest(value.to_s).first(12)}"
     end
 
+    # Key of a first-level group within assets or debts. Prefixed with the
+    # classification so an asset and a debt group with the same value stay
+    # apart.
+    def classified_group_key(classification, dimension, value)
+      "#{classification}_#{group_key(dimension, value)}"
+    end
+
     # A color derived from the group key, so a group keeps its color when
     # other groups are added or removed.
     def color_for(group_key)

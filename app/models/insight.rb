@@ -16,6 +16,9 @@
 # migration — only the vocabulary the code and the UI speak was wrong.
 class Insight < ApplicationRecord
   belongs_to :family
+  # Set for insights about something private to one member (a contract they
+  # own); nil keeps the insight family-wide, as every insight used to be.
+  belongs_to :user, optional: true
 
   TYPES = %w[
     spending_anomaly
@@ -27,6 +30,10 @@ class Insight < ApplicationRecord
     budget_at_risk
     budget_on_track
     maintained_goal_depleted
+    contract_notice_deadline
+    contract_price_increase
+    contract_charges_after_end
+    contract_price_guarantee_ending
   ].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)
@@ -44,6 +51,8 @@ class Insight < ApplicationRecord
 
   # Everything the user hasn't acknowledged; what the feed renders.
   scope :visible, -> { where(status: [ :active, :read ]) }
+  # Family-wide insights plus the ones addressed to this user.
+  scope :for_user, ->(user) { where(user_id: nil).or(where(user_id: user.id)) }
   scope :ordered, -> {
     order(Arel.sql("CASE insights.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END"))
       .order(generated_at: :desc)

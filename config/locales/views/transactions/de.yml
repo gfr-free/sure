@@ -77,6 +77,7 @@ de:
       mark_recurring_title: Wiederkehrende Transaktion
       applied_to_title: Damit bezahlte Rechnungen
       applied_to_detail: "%{amount} für die am %{date} fällige Rechnung"
+      applied_to_contract: "Vertrag: %{name}"
       applied_to_unreviewed: Prüfung erforderlich
       memo: Memo
       merge_duplicate: Ja, zusammenführen

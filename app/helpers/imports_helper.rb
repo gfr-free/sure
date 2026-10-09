@@ -41,6 +41,7 @@ module ImportsHelper
       rules: DryRunResource.new(label: t("imports.dry_run_resources.rules"), icon: "workflow", text_class: "text-success", bg_class: "bg-success/10"),
       merchants: DryRunResource.new(label: t("imports.dry_run_resources.merchants"), icon: "store", text_class: "text-warning", bg_class: "bg-warning/10"),
       recurring_transactions: DryRunResource.new(label: t("imports.dry_run_resources.recurring_transactions"), icon: "repeat-2", text_class: "text-secondary", bg_class: "bg-container-inset"),
+      contracts: DryRunResource.new(label: t("imports.dry_run_resources.contracts"), icon: "file-text", text_class: "text-secondary", bg_class: "bg-container-inset"),
       transfers: DryRunResource.new(label: t("imports.dry_run_resources.transfers"), icon: "repeat", text_class: "text-secondary", bg_class: "bg-container-inset"),
       rejected_transfers: DryRunResource.new(label: t("imports.dry_run_resources.rejected_transfers"), icon: "ban", text_class: "text-destructive", bg_class: "bg-destructive/10"),
       trades: DryRunResource.new(label: t("imports.dry_run_resources.trades"), icon: "arrow-left-right", text_class: "text-success", bg_class: "bg-success/10"),

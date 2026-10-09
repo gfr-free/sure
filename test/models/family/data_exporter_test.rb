@@ -859,6 +859,47 @@ class Family::DataExporterTest < ActiveSupport::TestCase
     end
   end
 
+  test "exports contracts, their shares and bill links in NDJSON" do
+    contract = contracts(:phone_plan)
+    recurring = recurring_transactions(:netflix_subscription)
+    recurring.update!(contract: contract)
+
+    lines = nil
+    Zip::File.open_buffer(@exporter.generate_export) do |zip|
+      lines = zip.read("all.ndjson").split("\n").map { |line| JSON.parse(line) }
+    end
+
+    contract_line = lines.find { |line| line["type"] == "Contract" && line.dig("data", "id") == contract.id }
+    assert contract_line
+    assert_equal "MOB-99887766", contract_line["data"]["contract_number"]
+    assert_equal "mobile", contract_line["data"]["kind"]
+    assert_not contract_line["data"].key?("family_id")
+
+    share_line = lines.find { |line| line["type"] == "ContractShare" && line.dig("data", "contract_id") == contract.id }
+    assert_equal "read_only", share_line["data"]["permission"]
+
+    contract_index = lines.index(contract_line)
+    recurring_line = lines.find { |line| line["type"] == "RecurringTransaction" && line.dig("data", "id") == recurring.id }
+    assert_equal contract.id, recurring_line["data"]["contract_id"]
+    assert contract_index < lines.index(recurring_line), "contracts must precede the bills that point at them"
+  end
+
+  test "lists contract documents in the attachment manifest" do
+    document = contracts(:liability_insurance).contract_documents.new
+    document.file.attach(io: StringIO.new("%PDF-1.4 policy"), filename: "policy.pdf", content_type: "application/pdf")
+    document.save!
+
+    manifest = nil
+    Zip::File.open_buffer(@exporter.generate_export) do |zip|
+      manifest = JSON.parse(zip.read("attachments.json"))
+    end
+
+    item = manifest["attachments"].find { |attachment| attachment["record_type"] == "ContractDocument" }
+    assert_equal document.id, item["record_id"]
+    assert_equal "policy.pdf", item["filename"]
+    assert_equal false, item["binary_included"]
+  end
+
   test "exports provider merchants referenced by transactions in NDJSON" do
     provider_merchant = ProviderMerchant.create!(name: "AMZN MKTP", source: "plaid", provider_merchant_id: "plaid_amzn")
     @account.entries.create!(

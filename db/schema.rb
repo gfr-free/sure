@@ -569,6 +569,76 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.index ["status"], name: "index_coinstats_items_on_status"
   end
 
+  create_table "contract_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "ai_searchable", default: false, null: false
+    t.uuid "contract_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_document_id"
+    t.string "role", default: "other", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contract_id"], name: "index_contract_documents_on_contract_id"
+    t.index ["family_document_id"], name: "index_contract_documents_on_family_document_id"
+    t.check_constraint "role::text = ANY (ARRAY['contract'::character varying, 'terms'::character varying, 'amendment'::character varying, 'price_change'::character varying, 'invoice'::character varying, 'cancellation'::character varying, 'other'::character varying]::text[])", name: "chk_contract_documents_role"
+  end
+
+  create_table "contract_shares", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "contract_id", null: false
+    t.datetime "created_at", null: false
+    t.string "permission", default: "read_only", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["contract_id", "user_id"], name: "index_contract_shares_on_contract_id_and_user_id", unique: true
+    t.index ["contract_id"], name: "index_contract_shares_on_contract_id"
+    t.index ["user_id"], name: "index_contract_shares_on_user_id"
+    t.check_constraint "permission::text = ANY (ARRAY['full_control'::character varying, 'read_write'::character varying, 'read_only'::character varying]::text[])", name: "chk_contract_shares_permission"
+  end
+
+  create_table "contracts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "account_id"
+    t.string "claims_phone"
+    t.text "contract_number"
+    t.datetime "created_at", null: false
+    t.text "customer_number"
+    t.jsonb "details", default: {}, null: false
+    t.jsonb "document_links", default: [], null: false
+    t.boolean "email_reminders", default: true, null: false
+    t.date "ends_on"
+    t.uuid "family_id", null: false
+    t.string "kind", default: "other", null: false
+    t.uuid "merchant_id"
+    t.integer "minimum_term_months"
+    t.string "name", null: false
+    t.text "notes"
+    t.string "notice_anchor"
+    t.boolean "notice_not_required", default: false, null: false
+    t.string "notice_period_unit"
+    t.integer "notice_period_value"
+    t.jsonb "notice_reminders_sent", default: {}, null: false
+    t.uuid "owner_id", null: false
+    t.string "portal_url"
+    t.date "renewal_anchor_on"
+    t.integer "renewal_period_months"
+    t.uuid "replaced_by_id"
+    t.string "service_email"
+    t.string "service_phone"
+    t.date "started_on"
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_contracts_on_account_id"
+    t.index ["family_id", "status"], name: "index_contracts_on_family_id_and_status"
+    t.index ["family_id"], name: "index_contracts_on_family_id"
+    t.index ["merchant_id"], name: "index_contracts_on_merchant_id"
+    t.index ["owner_id"], name: "index_contracts_on_owner_id"
+    t.index ["replaced_by_id"], name: "index_contracts_on_replaced_by_id"
+    t.check_constraint "(minimum_term_months IS NULL OR minimum_term_months >= 0) AND (notice_period_value IS NULL OR notice_period_value >= 0) AND (renewal_period_months IS NULL OR renewal_period_months > 0)", name: "chk_contracts_terms_non_negative"
+    t.check_constraint "char_length(name::text) <= 255", name: "chk_contracts_name_length"
+    t.check_constraint "kind::text = ANY (ARRAY['insurance'::character varying, 'mobile'::character varying, 'internet'::character varying, 'energy'::character varying, 'streaming'::character varying, 'software'::character varying, 'fitness'::character varying, 'membership'::character varying, 'rent'::character varying, 'other'::character varying]::text[])", name: "chk_contracts_kind"
+    t.check_constraint "notice_anchor IS NULL OR (notice_anchor::text = ANY (ARRAY['end_of_term'::character varying, 'end_of_month'::character varying, 'any_day'::character varying]::text[]))", name: "chk_contracts_notice_anchor"
+    t.check_constraint "notice_period_unit IS NULL OR (notice_period_unit::text = ANY (ARRAY['days'::character varying, 'weeks'::character varying, 'months'::character varying]::text[]))", name: "chk_contracts_notice_period_unit"
+    t.check_constraint "replaced_by_id IS NULL OR replaced_by_id <> id", name: "chk_contracts_not_replaced_by_self"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'ended'::character varying]::text[])", name: "chk_contracts_status"
+  end
+
   create_table "credit_cards", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "annual_fee", precision: 10, scale: 2
     t.decimal "apr", precision: 10, scale: 2
@@ -1343,8 +1413,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.check_constraint "btrim(source_id::text) <> ''::text", name: "chk_import_source_mappings_source_id_present"
     t.check_constraint "btrim(source_type::text) <> ''::text", name: "chk_import_source_mappings_source_type_present"
     t.check_constraint "btrim(target_type::text) <> ''::text", name: "chk_import_source_mappings_target_type_present"
-    t.check_constraint "source_type::text = ANY (ARRAY['Account'::character varying::text, 'Category'::character varying::text, 'Tag'::character varying::text, 'Merchant'::character varying::text, 'RecurringTransaction'::character varying::text, 'RecurringOccurrence'::character varying::text, 'Transaction'::character varying::text, 'Budget'::character varying::text, 'Security'::character varying::text, 'Rule'::character varying::text])", name: "chk_import_source_mappings_source_type"
-    t.check_constraint "target_type::text = ANY (ARRAY['Account'::character varying::text, 'Category'::character varying::text, 'Tag'::character varying::text, 'Merchant'::character varying::text, 'RecurringTransaction'::character varying::text, 'RecurringOccurrence'::character varying::text, 'Transaction'::character varying::text, 'Budget'::character varying::text, 'Security'::character varying::text, 'Rule'::character varying::text])", name: "chk_import_source_mappings_target_type"
+    t.check_constraint "source_type::text = ANY (ARRAY['Account'::character varying::text, 'Category'::character varying::text, 'Tag'::character varying::text, 'Merchant'::character varying::text, 'Contract'::character varying::text, 'RecurringTransaction'::character varying::text, 'RecurringOccurrence'::character varying::text, 'Transaction'::character varying::text, 'Budget'::character varying::text, 'Security'::character varying::text, 'Rule'::character varying::text])", name: "chk_import_source_mappings_source_type"
+    t.check_constraint "target_type::text = ANY (ARRAY['Account'::character varying::text, 'Category'::character varying::text, 'Tag'::character varying::text, 'Merchant'::character varying::text, 'Contract'::character varying::text, 'RecurringTransaction'::character varying::text, 'RecurringOccurrence'::character varying::text, 'Transaction'::character varying::text, 'Budget'::character varying::text, 'Security'::character varying::text, 'Rule'::character varying::text])", name: "chk_import_source_mappings_target_type"
   end
 
   create_table "imports", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1475,9 +1545,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.string "status", default: "active", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.uuid "user_id"
     t.index ["family_id", "dedup_key"], name: "index_insights_on_family_id_and_dedup_key", unique: true
     t.index ["family_id", "generated_at"], name: "index_insights_on_family_id_and_generated_at"
     t.index ["family_id", "status"], name: "index_insights_on_family_id_and_status"
+    t.index ["user_id"], name: "index_insights_on_user_id"
     t.check_constraint "priority::text = ANY (ARRAY['high'::character varying::text, 'medium'::character varying::text, 'low'::character varying::text])", name: "chk_insights_priority"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'read'::character varying::text, 'dismissed'::character varying::text, 'expired'::character varying::text])", name: "chk_insights_status"
   end
@@ -2132,6 +2204,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.string "bill_type", default: "bill", null: false
     t.date "cancelled_on"
     t.uuid "category_id"
+    t.uuid "contract_id"
     t.datetime "created_at", null: false
     t.string "currency", null: false
     t.string "dedup_scope", default: "", null: false
@@ -2167,6 +2240,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.string "weekend_adjust", default: "none", null: false
     t.index ["account_id"], name: "index_recurring_transactions_on_account_id"
     t.index ["category_id"], name: "index_recurring_transactions_on_category_id"
+    t.index ["contract_id"], name: "index_recurring_transactions_on_contract_id"
     t.index ["destination_account_id"], name: "index_recurring_transactions_on_destination_account_id"
     t.index ["family_id", "account_id", "destination_account_id", "merchant_id", "amount", "currency", "dedup_scope"], name: "idx_recurring_txns_pair_merchant", unique: true, where: "((destination_account_id IS NOT NULL) AND (merchant_id IS NOT NULL))"
     t.index ["family_id", "account_id", "destination_account_id", "name", "amount", "currency", "dedup_scope"], name: "idx_recurring_txns_pair_name", unique: true, where: "((destination_account_id IS NOT NULL) AND (name IS NOT NULL) AND (merchant_id IS NULL))"
@@ -2959,6 +3033,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   add_foreign_key "coinspot_items", "families"
   add_foreign_key "coinstats_accounts", "coinstats_items"
   add_foreign_key "coinstats_items", "families"
+  add_foreign_key "contract_documents", "contracts", on_delete: :cascade
+  add_foreign_key "contract_documents", "family_documents", on_delete: :nullify
+  add_foreign_key "contract_shares", "contracts", on_delete: :cascade
+  add_foreign_key "contract_shares", "users", on_delete: :cascade
+  add_foreign_key "contracts", "accounts", on_delete: :nullify
+  add_foreign_key "contracts", "contracts", column: "replaced_by_id", on_delete: :nullify
+  add_foreign_key "contracts", "families", on_delete: :cascade
+  add_foreign_key "contracts", "merchants", on_delete: :nullify
+  add_foreign_key "contracts", "users", column: "owner_id", on_delete: :cascade
   add_foreign_key "debug_log_entries", "account_providers", on_delete: :nullify
   add_foreign_key "debug_log_entries", "accounts", on_delete: :nullify
   add_foreign_key "debug_log_entries", "families", on_delete: :nullify
@@ -3023,6 +3106,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   add_foreign_key "indexa_capital_accounts", "indexa_capital_items"
   add_foreign_key "indexa_capital_items", "families"
   add_foreign_key "insights", "families"
+  add_foreign_key "insights", "users", on_delete: :cascade
   add_foreign_key "invitations", "families"
   add_foreign_key "invitations", "users", column: "inviter_id"
   add_foreign_key "kraken_accounts", "kraken_items"
@@ -3063,6 +3147,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   add_foreign_key "recurring_transactions", "accounts", column: "destination_account_id", on_delete: :cascade
   add_foreign_key "recurring_transactions", "accounts", on_delete: :cascade
   add_foreign_key "recurring_transactions", "categories", on_delete: :nullify
+  add_foreign_key "recurring_transactions", "contracts", on_delete: :nullify
   add_foreign_key "recurring_transactions", "families"
   add_foreign_key "recurring_transactions", "merchants"
   add_foreign_key "recurring_transactions", "recurring_transactions", column: "replaced_by_id", on_delete: :nullify

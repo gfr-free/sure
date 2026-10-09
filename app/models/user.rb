@@ -38,6 +38,8 @@ class User < ApplicationRecord
   has_many :owned_accounts, class_name: "Account", foreign_key: :owner_id
   has_many :account_shares, dependent: :destroy
   has_many :shared_accounts, through: :account_shares, source: :account
+  has_many :owned_contracts, class_name: "Contract", foreign_key: :owner_id, inverse_of: :owner
+  has_many :contract_shares, dependent: :destroy
   has_many :budget_shares_given, class_name: "BudgetShare", foreign_key: :owner_id, inverse_of: :owner, dependent: :destroy
   has_many :budget_shares_received, class_name: "BudgetShare", foreign_key: :viewer_id, inverse_of: :viewer, dependent: :destroy
   accepts_nested_attributes_for :family, update_only: true
@@ -245,6 +247,7 @@ class User < ApplicationRecord
   # Super Admin Invariant
   validate :ensure_not_last_super_admin, if: :losing_super_admin_privileges?
   before_destroy :ensure_not_last_super_admin_on_destroy
+  before_destroy :reassign_owned_contracts!
 
   after_update_commit :purge_later, if: -> { saved_change_to_active?(from: true, to: false) }
   after_update_commit :revoke_all_access_tokens, if: -> { saved_change_to_active?(from: true, to: false) }
@@ -378,7 +381,9 @@ class User < ApplicationRecord
       accounts_to_move.each(&:lock!)
 
       account_shares.delete_all
+      contract_shares.delete_all
 
+      old_family = family
       update!(family: new_family, role: role, default_account: moving_default_account ? default_account : nil)
 
       accounts_to_move.each do |account|
@@ -405,7 +410,62 @@ class User < ApplicationRecord
         provider_item.update!(**attrs)
       end
 
+      move_owned_contracts!(from: old_family, to: new_family, moved_account_ids: accounts_to_move.map(&:id))
+
       new_family.auto_share_existing_accounts_with(self)
+    end
+  end
+
+  # A member's contracts follow them to the new family. Everything that ties a
+  # contract to the old household is cut: its shares, links to bills that stay
+  # behind, a family merchant (a merchant of the same name in the new family
+  # takes its place), a related
+  # account that did not move with them, and the successor chain.
+  def move_owned_contracts!(from:, to:, moved_account_ids:)
+    # Contracts that stay behind must not point at an account that left.
+    if moved_account_ids.any?
+      Contract.where(family_id: from.id, account_id: moved_account_ids).where.not(owner_id: id)
+              .update_all(account_id: nil, updated_at: Time.current)
+    end
+
+    contracts = Contract.where(family_id: from.id, owner_id: id).includes(:merchant).to_a
+    return if contracts.empty?
+
+    contract_ids = contracts.map(&:id)
+    ContractShare.where(contract_id: contract_ids).delete_all
+    RecurringTransaction.where(contract_id: contract_ids).update_all(contract_id: nil, updated_at: Time.current)
+    Contract.where(family_id: from.id, replaced_by_id: contract_ids).update_all(replaced_by_id: nil, updated_at: Time.current)
+
+    contracts.each do |contract|
+      attrs = { family_id: to.id, replaced_by_id: nil, updated_at: Time.current }
+      attrs[:account_id] = nil unless moved_account_ids.include?(contract.account_id)
+      if contract.merchant.is_a?(FamilyMerchant)
+        attrs[:merchant_id] = to.merchants.find_or_create_by!(name: contract.merchant.name).id
+      end
+      Contract.where(id: contract.id).update_all(attrs)
+    end
+
+    unindex_moved_contract_documents!(contract_ids)
+  end
+
+  # A moved contract's documents were indexed into the old family's document
+  # store; that copy is removed and the opt-in reset, so nothing owned by the
+  # new family stays searchable to the old one. The owner opts in again in the
+  # new family if they want the assistant to read the document.
+  def unindex_moved_contract_documents!(contract_ids)
+    # Also documents whose upload is still running: it sees the reset opt-in
+    # when it finishes and removes its copy again.
+    ContractDocument.where(contract_id: contract_ids, family_document_id: nil)
+                    .update_all(ai_searchable: false, updated_at: Time.current)
+    ContractDocument.where(contract_id: contract_ids).where.not(family_document_id: nil)
+                    .includes(:family_document).find_each do |document|
+      family_document = document.family_document
+      document.update_columns(ai_searchable: false, family_document_id: nil, updated_at: Time.current)
+      # After the surrounding move transaction: the job must not run against
+      # state that could still roll back.
+      ActiveRecord.after_all_transactions_commit do
+        ContractDocumentUnindexJob.perform_later(family_document)
+      end
     end
   end
 
@@ -831,6 +891,21 @@ class User < ApplicationRecord
       Account.where(id: account_ids).update_all(owner_id: new_owner.id)
       # Remove shares the new owner had for these accounts (they now own them)
       AccountShare.where(account_id: account_ids, user_id: new_owner.id).delete_all
+    end
+
+    # Contracts outlive the member who recorded them: they pass to an admin
+    # (or the longest-standing member), who drops any share they held on them.
+    # With no one left, the contracts go with the family.
+    def reassign_owned_contracts!
+      contract_ids = owned_contracts.pluck(:id)
+      return if contract_ids.empty?
+
+      new_owner = family.users.where.not(id: id).find_by(role: %w[admin super_admin]) ||
+                  family.users.where.not(id: id).order(:created_at).first
+      return unless new_owner
+
+      Contract.where(id: contract_ids).update_all(owner_id: new_owner.id, updated_at: Time.current)
+      ContractShare.where(contract_id: contract_ids, user_id: new_owner.id).delete_all
     end
 
     def deactivated_email

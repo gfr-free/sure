@@ -9,7 +9,9 @@ class DeliverInsightNotificationJob < ApplicationJob
   def self.enqueue_for(insight)
     return unless Apns::Client.available? && insight.priority_high? && insight.active?
 
-    insight.family.users.includes(:push_subscriptions).find_each do |user|
+    recipients = insight.user_id ? insight.family.users.where(id: insight.user_id) : insight.family.users
+
+    recipients.includes(:push_subscriptions).find_each do |user|
       next unless user.active? && user.preview_features_enabled?
 
       user.push_subscriptions.recent.find_each do |subscription|
@@ -24,6 +26,7 @@ class DeliverInsightNotificationJob < ApplicationJob
     insight = Insight.find(insight_id)
     subscription = PushSubscription.find(push_subscription_id)
     return unless subscription.user.family_id == insight.family_id
+    return if insight.user_id.present? && insight.user_id != subscription.user_id
     return unless subscription.eligible? && subscription.user.preview_features_enabled?
     return unless insight.priority_high? && insight.active?
 

@@ -418,6 +418,12 @@
                             amount: format_money(allocation.allocated_amount_money),
                             date: l(occurrence.due_on, format: :long)) %>
                     </p>
+                    <% contract = occurrence.recurring_transaction.contract %>
+                    <% if contract&.viewable_by?(Current.user) %>
+                      <%= link_to t(".applied_to_contract", name: contract.name), contract_path(contract),
+                                  class: "text-xs text-secondary hover:text-primary hover:underline",
+                                  data: { turbo_frame: "_top" } %>
+                    <% end %>
                   </div>
                   <% if allocation.allocation_suggested? %>
                     <span class="text-xs text-warning"><%= t(".applied_to_unreviewed") %></span>

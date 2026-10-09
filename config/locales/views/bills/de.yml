@@ -1,6 +1,14 @@
 ---
 de:
   bills:
+    feed:
+      notice_deadline: "Kündigungsfrist: %{name}"
+    contract_line:
+      linked: "Vertrag: %{name}"
+      ended_on: "Der Vertrag ist am %{date} geendet, aber diese Rechnung erwartet weiter Zahlungen."
+      ended: "Der Vertrag ist beendet, aber diese Rechnung erwartet weiter Zahlungen."
+      end_bill: "Rechnung beenden"
+      record: "Als Vertrag erfassen"
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}
@@ -18,6 +26,7 @@ de:
       calendar: Kalender
       paycheck: Einkommensplan
       all: Alle Rechnungen
+      contracts: Verträge
     index:
       title: Rechnungen
       add_bill: Rechnung hinzufügen

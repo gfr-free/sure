@@ -78,6 +78,9 @@ class BillsMobileTest < ApplicationSystemTestCase
       assert_no_horizontal_scroll("the #{view} view")
     end
 
+    visit contracts_url
+    assert_no_horizontal_scroll("the contracts view")
+
     # A bill visited directly: its drawer over the overview, with the chart and
     # the per-year totals loaded into it. Every section opened, or a closed one
     # would hide whatever it pushes sideways.

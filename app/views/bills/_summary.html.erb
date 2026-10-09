@@ -59,6 +59,8 @@
   <%# Subscription state is state, not depth, so it stays here. %>
   <%= render "bills/state_chips", series: series %>
 
+  <%= render "bills/contract_line", series: series %>
+
   <%# The next step, spelled out. The row shows it only when the bill needs you
       now, and never on a phone. Here it is always present, settled occurrences
       included, because the drawer is the only route in the app to unlinking a

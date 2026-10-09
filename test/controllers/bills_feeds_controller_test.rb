@@ -18,6 +18,23 @@ class BillsFeedsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Rent", response.body
   end
 
+  test "the feed carries notice deadlines of contracts the member can see, with an alarm" do
+    travel_to Date.new(2026, 9, 1) do
+      insurance = contracts(:liability_insurance)
+      member = users(:family_member)
+      member.update!(preferences: (member.preferences || {}).merge("preview_features_enabled" => true))
+
+      get bills_feed_url(token: @family.bills_feed_token_for(@user))
+      assert_match "DTSTART;VALUE=DATE:20260930", response.body
+      assert_match I18n.t("bills.feed.notice_deadline", name: insurance.name), response.body
+      assert_match "TRIGGER:-P7D", response.body
+
+      # The member cannot see the insurance contract, so their feed omits it.
+      get bills_feed_url(token: @family.bills_feed_token_for(member))
+      assert_no_match insurance.name, response.body
+    end
+  end
+
   test "an unknown token is not found" do
     get bills_feed_url(token: "nonsense")
 

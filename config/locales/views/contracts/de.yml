@@ -1,0 +1,289 @@
+---
+de:
+  contracts:
+    kinds:
+      insurance: Versicherung
+      mobile: Mobilfunk
+      internet: Internet
+      energy: Energie
+      streaming: Streaming
+      software: Software
+      fitness: Fitness
+      membership: Mitgliedschaft
+      rent: Miete
+      other: Sonstiges
+    details:
+      title: "Details: %{kind}"
+      cold_rent: "Kaltmiete (Rechnung minus Vorauszahlung)"
+      possibly_deductible: "Beiträge zu dieser Versicherungsart können in der Steuererklärung als sonstige Vorsorgeaufwendungen zählen (bei der Kfz-Versicherung nur der Haftpflichtanteil). Keine Steuerberatung."
+      fields:
+        insurance_line: "Sparte"
+        sum_insured: "Versicherungssumme"
+        deductible: "Selbstbeteiligung"
+        insured_persons: "Versicherte Personen"
+        beneficiaries: "Bezugsberechtigte"
+        tariff: "Tarif"
+        phone_number: "Rufnummer"
+        data_volume_gb: "Datenvolumen (GB)"
+        device_paid_off_on: "Gerät abbezahlt am"
+        bandwidth_mbit: "Bandbreite (Mbit/s)"
+        advance_payment: "Abschlag"
+        price_guarantee_until: "Preisgarantie bis"
+        meter_number: "Zählernummer"
+        landlord: "Vermieter"
+        deposit: "Kaution"
+        operating_costs_advance: "davon Betriebskosten-Vorauszahlung"
+        plan: "Tarif"
+    insurance_lines:
+      liability: "Privathaftpflicht"
+      household: "Hausrat"
+      building: "Wohngebäude"
+      accident: "Unfall"
+      disability: "Berufsunfähigkeit"
+      term_life: "Risikolebensversicherung"
+      whole_life: "Kapitallebensversicherung"
+      car: "Kfz"
+      legal: "Rechtsschutz"
+      health_supplementary: "Krankenzusatz"
+      care: "Pflege"
+      pet: "Tierversicherung"
+      travel: "Reise"
+      other: "Sonstige"
+    statuses:
+      active: Aktiv
+      ended: Beendet
+    status_until: "Endet am %{date}"
+    notice_anchors:
+      end_of_term: zum Laufzeitende
+      end_of_month: zum Monatsende
+      any_day: jederzeit
+    terms:
+      none: Keine
+      months:
+        one: "%{count} Monat"
+        other: "%{count} Monate"
+      indefinite: Läuft unbefristet weiter
+      renews_every:
+        one: "Verlängert sich um einen Monat"
+        other: "Verlängert sich um %{count} Monate"
+      unknown: Nicht erfasst
+      not_required: Keine Kündigung nötig
+      notice_units:
+        days:
+          one: "%{count} Tag"
+          other: "%{count} Tage"
+        weeks:
+          one: "%{count} Woche"
+          other: "%{count} Wochen"
+        months:
+          one: "%{count} Monat"
+          other: "%{count} Monate"
+      notice_with_anchor: "%{period} %{anchor}"
+    cancel_by: "Kündigen bis %{date}"
+    cost_unknown: Kosten unbekannt
+    per_year: "%{amount} / Jahr"
+    per_month: "%{amount} / Monat"
+    price_increased_on: "Teurer seit %{date}"
+    shared_with_you: Mit dir geteilt
+    shared: Geteilt
+    index:
+      print_overview: "Vertragsübersicht drucken"
+      title: Verträge
+      preview: Vorschau
+      add_contract: Vertrag hinzufügen
+      empty_title: Noch keine Verträge
+      empty_description: Versicherungen, Handy-, Internet-, Strom- und Abo-Verträge an einem Ort, mit Kündigungsfristen, Kontakten und Dokumenten.
+      from_bill: Aus Rechnung anlegen
+      active_count_label: Aktive Verträge
+      annual_cost_label: Kosten pro Jahr
+      monthly_cost_label: Ø pro Monat
+      savings:
+        one: "Ersparnis durch 1 beendeten Vertrag (12 Monate):"
+        other: "Ersparnis durch %{count} beendete Verträge (12 Monate):"
+      extra_cost:
+        one: "Mehrkosten nach 1 beendeten Vertrag (12 Monate):"
+        other: "Mehrkosten nach %{count} beendeten Verträgen (12 Monate):"
+      ended:
+        one: "Beendeter Vertrag (%{count})"
+        other: "Beendete Verträge (%{count})"
+    overview:
+      title: "Vertragsübersicht"
+      generated_on: "Erstellt am %{date}"
+      intro: "Alle offenen Verträge, die du sehen kannst, mit Kosten, Fristen und Ansprechpartnern. Vertragsnummern sind gekürzt, damit der Ausdruck bei deinen Unterlagen liegen kann."
+      cost: "Kosten pro Jahr"
+      term: "Laufzeit"
+      term_ends: "Laufzeit bis %{date}"
+      earliest_end: "Frühestens zum %{date} kündbar"
+      managed_by: "Verwaltet von"
+      paid_from: "Abbuchungskonto"
+      contacts: "Kontakte"
+      documents: "Dokumente"
+      empty: "Keine offenen Verträge."
+    show:
+      price_changes: Preisänderungen
+      cost_unknown_hint: Gezählt werden nur aktive Rechnungen. Die verknüpften sind pausiert, inaktiv oder beendet.
+      owned_by: "Verwaltet von %{name}"
+      edit: Bearbeiten
+      share: Teilen
+      end_contract: Vertrag beenden
+      delete: Löschen
+      confirm_delete: "%{name} löschen? Die Zahlungen bleiben in den Rechnungen erhalten, die Dokumente werden entfernt."
+      possible_duplicate: "Möglicherweise doppelt mit %{names}: gleicher Händler und gleiche Vertragsnummer."
+      contract_section: Vertrag
+      renewal: Verlängerung
+      notice_deadline: "Letzter Kündigungstag"
+      to_end_on: "zum %{date}"
+      earliest_end: "Frühestes Ende bei Kündigung heute"
+      payments_section: Zahlungen
+      next_due: "Nächste Fälligkeit %{date}"
+      no_payments: Keine Zahlungen verknüpft. Verknüpfe eine Rechnung, um die Kosten zu sehen.
+      hidden_payments: Weitere Zahlungen sind mit Konten verknüpft, die du nicht sehen kannst.
+      link_payments: Zahlungen verknüpfen
+      add_payment: Zahlung hinzufügen
+      contacts_section: Kontakte
+      next_payment: Nächste Zahlung
+      next_payment_overdue: Überfällig
+      payment_history: "Zahlungen der letzten %{months} Monate"
+      payment_history_all: Alle Zahlungen
+      no_recent_payments: "Keine Zahlungen in den letzten %{months} Monaten."
+      no_payments_yet: Noch keine Zahlungen.
+      show_all_payments: Alle anzeigen
+      show_recent_payments: "Nur die letzten %{months} Monate"
+    documents:
+      title: Dokumente
+      resource: Dokument
+      count: "%{count} von %{max}"
+      searchable: Für den Assistenten durchsuchbar
+      search_pending: Wartet auf Aufnahme in die Suche des Assistenten
+      allow_search: Für den Assistenten freigeben
+      stop_search: Freigabe beenden
+      search_hint: Der Assistent kann Dokumente nur durchsuchen, wenn du das einschaltest, und nur für Personen, die diesen Vertrag sehen dürfen.
+      delete: Dokument löschen
+      empty: Noch keine Dokumente.
+      choose: "PDFs oder Bilder auswählen (je bis %{size} MB)"
+      upload: Hochladen
+      upload_role: Art der hochgeladenen Dokumente
+      role_label: "Art von %{name}"
+      roles:
+        contract: Vertrag / Police
+        terms: Bedingungen
+        amendment: Nachtrag
+        price_change: Preisänderung
+        invoice: Rechnung
+        cancellation: Kündigung / Bestätigung
+        other: Sonstiges
+      create:
+        success:
+          one: Dokument hochgeladen
+          other: "%{count} Dokumente hochgeladen"
+        no_file: Wähle eine Datei zum Hochladen aus.
+        too_many: "Ein Vertrag kann höchstens %{max} Dokumente enthalten."
+      update:
+        ai_disabled: Schalte den Assistenten in deinen Einstellungen ein, um Dokumente durchsuchbar zu machen.
+        searchable: Der Assistent kann dieses Dokument durchsuchen, sobald es aufgenommen ist. Das dauert einen Moment.
+        store_unavailable: Für den Assistenten ist kein Dokumentenspeicher eingerichtet, daher lassen sich Dokumente nicht durchsuchbar machen.
+        not_searchable: Der Assistent kann dieses Dokument nicht mehr durchsuchen.
+        role_updated: Dokumentart gespeichert
+      destroy:
+        success: Dokument gelöscht
+    bill_picker:
+      from_merchant: "Rechnungen von %{name}"
+      other: Weitere Rechnungen
+      none: Noch keine Rechnungen zum Verknüpfen. Leg die Zahlung mit „Zahlung hinzufügen“ an.
+    payments:
+      title: "Zahlungen für %{name}"
+      intro: Wähl die Rechnungen, die diesen Vertrag bezahlen. Aus ihnen berechnet Sure die Kosten pro Jahr.
+      save: Speichern
+    new:
+      title: Neuer Vertrag
+    edit:
+      title: "%{name} bearbeiten"
+    form:
+      merchant_hint: Der Händler, mit dem du den Vertrag hast. Fehlt er in der Liste, tipp den Namen in die Suche und leg ihn direkt an.
+      suggested_merchant: "Laut Vorlage ist der Anbieter „%{name}“. Wähl den passenden Händler oder leg ihn über die Suche an."
+      notice_hint: "Kündigungsfrist: wie lange vor dem Vertragsende deine Kündigung spätestens beim Anbieter sein muss, zum Beispiel 3 Monate zum Laufzeitende. Sure berechnet daraus den letzten Kündigungstag."
+      renewal_anchor_hint: "Hauptfälligkeit: der Tag, an dem das Vertragsjahr beginnt und sich der Vertrag verlängert, bei Versicherungen oft der Beginn der Police oder der 1. Januar. Ab diesem Tag zählt die Kündigungsfrist."
+      email_reminders_hint: 30, 7 und 1 Tag vor dem letzten Kündigungstag, bei Energie auch vor dem Ende der Preisgarantie. Klappt nur, wenn auf dieser Instanz ein E-Mail-Versand (SMTP) eingerichtet ist.
+      from_document: "Vorausgefüllt aus %{filename}. Prüfe jeden Wert am Dokument; Vertragsnummern werden nicht ausgelesen, trage sie selbst ein."
+      document_premium: "Das Dokument nennt einen Beitrag von %{amount} (%{frequency}). Verknüpfe unten die Rechnung, die ihn zahlt, oder lege sie an."
+      name_placeholder: z. B. Privathaftpflicht
+      no_merchant: Kein Händler
+      no_account: Kein verknüpftes Konto
+      term_section: Laufzeit und Kündigung
+      minimum_term_label: Mindestlaufzeit (Monate)
+      renewal_label: Verlängert sich um (Monate)
+      renewal_placeholder: Unbefristet
+      term_hint: Lass die Verlängerung leer, wenn der Vertrag nach der Mindestlaufzeit unbefristet weiterläuft.
+      apply_defaults: "Übliche Fristen übernehmen"
+      defaults_disclaimer: "Nur Vorschläge, keine Rechtsberatung: Maßgeblich ist dein Vertrag."
+      email_reminders: "Mich vor Ablauf der Kündigungsfrist per E-Mail erinnern"
+      numbers_section: Vertrags- und Kundennummer
+      encryption_warning_title: Nummern werden unverschlüsselt gespeichert
+      encryption_warning: Auf dieser Instanz sind keine Verschlüsselungsschlüssel eingerichtet, daher werden Vertrags- und Kundennummern im Klartext gespeichert. Bitte deinen Administrator, die Active-Record-Verschlüsselung einzurichten.
+      contacts_section: Kontakte
+      payments_section: Zahlungen
+      links_section: Dokument-Links
+      link_url: Dokument-Link
+      link_label: Bezeichnung
+      links_hint: Verlinke Dokumente, die anderswo liegen, zum Beispiel in Paperless-ngx.
+      link_role: Dokumentart
+      link_role_blank: Art
+      predecessor: Ersetzt Vertrag
+      no_predecessor: Ersetzt keinen Vertrag
+      predecessor_hint: Der Vertrag, den dieser ablöst, zum Beispiel dein alter Stromanbieter. Sure zeigt dann, was du im Vergleich sparst.
+      notice_not_required: Keine Kündigung nötig
+      notice_not_required_hint: Der Vertrag endet von selbst oder ist nicht kündbar, zum Beispiel Rundfunkbeitrag oder eine Mitgliedschaft auf Lebenszeit. Er bekommt keinen Kündigungstag und keine Erinnerungen.
+      no_successor: Kein Nachfolger
+      create: Vertrag speichern
+      update: Änderungen speichern
+      units:
+        days: Tage
+        weeks: Wochen
+        months: Monate
+    create:
+      success: Vertrag gespeichert
+      document_not_attached: Der Vertrag wurde gespeichert, aber das Dokument konnte nicht angehängt werden. Füge es unter Dokumente hinzu.
+    update:
+      success: Vertrag aktualisiert
+    destroy:
+      success: Vertrag gelöscht
+    end_linked_bills:
+      success: "Die verknüpften Rechnungen enden mit dem Vertrag."
+    endings:
+      new:
+        title: "%{name} beenden"
+        intro: Trag ein, wann der Vertrag endet, egal ob du gekündigt hast oder er ausläuft. Bis dahin läuft er weiter. Sure schickt nichts an den Anbieter.
+        ends_on: Vertrag endet am
+        bills_hint: Die verknüpften Rechnungen enden am selben Tag. Danach erwartet Sure keine Zahlungen mehr für diesen Vertrag.
+        successor: Ersetzt durch
+        no_successor: Kein Nachfolger
+        new_successor: Neuen Vertrag anlegen
+        successor_hint: Wähle den Vertrag, der übernimmt, oder lege ihn direkt nach dem Beenden an. Die Ersparnis auf der Vertragsseite vergleicht beide.
+        submit: Vertrag beenden
+      create:
+        success: Vertragsende gespeichert
+        date_required: Gib an, wann der Vertrag endet.
+        ends_before_start: Der Vertrag kann nicht vor seinem Beginn enden.
+        successor_invalid: Wähle einen Nachfolger aus der Liste.
+      destroy:
+        success: Vertragsende aufgehoben
+    end_notice:
+      ends: "Dieser Vertrag endet am %{date}."
+      reopen: Ende aufheben
+      reopen_confirm_title: Vertragsende aufheben?
+      reopen_confirm_body: Der Vertrag läuft wieder weiter, zum Beispiel nach einem angenommenen Halteangebot. Rechnungen, die mit ihm enden sollten, laufen ebenfalls weiter.
+      bills_still_running: "Der Vertrag ist beendet, aber diese Rechnungen laufen noch: %{names}. Beende sie unter Rechnungen, wenn keine Zahlungen mehr kommen."
+    sharings:
+      show:
+        title: "%{name} teilen"
+        intro: Verträge sind privat, bis du sie teilst. Admins sehen keine Verträge, die nicht mit ihnen geteilt sind.
+        shared_with: "Mit %{name} teilen"
+        permissions_hint: Nur lesen zeigt den Vertrag mit maskierten Nummern, hochgeladene Dokumente aber im Original — sie können die Nummern enthalten. Lesen und schreiben darf ihn bearbeiten. Volle Kontrolle darf ihn zusätzlich teilen und löschen.
+        save: Freigaben speichern
+        no_members: In diesem Haushalt gibt es keine weiteren Mitglieder.
+      update:
+        success: Freigaben aktualisiert
+      permissions:
+        full_control: Volle Kontrolle
+        read_write: Lesen und schreiben
+        read_only: Nur lesen

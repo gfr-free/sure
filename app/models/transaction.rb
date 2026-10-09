@@ -168,6 +168,37 @@ class Transaction < ApplicationRecord
     TRANSFER_KINDS.include?(kind)
   end
 
+  # Whether the user can assign a category (and merchant/tags) to this
+  # transaction. Regular transactions always qualify. For transfers:
+  #   - No Transfer record yet (e.g. an unmatched provider-imported leg):
+  #     stay editable, same as a regular transaction, since there's no
+  #     counterpart to defer to and no other way for the user to fix a
+  #     provider mislabel.
+  #   - Once matched, both legs defer to Transfer#categorizable?, which is
+  #     based on the (stable) destination account rather than either leg's
+  #     kind, so both legs of e.g. a loan payment agree and stay correct
+  #     even if an older provider sync left a stale kind on this
+  #     transaction.
+  def category_editable?
+    return true unless transfer?
+    return true unless transfer
+
+    transfer.categorizable?
+  end
+
+  # Whether this non-editable transfer leg is a liability payment (shown
+  # with the "Payment" badge instead of "Transfer"). Defers to the attached
+  # Transfer when one exists, since a matched transaction's own kind can be
+  # stale (rows a provider sync overwrote before the import adapter derived
+  # matched legs from their Transfer), which would otherwise let a stale
+  # "cc_payment" kind override a transfer that isn't actually a payment.
+  # Only falls back to the transaction's own kind when there's no Transfer
+  # record yet (e.g. a provider-imported cc_payment leg whose counterpart
+  # hasn't been matched), the same pattern category_editable? uses.
+  def payment?
+    transfer ? transfer.payment? : kind == "cc_payment"
+  end
+
   # Stops the counterpart-transfer suggestion (and its automatic counterpart,
   # see Family::AutoTransferMatchable) for this outflow. A single atomic jsonb
   # merge, so a concurrent write to other extra keys (e.g. provider metadata)

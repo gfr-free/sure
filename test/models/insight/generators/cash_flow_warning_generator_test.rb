@@ -5,8 +5,9 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
     @family = families(:dylan_family)
     # Share family accounts with family_member so they're accessible to all active members
     # except connected, which should remain private for tests that check private account behavior
+    connected_id = accounts(:connected).id
     @family.accounts.each do |account|
-      next if account.owner_id == users(:family_member).id || account == accounts(:connected)
+      next if account.owner_id == users(:family_member).id || account.id == connected_id
       account.account_shares.find_or_create_by(user: users(:family_member)) do |share|
         share.permission = "read_only"
       end

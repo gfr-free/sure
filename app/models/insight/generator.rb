@@ -46,6 +46,13 @@ class Insight::Generator
   private
     attr_reader :family
 
+    # The feed is one list shared by the whole family, so every figure in it is
+    # computed only from accounts each active member may open. Without this a
+    # member's private account would feed totals that everyone reads.
+    def shared_accounts
+      @shared_accounts ||= family.accounts.accessible_by_all_active_members
+    end
+
     def income_statement
       @income_statement ||= IncomeStatement.new(family)
     end

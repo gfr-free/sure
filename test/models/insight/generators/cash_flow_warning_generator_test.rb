@@ -3,12 +3,12 @@ require "test_helper"
 class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCase
   setup do
     @family = families(:dylan_family)
-    # Share all family accounts with family_member so they're accessible to all active members
+    # Share family accounts with family_member so they're accessible to all active members
+    # except connected, which should remain private for tests that check private account behavior
     @family.accounts.each do |account|
-      unless account.owner_id == users(:family_member).id
-        account.account_shares.find_or_create_by(user: users(:family_member)) do |share|
-          share.permission = "read_only"
-        end
+      next if account.owner_id == users(:family_member).id || account == accounts(:connected)
+      account.account_shares.find_or_create_by(user: users(:family_member)) do |share|
+        share.permission = "read_only"
       end
     end
 
@@ -78,9 +78,6 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
   # The feed is shared by the whole family: `connected` is private to
   # family_admin, so its balance must not cover the shared projection.
   test "a private cash account does not feed the projected balance" do
-    # Remove the share for connected to make it private again
-    accounts(:connected).account_shares.where(user: users(:family_member)).delete_all
-
     accounts(:depository).update_columns(balance: 100)
     accounts(:connected).update_columns(balance: 50_000)
 
@@ -91,9 +88,6 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
   end
 
   test "bills paid from a private account are left out of the projection" do
-    # Remove the share for connected to make it private again
-    accounts(:connected).account_shares.where(user: users(:family_member)).delete_all
-
     private_series = @family.recurring_transactions.create!(
       name: "Private Gym", account: accounts(:connected), amount: 70, currency: "USD",
       expected_day_of_month: 15, last_occurrence_date: Date.current,

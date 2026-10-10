@@ -165,12 +165,37 @@ class Transaction::Search
   attribute :ai_status, array: true
   attribute :active_accounts_only, :boolean, default: true
 
-  attr_reader :family, :accessible_account_ids
+  attr_reader :family, :accessible_account_ids, :user
 
-  # Initialize a transaction search with optional filters and accessible accounts
-  def initialize(family, filters: {}, accessible_account_ids: nil)
+  # Permits and cleans the `q` params of a transaction list request. Shared by
+  # the list itself and "mark all as read", so both always see the same filters.
+  def self.clean_filters(q_params)
+    cleaned = q_params
+                .permit(
+                  :start_date, :end_date, :search, :amount,
+                  :amount_operator, :active_accounts_only,
+                  accounts: [], account_ids: [],
+                  categories: [], merchants: [], types: [], tags: [], status: [], ai_status: []
+                )
+                .to_h
+                .compact_blank
+
+    cleaned.delete(:amount_operator) unless cleaned[:amount].present?
+
+    if cleaned[:ai_status]
+      cleaned[:ai_status] &= AI_STATUSES
+      cleaned.delete(:ai_status) if cleaned[:ai_status].empty?
+    end
+
+    cleaned
+  end
+
+  # Initialize a transaction search with optional filters and accessible accounts.
+  # `user` is only needed for the per-user "unread" status filter.
+  def initialize(family, filters: {}, accessible_account_ids: nil, user: nil)
     @family = family
     @accessible_account_ids = accessible_account_ids
+    @user = user
     super(filters)
   end
 
@@ -187,6 +212,7 @@ class Transaction::Search
       query = self.class.apply_category_filter(query, categories, family)
       query = self.class.apply_type_filter(query, types)
       query = apply_status_filter(query, status)
+      query = apply_unread_filter(query)
       query = self.class.apply_merchant_filter(query, merchants)
       query = self.class.apply_tag_filter(query, tags)
       query = apply_ai_status_filter(query, ai_status)
@@ -209,7 +235,15 @@ class Transaction::Search
       # being served (same cache_key_base) after deploy, disagreeing with the
       # (uncached) transactions_scope list until entries_cache_version next
       # changes.
-      Rails.cache.fetch("transaction_search_totals/v5/#{cache_key_base}") do
+      #
+      # The unread filter depends on the user's read state, which changes on
+      # every list render, so those totals are always recomputed.
+      #
+      # Their entries are still written, so they get their own per-user key and
+      # can never be served to a search without the unread filter.
+      totals_cache_key = "transaction_search_totals/v5/#{cache_key_base}"
+      totals_cache_key += "/unread/#{user.id}" if unread_filter?
+      Rails.cache.fetch(totals_cache_key, force: unread_filter?) do
         scope = transactions_scope
 
         # Exclude tax-advantaged accounts from totals calculation
@@ -277,6 +311,10 @@ class Transaction::Search
     ].join("/")
   end
 
+  def unread_filter?
+    user.present? && Array(status).include?("unread")
+  end
+
   private
     Totals = Data.define(:count, :income_money, :expense_money, :transfer_inflow_money, :transfer_outflow_money)
 
@@ -318,8 +356,10 @@ class Transaction::Search
       sql + ")"
     end
 
-    # Filter transactions by status (pending or confirmed)
+    # Filter transactions by status (pending or confirmed). "unread" is a
+    # separate per-user dimension, see apply_unread_filter.
     def apply_status_filter(query, statuses)
+      statuses = Array(statuses) - [ "unread" ]
       return query unless statuses.present?
       return query if statuses.uniq.sort == [ "confirmed", "pending" ] # Both selected = no filter
 
@@ -334,5 +374,11 @@ class Transaction::Search
       else
         query
       end
+    end
+
+    def apply_unread_filter(query)
+      return query unless unread_filter?
+
+      query.merge(Entry.unread_by(user))
     end
 end

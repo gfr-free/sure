@@ -404,6 +404,10 @@ Rails.application.routes.draw do
       delete "tokens/:token_id", to: "mcp#revoke", as: :revoke_token
     end
     resource :ai_prompts, only: %i[show update]
+    resource :paperless, only: %i[show update destroy], controller: "paperless" do
+      patch :mode
+      post :verify
+    end
     resource :llm_usage, only: :show
     resource :guides, only: :show
     get "bank_sync", to: redirect("/settings/providers", status: 301)
@@ -557,6 +561,9 @@ Rails.application.routes.draw do
     resource :pending_duplicate_merges, only: %i[new create]
     resource :category, only: :update, controller: :transaction_categories
     resources :attachments, only: %i[show create destroy], controller: :transaction_attachments
+    resources :paperless_links, only: %i[new create destroy], controller: :transaction_paperless_links do
+      get "thumbs/:document_id", action: :thumb, on: :collection, as: :thumb, constraints: { document_id: /\d+/ }
+    end
 
     collection do
       delete :clear_filter
@@ -571,6 +578,11 @@ Rails.application.routes.draw do
       post :unlock
       patch :tags, action: :update_tags
     end
+  end
+
+  # Streams Paperless files through Sure so the Paperless token never reaches the browser
+  resources :paperless_links, only: [] do
+    get "file/:kind", action: :file, on: :member, as: :file, constraints: { kind: /thumb|preview|download/ }
   end
 
   resources :bills, only: %i[index show] do

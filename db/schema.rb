@@ -860,6 +860,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.string "moniker", default: "Family", null: false
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
+    t.string "paperless_connection_mode", default: "per_user", null: false
     t.boolean "personal_budgets", default: false, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
@@ -872,6 +873,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.check_constraint "categorization_shadow_rate >= 0::numeric AND categorization_shadow_rate <= 1::numeric", name: "chk_families_categorization_shadow_rate"
     t.check_constraint "default_account_sharing::text = ANY (ARRAY['shared'::character varying::text, 'private'::character varying::text])", name: "chk_families_default_account_sharing"
     t.check_constraint "month_start_day >= 1 AND month_start_day <= 28", name: "month_start_day_range"
+    t.check_constraint "paperless_connection_mode::text = ANY (ARRAY['per_user'::character varying, 'family'::character varying]::text[])", name: "chk_families_paperless_connection_mode"
   end
 
   create_table "family_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1898,6 +1900,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.jsonb "locked_attributes", default: {}
     t.string "subtype"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "paperless_connections", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "api_token", null: false
+    t.string "base_url", null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.datetime "last_connected_at"
+    t.text "last_error"
+    t.string "server_version"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id"
+    t.boolean "verify_ssl", default: true, null: false
+    t.index ["family_id"], name: "index_paperless_connections_on_family_id"
+    t.index ["family_id"], name: "index_paperless_connections_on_family_id_shared", unique: true, where: "(user_id IS NULL)"
+    t.index ["user_id"], name: "index_paperless_connections_on_user_id", unique: true
+  end
+
+  create_table "paperless_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "correspondent_name"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id"
+    t.date "document_created_on"
+    t.integer "document_id", null: false
+    t.uuid "family_id", null: false
+    t.uuid "linkable_id", null: false
+    t.string "linkable_type", null: false
+    t.string "mime_type"
+    t.uuid "paperless_connection_id"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_paperless_links_on_created_by_id"
+    t.index ["family_id"], name: "index_paperless_links_on_family_id"
+    t.index ["linkable_type", "linkable_id", "paperless_connection_id", "document_id"], name: "index_paperless_links_on_linkable_and_document", unique: true
+    t.index ["paperless_connection_id"], name: "index_paperless_links_on_paperless_connection_id"
   end
 
   create_table "plaid_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3044,6 +3081,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   add_foreign_key "oidc_identities", "users"
   add_foreign_key "onchain_wallet_accounts", "onchain_wallet_items"
   add_foreign_key "onchain_wallet_items", "families"
+  add_foreign_key "paperless_connections", "families", on_delete: :cascade
+  add_foreign_key "paperless_connections", "users", on_delete: :cascade
+  add_foreign_key "paperless_links", "families", on_delete: :cascade
+  add_foreign_key "paperless_links", "paperless_connections", on_delete: :nullify
+  add_foreign_key "paperless_links", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "plaid_accounts", "plaid_items"
   add_foreign_key "plaid_items", "families"
   add_foreign_key "plaid_items", "users", column: "owner_id", on_delete: :nullify

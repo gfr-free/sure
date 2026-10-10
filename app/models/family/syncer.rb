@@ -24,9 +24,7 @@ class Family::Syncer
     family.auto_create_missing_transfer_counterparts!
 
     Rails.logger.info("Applying rules for family #{family.id}")
-    family.rules.where(active: true).each do |rule|
-      rule.apply_later
-    end
+    ApplyRulesJob.perform_later(family)
   end
 
   private

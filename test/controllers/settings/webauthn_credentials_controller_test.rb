@@ -33,7 +33,7 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
 
     assert_difference -> { @user.webauthn_credentials.count }, 1 do
       post settings_webauthn_credentials_path, params: {
-        webauthn_credential: { nickname: "MacBook Touch ID" },
+        webauthn_credential: { nickname: "MacBook Touch ID", code: backup_code },
         credential: credential
       }, as: :json
     end
@@ -48,6 +48,118 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
     assert @user.reload.webauthn_id.present?
   end
 
+  test "registering a credential requires an MFA code" do
+    [ nil, "", "000000" ].each do |code|
+      options = registration_options
+      credential = @client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com")
+
+      assert_no_difference -> { @user.webauthn_credentials.count } do
+        register(credential, code: code)
+      end
+
+      assert_response :unprocessable_entity
+      assert_equal I18n.t("webauthn_credentials.invalid_code"), JSON.parse(response.body).fetch("error")
+    end
+  end
+
+  test "registering a credential accepts a current authenticator code" do
+    travel_to Time.zone.parse("2026-10-07 12:00:10") do
+      options = registration_options
+      credential = @client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com")
+
+      assert_difference -> { @user.webauthn_credentials.count }, 1 do
+        register(credential, code: totp_code)
+      end
+
+      assert_response :success
+    end
+  end
+
+  test "an authenticator code that was already used is reported as such" do
+    travel_to Time.zone.parse("2026-10-07 12:00:10") do
+      code = totp_code
+      assert @user.verify_otp?(code)
+
+      options = registration_options
+      credential = @client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com")
+
+      assert_no_difference -> { @user.webauthn_credentials.count } do
+        register(credential, code: code)
+      end
+
+      assert_response :unprocessable_entity
+      assert_equal I18n.t("webauthn_credentials.code_already_used"), JSON.parse(response.body).fetch("error")
+    end
+  end
+
+  test "a backup code confirms only one registration" do
+    code = backup_code
+
+    options = registration_options
+    register(@client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com"), code: code)
+    assert_response :success
+
+    options = registration_options
+    assert_no_difference -> { @user.webauthn_credentials.count } do
+      register(@client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com"), code: code)
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "a registration that fails does not spend the backup code" do
+    code = backup_code
+
+    stale_options = registration_options
+    registration_options
+    stale_credential = @client.create(challenge: stale_options.fetch("challenge"), rp_id: "www.example.com")
+    register(stale_credential, code: code)
+    assert_response :unprocessable_entity
+    assert_equal I18n.t("webauthn_credentials.failure"), JSON.parse(response.body).fetch("error")
+
+    options = registration_options
+    assert_difference -> { @user.webauthn_credentials.count }, 1 do
+      register(@client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com"), code: code)
+    end
+    assert_response :success
+  end
+
+  test "a duplicate credential does not spend the backup code" do
+    code = backup_code
+    registration_options
+    @user.webauthn_credentials.create!(nickname: "Existing", credential_id: "duplicate-credential-id", public_key: "public-key")
+
+    verified_credential = Struct.new(:id, :public_key, :sign_count).new("duplicate-credential-id", "new-public-key", 0)
+    relying_party = mock("webauthn_relying_party")
+    relying_party.expects(:verify_registration).returns(verified_credential)
+    Settings::WebauthnCredentialsController.any_instance.stubs(:webauthn_relying_party).returns(relying_party)
+
+    register({ id: "duplicate-credential-id", response: {} }, code: code)
+    assert_response :unprocessable_entity
+
+    assert @user.reload.verify_otp?(code), "backup code should still be unused"
+  end
+
+  test "code attempts are rate limited per user" do
+    Settings::WebauthnCredentialsController.cache_store.stubs(:increment).returns(11)
+    registration_options
+
+    register({ id: "x", response: {} }, code: "000000")
+
+    assert_response :too_many_requests
+    assert_equal I18n.t("webauthn_credentials.rate_limited"), JSON.parse(response.body).fetch("error")
+  end
+
+  test "every locale that translates the passkey form also translates the code confirmation" do
+    I18n.available_locales.each do |locale|
+      next unless I18n.exists?("webauthn_credentials.failure", locale, fallback: false)
+
+      %w[webauthn_credentials.code_already_used webauthn_credentials.invalid_code webauthn_credentials.rate_limited
+         settings.securities.show.webauthn_code_label settings.securities.show.webauthn_code_placeholder].each do |key|
+        assert I18n.exists?(key, locale, fallback: false), "#{locale} is missing #{key}"
+      end
+    end
+  end
+
   test "uses configured relying party id and allowed origin" do
     with_webauthn_config(rp_id: "example.test", allowed_origins: [ "https://app.example.test" ]) do
       client = WebAuthn::FakeClient.new("https://app.example.test")
@@ -59,7 +171,7 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
 
       assert_difference -> { @user.webauthn_credentials.count }, 1 do
         post settings_webauthn_credentials_path, params: {
-          webauthn_credential: { nickname: "Configured origin key" },
+          webauthn_credential: { nickname: "Configured origin key", code: backup_code },
           credential: credential
         }, as: :json
       end
@@ -73,14 +185,14 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
     credential = @client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com")
 
     post settings_webauthn_credentials_path, params: {
-      webauthn_credential: { nickname: "MacBook Touch ID" },
+      webauthn_credential: { nickname: "MacBook Touch ID", code: backup_code },
       credential: credential
     }, as: :json
     assert_response :success
 
     assert_no_difference -> { @user.webauthn_credentials.count } do
       post settings_webauthn_credentials_path, params: {
-        webauthn_credential: { nickname: "Replay" },
+        webauthn_credential: { nickname: "Replay", code: backup_code },
         credential: credential
       }, as: :json
     end
@@ -93,7 +205,7 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
 
     assert_no_difference -> { @user.webauthn_credentials.count } do
       post settings_webauthn_credentials_path, params: {
-        webauthn_credential: { nickname: "Malformed" },
+        webauthn_credential: { nickname: "Malformed", code: backup_code },
         credential: []
       }, as: :json
     end
@@ -117,7 +229,7 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
 
     assert_no_difference -> { @user.webauthn_credentials.count } do
       post settings_webauthn_credentials_path, params: {
-        webauthn_credential: { nickname: "Duplicate security key" },
+        webauthn_credential: { nickname: "Duplicate security key", code: backup_code },
         credential: { id: "duplicate-credential-id", response: {} }
       }, as: :json
     end
@@ -131,7 +243,7 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
     credential = @client.create(challenge: options.fetch("challenge"), rp_id: "www.example.com")
 
     post settings_webauthn_credentials_path, params: {
-      webauthn_credential: { nickname: "" },
+      webauthn_credential: { nickname: "", code: backup_code },
       credential: credential
     }, as: :json
 
@@ -158,6 +270,21 @@ class Settings::WebauthnCredentialsControllerTest < ActionDispatch::IntegrationT
       post options_settings_webauthn_credentials_path, as: :json
       assert_response :success
       JSON.parse(response.body)
+    end
+
+    def backup_code
+      @user.enable_mfa!.first
+    end
+
+    def totp_code
+      ROTP::TOTP.new(@user.reload.otp_secret, issuer: "Sure Finances").now
+    end
+
+    def register(credential, code:)
+      post settings_webauthn_credentials_path, params: {
+        webauthn_credential: { nickname: "Attempt", code: code },
+        credential: credential
+      }, as: :json
     end
 
     def with_webauthn_config(rp_id:, allowed_origins:)

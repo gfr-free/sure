@@ -39,6 +39,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
       oidc_account_link/ip oidc_account_link/email
       api_login/ip api_login/email
       api_sso_link/ip api_sso_link/email
+      password_change/ip password_change/session
     ].each do |name|
       assert_includes throttles, name, "#{name} should have rate limiting configured"
     end
@@ -115,6 +116,68 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_nil api_login_email_block.call(malformed_request)
   end
 
+  test "password change throttles discriminate by ip and signed session, and ignore unrelated requests" do
+    ip_block = Rack::Attack.throttles["password_change/ip"].block
+    session_block = Rack::Attack.throttles["password_change/session"].block
+
+    session_key = "session:#{Digest::SHA256.hexdigest("session-123")}"
+
+    %w[PATCH PUT].each do |method|
+      request = throttle_request("/password", method: method, session_cookie: "session-123")
+      assert_equal "203.0.113.5", ip_block.call(request), "#{method} /password should count toward the ip throttle"
+      assert_equal session_key, session_block.call(request), "#{method} /password should count toward the session throttle"
+    end
+
+    other_session_request = throttle_request("/password", method: "PATCH", session_cookie: "session-456")
+    assert_not_equal session_key, session_block.call(other_session_request), "each session gets its own budget"
+
+    format_request = throttle_request("/password.json", method: "PATCH", session_cookie: "session-123")
+    assert_equal session_key, session_block.call(format_request)
+
+    # No route accepts POST /password; the form's POST + `_method=patch` is
+    # rewritten to PATCH by Rack::MethodOverride before Rack::Attack runs.
+    post_request = throttle_request("/password", method: "POST", session_cookie: "session-123")
+    assert_nil ip_block.call(post_request)
+
+    edit_request = throttle_request("/password/edit", method: "GET", session_cookie: "session-123")
+    assert_nil ip_block.call(edit_request), "viewing the form must not count toward the throttle"
+    assert_nil session_block.call(edit_request)
+
+    reset_request = throttle_request("/password_reset", method: "POST", session_cookie: "session-123")
+    assert_nil ip_block.call(reset_request)
+    assert_nil session_block.call(reset_request)
+
+    no_session_request = throttle_request("/password", method: "PATCH")
+    assert_nil session_block.call(no_session_request), "a missing session cookie must not produce a throttle key"
+
+    tampered_request = throttle_request("/password", method: "PATCH", raw_cookie: "session_token=forged")
+    assert_nil session_block.call(tampered_request), "an unsigned session cookie must not produce a throttle key"
+  end
+
+  test "password change throttle blocks a signed-in session that rotates ips" do
+    # End to end through the real middleware stack: proves the session cookie
+    # is readable from inside Rack::Attack, which runs after MethodOverride
+    # but before the controller. The new password is deliberately too short so
+    # no request changes it; the throttle counts attempts, not failures.
+    sign_in users(:family_admin)
+
+    # Rack::Attack counts in fixed one-minute windows; freeze the clock so a
+    # minute boundary can't reset the counter mid-test.
+    freeze_time
+
+    with_rack_attack_enabled do
+      10.times do |i|
+        patch password_path, params: { user: { password_challenge: "wrong", password: "short", password_confirmation: "short" } },
+          env: { "REMOTE_ADDR" => "198.51.100.#{i + 1}" }
+        assert_response :unprocessable_entity
+      end
+
+      patch password_path, params: { user: { password_challenge: "wrong", password: "short", password_confirmation: "short" } },
+        env: { "REMOTE_ADDR" => "198.51.100.99" }
+      assert_response :too_many_requests
+    end
+  end
+
   test "credential-guessing throttles still match when the path carries a format extension" do
     # None of these routes are declared `format: false`, so Rails' default
     # `(.:format)` segment means e.g. "/sessions.json" still reaches
@@ -174,11 +237,30 @@ class RackAttackTest < ActionDispatch::IntegrationTest
 
   private
 
+    # Rack::Attack is disabled in the test environment and its counters live
+    # in Rails.cache (:null_store here), so give it a real store for the block.
+    def with_rack_attack_enabled
+      previous_enabled = Rack::Attack.enabled
+      previous_store = Rack::Attack.cache.store
+      Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
+      Rack::Attack.enabled = true
+      yield
+    ensure
+      Rack::Attack.enabled = previous_enabled
+      Rack::Attack.cache.store = previous_store
+    end
+
+    def signed_session_cookie(value)
+      jar = ActionDispatch::Request.new(Rails.application.env_config.dup).cookie_jar
+      jar.signed[:session_token] = value
+      "session_token=#{Rack::Utils.escape(jar[:session_token])}"
+    end
+
     NonRewindableInput = Struct.new(:io) do
       def read(*args) = io.read(*args)
     end
 
-    def throttle_request(path, method: "GET", params: {}, session: {}, json_body: nil, json_body_raw: nil, non_rewindable_json_body: nil)
+    def throttle_request(path, method: "GET", params: {}, session: {}, json_body: nil, json_body_raw: nil, non_rewindable_json_body: nil, session_cookie: nil, raw_cookie: nil)
       # Rack::MockRequest.env_for doesn't set REMOTE_ADDR, so #ip is nil
       # unless set explicitly — asserting against a real value here (rather
       # than comparing to request.ip, which could trivially be nil on both
@@ -194,7 +276,12 @@ class RackAttackTest < ActionDispatch::IntegrationTest
         opts["CONTENT_TYPE"] = "application/json"
       end
 
-      env = Rack::MockRequest.env_for(path, opts)
+      opts["HTTP_COOKIE"] = raw_cookie || signed_session_cookie(session_cookie) if raw_cookie || session_cookie
+
+      # Rails merges env_config (the cookie key generator, among others) into
+      # every request env before the middleware stack runs, Rack::Attack
+      # included.
+      env = Rails.application.env_config.merge(Rack::MockRequest.env_for(path, opts))
       env["rack.session"] = session
       Rack::Attack::Request.new(env)
     end

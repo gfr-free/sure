@@ -87,6 +87,15 @@ class Setting < RailsSettings::Base
   # Multi-provider: comma-separated list of enabled securities providers
   field :securities_providers, type: :string, default: ENV.fetch("SECURITIES_PROVIDERS", "")
 
+  # Reference security per metal for bullion pricing, as "TICKER|MIC|PROVIDER".
+  # Coin and bar prices are derived from it (BullionSpec::PriceDeriver).
+  field :bullion_reference_securities, type: :hash, default: {
+    "XAU" => "GC=F|CMX|yahoo_finance",
+    "XAG" => "SI=F|CMX|yahoo_finance",
+    "XPT" => "PL=F|NYM|yahoo_finance",
+    "XPD" => "PA=F|NYM|yahoo_finance"
+  }
+
   # New provider API keys (encrypted at rest — see EncryptedSettingFields below)
   field :tiingo_api_key, type: :string, default: ENV["TIINGO_API_KEY"]
   field :eodhd_api_key, type: :string, default: ENV["EODHD_API_KEY"]

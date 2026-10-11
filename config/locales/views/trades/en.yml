@@ -7,6 +7,32 @@ en:
       invalid_type: Invalid type
       supported_types: "type must be one of: %{types}"
     form:
+      bullion_groups:
+        bar: Bars
+        coin_XAG: Silver coins
+        coin_XAU: Gold coins
+      bullion_product: Coin or bar
+      bullion_size: Size
+      custom_bullion: Coin
+      custom_bullion_fine_grams: Fine weight (g)
+      custom_bullion_hint: Fine weight is the pure metal content of one piece. The price follows the metal's reference security.
+      custom_bullion_metal: Metal
+      custom_bullion_name: Name
+      custom_bullion_name_placeholder: 20 Mark Wilhelm II
+      custom_bullion_new: Create custom coin…
+      holding_kind: Asset
+      holding_kinds:
+        bullion: Coin or bar
+        custom_bullion: Custom coin
+        security: Security
+      metals:
+        XAG: Silver
+        XAU: Gold
+        XPD: Palladium
+        XPT: Platinum
+      price_per_piece: Price per piece
+      qty_pieces: Quantity (pieces)
+      trade_requires_bullion: Choose a coin or bar for buy and sell trades
       account: Transfer account (optional)
       account_prompt: Search account
       amount: Amount

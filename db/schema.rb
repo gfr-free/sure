@@ -402,6 +402,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
     t.index ["user_id"], name: "index_budgets_on_user_id"
   end
 
+  create_table "bullion_specs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "catalog_key"
+    t.datetime "created_at", null: false
+    t.uuid "family_id"
+    t.decimal "fine_weight_grams", precision: 12, scale: 4, null: false
+    t.string "metal", null: false
+    t.uuid "security_id", null: false
+    t.string "size_key"
+    t.datetime "updated_at", null: false
+    t.index ["catalog_key", "size_key"], name: "index_bullion_specs_on_catalog_product", unique: true, where: "(family_id IS NULL)"
+    t.index ["family_id"], name: "index_bullion_specs_on_family_id"
+    t.index ["security_id"], name: "index_bullion_specs_on_security_id", unique: true
+    t.check_constraint "family_id IS NULL AND catalog_key IS NOT NULL AND size_key IS NOT NULL OR family_id IS NOT NULL AND catalog_key IS NULL AND size_key IS NULL", name: "chk_bullion_specs_catalog_or_custom"
+    t.check_constraint "fine_weight_grams > 0::numeric", name: "chk_bullion_specs_fine_weight_positive"
+    t.check_constraint "metal::text = ANY (ARRAY['XAU'::character varying, 'XAG'::character varying, 'XPT'::character varying, 'XPD'::character varying]::text[])", name: "chk_bullion_specs_metal"
+  end
+
   create_table "categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "classification_unused", default: "expense", null: false
     t.string "color", default: "#6172F3", null: false
@@ -2949,6 +2966,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   add_foreign_key "budget_shares", "users", column: "viewer_id"
   add_foreign_key "budgets", "families"
   add_foreign_key "budgets", "users", on_delete: :cascade
+  add_foreign_key "bullion_specs", "families", on_delete: :cascade
+  add_foreign_key "bullion_specs", "securities", on_delete: :cascade
   add_foreign_key "categories", "families"
   add_foreign_key "categorization_comparisons", "families"
   add_foreign_key "categorization_comparisons", "transactions", on_delete: :nullify

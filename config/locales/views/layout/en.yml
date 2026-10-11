@@ -33,6 +33,7 @@ en:
         cannot_be_undone: This action cannot be undone.
         confirm: Confirm
       notification_tray:
+        account_order_save_failed: Could not save the account order. Please try again.
         download_complete: Download complete
         download_failed: Download failed. Please try again.
         download_location: The file is in your Downloads folder.

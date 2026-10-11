@@ -26,3 +26,9 @@
 <template id="desktop-download-failed" data-message="<%= t(".download_failed") %>">
   <%= render "shared/notifications/alert", message: t(".download_failed") %>
 </template>
+
+<%# Cloned into the tray by account_sortable_controller when saving a manual
+    account order fails, so the list on screen is not mistaken for saved. %>
+<template id="account-order-save-failed">
+  <%= render "shared/notifications/alert", message: t(".account_order_save_failed") %>
+</template>

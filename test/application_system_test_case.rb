@@ -115,6 +115,37 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
         .perform
     end
 
+    # Lets a test wait for a sortable list's order PATCH: once it answers,
+    # <html> carries data-order-saved with the response status. Waits for the
+    # sortable controller to connect first, so keys sent next are handled.
+    # The test env renders no CSRF meta tag (forgery protection is off) and
+    # the controllers skip saving without one, so a placeholder is added.
+    def record_saved_section_order(identifier)
+      page.document.synchronize do
+        connected = page.evaluate_script(<<~JS)
+          !!window.Stimulus.getControllerForElementAndIdentifier(
+            document.querySelector("[data-controller~='#{identifier}']"), "#{identifier}"
+          )
+        JS
+        raise Capybara::ExpectationNotMet, "#{identifier} is not connected" unless connected
+      end
+
+      page.execute_script(<<~JS)
+        const csrf = document.createElement("meta");
+        csrf.name = "csrf-token";
+        csrf.content = "test";
+        document.head.appendChild(csrf);
+
+        const originalFetch = window.fetch;
+        window.fetch = (url, init) => originalFetch(url, init).then((response) => {
+          if (init?.body?.includes("section_order")) {
+            document.documentElement.dataset.orderSaved = response.status;
+          }
+          return response;
+        });
+      JS
+    end
+
     def login_as(user)
       sign_in(user)
     end

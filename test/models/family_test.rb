@@ -187,6 +187,49 @@ class FamilyTest < ActiveSupport::TestCase
     assert_not_equal before_destroy, family.reload.entries_cache_version
   end
 
+  test "entries versions reflect entry count and latest update" do
+    family = families(:dylan_family)
+    expected_max = family.entries.maximum(:updated_at).to_f
+    expected_count = family.entries.count
+
+    assert_equal "#{expected_count}-#{expected_max}", family.entries_cache_version
+    assert_equal "#{expected_count}-#{expected_max}", family.entries_version
+  end
+
+  test "entries versions for a family without entries" do
+    family = families(:empty)
+    assert_equal 0, family.entries.count
+
+    assert_equal "0-0", family.entries_cache_version
+    assert_equal "0-", family.entries_version
+  end
+
+  test "entries versions use a single query, served from the query cache on repeat" do
+    family = families(:dylan_family)
+
+    ActiveRecord::Base.cache do
+      assert_queries_count(1) do
+        family.entries_cache_version
+        family.entries_version
+        family.entries_cache_version
+      end
+    end
+  end
+
+  test "entries versions change after a write within the same query-cache scope" do
+    family = families(:dylan_family)
+
+    ActiveRecord::Base.cache do
+      before_cache_version = family.entries_cache_version
+      before_version = family.entries_version
+
+      Entry.where(id: entries(:transaction).id).update_all(updated_at: 1.minute.from_now)
+
+      assert_not_equal before_cache_version, family.entries_cache_version
+      assert_not_equal before_version, family.entries_version
+    end
+  end
+
   test "default currency comes from country ISO data" do
     assert_equal "CAD", Family.default_currency_for_country("CA")
     assert_equal "EUR", Family.default_currency_for_country("DE")

@@ -61,26 +61,8 @@ module ExchangeRate::Provided
       unique_currencies = currencies.uniq
       return {} if unique_currencies.empty?
 
-      # Batch-load exact-date matches in a single query
-      exact_rates = where(from_currency: unique_currencies, to_currency: to, date: date)
-                      .index_by(&:from_currency)
-
-      missing = unique_currencies - exact_rates.keys
-
-      # For currencies without an exact match, batch-load the nearest recent rate
-      nearest_rates = if missing.any?
-        where(from_currency: missing, to_currency: to)
-          .where(date: (date - NEAREST_RATE_LOOKBACK_DAYS)..date)
-          .order(date: :desc)
-          .to_a
-          .each_with_object({}) do |r, map|
-            map[r.from_currency] ||= r  # keep most-recent (first due to ORDER BY date DESC)
-          end
-      else
-        {}
-      end
-
-      still_missing = missing - nearest_rates.keys
+      cached_rates = cached_rates_for(unique_currencies, to: to, date: date)
+      still_missing = unique_currencies - cached_rates.keys
 
       # Only hit the provider for currencies with no cached rate at all
       fetched_rates = still_missing.each_with_object({}) do |currency, map|
@@ -89,7 +71,7 @@ module ExchangeRate::Provided
       end
 
       unique_currencies.each_with_object({}) do |currency, result|
-        rate = exact_rates[currency] || nearest_rates[currency] || fetched_rates[currency]
+        rate = cached_rates[currency] || fetched_rates[currency]
         if rate.nil?
           Rails.logger.warn("No exchange rate found for #{currency}/#{to} on #{date}, using 1")
         elsif rate.date != date
@@ -97,6 +79,30 @@ module ExchangeRate::Provided
         end
         result[currency] = rate&.rate || 1
       end
+    end
+
+    # The stored rates `find_or_fetch_rate` would return for each currency --
+    # the exact date's, else the nearest within the lookback window -- in two
+    # queries at most, and never calling the provider. Returns a hash of
+    # currency => ExchangeRate; a currency with no stored rate is absent.
+    def cached_rates_for(currencies, to:, date: Date.current)
+      unique_currencies = currencies.uniq
+      return {} if unique_currencies.empty?
+
+      # Batch-load exact-date matches in a single query
+      exact_rates = where(from_currency: unique_currencies, to_currency: to, date: date)
+                      .index_by(&:from_currency)
+
+      missing = unique_currencies - exact_rates.keys
+      return exact_rates if missing.empty?
+
+      # For currencies without an exact match, batch-load the nearest recent rate
+      where(from_currency: missing, to_currency: to)
+        .where(date: (date - NEAREST_RATE_LOOKBACK_DAYS)..date)
+        .order(date: :desc)
+        .each_with_object(exact_rates) do |rate, map|
+          map[rate.from_currency] ||= rate # keep most-recent (first due to ORDER BY date DESC)
+        end
     end
 
     # @return [Integer] The number of exchange rates synced

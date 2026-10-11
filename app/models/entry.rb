@@ -6,6 +6,11 @@ class Entry < ApplicationRecord
 
   attr_accessor :unsplitting
 
+  # Key in transactions.extra that records why a sync excluded the entry on its
+  # own (see .auto_exclude_stale_pending and .reconcile_pending_duplicates).
+  AUTO_MUTATION_KEY = "auto_mutation".freeze
+  AUTO_EXCLUSION_REASONS = %w[stale_pending posted_match].freeze
+
   monetize :amount
 
   belongs_to :account
@@ -36,6 +41,13 @@ class Entry < ApplicationRecord
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
+
+  # A sync exclusion sets this so its own save keeps the note it just wrote.
+  attr_accessor :auto_excluding
+
+  # Any other change of `excluded` (the user toggling it, for example) makes the
+  # note about an automatic exclusion stale, so it is removed.
+  before_save :clear_auto_exclusion_note, if: :will_save_change_to_excluded?
 
   scope :visible, -> {
     joins(:account).where(accounts: { status: [ "draft", "active" ] })
@@ -144,11 +156,39 @@ class Entry < ApplicationRecord
   # @param days [Integer] Number of days after which pending is considered stale (default: 8)
   # @return [Integer] Number of entries excluded
   def self.auto_exclude_stale_pending(account:, days: 8)
-    stale_entries = account.entries.stale_pending(days: days).where(excluded: false)
-    count = stale_entries.count
+    stale_ids = account.entries.stale_pending(days: days).where(excluded: false).pluck(:id)
+    count = stale_ids.size
 
     if count > 0
-      stale_entries.update_all(excluded: true, updated_at: Time.current)
+      now = Time.current
+
+      transaction do
+        # Lock the rows and re-check `excluded`, so a row the user excluded
+        # meanwhile gets no sync note and the note and the exclusion always
+        # cover the same rows.
+        locked_ids = Entry.where(id: stale_ids, excluded: false).lock.pluck(:id)
+        stale_entries = Entry.where(id: locked_ids)
+
+        # One statement for all notes; `by` comes from each entry's own source.
+        Transaction.where(id: stale_entries.where(entryable_type: "Transaction").select(:entryable_id))
+          .update_all([ <<~SQL.squish, { at: now.iso8601, days: days } ])
+            extra = COALESCE(transactions.extra, '{}'::jsonb) || jsonb_build_object(
+              '#{AUTO_MUTATION_KEY}', jsonb_build_object(
+                'action', 'excluded',
+                'reason', 'stale_pending',
+                'by', 'sync:' || COALESCE((
+                  SELECT e.source FROM entries e
+                  WHERE e.entryable_type = 'Transaction' AND e.entryable_id = transactions.id
+                  LIMIT 1
+                ), 'unknown'),
+                'at', CAST(:at AS text),
+                'days', CAST(:days AS integer)
+              )
+            )
+          SQL
+        count = stale_entries.update_all(excluded: true, updated_at: now)
+      end
+
       Rails.logger.info("Auto-excluded #{count} stale pending transaction(s) for account #{account.id} (#{account.name})")
     end
 
@@ -206,11 +246,15 @@ class Entry < ApplicationRecord
           account: acct.name,
           match_type: "exact"
         }
+        unless dry_run
+          # Skip entries the user excluded by hand since they were loaded.
+          next unless pending_entry.exclude_automatically!(reason: "posted_match", matched_entry_id: posted_match.id)
+        end
+
         stats[:details] << detail
         stats[:reconciled] += 1
 
         unless dry_run
-          pending_entry.update!(excluded: true)
           Rails.logger.info("Reconciled pending→posted duplicate: excluded entry #{pending_entry.id} (#{pending_entry.name}) matched to #{posted_match.id}")
         end
         next
@@ -287,6 +331,44 @@ class Entry < ApplicationRecord
     end
 
     stats
+  end
+
+  # Excludes the entry on behalf of a sync and notes why in transactions.extra,
+  # so support and the user can later tell it apart from a manual exclusion.
+  def exclude_automatically!(reason:, **details)
+    raise ArgumentError, "unknown auto-exclusion reason: #{reason}" unless reason.in?(AUTO_EXCLUSION_REASONS)
+
+    self.class.transaction do
+      # Reload under a row lock: a user who excluded the entry since it was
+      # loaded keeps a manual exclusion without a sync note.
+      lock!
+      return false if excluded?
+
+      if entryable.is_a?(Transaction)
+        note = {
+          "action" => "excluded",
+          "reason" => reason,
+          "by" => "sync:#{source.presence || "unknown"}",
+          "at" => Time.current.iso8601
+        }.merge(details.deep_stringify_keys)
+        entryable.update!(extra: (entryable.extra || {}).merge(AUTO_MUTATION_KEY => note))
+      end
+
+      self.auto_excluding = true
+      update!(excluded: true)
+      true
+    ensure
+      self.auto_excluding = false
+    end
+  end
+
+  # The note a sync left when it excluded this entry, or nil when the entry is
+  # not excluded or was excluded by hand.
+  def auto_exclusion
+    return unless excluded? && entryable.is_a?(Transaction)
+
+    note = entryable.extra&.dig(AUTO_MUTATION_KEY)
+    note if note.is_a?(Hash) && note["action"] == "excluded"
   end
 
   def classification
@@ -582,6 +664,14 @@ class Entry < ApplicationRecord
   end
 
   private
+
+    def clear_auto_exclusion_note
+      return if auto_excluding
+      return unless entryable.is_a?(Transaction) && entryable.persisted?
+      return unless entryable.extra&.key?(AUTO_MUTATION_KEY)
+
+      entryable.update!(extra: entryable.extra.except(AUTO_MUTATION_KEY))
+    end
 
     # Remembers the earliest date this entry had before any save that changed
     # it, for sync_account_later to use as the sync window start.

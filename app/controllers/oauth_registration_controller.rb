@@ -4,6 +4,16 @@ class OauthRegistrationController < ApplicationController
   # or are not OAuth redirects.
   FORBIDDEN_SCHEMES = %w[javascript data file about blob ws wss ftp mailto tel sms intent].freeze
   SCHEME_PATTERN = /\A[a-z][a-z0-9+\-.]*\z/.freeze
+  # Client names containing the word "Sure" are reserved for first-party apps
+  # (e.g. "Sure Mobile"), so a registered client cannot pose as one on the
+  # consent screen or share the mobile app's name.
+  RESERVED_CLIENT_NAME_WORD = "sure"
+  # Lowercase Cyrillic, Greek and Armenian letters that look like the Latin
+  # letters of "sure mobile" (NFKC keeps them apart), e.g. "Ѕurе" with a
+  # Cyrillic Ѕ and е. Uppercase look-alikes such as М and В arrive here
+  # already downcased.
+  CONFUSABLE_LETTERS = "ѕսυеοоіιӏмв"
+  CONFUSABLE_LATIN = "suueooiilmb"
 
   skip_authentication
   skip_before_action :verify_authenticity_token
@@ -50,6 +60,14 @@ class OauthRegistrationController < ApplicationController
 
     client_name = body["client_name"].presence || "MCP Client"
 
+    if reserved_client_name?(client_name)
+      render json: {
+        error: "invalid_client_metadata",
+        error_description: t("oauth.registration.reserved_client_name")
+      }, status: :bad_request
+      return
+    end
+
     app = Doorkeeper::Application.new(
       name: client_name,
       redirect_uri: redirect_uris.join("\n"),
@@ -82,6 +100,17 @@ class OauthRegistrationController < ApplicationController
   end
 
   private
+
+    # Matches "Sure" as a whole word, ignoring case, punctuation, invisible (including the combining grapheme joiner)
+    # format characters, full-width letters and common look-alike letters,
+    # plus words starting with "SureMobile". "Surefire" or "Measure Mobile"
+    # stay allowed.
+    def reserved_client_name?(name)
+      normalized = name.to_s.unicode_normalize(:nfkc).downcase.gsub(/[\p{Cf}\u034F]/, "")
+        .tr(CONFUSABLE_LETTERS, CONFUSABLE_LATIN)
+      words = normalized.scan(/[[:alnum:]]+/)
+      words.any? { |word| word == RESERVED_CLIENT_NAME_WORD || word.start_with?("#{RESERVED_CLIENT_NAME_WORD}mobile") }
+    end
 
     # Returns true for https, loopback http, and RFC 8252 private-use schemes
     # (cursor://, vscode://). Rejects fragments, userinfo, handler schemes, and

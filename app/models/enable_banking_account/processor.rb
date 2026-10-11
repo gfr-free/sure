@@ -25,7 +25,9 @@ class EnableBankingAccount::Processor
       raise
     end
 
-    process_transactions
+    result = process_transactions
+    clean_up_pending_transactions
+    result
   end
 
   private
@@ -167,6 +169,23 @@ class EnableBankingAccount::Processor
       EnableBankingAccount::Transactions::Processor.new(enable_banking_account).process
     rescue => e
       report_exception(e, "transactions")
+    end
+
+    # Same safety net SimpleFIN runs after each import: a pending entry the import
+    # could not claim unambiguously is excluded once its booked twin shows up, and
+    # a pending that never booked within 8 days is excluded. Both leave a note on
+    # the transaction; because some ASPSPs keep the same id when a pending books,
+    # the import uses that note to re-activate the entry instead of leaving it
+    # excluded and pending.
+    def clean_up_pending_transactions
+      account = enable_banking_account.current_account
+
+      Entry.reconcile_pending_duplicates(account: account)
+      Entry.auto_exclude_stale_pending(account: account)
+    rescue => e
+      Rails.logger.warn("EnableBankingAccount::Processor - pending cleanup failed for account #{account&.id}: #{e.class} - #{e.message}")
+      capture_debug_log("Pending transaction cleanup failed: #{e.class} - #{e.message}", account) if account
+      report_exception(e, "pending_cleanup")
     end
 
     def report_exception(error, context)

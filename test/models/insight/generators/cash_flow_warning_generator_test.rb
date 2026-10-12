@@ -84,27 +84,10 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
 
     generator = Insight::Generators::CashFlowWarningGenerator.new(@family)
 
-    # Debug: check account shares
-    warn "\n=== ACCOUNT SHARES ===\n#{@family.accounts.map { |a| "#{a.name}: shares=#{a.account_shares.count}" }.join("\n")}\n"
-
-    # Debug: check accessible_by_all_active_members
-    accessible = @family.accounts.accessible_by_all_active_members
-    warn "\n=== ACCESSIBLE BY ALL ===\nCount: #{accessible.count}\n#{accessible.map { |a| "#{a.name} (liquidity=#{a.liquidity})" }.join("\n")}\n"
-
-    # Debug: check visible
-    accessible_visible = accessible.visible
-    warn "\n=== ACCESSIBLE + VISIBLE ===\nCount: #{accessible_visible.count}\n#{accessible_visible.map { |a| "#{a.name}" }.join("\n")}\n"
-
-    # Debug: check depository filter
-    depository_filtered = accessible_visible.where(accountable_type: "Depository", currency: @family.currency)
-    warn "\n=== DEPOSITORY + CURRENCY ===\nCount: #{depository_filtered.count}\n#{depository_filtered.map { |a| "#{a.name}" }.join("\n")}\n"
-
-    # Debug: check assets filter
-    assets_filtered = depository_filtered.assets
-    warn "\n=== DEPOSITORY + ASSETS ===\nCount: #{assets_filtered.count}\n#{assets_filtered.map { |a| "#{a.name} (classification=#{a.classification})" }.join("\n")}\n"
-
     cash_accts = generator.send(:cash_accounts)
-    warn "\n=== FINAL CASH_ACCOUNTS ===\nCount: #{cash_accts.count}\n#{cash_accts.map { |a| "#{a.name} (liquidity=#{a.liquidity})" }.join("\n")}\n"
+    warn "\n=== CASH_ACCOUNTS SQL ===\n#{cash_accts.to_sql}\n"
+    warn "\n=== CASH_ACCOUNTS COUNT ===\n#{cash_accts.count}\n"
+    warn "\n=== CASH_ACCOUNTS RECORDS ===\n#{cash_accts.load.map { |a| "#{a.name} (id=#{a.id})" }.join(", ")}\n"
 
     insights = generator.generate
 

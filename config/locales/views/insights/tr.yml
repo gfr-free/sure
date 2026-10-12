@@ -26,6 +26,7 @@ tr:
       view_all: Tüm içgörüleri görüntüle
       acknowledge_aria: 'Anladım: %{title}'
     figures:
+      percent: "%{value}%"
       days_overdue:
         one: "%{count} gün gecikti"
         other: "%{count} gün gecikti"

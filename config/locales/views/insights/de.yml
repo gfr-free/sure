@@ -25,6 +25,7 @@ de:
       header_new: Neu
       view_all: Alle Insights ansehen
     figures:
+      percent: "%{value} %"
       days_overdue:
         one: "%{count} Tag überfällig"
         other: "%{count} Tage überfällig"

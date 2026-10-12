@@ -43,6 +43,7 @@ pt-PT:
         other: Últimos %{count} dias
       date_range: "%{from} a %{to}"
     figures:
+      percent: "%{value}%"
       vs_previous: vs. mês anterior
       today: hoje
       on_pace: dentro do ritmo

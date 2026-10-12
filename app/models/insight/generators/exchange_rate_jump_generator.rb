@@ -40,12 +40,18 @@ class Insight::Generators::ExchangeRateJumpGenerator < Insight::Generator
           next if i.zero?
 
           _, date, rate = rows[i]
-          previous_rate = rows[i - 1].last
+          previous_date, previous_rate = rows[i - 1].values_at(1, 2)
+          # An internal gap means the move may span several days: not a
+          # day-over-day jump.
+          next unless date == previous_date + 1
           next if date < window_start
           next unless jump?(previous_rate, rate)
           # A bad value followed by a return to normal is one incident, not
           # two: flag the spike, not the day the rate recovered.
-          next if i >= 2 && jump?(rows[i - 2].last, previous_rate) && !jump?(rows[i - 2].last, rate)
+          next if i >= 2 &&
+            previous_date == rows[i - 2][1] + 1 &&
+            jump?(rows[i - 2].last, previous_rate) &&
+            !jump?(rows[i - 2].last, rate)
 
           change = (rate.to_d - previous_rate.to_d) / previous_rate.to_d
           Jump.new(from:, to: primary_currency, date:, previous_rate:, rate:, change:)

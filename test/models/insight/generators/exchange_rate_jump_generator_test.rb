@@ -54,6 +54,14 @@ class Insight::Generators::ExchangeRateJumpGeneratorTest < ActiveSupport::TestCa
     assert_equal "0.000062", insight.facts[:rate]
   end
 
+  test "does not report a multi-day move across a missing day as a one-day jump" do
+    eur_account
+    # Two 8% daily moves, but the middle day is not stored.
+    rates("EUR", "USD", 3 => 1.00, 1 => 1.16, 0 => 1.16)
+
+    assert_empty generate
+  end
+
   test "ignores moves at or below the threshold" do
     eur_account
     rates("EUR", "USD", 2 => 1.00, 1 => 1.10, 0 => 1.05)

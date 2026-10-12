@@ -81,9 +81,9 @@ module InsightsHelper
       facts["count"] && [ facts["count"].to_s, t("insights.figures.need_attention") ]
     when "budget_on_track"
       # Still the right figure here, where overall usage *is* the subject.
-      facts["budget_spent_pct"] && [ "#{facts["budget_spent_pct"]}%", t("insights.figures.of_budget") ]
+      facts["budget_spent_pct"] && [ t("insights.figures.percent", value: facts["budget_spent_pct"]), t("insights.figures.of_budget") ]
     when "exchange_rate_jump"
-      facts["change_pct"] && [ "#{facts["change_pct"]}%", facts["date"] ]
+      facts["change_pct"] && [ t("insights.figures.percent", value: facts["change_pct"]), facts["date"] ]
     end
   end
 

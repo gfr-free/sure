@@ -206,6 +206,7 @@ class InsightsHelperTest < ActionView::TestCase
     assert_nil insight_action(insight)
 
     I18n.with_locale(:de) do
+      assert_equal [ "−13,6\u00A0%", "September 29, 2026" ], insight_key_figure(build_insight("exchange_rate_jump", facts: { "change_pct" => "−13,6", "date" => "September 29, 2026" }))
       assert_equal "Wechselkurs · EUR/USD", insight_meta_line(insight)
     end
 

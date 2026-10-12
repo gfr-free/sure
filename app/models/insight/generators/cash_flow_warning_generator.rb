@@ -107,10 +107,11 @@ class Insight::Generators::CashFlowWarningGenerator < Insight::Generator
     # version silently under-counted it fourfold), and partially paid
     # occurrences contribute only what actually remains.
     def upcoming_recurring_entries
+      shared_account_ids = shared_accounts.visible.pluck(:id)
       occurrences = family.recurring_occurrences
         .open_status
         .joins(:recurring_transaction)
-        .where(recurring_transactions: { status: :active, destination_account_id: nil })
+        .where(recurring_transactions: { status: :active, destination_account_id: nil, account_id: shared_account_ids })
         .where("recurring_transactions.amount > 0")
         .where(currency: family.currency)
         .where(due_on: Date.current..(Date.current + HORIZON_DAYS))

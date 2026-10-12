@@ -28,6 +28,7 @@ depository:
   currency: USD
   accountable_type: Depository
   accountable: one
+  liquidity: immediate
   status: active
 
 connected:
@@ -39,6 +40,7 @@ connected:
   accountable_type: Depository
   accountable: two
   plaid_account: one
+  liquidity: immediate
   status: active
 
 credit_card:
@@ -49,6 +51,7 @@ credit_card:
   currency: USD
   accountable_type: CreditCard
   accountable: one
+  liquidity: short_term
   status: active
 
 investment:

@@ -82,7 +82,12 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
     accounts(:depository).update_columns(balance: 100)
     accounts(:connected).update_columns(balance: 50_000)
 
-    insights = Insight::Generators::CashFlowWarningGenerator.new(@family).generate
+    generator = Insight::Generators::CashFlowWarningGenerator.new(@family)
+    cash_accts = generator.send(:cash_accounts)
+    puts "\n=== DEBUG: cash_accounts ===\n#{cash_accts.map { |a| "#{a.name} (#{a.id}, liquidity=#{a.liquidity})" }.join("\n")}\n" if cash_accts.any?
+    puts "\n=== DEBUG: all family accounts ===\n#{@family.accounts.map { |a| "#{a.name} (#{a.id}, accountable_type=#{a.accountable_type}, liquidity=#{a.liquidity})" }.join("\n")}\n"
+
+    insights = generator.generate
 
     assert_equal 1, insights.size
     assert_equal Money.new(100, "USD").format, insights.first.facts[:current_balance]

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2634,6 +2634,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_070000) do
 
   create_table "tool_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.jsonb "extra_content"
     t.jsonb "function_arguments"
     t.string "function_name"
     t.jsonb "function_result"

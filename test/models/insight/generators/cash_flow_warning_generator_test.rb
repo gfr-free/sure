@@ -83,13 +83,32 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
     accounts(:connected).update_columns(balance: 50_000)
 
     generator = Insight::Generators::CashFlowWarningGenerator.new(@family)
+
+    # Debug: check account shares
+    warn "\n=== ACCOUNT SHARES ===\n#{@family.accounts.map { |a| "#{a.name}: shares=#{a.account_shares.count}" }.join("\n")}\n"
+
+    # Debug: check accessible_by_all_active_members
+    accessible = @family.accounts.accessible_by_all_active_members
+    warn "\n=== ACCESSIBLE BY ALL ===\nCount: #{accessible.count}\n#{accessible.map { |a| "#{a.name} (liquidity=#{a.liquidity})" }.join("\n")}\n"
+
+    # Debug: check visible
+    accessible_visible = accessible.visible
+    warn "\n=== ACCESSIBLE + VISIBLE ===\nCount: #{accessible_visible.count}\n#{accessible_visible.map { |a| "#{a.name}" }.join("\n")}\n"
+
+    # Debug: check depository filter
+    depository_filtered = accessible_visible.where(accountable_type: "Depository", currency: @family.currency)
+    warn "\n=== DEPOSITORY + CURRENCY ===\nCount: #{depository_filtered.count}\n#{depository_filtered.map { |a| "#{a.name}" }.join("\n")}\n"
+
+    # Debug: check assets filter
+    assets_filtered = depository_filtered.assets
+    warn "\n=== DEPOSITORY + ASSETS ===\nCount: #{assets_filtered.count}\n#{assets_filtered.map { |a| "#{a.name} (classification=#{a.classification})" }.join("\n")}\n"
+
     cash_accts = generator.send(:cash_accounts)
-    puts "\n=== DEBUG: cash_accounts ===\n#{cash_accts.map { |a| "#{a.name} (#{a.id}, liquidity=#{a.liquidity})" }.join("\n")}\n" if cash_accts.any?
-    puts "\n=== DEBUG: all family accounts ===\n#{@family.accounts.map { |a| "#{a.name} (#{a.id}, accountable_type=#{a.accountable_type}, liquidity=#{a.liquidity})" }.join("\n")}\n"
+    warn "\n=== FINAL CASH_ACCOUNTS ===\nCount: #{cash_accts.count}\n#{cash_accts.map { |a| "#{a.name} (liquidity=#{a.liquidity})" }.join("\n")}\n"
 
     insights = generator.generate
 
-    assert_equal 1, insights.size
+    assert_equal 1, insights.size, "Expected 1 insight but got #{insights.size}"
     assert_equal Money.new(100, "USD").format, insights.first.facts[:current_balance]
   end
 

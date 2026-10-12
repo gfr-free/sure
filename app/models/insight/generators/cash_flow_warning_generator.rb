@@ -78,9 +78,12 @@ class Insight::Generators::CashFlowWarningGenerator < Insight::Generator
     # account": a term deposit locked past the horizon cannot cover a dip.
     # Insights only run for families with preview features, so no gate here.
     def cash_accounts
+      today = Account.liquidity_today_for(family)
       shared_accounts.visible
             .where(accountable_type: "Depository", currency: family.currency)
-            .immediate_assets_on(Account.liquidity_today_for(family))
+            .where("classification = ?", "asset")
+            .where("liquidity = ? OR (liquidity = ? AND auto_renew = ? AND available_on <= ?)",
+                   "immediate", "locked", false, today)
     end
 
     # Projected occurrences of known recurring transactions within the horizon.

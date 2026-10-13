@@ -33,6 +33,38 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "bulk update rejects a category from another family" do
+    foreign = families(:empty).categories.create!(name: "Foreign", color: "#123456", lucide_icon: "shapes")
+    entry = @user.family.entries.transactions.first
+    original = entry.transaction.category_id
+
+    post transactions_bulk_update_url, params: { bulk_update: { entry_ids: [ entry.id ], category_id: foreign.id } }
+
+    assert_response :not_found
+    assert_equal original, entry.reload.transaction.category_id
+  end
+
+  test "bulk update rejects a merchant from another family" do
+    foreign = families(:empty).merchants.create!(name: "Foreign Merchant", type: "FamilyMerchant")
+    entry = @user.family.entries.transactions.first
+    original = entry.transaction.merchant_id
+
+    post transactions_bulk_update_url, params: { bulk_update: { entry_ids: [ entry.id ], merchant_id: foreign.id } }
+
+    assert_response :not_found
+    assert_equal original, entry.reload.transaction.merchant_id
+  end
+
+  test "bulk update drops tags from another family" do
+    foreign = families(:empty).tags.create!(name: "Foreign Tag")
+    own = @user.family.tags.first
+    entry = @user.family.entries.transactions.first
+
+    post transactions_bulk_update_url, params: { bulk_update: { entry_ids: [ entry.id ], tag_ids: [ own.id, foreign.id ] } }
+
+    assert_equal [ own.id ], entry.reload.transaction.tag_ids
+  end
+
   test "bulk update preloads transaction records" do
     transaction_ids = @user.family.entries.transactions.limit(4).pluck(:id)
 

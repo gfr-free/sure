@@ -36,6 +36,17 @@ class Insight::Generators::NegativePositionGeneratorTest < ActiveSupport::TestCa
     assert_empty generate
   end
 
+  test "an existing insight leaves the feed as soon as the account is no longer shared" do
+    @family.users.update_all(ai_enabled: false)
+    oversell_msft
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+    assert @family.insights.visible.exists?(insight_type: "negative_position")
+
+    @account.account_shares.destroy_all
+
+    assert_not @family.insights.visible.exists?(insight_type: "negative_position")
+  end
+
   # A broker's own negative quantity is a short position, not missing data.
   test "ignores negative rows a provider reports" do
     provider = AccountProvider.create!(account: @account, provider: snaptrade_accounts(:fidelity_401k))

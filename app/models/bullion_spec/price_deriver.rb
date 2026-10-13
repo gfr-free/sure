@@ -1,51 +1,84 @@
 # Derives daily prices for bullion securities. Coins and bars have no market
 # feed of their own; their price is the fine metal content times the price of
-# a reference security per metal (Setting.bullion_reference_securities). The
-# reference is an ordinary security, so its price provider is chosen exactly
-# like for a stock. Derived prices keep the reference's currency.
+# a reference security per metal. The user only picks the provider
+# (Setting.bullion_reference_provider); the reference symbol for each metal
+# follows from it. The reference is an ordinary security priced by that
+# provider. Derived prices keep the reference's currency.
 class BullionSpec::PriceDeriver
   DEFAULT_LOOKBACK_DAYS = MarketDataImporter::SNAPSHOT_DAYS
+  DEFAULT_REFERENCE_PROVIDER = "yahoo_finance".freeze
 
-  # The value is a combobox id ("TICKER|MIC|PROVIDER"), the same format the
-  # security search uses, so the settings UI can reuse that picker.
-  def self.reference_security(metal)
-    combobox_id = Setting.bullion_reference_securities.to_h[metal.to_s]
-    attrs = Security.parse_combobox_id(combobox_id)
-    return nil if attrs[:ticker].blank?
+  # [ticker, exchange MIC] per metal for each securities provider whose metal
+  # symbols are verified. Add a provider here only after checking that it
+  # returns daily prices for these symbols.
+  REFERENCE_SYMBOLS = {
+    "yahoo_finance" => {
+      "XAU" => [ "GC=F", "CMX" ],
+      "XAG" => [ "SI=F", "CMX" ],
+      "XPT" => [ "PL=F", "NYM" ],
+      "XPD" => [ "PA=F", "NYM" ]
+    },
+    # Twelve Data's free plan quotes gold only; the other metals need a paid plan.
+    "twelve_data" => {
+      "XAU" => [ "XAU/USD", nil ],
+      "XAG" => [ "XAG/USD", nil ],
+      "XPT" => [ "XPT/USD", nil ],
+      "XPD" => [ "XPD/USD", nil ]
+    }
+  }.freeze
 
-    security = begin
-      Security.find_or_create_by!(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase) do |new_security|
-        new_security.price_provider = attrs[:price_provider]
+  class << self
+    def reference_provider
+      provider = Setting.bullion_reference_provider.to_s
+      REFERENCE_SYMBOLS.key?(provider) ? provider : DEFAULT_REFERENCE_PROVIDER
+    end
+
+    # Providers the settings offer: those with known symbols that the app has.
+    def available_reference_providers
+      REFERENCE_SYMBOLS.keys & Security.valid_price_providers
+    end
+
+    def reference_symbol(metal)
+      REFERENCE_SYMBOLS.dig(reference_provider, metal.to_s)
+    end
+
+    def reference_security(metal)
+      ticker, mic = reference_symbol(metal)
+      return nil if ticker.blank?
+
+      security = begin
+        Security.find_or_create_by!(ticker: ticker, exchange_operating_mic: mic) do |new_security|
+          new_security.price_provider = reference_provider
+        end
+      rescue ActiveRecord::RecordNotUnique
+        Security.find_by(ticker: ticker, exchange_operating_mic: mic)
       end
-    rescue ActiveRecord::RecordNotUnique
-      Security.find_by(ticker: attrs[:ticker].upcase, exchange_operating_mic: attrs[:exchange_operating_mic]&.upcase)
+
+      adopt_configured_provider(security, reference_provider)
     end
 
-    adopt_configured_provider(security, attrs[:price_provider])
-  end
-
-  # True when the setting names a price provider that is not enabled, so the
-  # reference (and every coin of that metal) would get no new prices.
-  def self.reference_provider_disabled?(metal)
-    provider = Security.parse_combobox_id(Setting.bullion_reference_securities.to_h[metal.to_s])[:price_provider]
-    provider.present? && Setting.enabled_securities_providers.exclude?(provider)
-  end
-
-  # The reference may already exist with another provider (picked earlier or
-  # held as a stock). The setting decides, so a changed provider takes effect.
-  def self.adopt_configured_provider(security, provider)
-    return security if security.nil? || provider.blank? || security.price_provider == provider
-
-    attrs = { price_provider: provider }
-    # Taken offline because the old provider was disabled: back online once
-    # the new one is enabled, matching Settings::HostingsController.
-    if security.offline_reason == "provider_disabled" && Setting.enabled_securities_providers.include?(provider)
-      attrs.merge!(offline: false, offline_reason: nil, failed_fetch_count: 0, failed_fetch_at: nil)
+    # True when the chosen provider is not enabled, so no reference (and no
+    # coin or bar) gets new prices.
+    def reference_provider_disabled?
+      Setting.enabled_securities_providers.exclude?(reference_provider)
     end
-    security.update!(attrs)
-    security
+
+    private
+      # The reference may already exist with another provider (held as a
+      # stock, say). The setting decides, so a changed provider takes effect.
+      def adopt_configured_provider(security, provider)
+        return security if security.nil? || security.price_provider == provider
+
+        attrs = { price_provider: provider }
+        # Taken offline because the old provider was disabled: back online once
+        # the new one is enabled, matching Settings::HostingsController.
+        if security.offline_reason == "provider_disabled" && Setting.enabled_securities_providers.include?(provider)
+          attrs.merge!(offline: false, offline_reason: nil, failed_fetch_count: 0, failed_fetch_at: nil)
+        end
+        security.update!(attrs)
+        security
+      end
   end
-  private_class_method :adopt_configured_provider
 
   # security_ids limits derivation to those bullion securities (an account
   # sync); nil derives every catalogue and custom piece (the daily import).

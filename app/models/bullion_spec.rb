@@ -5,6 +5,7 @@ class BullionSpec < ApplicationRecord
   TROY_OUNCE_GRAMS = BigDecimal("31.1034768")
   METALS = %w[XAU XAG XPT XPD].freeze
   TICKER_PREFIX = "BULLION-".freeze
+  CUSTOM_TICKER_PREFIX = "#{TICKER_PREFIX}CUSTOM-".freeze
 
   belongs_to :security
   belongs_to :family, optional: true
@@ -36,7 +37,7 @@ class BullionSpec < ApplicationRecord
   end
 
   def self.create_custom!(family:, name:, metal:, fine_weight_grams:)
-    security = Security.new(ticker: "#{TICKER_PREFIX}CUSTOM-#{SecureRandom.hex(6).upcase}", name: name, **security_attributes)
+    security = Security.new(ticker: "#{CUSTOM_TICKER_PREFIX}#{SecureRandom.hex(6).upcase}", name: name, **security_attributes)
     spec = new(security: security, family: family, metal: metal, fine_weight_grams: fine_weight_grams)
     spec.validate!
 

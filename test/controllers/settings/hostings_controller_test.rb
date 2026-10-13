@@ -250,36 +250,36 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "updates one metal reference security and keeps the others" do
+  test "updates the precious metal price provider" do
     with_self_hosting do
-      patch settings_hosting_url, params: { setting: { bullion_reference_securities: { "XAG" => "XAG/USD||twelve_data" } } }
+      patch settings_hosting_url, params: { setting: { bullion_reference_provider: "twelve_data" } }
 
-      assert_equal "XAG/USD||twelve_data", Setting.bullion_reference_securities["XAG"]
-      assert_equal "GC=F|CMX|yahoo_finance", Setting.bullion_reference_securities["XAU"]
+      assert_equal "twelve_data", Setting.bullion_reference_provider
     end
   ensure
-    Setting.bullion_reference_securities = nil
+    Setting.bullion_reference_provider = nil
   end
 
-  test "rejects a blank metal reference security" do
+  test "rejects a precious metal price provider without known symbols" do
     with_self_hosting do
-      patch settings_hosting_url, params: { setting: { bullion_reference_securities: { "XAU" => " " } } }
+      patch settings_hosting_url, params: { setting: { bullion_reference_provider: "alpha_vantage" } }
 
-      assert_equal "GC=F|CMX|yahoo_finance", Setting.bullion_reference_securities["XAU"]
+      assert_equal "yahoo_finance", Setting.bullion_reference_provider
     end
   end
 
-  test "shows the metal reference securities" do
+  test "shows the precious metal price provider and each metal's symbol" do
     with_self_hosting do
       get settings_hosting_url
 
       assert_response :success
-      assert_includes response.body, "GC=F · CMX (Yahoo Finance)"
-      assert_select "form input[name='setting[bullion_reference_securities][XPD]']"
+      assert_select "select[name='setting[bullion_reference_provider]'] option[selected][value='yahoo_finance']"
+      assert_select "select[name='setting[bullion_reference_provider]'] option[value='twelve_data']"
+      assert_includes response.body, "PA=F"
     end
   end
 
-  test "warns when a metal reference uses a provider that is not enabled" do
+  test "warns when the precious metal price provider is not enabled" do
     with_self_hosting do
       Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
       get settings_hosting_url
@@ -289,7 +289,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "shows no provider warning for metal references with an enabled provider" do
+  test "shows no warning when the precious metal price provider is enabled" do
     with_self_hosting do
       Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
       get settings_hosting_url

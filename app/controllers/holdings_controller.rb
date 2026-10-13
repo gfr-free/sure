@@ -102,19 +102,26 @@ class HoldingsController < ApplicationController
 
   def sync_prices
     security = @holding.security
+    bullion = security.bullion_spec.present?
 
-    if security.offline?
+    if security.offline? && !bullion
       redirect_to account_path(@holding.account, tab: "holdings"),
                   alert: t("holdings.sync_prices.unavailable")
       return
     end
 
-    prices_updated, @provider_error = security.import_provider_prices(
-      start_date: 31.days.ago.to_date,
-      end_date: Date.current,
-      clear_cache: true
-    )
-    security.import_provider_details
+    if bullion
+      # Coins and bars have no feed of their own: refresh the metal's
+      # reference price and derive this piece's prices from it.
+      prices_updated = derive_bullion_prices(security, start_date: 31.days.ago.to_date)
+    else
+      prices_updated, @provider_error = security.import_provider_prices(
+        start_date: 31.days.ago.to_date,
+        end_date: Date.current,
+        clear_cache: true
+      )
+      security.import_provider_details
+    end
 
     @last_price_updated = @holding.security.prices.maximum(:updated_at)
 
@@ -149,6 +156,13 @@ class HoldingsController < ApplicationController
   end
 
   private
+    # The number of this piece's prices in the window after derivation; zero
+    # means the reference had none to derive from.
+    def derive_bullion_prices(security, start_date:)
+      BullionSpec::PriceDeriver.new(start_date: start_date, security_ids: [ security.id ]).derive_all
+      security.prices.where(date: start_date..).count
+    end
+
 
     def trade_republic_categories_for(account)
       provider = account.account_providers.includes(:provider).map(&:provider).find do |candidate|

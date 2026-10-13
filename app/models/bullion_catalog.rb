@@ -81,6 +81,17 @@ class BullionCatalog
       nil
     end
 
+    # :coin, :bar or :custom_coin for a bullion ticker, nil for anything else.
+    # Read from the ticker so lists of holdings need no extra query.
+    def kind_for_ticker(ticker)
+      ticker = ticker.to_s
+      return nil unless ticker.start_with?(BullionSpec::TICKER_PREFIX)
+      return :custom_coin if ticker.start_with?(BullionSpec::CUSTOM_TICKER_PREFIX)
+      return :bar if bar_products.any? { |product| ticker.start_with?("#{ticker_stem(product)}-") }
+
+      :coin
+    end
+
     # "1 kg", "1 oz" or "250 g": whole kilograms and whole or fractional troy
     # ounces read as such, everything else in grams.
     def bar_label(grams, locale: I18n.locale)

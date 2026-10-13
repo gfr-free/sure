@@ -3,7 +3,7 @@ require "test_helper"
 class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
   setup do
     @reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", name: "Gold futures", offline: true)
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
+    Setting.bullion_reference_provider = "yahoo_finance"
 
     @coin = BullionCatalog.security_for(:krugerrand, "1-2oz")
     @bar = BullionCatalog.bar_security_for(:gold_bar, 1, "oz")
@@ -13,7 +13,7 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
   end
 
   teardown do
-    Setting.bullion_reference_securities = nil
+    Setting.bullion_reference_provider = nil
   end
 
   test "derives prices from fine ounces times the reference price" do
@@ -60,7 +60,7 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert_not @bar.prices.exists?
   end
 
-  test "skips metals without a reference security" do
+  test "derives nothing for a metal whose reference has no prices yet" do
     silver = BullionCatalog.bar_security_for(:silver_bar, 1, "kg")
 
     assert_nothing_raised { BullionSpec::PriceDeriver.new.derive_all }
@@ -69,28 +69,44 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
 
   test "imports prices for an online reference before deriving" do
     @reference.update!(offline: false)
+    Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
     Security.any_instance.expects(:import_provider_prices).with(has_entries(end_date: Date.current)).once
 
     BullionSpec::PriceDeriver.new.derive_all
   end
 
-  test "reference_security finds or creates the configured security" do
-    Setting.bullion_reference_securities = { "XAG" => "si=f|cmx|" }
-
+  test "reference_security finds or creates the provider's symbol for a metal" do
     silver_reference = nil
     assert_difference "Security.count", 1 do
       silver_reference = BullionSpec::PriceDeriver.reference_security("XAG")
     end
-    assert_equal [ "SI=F", "CMX" ], [ silver_reference.ticker, silver_reference.exchange_operating_mic ]
+    assert_equal [ "SI=F", "CMX", "yahoo_finance" ], [ silver_reference.ticker, silver_reference.exchange_operating_mic, silver_reference.price_provider ]
 
     assert_no_difference "Security.count" do
       assert_equal silver_reference, BullionSpec::PriceDeriver.reference_security("XAG")
     end
-    assert_nil BullionSpec::PriceDeriver.reference_security("XPT")
+  end
+
+  test "the chosen provider decides each metal's symbol" do
+    Setting.bullion_reference_provider = "twelve_data"
+
+    assert_equal [ "XAU/USD", nil ], BullionSpec::PriceDeriver.reference_symbol("XAU")
+    reference = BullionSpec::PriceDeriver.reference_security("XPD")
+    assert_equal [ "XPD/USD", "twelve_data" ], [ reference.ticker, reference.price_provider ]
+  end
+
+  test "an unknown provider setting falls back to the default" do
+    Setting.bullion_reference_provider = "nonexistent"
+
+    assert_equal "yahoo_finance", BullionSpec::PriceDeriver.reference_provider
+    assert_equal [ "GC=F", "CMX" ], BullionSpec::PriceDeriver.reference_symbol("XAU")
+  end
+
+  test "offers only providers with known symbols" do
+    assert_equal %w[yahoo_finance twelve_data].sort, BullionSpec::PriceDeriver.available_reference_providers.sort
   end
 
   test "logs a warning instead of importing when the reference provider is not enabled" do
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
     @reference.update!(offline: false, price_provider: "yahoo_finance")
     Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
     Security.any_instance.expects(:import_provider_prices).never
@@ -105,21 +121,16 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert @coin.prices.exists?, "derives from the prices the reference already has"
   end
 
-  test "reference_provider_disabled? reports a configured provider that is not enabled" do
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance", "XAG" => "SI=F|CMX|" }
+  test "reference_provider_disabled? reports a chosen provider that is not enabled" do
     Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
-
-    assert BullionSpec::PriceDeriver.reference_provider_disabled?("XAU")
-    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XAG")
-    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XPT")
+    assert BullionSpec::PriceDeriver.reference_provider_disabled?
 
     Setting.stubs(:enabled_securities_providers).returns([ "twelve_data", "yahoo_finance" ])
-    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?("XAU")
+    assert_not BullionSpec::PriceDeriver.reference_provider_disabled?
   end
 
   test "reference_security applies a changed provider to an existing reference" do
     @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: "provider_disabled")
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
     Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
 
     assert_no_difference "Security.count" do
@@ -133,7 +144,6 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
 
   test "reference_security keeps a reference offline while the new provider is not enabled" do
     @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: "provider_disabled")
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
     Setting.stubs(:enabled_securities_providers).returns([])
 
     BullionSpec::PriceDeriver.reference_security("XAU")
@@ -145,7 +155,6 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
 
   test "reference_security keeps a manually offline reference offline" do
     @reference.update!(price_provider: "twelve_data", offline: true, offline_reason: nil)
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|yahoo_finance" }
 
     BullionSpec::PriceDeriver.reference_security("XAU")
 
@@ -154,10 +163,9 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert @reference.offline?
   end
 
-  test "ships Yahoo futures as default references" do
-    Setting.bullion_reference_securities = nil
+  test "ships Yahoo Finance as the default provider" do
+    Setting.bullion_reference_provider = nil
 
-    assert_equal "GC=F|CMX|yahoo_finance", Setting.bullion_reference_securities["XAU"]
-    assert_equal BullionSpec::METALS.sort, Setting.bullion_reference_securities.keys.sort
+    assert_equal "yahoo_finance", Setting.bullion_reference_provider
   end
 end

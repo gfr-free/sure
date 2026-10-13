@@ -152,7 +152,6 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     account = family.accounts.create!(name: "Coins", currency: "EUR", balance: 0, accountable: Investment.new)
 
     reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
     coin = BullionCatalog.security_for(:krugerrand, "1oz")
 
     trade_date = 10.days.ago.to_date
@@ -174,7 +173,7 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     assert_equal "USD", coin_price.currency
     assert_in_delta 4000, coin_price.price, 0.01
   ensure
-    Setting.bullion_reference_securities = nil
+    Setting.bullion_reference_provider = nil
   end
 
   test "derives bullion prices without a securities provider" do
@@ -182,7 +181,6 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     account = family.accounts.create!(name: "Coins", currency: "USD", balance: 0, accountable: Investment.new)
 
     reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
     coin = BullionCatalog.security_for(:maple_leaf, "1oz")
 
     trade_date = 5.days.ago.to_date
@@ -196,7 +194,7 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
 
     assert_in_delta 4000, coin.prices.find_by!(date: trade_date).price, 0.01
   ensure
-    Setting.bullion_reference_securities = nil
+    Setting.bullion_reference_provider = nil
   end
 
   test "derives bullion prices from the account start for provider holdings without trades" do
@@ -204,7 +202,6 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     account = family.accounts.create!(name: "Coins", currency: "USD", balance: 0, accountable: Investment.new)
 
     reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
-    Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
     coin = BullionCatalog.security_for(:kangaroo, "1oz")
 
     old_date = 90.days.ago.to_date
@@ -220,7 +217,7 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
 
     assert_in_delta 3800, coin.prices.find_by!(date: old_date).price, 0.01
   ensure
-    Setting.bullion_reference_securities = nil
+    Setting.bullion_reference_provider = nil
   end
 
   test "ignores price currencies that only occur before the account needs prices" do

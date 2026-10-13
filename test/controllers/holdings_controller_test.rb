@@ -109,6 +109,52 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, msft.failed_fetch_count
   end
 
+  test "a coin holding reads in pieces and shows its kind and name instead of a code" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 3, price: 4000, amount: 12000, currency: "USD")
+
+    get holding_path(holding)
+
+    assert_response :success
+    assert_includes response.body, I18n.t("holdings.kinds.coin")
+    assert_includes response.body, "Krugerrand 1 oz"
+    assert_includes response.body, I18n.t("holdings.show.pieces_label")
+    assert_not_includes response.body, coin.ticker
+  end
+
+  test "a coin holding shows its market data with the price source" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+
+    get holding_path(holding)
+
+    assert_select "##{dom_id(holding, :market_data_section)}"
+    assert_includes response.body, "GC=F · Yahoo Finance"
+  end
+
+  test "sync_prices derives a coin's prices from its metal reference" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+    reference.prices.create!(date: 2.days.ago.to_date, price: 4100, currency: "USD")
+
+    post sync_prices_holding_path(holding)
+
+    assert_redirected_to account_path(@account, tab: "holdings")
+    assert_equal I18n.t("holdings.sync_prices.success"), flash[:notice]
+    assert_in_delta 4100, coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.01
+  end
+
+  test "sync_prices reports an error when a coin's reference has no prices" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+
+    post sync_prices_holding_path(holding)
+
+    assert_equal I18n.t("holdings.sync_prices.provider_error"), flash[:alert]
+  end
+
   test "sync_prices redirects with alert for offline security" do
     @holding.security.update!(offline: true)
 

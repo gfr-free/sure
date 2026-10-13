@@ -4,47 +4,37 @@
     <p class="text-secondary text-sm"><%= t(".description") %></p>
   </div>
 
-  <% references = Setting.bullion_reference_securities.to_h %>
-  <% BullionSpec::METALS.each do |metal| %>
-    <% current = Security.parse_combobox_id(references[metal]) %>
-    <div class="space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <h3 class="font-medium text-sm"><%= t("trades.form.metals.#{metal}") %></h3>
-        <p class="text-xs text-secondary">
-          <% if current[:ticker].present? %>
-            <%= t(".current",
-                  ticker: [ current[:ticker], current[:exchange_operating_mic] ].compact.join(" · "),
-                  provider: current[:price_provider].present? ? t("securities.providers.#{current[:price_provider]}", default: current[:price_provider].humanize) : t(".no_provider")) %>
-          <% else %>
-            <%= t(".not_set") %>
-          <% end %>
-        </p>
-      </div>
-
-      <% if BullionSpec::PriceDeriver.reference_provider_disabled?(metal) %>
-        <%= render DS::Alert.new(
-              message: t(".provider_disabled", provider: t("securities.providers.#{current[:price_provider]}", default: current[:price_provider].humanize)),
-              variant: :warning
-            ) %>
-      <% end %>
-
-      <%= styled_form_with url: settings_hosting_path, method: :patch, scope: "setting[bullion_reference_securities]",
-                           class: "flex items-center gap-2" do |form| %>
-        <div class="grow">
-          <% if Security.providers.any? %>
-            <div class="form-field combobox">
-              <%= form.combobox metal,
-                                securities_path(country_code: Current.family.country),
-                                id: "bullion_reference_#{metal}",
-                                placeholder: t(".search_placeholder"),
-                                required: true %>
-            </div>
-          <% else %>
-            <%= form.text_field metal, placeholder: current[:ticker] || t(".ticker_placeholder"), required: true %>
-          <% end %>
-        </div>
-        <%= render DS::Button.new(text: t(".save"), type: "submit", variant: :secondary) %>
-      <% end %>
-    </div>
+  <% provider = BullionSpec::PriceDeriver.reference_provider %>
+  <%= styled_form_with model: Setting.new,
+                       url: settings_hosting_path,
+                       method: :patch,
+                       data: {
+                         controller: "auto-submit-form",
+                         "auto-submit-form-trigger-event-value": "change"
+                       } do |form| %>
+    <%= form.select :bullion_reference_provider,
+                    BullionSpec::PriceDeriver.available_reference_providers.map { |key| [ t("securities.providers.#{key}", default: key.humanize), key ] },
+                    { label: t(".provider_label") },
+                    { value: provider, data: { "auto-submit-form-target": "auto" } } %>
   <% end %>
+
+  <% if BullionSpec::PriceDeriver.reference_provider_disabled? %>
+    <%= render DS::Alert.new(
+          message: t(".provider_disabled", provider: t("securities.providers.#{provider}", default: provider.humanize)),
+          variant: :warning
+        ) %>
+  <% end %>
+
+  <% if provider == "twelve_data" %>
+    <p class="text-xs text-secondary"><%= t(".twelve_data_plan_hint") %></p>
+  <% end %>
+
+  <ul class="text-sm space-y-1">
+    <% BullionSpec::METALS.each do |metal| %>
+      <li class="flex items-center justify-between gap-2">
+        <span class="text-primary"><%= t("trades.form.metals.#{metal}") %></span>
+        <span class="text-secondary"><%= BullionSpec::PriceDeriver.reference_symbol(metal)&.first || t(".not_set") %></span>
+      </li>
+    <% end %>
+  </ul>
 </div>

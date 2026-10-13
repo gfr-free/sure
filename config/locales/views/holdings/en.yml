@@ -1,6 +1,10 @@
 ---
 en:
   holdings:
+    kinds:
+      bar: Bar
+      coin: Coin
+      custom_coin: Custom coin
     cash:
       brokerage_cash: Brokerage cash
     destroy:
@@ -27,6 +31,9 @@ en:
       calculated: From trades
       provider: From provider
     cost_basis_cell:
+      or_per_piece_label: "Or enter per piece:"
+      per_piece: per piece
+      set_cost_basis_header_pieces: "Set cost basis for %{ticker} (%{qty} pcs)"
       unknown: "--"
       set: Set
       set_cost_basis_header: "Set cost basis for %{ticker} (%{qty} shares)"
@@ -38,6 +45,8 @@ en:
       overwrite_confirm_title: Overwrite cost basis?
       overwrite_confirm_body: "This will replace the current cost basis of %{current}."
     holding:
+      per_piece: per piece
+      pieces: "%{qty} pcs"
       per_share: per share
       shares: "%{qty} shares"
       unknown: "--"
@@ -58,6 +67,9 @@ en:
         its returns or value.
       missing_data: Missing data
     show:
+      bullion_price_source: "Derived from %{metal} (%{source}) × %{ounces} oz fine"
+      pieces_label: Pieces
+      trade_history_entry_pieces: "%{qty} pcs of %{security} at %{price}"
       avg_cost_label: Average Cost
       current_market_price_label: Current Market Price
       delete: Delete

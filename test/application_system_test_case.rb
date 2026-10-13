@@ -138,7 +138,7 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
 
         const originalFetch = window.fetch;
         window.fetch = (url, init) => originalFetch(url, init).then((response) => {
-          if (init?.body?.includes("section_order")) {
+          if (typeof init?.body === "string" && init.body.includes("section_order")) {
             document.documentElement.dataset.orderSaved = response.status;
           }
           return response;

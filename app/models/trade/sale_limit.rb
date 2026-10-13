@@ -117,7 +117,7 @@ class Trade::SaleLimit
         qty: format_qty(sold_qty),
         available: format_qty(available_qty),
         ticker: security.ticker,
-        date: I18n.l(limit_date)
+        date: I18n.l(limit_date, format: :long)
       )
     end
 

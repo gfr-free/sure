@@ -910,6 +910,17 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
   end
 
+  test "confirming a pending transfer makes the inflow a funds movement" do
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    inflow_entry = create_transaction(date: Date.current, account: @loan, amount: -500)
+    transfer = Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable, status: "pending")
+
+    transfer.confirm!
+
+    assert_equal "funds_movement", inflow_entry.reload.entryable.kind
+    assert_equal "loan_payment", outflow_entry.reload.entryable.kind
+  end
+
   test "auto_create_missing_transfer_counterparts! skips an outflow already in a pending transfer" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
@@ -1010,6 +1021,34 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     end
   end
 
+  test "deleting the real outflow also removes its fabricated counterpart" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+    fabricated_entry_id = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).inflow_transaction.entry.id
+
+    assert_difference -> { Transfer.count } => -1, -> { Entry.count } => -2 do
+      outflow_entry.destroy!
+    end
+
+    assert_not Entry.exists?(fabricated_entry_id)
+  end
+
+  test "deleting a fabricated counterpart itself removes only that entry and its transfer" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+    fabricated_entry = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).inflow_transaction.entry
+
+    assert_difference [ "Transfer.count", "Entry.count" ], -1 do
+      fabricated_entry.destroy!
+    end
+
+    assert Entry.exists?(outflow_entry.id)
+  end
+
   test "a system-side destroy of a fabricated transfer does not dismiss the suggestion" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
@@ -1069,9 +1108,21 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     inflow_entry = create_transaction(date: Date.current, account: @loan, amount: -500)
     transfer = Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable)
 
+    transfer.unlink!
+
+    assert_nil outflow_entry.reload.entryable.extra&.dig("counterparty_transfer_suggestion_dismissed")
+    assert Entry.exists?(inflow_entry.id)
+  end
+
+  test "rejecting a real transfer does not dismiss the counterpart suggestion" do
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    inflow_entry = create_transaction(date: Date.current, account: @loan, amount: -500)
+    transfer = Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable)
+
     transfer.reject!
 
     assert_nil outflow_entry.reload.entryable.extra&.dig("counterparty_transfer_suggestion_dismissed")
+    assert Entry.exists?(inflow_entry.id)
   end
 
   test "auto_create_missing_transfer_counterparts! does not fabricate into an account the outflow's owner cannot write to" do
@@ -1108,6 +1159,31 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
 
     transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
     assert_equal "Überweisung von #{@depository.name}", transfer.inflow_transaction.entry.name
+  end
+
+  test "auto_create_missing_transfer_counterparts! names the source account only for members who can see it" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    account_shares(:depository_shared_with_member).destroy!
+    @loan.account_shares.create!(user: users(:family_member), permission: "read_only")
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    @family.auto_create_missing_transfer_counterparts!
+
+    transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
+    assert_equal "Incoming transfer", transfer.inflow_transaction.entry.name
+  end
+
+  test "auto_create_missing_transfer_counterparts! names the source account when every viewer of the target can see it" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @loan.account_shares.create!(user: users(:family_member), permission: "read_only")
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    @family.auto_create_missing_transfer_counterparts!
+
+    transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
+    assert_equal "Transfer from #{@depository.name}", transfer.inflow_transaction.entry.name
   end
 
   private

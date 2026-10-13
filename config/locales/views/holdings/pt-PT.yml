@@ -29,10 +29,9 @@ pt-PT:
     cost_basis_cell:
       unknown: "--"
       set: Definir
-      set_cost_basis_header: "Definir base de custo para %{ticker} (%{qty} ações)"
+      set_cost_basis_header: "Definir base de custo para %{ticker}"
       total_cost_basis_label: Base de custo total
       per_share_label: "Por ação"
-      linked_fields_hint: "Os dois campos atualizam-se mutuamente."
       cancel: Cancelar
       save: Guardar
       overwrite_confirm_title: Substituir base de custo?

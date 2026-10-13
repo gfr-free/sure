@@ -21,19 +21,8 @@
       namespace: dom_id(holding, "#{context}_cost_basis"),
       class: "space-y-3",
       data: form_data.merge(controller: "cost-basis-form", cost_basis_form_qty_value: holding.qty) do |f| %>
-  <%# The holding stores the per-share cost, so neither field is bound to it. %>
-  <%= f.money_field :total_cost_basis,
-        label: t("holdings.cost_basis_cell.total_cost_basis_label"),
-        name: f.field_name(:cost_basis),
-        hide_currency: true,
-        currency_value_override: holding.currency,
-        value: current_total,
-        placeholder: "0.00",
-        step: "any",
-        min: 0,
-        amount_data: { action: "input->cost-basis-form#updatePerShare", cost_basis_form_target: "total" } %>
-
-  <%# Only the total is submitted; this field just helps to fill it in. %>
+  <%# Laid out like an invoice line: per share x quantity = total. Only the
+      total is submitted; the per-share field just helps to fill it in. %>
   <%= f.money_field :per_share_cost_basis,
         label: t("holdings.cost_basis_cell.per_share_label"),
         name: nil,
@@ -45,7 +34,22 @@
         min: 0,
         amount_data: { action: "input->cost-basis-form#updateTotal", cost_basis_form_target: "perShare" } %>
 
-  <p class="text-xs text-secondary"><%= t("holdings.cost_basis_cell.linked_fields_hint") %></p>
+  <p class="flex items-center gap-2 px-3 text-sm">
+    <span class="text-secondary" aria-hidden="true">&times;</span>
+    <span class="text-primary"><%= t("holdings.holding.shares", qty: format_quantity(holding.qty, exact: true)) %></span>
+  </p>
+
+  <%# The holding stores the per-share cost, so neither field is bound to it. %>
+  <%= f.money_field :total_cost_basis,
+        label: safe_join([ tag.span("=", class: "text-secondary", aria: { hidden: true }), t("holdings.cost_basis_cell.total_cost_basis_label") ], " "),
+        name: f.field_name(:cost_basis),
+        hide_currency: true,
+        currency_value_override: holding.currency,
+        value: current_total,
+        placeholder: "0.00",
+        step: "any",
+        min: 0,
+        amount_data: { action: "input->cost-basis-form#updatePerShare", cost_basis_form_target: "total" } %>
 
   <div class="flex justify-end gap-2 pt-2">
     <%= render DS::Button.new(text: t("holdings.cost_basis_cell.cancel"), variant: :secondary, size: :sm, data: { action: cancel_action }) %>

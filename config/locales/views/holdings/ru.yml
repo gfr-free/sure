@@ -6,12 +6,11 @@ ru:
     cost_basis_cell:
       cancel: Отмена
       per_share_label: "За акцию"
-      linked_fields_hint: "Поля пересчитываются друг через друга."
       overwrite_confirm_body: Это заменит текущую стоимость приобретения %{current}.
       overwrite_confirm_title: Перезаписать стоимость приобретения?
       save: Сохранить
       set: Установить
-      set_cost_basis_header: Установить стоимость приобретения для %{ticker} (%{qty} акций)
+      set_cost_basis_header: Установить стоимость приобретения для %{ticker}
       total_cost_basis_label: Общая стоимость приобретения
       unknown: "--"
     cost_basis_sources:

@@ -122,7 +122,7 @@
             <%# Inline cost basis editor (hidden by default) %>
             <div class="hidden mt-3 space-y-3" data-drawer-cost-basis-target="form">
               <p class="text-xs text-secondary">
-                <%= t("holdings.cost_basis_cell.set_cost_basis_header", ticker: @holding.ticker, qty: format_quantity(@holding.qty, exact: true)) %>
+                <%= t("holdings.cost_basis_cell.set_cost_basis_header", ticker: @holding.ticker) %>
               </p>
               <%= render "holdings/cost_basis_form", holding: @holding, context: :drawer, cancel_action: "drawer-cost-basis#toggle" %>
             </div>

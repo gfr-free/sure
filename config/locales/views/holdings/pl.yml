@@ -6,13 +6,12 @@ pl:
     cost_basis_cell:
       cancel: Anuluj
       per_share_label: "Na akcję"
-      linked_fields_hint: "Oba pola aktualizują się wzajemnie."
       overwrite_confirm_body: Spowoduje to zastąpienie aktualnego kosztu bazowego
         wynoszącego %{current}.
       overwrite_confirm_title: Nadpisać koszt bazowy?
       save: Zapisz
       set: Ustaw
-      set_cost_basis_header: Ustaw koszt bazowy dla %{ticker} (%{qty} akcji)
+      set_cost_basis_header: Ustaw koszt bazowy dla %{ticker}
       total_cost_basis_label: Łączny koszt bazowy
       unknown: "--"
     cost_basis_sources:

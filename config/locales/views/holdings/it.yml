@@ -29,10 +29,9 @@ it:
     cost_basis_cell:
       unknown: "--"
       set: Imposta
-      set_cost_basis_header: "Imposta costo base per %{ticker} (%{qty} azioni)"
+      set_cost_basis_header: "Imposta costo base per %{ticker}"
       total_cost_basis_label: Costo base totale
       per_share_label: "Per azione"
-      linked_fields_hint: "I due campi si aggiornano a vicenda."
       cancel: Annulla
       save: Salva
       overwrite_confirm_title: Sovrascrivere il costo base?

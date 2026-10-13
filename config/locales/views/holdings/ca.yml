@@ -6,12 +6,11 @@ ca:
     cost_basis_cell:
       cancel: Cancel·la
       per_share_label: "Per acció"
-      linked_fields_hint: "Els dos camps s'actualitzen mútuament."
       overwrite_confirm_body: Això reemplaçarà el cost base actual de %{current}.
       overwrite_confirm_title: Reemplaça el cost base?
       save: Desa
       set: Estableix
-      set_cost_basis_header: Estableix el cost base per a %{ticker} (%{qty} accions)
+      set_cost_basis_header: Estableix el cost base per a %{ticker}
       total_cost_basis_label: Cost base total
       unknown: "--"
     cost_basis_sources:

@@ -29,10 +29,9 @@ en:
     cost_basis_cell:
       unknown: "--"
       set: Set
-      set_cost_basis_header: "Set cost basis for %{ticker} (%{qty} shares)"
+      set_cost_basis_header: "Set cost basis for %{ticker}"
       total_cost_basis_label: Total cost basis
       per_share_label: "Per share"
-      linked_fields_hint: "Both fields update each other."
       cancel: Cancel
       save: Save
       overwrite_confirm_title: Overwrite cost basis?

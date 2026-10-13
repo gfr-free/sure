@@ -29,10 +29,9 @@ uk:
     cost_basis_cell:
       unknown: "--"
       set: "Встановити"
-      set_cost_basis_header: "Встановити базову вартість для %{ticker} (%{qty} акцій)"
+      set_cost_basis_header: "Встановити базову вартість для %{ticker}"
       total_cost_basis_label: "Загальна базова вартість"
       per_share_label: "За акцію"
-      linked_fields_hint: "Поля перераховуються одне через одне."
       cancel: "Скасувати"
       save: "Зберегти"
       overwrite_confirm_title: "Перезаписати базову вартість?"

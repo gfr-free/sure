@@ -29,10 +29,9 @@ vi:
     cost_basis_cell:
       unknown: "--"
       set: Đặt
-      set_cost_basis_header: "Đặt giá vốn cho %{ticker} (%{qty} cổ phiếu)"
+      set_cost_basis_header: "Đặt giá vốn cho %{ticker}"
       total_cost_basis_label: Tổng giá vốn
       per_share_label: "Mỗi cổ phiếu"
-      linked_fields_hint: "Hai trường tự cập nhật lẫn nhau."
       cancel: Hủy
       save: Lưu
       overwrite_confirm_title: Ghi đè giá vốn?

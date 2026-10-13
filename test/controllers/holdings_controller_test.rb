@@ -75,16 +75,22 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert @holding.cost_basis_locked?
   end
 
-  test "cost basis editor shows total and per-share as equal fields" do
+  test "cost basis editor reads per share times quantity equals total" do
     @holding.update!(qty: 10, cost_basis: 12.5)
 
     get holding_path(@holding)
 
     form_id = "#{dom_id(@holding, :drawer_cost_basis)}_holding"
-    assert_select ".form-field input[type=number]##{form_id}_total_cost_basis[name='holding[cost_basis]'][value='125.00']"
-    assert_select ".form-field input[type=number]##{form_id}_per_share_cost_basis:not([name])[value='12.50']"
+    assert_select "form[data-controller=cost-basis-form]" do |forms|
+      rows = forms.first.element_children.select { |node| node.matches?(".form-field, p") }
+      assert_equal 3, rows.size
+      assert rows[0].at_css("input##{form_id}_per_share_cost_basis:not([name])[value='12.50']")
+      assert_equal "× 10 shares", rows[1].text.squish
+      assert rows[2].at_css("input##{form_id}_total_cost_basis[name='holding[cost_basis]'][value='125.00']")
+    end
     assert_select "label[for=#{form_id}_per_share_cost_basis]", text: I18n.t("holdings.cost_basis_cell.per_share_label")
-    assert_select "[data-drawer-cost-basis-target=perShareValue], [data-cost-basis-form-target=perShareValue]", count: 0
+    assert_select "label[for=#{form_id}_total_cost_basis]", text: "= #{I18n.t("holdings.cost_basis_cell.total_cost_basis_label")}"
+    assert_select "[data-cost-basis-form-target=perShareValue]", count: 0
   end
 
   test "cost basis editor in the holdings list uses its own field ids" do

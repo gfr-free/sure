@@ -6,12 +6,11 @@ fr:
     cost_basis_cell:
       cancel: Annuler
       per_share_label: "Par action"
-      linked_fields_hint: "Les deux champs se mettent à jour mutuellement."
       overwrite_confirm_body: Cela remplacera le coût de revient actuel de %{current}.
       overwrite_confirm_title: Écraser le coût de revient ?
       save: Enregistrer
       set: Définir
-      set_cost_basis_header: Définir le coût de revient pour %{ticker} (%{qty} actions)
+      set_cost_basis_header: Définir le coût de revient pour %{ticker}
       total_cost_basis_label: Coût de revient total
       unknown: "--"
     cost_basis_sources:

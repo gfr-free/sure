@@ -146,7 +146,9 @@ module Family::AutoTransferMatchable
 
     transaction = entry.entryable
     return nil unless transaction.is_a?(Transaction)
-    return nil if transaction.transfer?
+    # A pending auto-match leaves the kind untouched until it is confirmed, so
+    # the kind alone doesn't tell whether this outflow is already matched.
+    return nil if transaction.transfer? || transaction.transfer.present?
     return nil if transaction.extra&.dig("counterparty_transfer_suggestion_dismissed") == true
 
     counterparty_iban = transaction.counterparty_iban
@@ -196,6 +198,7 @@ module Family::AutoTransferMatchable
       .where("entries.amount > 0")
       .where.not(transactions: { counterparty_iban: nil })
       .where.not(transactions: { kind: Transaction::TRANSFER_KINDS })
+      .where.not(transactions: { id: Transfer.select(:outflow_transaction_id) })
       .where.not("transactions.extra @> ?", { "counterparty_transfer_suggestion_dismissed" => true }.to_json)
     outflow_entries = outflow_entries.where(account_id: account.id) if account
 
@@ -249,9 +252,12 @@ module Family::AutoTransferMatchable
         # or matched this outflow in the meantime. Re-check under a row lock
         # so a reject during a running sync isn't undone right away.
         transaction.lock!
-        next false if transaction.transfer?
+        next false if transaction.transfer? || Transfer.exists?(outflow_transaction_id: transaction.id)
         next false if transaction.extra&.dig("counterparty_transfer_suggestion_dismissed") == true
 
+        # The fabricated leg is only a stand-in for money that left the
+        # outflow account, never real income, so it is a funds movement from
+        # the start.
         inflow_transaction = Transaction.new(
           kind: "funds_movement",
           extra: { "auto_generated_transfer_counterpart" => true },
@@ -270,7 +276,10 @@ module Family::AutoTransferMatchable
           status: "pending"
         )
 
-        transaction.update!(kind: Transfer.kind_for_account(target_account))
+        # Like every automatic match, the suggestion leaves the real outflow
+        # as it is until the user confirms it (Transfer#confirm! applies the
+        # transfer kind), so an unconfirmed suggestion never moves budgets or
+        # reports.
         true
       end
 

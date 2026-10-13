@@ -887,6 +887,35 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal Date.current, inflow_entry.date
     assert_equal true, transfer.outflow_transaction.extra.blank? || transfer.outflow_transaction.extra["auto_generated_transfer_counterpart"].blank?
     assert_equal true, transfer.inflow_transaction.extra["auto_generated_transfer_counterpart"]
+    # Pending: the real outflow keeps its kind until the user confirms.
+    assert_equal "standard", outflow_entry.reload.entryable.kind
+  end
+
+  test "confirming a fabricated counterpart applies the transfer kind to the outflow" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.auto_create_missing_transfer_counterparts!
+
+    transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
+    transfer.confirm!
+
+    assert_predicate transfer.reload, :confirmed?
+    assert_equal "loan_payment", outflow_entry.reload.entryable.kind
+    assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
+  end
+
+  test "auto_create_missing_transfer_counterparts! skips an outflow already in a pending transfer" do
+    @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    inflow_entry = create_transaction(date: Date.current, account: @credit_card, amount: -500)
+    Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable, status: "pending")
+
+    assert_no_difference [ "Transfer.count", "Entry.count" ] do
+      @family.auto_create_missing_transfer_counterparts!
+    end
+    assert_nil @family.missing_transfer_suggestion_for(outflow_entry.reload, user: @user)
   end
 
   test "auto_create_missing_transfer_counterparts! does not fabricate a counterpart on a synced (non-manual) account" do

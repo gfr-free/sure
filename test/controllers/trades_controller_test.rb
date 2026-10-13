@@ -511,17 +511,39 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  test "the new trade form shows the bullion pickers" do
-    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_product: "panda")
+  test "the new trade form offers securities or precious metal" do
+    get new_trade_url(account_id: @entry.account_id, type: "buy")
 
     assert_response :success
-    assert_select "select[name='model[bullion_product]'] option[selected][value='panda']"
-    assert_select "select[name='model[bullion_size]'] option[value='30g']"
+    assert_select "select[name='model[holding_kind]'] option", count: 2
+    assert_select "select[name='model[holding_kind]'] option[value='custom_bullion']", count: 0
+  end
+
+  test "the new trade form lists my coins, catalogue coins, bars and a new coin in one picker" do
+    spec = BullionSpec.create_custom!(family: @user.family, name: "Vreneli 20 Fr", metal: "XAU", fine_weight_grams: 5.806)
+
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion")
+
+    assert_response :success
+    assert_select "select[name='model[bullion_choice]']" do
+      assert_select "optgroup[label='#{I18n.t("trades.form.bullion_groups.custom")}'] option[value='custom:#{spec.id}']", text: "Vreneli 20 Fr"
+      assert_select "optgroup[label='#{I18n.t("trades.form.bullion_groups.bar")}'] option[value='product:gold_bar']"
+      assert_select "option[value='#{Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE}']"
+      assert_select "option[selected][value='product:krugerrand']"
+    end
     assert_select "input[name='model[manual_ticker]']", count: 0
   end
 
+  test "the new trade form shows the sizes of a catalogue coin" do
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: "product:panda")
+
+    assert_response :success
+    assert_select "select[name='model[bullion_choice]'] option[selected][value='product:panda']"
+    assert_select "select[name='model[bullion_size]'] option[value='30g']"
+  end
+
   test "the new trade form asks for a weight instead of a size for bars" do
-    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_product: "platinum_bar")
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: "product:platinum_bar")
 
     assert_response :success
     assert_select "input[name='model[bullion_weight]']"
@@ -530,12 +552,53 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the new trade form offers inline custom coin fields" do
-    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "custom_bullion")
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE)
 
     assert_response :success
     assert_select "input[name='model[custom_bullion_name]']"
     assert_select "select[name='model[custom_bullion_metal]']"
     assert_select "input[name='model[custom_bullion_fine_grams]']"
+  end
+
+  test "an existing custom coin needs no further fields" do
+    spec = BullionSpec.create_custom!(family: @user.family, name: "Vreneli 20 Fr", metal: "XAU", fine_weight_grams: 5.806)
+
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: "custom:#{spec.id}")
+
+    assert_response :success
+    assert_select "input[name='model[custom_bullion_name]']", count: 0
+    assert_select "select[name='model[bullion_size]']", count: 0
+  end
+
+  test "buys from the precious metal picker" do
+    spec = BullionSpec.create_custom!(family: @user.family, name: "Vreneli 20 Fr", metal: "XAU", fine_weight_grams: 5.806)
+
+    post trades_url(account_id: @entry.account_id), params: {
+      model: {
+        type: "buy", holding_kind: "bullion", bullion_choice: "product:krugerrand", bullion_size: "1oz",
+        date: Date.current, qty: 1, price: 3000, currency: "USD"
+      }
+    }
+    assert_equal "krugerrand", Entry.order(created_at: :desc).first.trade.security.bullion_spec.catalog_key
+
+    post trades_url(account_id: @entry.account_id), params: {
+      model: {
+        type: "buy", holding_kind: "bullion", bullion_choice: "custom:#{spec.id}",
+        date: Date.current, qty: 2, price: 700, currency: "USD"
+      }
+    }
+    assert_equal spec.security, Entry.order(created_at: :desc).first.trade.security
+
+    assert_difference -> { @user.family.bullion_specs.custom.count }, 1 do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_choice: Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE,
+          custom_bullion_name: "Ducat", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "3.44",
+          date: Date.current, qty: 1, price: 400, currency: "USD"
+        }
+      }
+    end
+    assert_redirected_to account_url(@entry.account)
   end
 
   test "creates trade buy entry" do

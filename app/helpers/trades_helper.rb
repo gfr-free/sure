@@ -7,28 +7,57 @@ module TradesHelper
     params[key].presence || params.dig(:model, key).presence
   end
 
+  # The form offers two kinds: a security, or precious metal (catalogue coins,
+  # bars and the family's own coins in one list).
+  FORM_HOLDING_KINDS = %w[security bullion].freeze
+
   def trade_holding_kind(account)
     kind = trade_form_param(:holding_kind)
-    return kind if Trade::CreateForm::HOLDING_KINDS.include?(kind)
+    return "bullion" if kind == "custom_bullion"
+    return kind if FORM_HOLDING_KINDS.include?(kind)
 
     BULLION_ACCOUNT_SUBTYPES.include?(account&.subtype) ? "bullion" : "security"
   end
 
   def trade_holding_kind_options
-    Trade::CreateForm::HOLDING_KINDS.map { |kind| [ t("trades.form.holding_kinds.#{kind}"), kind ] }
+    FORM_HOLDING_KINDS.map { |kind| [ t("trades.form.holding_kinds.#{kind}"), kind ] }
   end
 
-  def trade_bullion_product
-    BullionCatalog.find(trade_form_param(:bullion_product)) || BullionCatalog.products.first
+  def trade_bullion_choice(family)
+    choice = trade_form_param(:bullion_choice)
+    valid = bullion_choice_options(family).flat_map(&:last).map(&:last)
+    return choice if valid.include?(choice)
+
+    valid.find { |option| option.start_with?(Trade::CreateForm::BULLION_CHOICE_PRODUCT) }
   end
 
-  # Grouped as coins per metal and bars, in catalogue order.
-  def bullion_product_options
-    BullionCatalog.products
-      .group_by { |product| product.bar? ? "bar" : "coin_#{product.metal}" }
-      .map do |group, products|
-        [ t("trades.form.bullion_groups.#{group}", default: group.humanize), products.map { |product| [ product.display_name, product.key ] } ]
-      end
+  # The catalogue product behind a "product:<key>" choice, nil for custom coins.
+  def trade_bullion_choice_product(choice)
+    return unless choice.to_s.start_with?(Trade::CreateForm::BULLION_CHOICE_PRODUCT)
+
+    BullionCatalog.find(choice.delete_prefix(Trade::CreateForm::BULLION_CHOICE_PRODUCT))
+  end
+
+  # My coins first (reused for later purchases), then catalogue coins per
+  # metal, bars, and creating a new custom coin last.
+  def bullion_choice_options(family)
+    @bullion_choice_options ||= begin
+      custom = family.bullion_specs.custom.includes(:security).sort_by(&:name)
+        .map { |spec| [ spec.name, "#{Trade::CreateForm::BULLION_CHOICE_CUSTOM}#{spec.id}" ] }
+
+      catalogue = BullionCatalog.products
+        .group_by { |product| product.bar? ? "bar" : "coin_#{product.metal}" }
+        .map do |group, products|
+          [ t("trades.form.bullion_groups.#{group}", default: group.humanize),
+            products.map { |product| [ product.display_name, "#{Trade::CreateForm::BULLION_CHOICE_PRODUCT}#{product.key}" ] } ]
+        end
+
+      groups = []
+      groups << [ t("trades.form.bullion_groups.custom"), custom ] if custom.any?
+      groups.concat(catalogue)
+      groups << [ t("trades.form.bullion_groups.new_custom"),
+                  [ [ t("trades.form.custom_bullion_new"), Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE ] ] ]
+    end
   end
 
   def bullion_weight_unit_options
@@ -37,12 +66,6 @@ module TradesHelper
 
   def bullion_size_options(product)
     product.sizes.map { |size| [ size.label, size.key ] }
-  end
-
-  def custom_bullion_options(family)
-    specs = family.bullion_specs.custom.includes(:security).sort_by(&:name)
-    specs.map { |spec| [ spec.name, spec.id ] } +
-      [ [ t("trades.form.custom_bullion_new"), Trade::CreateForm::NEW_CUSTOM_BULLION ] ]
   end
 
   def bullion_metal_options

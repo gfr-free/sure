@@ -6,28 +6,28 @@ de:
       other: "%{label} %{qty} Stück %{name}"
       sell: "Verkauf von %{qty} Stück %{name}"
     form:
+      bullion_choice: Münze oder Barren
       bullion_groups:
         bar: Barren
         coin_XAG: Silbermünzen
         coin_XAU: Goldmünzen
         coin_XPD: Palladiummünzen
         coin_XPT: Platinmünzen
-      bullion_product: Münze oder Barren
+        custom: Meine Münzen
+        new_custom: Neue Münze
       bullion_size: Größe
       bullion_weight: Gewicht
       bullion_weight_hint: Feingewicht des Barrens. Barren sind fast immer 999,9 fein, das ist also das Gewicht, das auf dem Barren oder der Rechnung steht.
       bullion_weight_unit: Einheit
-      custom_bullion: Münze
       custom_bullion_fine_grams: Feingewicht (g)
       custom_bullion_hint: Das Feingewicht ist der reine Metallanteil eines Stücks. Der Kurs folgt dem Referenz-Wertpapier des Metalls.
       custom_bullion_metal: Metall
       custom_bullion_name: Name
       custom_bullion_name_placeholder: 20 Mark Wilhelm II.
-      custom_bullion_new: Eigene Münze anlegen…
+      custom_bullion_new: "+ Neue eigene Münze"
       holding_kind: Anlage
       holding_kinds:
-        bullion: Münze oder Barren
-        custom_bullion: Eigene Münze
+        bullion: Edelmetall
         security: Wertpapier
       metals:
         XAG: Silber

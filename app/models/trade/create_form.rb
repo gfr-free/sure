@@ -23,15 +23,23 @@ class Trade::CreateForm
   # family's own coin (see BullionCatalog and BullionSpec).
   HOLDING_KINDS = %w[security bullion custom_bullion].freeze
   NEW_CUSTOM_BULLION = "new".freeze
+  # The form offers coins, bars and custom coins in one list; each option is
+  # "product:<catalogue key>" or "custom:<spec id or new>".
+  BULLION_CHOICE_PRODUCT = "product:".freeze
+  BULLION_CHOICE_CUSTOM = "custom:".freeze
+  NEW_CUSTOM_BULLION_CHOICE = "#{BULLION_CHOICE_CUSTOM}#{NEW_CUSTOM_BULLION}".freeze
 
   attr_accessor :account, :date, :amount, :currency, :qty,
                 :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id,
                 :holding_kind, :bullion_product, :bullion_size, :bullion_weight, :bullion_weight_unit,
-                :custom_bullion_id, :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
+                :custom_bullion_id, :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams,
+                :bullion_choice
 
   # Either creates a trade, transaction, or transfer based on type
   # Returns the model, regardless of success or failure
   def create
+    apply_bullion_choice
+
     case type
     when *SECURITY_TRADE_LABELS.keys
       create_trade
@@ -47,6 +55,17 @@ class Trade::CreateForm
   end
 
   private
+    def apply_bullion_choice
+      return unless holding_kind == "bullion" && bullion_choice.present?
+
+      if bullion_choice.start_with?(BULLION_CHOICE_CUSTOM)
+        self.holding_kind = "custom_bullion"
+        self.custom_bullion_id = bullion_choice.delete_prefix(BULLION_CHOICE_CUSTOM)
+      else
+        self.bullion_product = bullion_choice.delete_prefix(BULLION_CHOICE_PRODUCT)
+      end
+    end
+
     # Users can either look up a ticker from a provider or enter a manual, "offline" ticker (that we won't fetch prices for)
     def security
       parsed = ticker.present? ? Security.parse_combobox_id(ticker) : { ticker: manual_ticker }

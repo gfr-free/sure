@@ -11,28 +11,28 @@ en:
       invalid_type: Invalid type
       supported_types: "type must be one of: %{types}"
     form:
+      bullion_choice: Coin or bar
       bullion_groups:
         bar: Bars
         coin_XAG: Silver coins
         coin_XAU: Gold coins
         coin_XPD: Palladium coins
         coin_XPT: Platinum coins
-      bullion_product: Coin or bar
+        custom: My coins
+        new_custom: New coin
       bullion_size: Size
       bullion_weight: Weight
       bullion_weight_hint: Fine weight of the bar. Bars are almost always 999.9 fine, so this is the weight printed on the bar or invoice.
       bullion_weight_unit: Unit
-      custom_bullion: Coin
       custom_bullion_fine_grams: Fine weight (g)
       custom_bullion_hint: Fine weight is the pure metal content of one piece. The price follows the metal's reference security.
       custom_bullion_metal: Metal
       custom_bullion_name: Name
       custom_bullion_name_placeholder: 20 Mark Wilhelm II
-      custom_bullion_new: Create custom coin…
+      custom_bullion_new: "+ New custom coin"
       holding_kind: Asset
       holding_kinds:
-        bullion: Coin or bar
-        custom_bullion: Custom coin
+        bullion: Precious metal
         security: Security
       metals:
         XAG: Silver

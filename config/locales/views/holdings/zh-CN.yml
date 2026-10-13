@@ -31,8 +31,8 @@ zh-CN:
       set: 设置
       set_cost_basis_header: 为 %{ticker}（%{qty} 股）设置成本基础
       total_cost_basis_label: 总成本基础
-      or_per_share_label: 或输入每股：
-      per_share: 每股
+      per_share_label: "每股"
+      linked_fields_hint: "两个字段会相互换算。"
       cancel: 取消
       save: 保存
       overwrite_confirm_title: 覆盖成本基础？

@@ -5,10 +5,10 @@ fr:
       brokerage_cash: Liquidités de courtage
     cost_basis_cell:
       cancel: Annuler
-      or_per_share_label: 'Ou saisir par action :'
+      per_share_label: "Par action"
+      linked_fields_hint: "Les deux champs se mettent à jour mutuellement."
       overwrite_confirm_body: Cela remplacera le coût de revient actuel de %{current}.
       overwrite_confirm_title: Écraser le coût de revient ?
-      per_share: par action
       save: Enregistrer
       set: Définir
       set_cost_basis_header: Définir le coût de revient pour %{ticker} (%{qty} actions)

@@ -31,8 +31,8 @@ it:
       set: Imposta
       set_cost_basis_header: "Imposta costo base per %{ticker} (%{qty} azioni)"
       total_cost_basis_label: Costo base totale
-      or_per_share_label: "Oppure inserisci per azione:"
-      per_share: per azione
+      per_share_label: "Per azione"
+      linked_fields_hint: "I due campi si aggiornano a vicenda."
       cancel: Annulla
       save: Salva
       overwrite_confirm_title: Sovrascrivere il costo base?

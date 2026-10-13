@@ -31,8 +31,8 @@ vi:
       set: Đặt
       set_cost_basis_header: "Đặt giá vốn cho %{ticker} (%{qty} cổ phiếu)"
       total_cost_basis_label: Tổng giá vốn
-      or_per_share_label: "Hoặc nhập mỗi cổ phiếu:"
-      per_share: mỗi cổ phiếu
+      per_share_label: "Mỗi cổ phiếu"
+      linked_fields_hint: "Hai trường tự cập nhật lẫn nhau."
       cancel: Hủy
       save: Lưu
       overwrite_confirm_title: Ghi đè giá vốn?

@@ -26,8 +26,8 @@ de:
       unknown: "--"
       set_cost_basis_header: "Einstandspreis für %{ticker} setzen (%{qty} Anteile)"
       total_cost_basis_label: Gesamter Einstandspreis
-      or_per_share_label: "Oder pro Anteil eingeben:"
-      per_share: pro Anteil
+      per_share_label: "Pro Anteil"
+      linked_fields_hint: "Die Felder rechnen sich gegenseitig um."
       cancel: Abbrechen
       save: Speichern
       overwrite_confirm_title: Einstandspreis überschreiben?

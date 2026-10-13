@@ -31,8 +31,8 @@ hu:
       set: Megadás
       set_cost_basis_header: "Bekerülési érték megadása: %{ticker} (%{qty} részvény)"
       total_cost_basis_label: Teljes bekerülési érték
-      or_per_share_label: "Vagy add meg részvényenként:"
-      per_share: részvényenként
+      per_share_label: "Részvényenként"
+      linked_fields_hint: "A két mező kölcsönösen frissíti egymást."
       cancel: Mégse
       save: Mentés
       overwrite_confirm_title: Felülírja a bekerülési értéket?

@@ -18,8 +18,8 @@ nl:
       unknown: "--"
       set_cost_basis_header: "Kostprijs instellen voor %{ticker} (%{qty} aandelen)"
       total_cost_basis_label: Totale kostprijs
-      or_per_share_label: "Of voer per aandeel in:"
-      per_share: per aandeel
+      per_share_label: "Per aandeel"
+      linked_fields_hint: "Beide velden werken elkaar bij."
       cancel: Annuleren
       save: Opslaan
       overwrite_confirm_title: Kostprijs overschrijven?

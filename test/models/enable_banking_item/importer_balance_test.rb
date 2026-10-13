@@ -669,6 +669,23 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
+  test "the anchor check abstains when a booked amount cannot be parsed" do
+    account = link_account(Depository.create!)
+    create_anchor(account, amount: 1000, date: 2.days.ago.to_date)
+    @enable_banking_account.update!(
+      balance_verified: true,
+      raw_transactions_payload: [ booked_tx("ref-bad", 1.day.ago.to_date, "not-a-number", indicator: "DBIT") ]
+    )
+    # Treating the bad amount as 0 would confirm 1000 as the anchor-backed pick.
+    stub_balances(clbd("1000.00"), clbd("950.00"))
+
+    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+    assert_equal BigDecimal("950.00"), @enable_banking_account.reload.current_balance
+    assert_not @enable_banking_account.balance_evidence_verified?
+    assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
+  end
+
   test "the anchor check falls back to value_date when booking_date is missing" do
     account = link_account(Depository.create!)
     create_anchor(account, amount: 1000, date: 2.days.ago.to_date)
@@ -747,17 +764,20 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
 
   test "duplicate fresher balances go through the same tiebreak regardless of response order" do
     link_account(Depository.create!)
-    stub_balances(
-      { balance_type: "OPBD", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-01" },
-      { balance_type: "ITAV", balance_amount: { amount: "900.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" },
-      { balance_type: "ITAV", balance_amount: { amount: "200.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" }
-    )
+    itav = lambda do |amount|
+      { balance_type: "ITAV", balance_amount: { amount: amount, currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-29" }
+    end
+    opbd = { balance_type: "OPBD", balance_amount: { amount: "100.00", currency: "EUR" }, credit_debit_indicator: "CRDT", reference_date: "2026-09-01" }
 
-    assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+    [ [ "900.00", "200.00" ], [ "200.00", "900.00" ] ].each do |first, second|
+      stub_balances(opbd, itav.call(first), itav.call(second))
 
-    assert_equal BigDecimal("200.00"), @enable_banking_account.reload.current_balance
-    assert_not @enable_banking_account.balance_evidence_verified?
-    assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
+      assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
+
+      assert_equal BigDecimal("200.00"), @enable_banking_account.reload.current_balance, "order #{first}, #{second}"
+      assert_not @enable_banking_account.balance_evidence_verified?
+      assert_equal "lowest", DebugLogEntry.order(:created_at).last.metadata["stage"]
+    end
   end
 
   test "an older entry of the fresher type keeps an evidence-backed fresher pick unverified" do

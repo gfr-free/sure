@@ -479,6 +479,8 @@ class EnableBankingItem::Importer
         date = raw_transaction_date(tx)
         [ date, signed_transaction_amount(tx) ] if date && date >= anchor_date && date <= Date.current
       end
+      # An unparseable amount makes the expected balance unknowable: abstain.
+      return nil if dated.any? { |_, amount| amount.nil? }
       later_flows = dated.sum { |date, amount| date > anchor_date ? amount : 0 }
       all_flows = dated.sum { |_, amount| amount }
 
@@ -520,7 +522,7 @@ class EnableBankingItem::Importer
       absolute = BigDecimal(amount.to_s).abs
       tx[:credit_debit_indicator] == "CRDT" ? -absolute : absolute
     rescue ArgumentError, TypeError
-      0
+      nil
     end
 
     def signed_balance_amount(balance)

@@ -45,20 +45,6 @@ module TransactionsHelper
     @annotatable_account_ids.include?(account.id)
   end
 
-  # ---- Transaction extra details helpers ----
-  # Returns a structured hash describing extra details for a transaction.
-  # Input can be a Transaction or an Entry (responds_to :transaction).
-  # Structure:
-  #   {
-  #     kind: :simplefin | :plaid | :raw,
-  #     simplefin: { payee:, description:, memo: },
-  #     plaid: { original_description:, payment_channel:, transaction_code: },
-  #     provider_extras: [ { key:, value:, multiline: } ],
-  #       multiline marks values the view should render in a <pre> block
-  #       rather than inline opposite their label.
-  #     raw: String (pretty JSON) — only set for :raw, where we have no
-  #       structured rendering for the provider
-  #   }
   # Sentence explaining a note left by Entry#exclude_automatically! or
   # Entry.auto_exclude_stale_pending, e.g. "On 3 October 2026 the sync excluded …".
   def auto_exclusion_description(note)
@@ -79,6 +65,20 @@ module TransactionsHelper
     end
   end
 
+  # ---- Transaction extra details helpers ----
+  # Returns a structured hash describing extra details for a transaction.
+  # Input can be a Transaction or an Entry (responds_to :transaction).
+  # Structure:
+  #   {
+  #     kind: :simplefin | :plaid | :raw,
+  #     simplefin: { payee:, description:, memo: },
+  #     plaid: { original_description:, payment_channel:, transaction_code: },
+  #     provider_extras: [ { key:, value:, multiline: } ],
+  #       multiline marks values the view should render in a <pre> block
+  #       rather than inline opposite their label.
+  #     raw: String (pretty JSON) — only set for :raw, where we have no
+  #       structured rendering for the provider
+  #   }
   def build_transaction_extra_details(obj)
     tx = obj.respond_to?(:transaction) ? obj.transaction : obj
     return nil unless tx.respond_to?(:extra) && tx.extra.present?

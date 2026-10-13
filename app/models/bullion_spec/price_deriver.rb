@@ -93,6 +93,9 @@ class BullionSpec::PriceDeriver
       return if rows.empty?
 
       Security::Price.upsert_all(rows, unique_by: %i[security_id date currency])
+
+      # A reference currency change must not leave a second, stale row per date.
+      Security::Price.where(security_id: specs.map(&:security_id)).where.not(currency: rows.map { |row| row[:currency] }.uniq).delete_all
     rescue StandardError => e
       Rails.logger.error("Bullion price derivation failed for #{metal}: #{e.class}: #{e.message}")
       DebugLogEntry.capture(

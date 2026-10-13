@@ -42,6 +42,17 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert_not price.provisional
   end
 
+  test "removes derived prices in the old currency when the reference currency changes" do
+    BullionSpec::PriceDeriver.new.derive_all
+    @reference.prices.destroy_all
+    @reference.prices.create!(date: 2.days.ago.to_date, price: 3600, currency: "EUR")
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_equal [ "EUR" ], @coin.prices.pluck(:currency).uniq
+    assert_equal 1, @coin.prices.where(date: 2.days.ago.to_date).count
+  end
+
   test "limits derivation to the given securities" do
     BullionSpec::PriceDeriver.new(security_ids: [ @coin.id ]).derive_all
 

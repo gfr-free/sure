@@ -37,7 +37,7 @@ class Settings::PreferencesController < ApplicationController
 
       return unless user_params.key?(:account_release_lead_days)
 
-      days = Integer(user_params[:account_release_lead_days].to_s, exception: false)
+      days = Integer(user_params[:account_release_lead_days].to_s, 10, exception: false)
       prefs["account_release_lead_days"] = days if days && Account::ReleaseReminder::LEAD_DAYS_RANGE.cover?(days)
     end
 end

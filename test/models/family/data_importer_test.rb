@@ -202,6 +202,18 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert account.auto_renew?
   end
 
+  test "renewal term with leading zeros imports as decimal" do
+    account_data = {
+      id: "acct-zero-term", name: "Zero term CD", balance: "1000", currency: "USD",
+      accountable_type: "Depository", subtype: "cd", accountable: { subtype: "cd" },
+      available_on: "2027-03-31", auto_renew: true, renewal_term_months: "012"
+    }
+    ndjson = build_ndjson([ { type: "Account", data: account_data } ])
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal 12, account.reload.renewal_term_months
+  end
+
   test "a re-import that clears the renewal term also stops the renewal" do
     session = @family.import_sessions.create!(expected_chunks: 1)
     account_data = {

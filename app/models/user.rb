@@ -765,7 +765,7 @@ class User < ApplicationRecord
   end
 
   def account_release_lead_days
-    days = Integer(preferences&.dig("account_release_lead_days").to_s, exception: false)
+    days = Integer(preferences&.dig("account_release_lead_days").to_s, 10, exception: false)
     days && Account::ReleaseReminder::LEAD_DAYS_RANGE.cover?(days) ? days : Account::ReleaseReminder::DEFAULT_LEAD_DAYS
   end
 

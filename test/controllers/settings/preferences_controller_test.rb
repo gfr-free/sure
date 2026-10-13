@@ -114,4 +114,12 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "email", user.account_release_channel
     assert_equal 7, user.account_release_lead_days
   end
+
+  test "update parses release lead days with leading zeros as decimal" do
+    user = users(:family_admin)
+
+    patch settings_preferences_url, params: { user: { account_release_lead_days: "010" } }
+
+    assert_equal 10, user.reload.account_release_lead_days
+  end
 end

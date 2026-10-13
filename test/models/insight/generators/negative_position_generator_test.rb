@@ -38,6 +38,7 @@ class Insight::Generators::NegativePositionGeneratorTest < ActiveSupport::TestCa
 
   test "an existing insight leaves the feed as soon as the account is no longer shared" do
     @family.users.update_all(ai_enabled: false)
+    users(:family_admin).update!(preferences: { "preview_features_enabled" => true })
     oversell_msft
     GenerateInsightsJob.perform_now(family_id: @family.id)
     assert @family.insights.visible.exists?(insight_type: "negative_position")

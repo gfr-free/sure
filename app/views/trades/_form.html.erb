@@ -37,37 +37,8 @@
       <% end %>
 
       <% if bullion_trade %>
-        <% choice = trade_bullion_choice(Current.family) %>
-        <% product = trade_bullion_choice_product(choice) %>
-        <%= form.select :bullion_choice, bullion_choice_options(Current.family),
-            { label: t(".bullion_choice"), selected: choice },
-            { data: {
-                action: "trade-form#changeType",
-                trade_form_url_param: new_trade_path(account_id: account&.id, type: type, holding_kind: holding_kind),
-                trade_form_key_param: "bullion_choice",
-              }} %>
-        <% if product&.bar? %>
-          <div class="flex gap-2">
-            <div class="grow">
-              <%= form.number_field :bullion_weight, label: t(".bullion_weight"), placeholder: "100", min: 0.0001, step: "any",
-                    value: trade_form_param(:bullion_weight), required: true %>
-            </div>
-            <%= form.select :bullion_weight_unit, bullion_weight_unit_options,
-                { label: t(".bullion_weight_unit"), selected: trade_form_param(:bullion_weight_unit) || "g" } %>
-          </div>
-          <p class="text-xs text-secondary"><%= t(".bullion_weight_hint") %></p>
-        <% elsif product %>
-          <%= form.select :bullion_size, bullion_size_options(product),
-              { label: t(".bullion_size"), selected: trade_form_param(:bullion_size) } %>
-        <% elsif choice == Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE %>
-          <%= form.text_field :custom_bullion_name, label: t(".custom_bullion_name"), placeholder: t(".custom_bullion_name_placeholder"),
-                value: trade_form_param(:custom_bullion_name), required: true %>
-          <%= form.select :custom_bullion_metal, bullion_metal_options,
-              { label: t(".custom_bullion_metal"), selected: trade_form_param(:custom_bullion_metal) } %>
-          <%= form.number_field :custom_bullion_fine_grams, label: t(".custom_bullion_fine_grams"), placeholder: "6.22",
-                value: trade_form_param(:custom_bullion_fine_grams), min: 0.0001, step: "any", required: true %>
-          <p class="text-xs text-secondary"><%= t(".custom_bullion_hint") %></p>
-        <% end %>
+        <%= render "trades/bullion_picker", form: form,
+              reload_url: new_trade_path(account_id: account&.id, type: type, holding_kind: holding_kind) %>
       <% elsif %w[buy sell].include?(type) %>
         <% if Security.providers.any? %>
           <div class="form-field combobox">

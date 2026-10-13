@@ -528,6 +528,8 @@ Rails.application.routes.draw do
     member do
       post :unlock_cost_basis
       patch :remap_security
+      get :edit_bullion
+      patch :remap_bullion
       post :reset_security
       post :sync_prices
     end

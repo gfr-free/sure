@@ -1,6 +1,13 @@
 ---
 en:
   holdings:
+    edit_bullion:
+      description: "Picked the wrong one? Choose the right piece. All buys and sells of %{name} move with it."
+      submit: Change
+      title: Change coin or bar
+    remap_bullion:
+      not_found: Choose a coin or bar.
+      success: Holding changed. Prices are being recalculated.
     kinds:
       bar: Bar
       coin: Coin
@@ -76,6 +83,7 @@ en:
       delete_subtitle: This will delete the holding and all your associated trades
         on this account.  This action cannot be undone.
       delete_title: Delete holding
+      edit_bullion: Change coin or bar
       edit_security: Edit security
       history: History
       no_trade_history: No trade history available for this holding.

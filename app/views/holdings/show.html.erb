@@ -48,12 +48,21 @@
                   </span>
                   <%= icon "lock", size: "xs", class: "text-secondary" %>
                 <% end %>
-                <button type="button"
-                        data-action="click->holding-security-remap#toggle"
-                  class="text-secondary hover:text-primary"
-                  aria-label="<%= t(".edit_security") %>">
-                  <%= icon "pencil", size: "xs" %>
-                </button>
+                <% if @holding.security.bullion_spec %>
+                  <%= link_to edit_bullion_holding_path(@holding),
+                        data: { turbo_frame: :modal },
+                        class: "text-secondary hover:text-primary",
+                        aria: { label: t(".edit_bullion") } do %>
+                    <%= icon "pencil", size: "xs" %>
+                  <% end %>
+                <% else %>
+                  <button type="button"
+                          data-action="click->holding-security-remap#toggle"
+                    class="text-secondary hover:text-primary"
+                    aria-label="<%= t(".edit_security") %>">
+                    <%= icon "pencil", size: "xs" %>
+                  </button>
+                <% end %>
               </dd>
             </div>
             <div data-holding-security-remap-target="form" class="hidden mt-3 space-y-3">

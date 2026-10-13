@@ -1,6 +1,13 @@
 ---
 de:
   holdings:
+    edit_bullion:
+      description: "Falsch erfasst? Wähle das richtige Stück. Alle Käufe und Verkäufe von %{name} ziehen mit um."
+      submit: Ändern
+      title: Münze oder Barren ändern
+    remap_bullion:
+      not_found: Bitte eine Münze oder einen Barren wählen.
+      success: Position geändert. Die Kurse werden neu berechnet.
     kinds:
       bar: Barren
       coin: Münze
@@ -70,6 +77,7 @@ de:
       delete: Löschen
       delete_subtitle: Dadurch wird die Position und alle zugehörigen Trades auf diesem Konto gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
       delete_title: Position löschen
+      edit_bullion: Münze oder Barren ändern
       edit_security: Wertpapier bearbeiten
       history: Verlauf
       no_trade_history: Für diese Position ist keine Trade-Historie verfügbar.

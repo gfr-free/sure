@@ -61,7 +61,7 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
       name: "Brokerage", balance: 10_000, currency: "USD", accountable: Investment.new(subtype: "brokerage")
     )
     # Share new accounts with family_member so they're accessible to all
-    [cd, brokerage].each do |account|
+    [ cd, brokerage ].each do |account|
       account.account_shares.create!(user: users(:family_member), permission: "read_only")
     end
 

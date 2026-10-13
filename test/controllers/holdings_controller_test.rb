@@ -194,4 +194,73 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to account_path(@holding.account, tab: "holdings")
     assert_equal "Yahoo Finance rate limit exceeded", flash[:alert]
   end
+
+  test "a coin holding's pencil opens the precious metal picker preselected with the coin" do
+    coin = BullionCatalog.security_for(:krugerrand, "1-2oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 2000, amount: 2000, currency: "USD")
+
+    get holding_path(holding)
+    assert_select "a[href='#{edit_bullion_holding_path(holding)}']"
+
+    get edit_bullion_holding_path(holding)
+    assert_response :success
+    assert_select "select[name='model[bullion_choice]'] option[selected][value='product:krugerrand']"
+    assert_select "select[name='model[bullion_size]'] option[selected][value='1-2oz']"
+  end
+
+  test "remap_bullion moves a coin holding and its trades to the picked coin" do
+    old_coin = BullionCatalog.security_for(:krugerrand, "1-2oz")
+    holding = @account.holdings.create!(security: old_coin, date: Date.current, qty: 2, price: 2000, amount: 4000, currency: "USD")
+    entry = @account.entries.create!(
+      name: "Buy 2 pcs of Krugerrand 1/2 oz", date: Date.current, amount: 4000, currency: "USD",
+      entryable: Trade.new(security: old_coin, qty: 2, price: 2000, currency: "USD", investment_activity_label: "Buy")
+    )
+
+    patch remap_bullion_holding_path(holding), params: {
+      model: { bullion_choice: "product:maple_leaf", bullion_size: "1oz" }
+    }
+
+    assert_redirected_to account_path(@account, tab: "holdings")
+    new_coin = BullionSpec.catalog.find_by!(catalog_key: "maple_leaf", size_key: "1oz").security
+    assert_equal new_coin, holding.reload.security
+    assert_equal new_coin, entry.trade.reload.security
+    assert_equal "Buy 2 pcs of Maple Leaf 1 oz", entry.reload.name
+  end
+
+  test "remap_bullion can move a holding to a new custom coin" do
+    old_coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: old_coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+
+    assert_difference -> { @account.family.bullion_specs.custom.count }, 1 do
+      patch remap_bullion_holding_path(holding), params: {
+        model: {
+          bullion_choice: BullionSpec::Choice::NEW_CUSTOM,
+          custom_bullion_name: "20 Mark", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "7.168"
+        }
+      }
+    end
+
+    assert_equal "20 Mark", holding.reload.security.name
+  end
+
+  test "remap_bullion keeps the holding when the pick is invalid" do
+    old_coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: old_coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+
+    assert_no_difference [ "BullionSpec.count", "Security.count" ] do
+      patch remap_bullion_holding_path(holding), params: {
+        model: { bullion_choice: BullionSpec::Choice::NEW_CUSTOM, custom_bullion_name: "", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "7" }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal old_coin, holding.reload.security
+  end
+
+  test "remap_bullion is only for coins and bars" do
+    patch remap_bullion_holding_path(@holding), params: { model: { bullion_choice: "product:krugerrand", bullion_size: "1oz" } }
+
+    assert_redirected_to account_path(@holding.account, tab: "holdings")
+    assert_not_equal "krugerrand", @holding.reload.security.bullion_spec&.catalog_key
+  end
 end

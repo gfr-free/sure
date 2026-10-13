@@ -23,11 +23,6 @@ class Trade::CreateForm
   # family's own coin (see BullionCatalog and BullionSpec).
   HOLDING_KINDS = %w[security bullion custom_bullion].freeze
   NEW_CUSTOM_BULLION = "new".freeze
-  # The form offers coins, bars and custom coins in one list; each option is
-  # "product:<catalogue key>" or "custom:<spec id or new>".
-  BULLION_CHOICE_PRODUCT = "product:".freeze
-  BULLION_CHOICE_CUSTOM = "custom:".freeze
-  NEW_CUSTOM_BULLION_CHOICE = "#{BULLION_CHOICE_CUSTOM}#{NEW_CUSTOM_BULLION}".freeze
 
   attr_accessor :account, :date, :amount, :currency, :qty,
                 :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id,
@@ -35,11 +30,16 @@ class Trade::CreateForm
                 :custom_bullion_id, :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams,
                 :bullion_choice
 
+  # Coins and bars are counted in pieces, not shares.
+  def self.bullion_trade_name(type, label, quantity, name)
+    pieces = ActiveSupport::NumberHelper.number_to_rounded(quantity, precision: 6, strip_insignificant_zeros: true)
+    key = %w[buy sell].include?(type) ? type : "other"
+    I18n.t("trades.bullion_trade_name.#{key}", label: label, qty: pieces, name: name)
+  end
+
   # Either creates a trade, transaction, or transfer based on type
   # Returns the model, regardless of success or failure
   def create
-    apply_bullion_choice
-
     case type
     when *SECURITY_TRADE_LABELS.keys
       create_trade
@@ -55,17 +55,6 @@ class Trade::CreateForm
   end
 
   private
-    def apply_bullion_choice
-      return unless holding_kind == "bullion" && bullion_choice.present?
-
-      if bullion_choice.start_with?(BULLION_CHOICE_CUSTOM)
-        self.holding_kind = "custom_bullion"
-        self.custom_bullion_id = bullion_choice.delete_prefix(BULLION_CHOICE_CUSTOM)
-      else
-        self.bullion_product = bullion_choice.delete_prefix(BULLION_CHOICE_PRODUCT)
-      end
-    end
-
     # Users can either look up a ticker from a provider or enter a manual, "offline" ticker (that we won't fetch prices for)
     def security
       parsed = ticker.present? ? Security.parse_combobox_id(ticker) : { ticker: manual_ticker }
@@ -87,38 +76,23 @@ class Trade::CreateForm
     end
 
     def trade_security
-      case holding_kind
-      when "bullion" then catalog_bullion_security
-      when "custom_bullion" then custom_bullion_security
-      else security
-      end
+      bullion_trade? ? bullion_choice_security : security
     end
 
-    # A coin is picked by size, a bar by its entered weight.
-    def catalog_bullion_security
-      product = BullionCatalog.find(bullion_product)
-      return nil unless product
+    # The picker posts bullion_choice; older posts name the product or the
+    # custom coin directly.
+    def bullion_choice_security
+      value = bullion_choice.presence ||
+        if holding_kind == "custom_bullion"
+          "#{BullionSpec::Choice::CUSTOM_PREFIX}#{custom_bullion_id.presence || NEW_CUSTOM_BULLION}"
+        else
+          "#{BullionSpec::Choice::PRODUCT_PREFIX}#{bullion_product}"
+        end
 
-      if product.bar?
-        BullionCatalog.bar_security_for(product.key, bullion_weight, bullion_weight_unit)
-      else
-        BullionCatalog.security_for(product.key, bullion_size)
-      end
-    rescue BullionCatalog::UnknownProductError
-      nil
-    end
-
-    # An existing custom coin of the family, or a new one from the inline fields.
-    def custom_bullion_security
-      if custom_bullion_id.present? && custom_bullion_id != NEW_CUSTOM_BULLION
-        return account.family.bullion_specs.custom.find_by(id: custom_bullion_id)&.security
-      end
-
-      BullionSpec.create_custom!(
-        family: account.family,
-        name: custom_bullion_name.to_s.strip,
-        metal: custom_bullion_metal,
-        fine_weight_grams: custom_bullion_fine_grams
+      BullionSpec::Choice.new(
+        family: account.family, value: value,
+        size: bullion_size, weight: bullion_weight, weight_unit: bullion_weight_unit,
+        custom_name: custom_bullion_name, custom_metal: custom_bullion_metal, custom_fine_grams: custom_bullion_fine_grams
       ).security
     end
 
@@ -180,11 +154,8 @@ class Trade::CreateForm
       entry
     end
 
-    # Coins and bars are counted in pieces, not shares.
     def bullion_trade_name(label, quantity, name)
-      pieces = ActiveSupport::NumberHelper.number_to_rounded(quantity, precision: 6, strip_insignificant_zeros: true)
-      key = %w[buy sell].include?(type) ? type : "other"
-      I18n.t("trades.bullion_trade_name.#{key}", label: label, qty: pieces, name: name)
+      self.class.bullion_trade_name(type, label, quantity, name)
     end
 
     # Dividends are always a Trade. Security is required.

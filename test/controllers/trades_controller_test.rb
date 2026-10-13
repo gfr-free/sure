@@ -528,7 +528,7 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name='model[bullion_choice]']" do
       assert_select "optgroup[label='#{I18n.t("trades.form.bullion_groups.custom")}'] option[value='custom:#{spec.id}']", text: "Vreneli 20 Fr"
       assert_select "optgroup[label='#{I18n.t("trades.form.bullion_groups.bar")}'] option[value='product:gold_bar']"
-      assert_select "option[value='#{Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE}']"
+      assert_select "option[value='#{BullionSpec::Choice::NEW_CUSTOM}']"
       assert_select "option[selected][value='product:krugerrand']"
     end
     assert_select "input[name='model[manual_ticker]']", count: 0
@@ -552,7 +552,7 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the new trade form offers inline custom coin fields" do
-    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE)
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_choice: BullionSpec::Choice::NEW_CUSTOM)
 
     assert_response :success
     assert_select "input[name='model[custom_bullion_name]']"
@@ -592,7 +592,7 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_difference -> { @user.family.bullion_specs.custom.count }, 1 do
       post trades_url(account_id: @entry.account_id), params: {
         model: {
-          type: "buy", holding_kind: "bullion", bullion_choice: Trade::CreateForm::NEW_CUSTOM_BULLION_CHOICE,
+          type: "buy", holding_kind: "bullion", bullion_choice: BullionSpec::Choice::NEW_CUSTOM,
           custom_bullion_name: "Ducat", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "3.44",
           date: Date.current, qty: 1, price: 400, currency: "USD"
         }

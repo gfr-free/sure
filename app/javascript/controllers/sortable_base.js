@@ -189,6 +189,27 @@ export default class SortableController extends Controller {
     this.resetTouchState();
   }
 
+  touchCancel() {
+    this.cancelHold();
+
+    if (this.draggedElement) {
+      this.draggedElement.classList.remove("opacity-50", "scale-[1.02]");
+      this.draggedElement.setAttribute("aria-grabbed", "false");
+    }
+
+    this.clearPlaceholders();
+    this.resetTouchState();
+  }
+
+  // Belt-and-suspenders alongside the `[-webkit-touch-callout:none]` class:
+  // if a long-press context menu/link-preview still fires (e.g. a browser
+  // that ignores the CSS property), don't let it interrupt the hold gesture.
+  suppressContextMenu(event) {
+    if (this.pendingSection || this.isTouching) {
+      event.preventDefault();
+    }
+  }
+
   cancelHold() {
     if (this.holdTimer) {
       clearTimeout(this.holdTimer);

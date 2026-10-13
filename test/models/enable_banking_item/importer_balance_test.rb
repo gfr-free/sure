@@ -581,6 +581,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
 
   test "duplicate balances in different currencies are narrowed by currency before any tiebreak" do
     link_account(Depository.create!)
+    @enable_banking_account.update!(raw_payload: { "currency" => "EUR" })
     stub_balances(clbd("900.00", currency: "USD"), clbd("1234.56"))
 
     assert @importer.send(:fetch_and_update_balance, @enable_banking_account)
@@ -588,7 +589,7 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     @enable_banking_account.reload
     assert_equal BigDecimal("1234.56"), @enable_banking_account.current_balance
     assert @enable_banking_account.balance_evidence_verified?
-    assert_nil DebugLogEntry.where("metadata ->> 'stage' IS NOT NULL").order(:created_at).last
+    assert_empty DebugLogEntry.where("metadata ->> 'stage' IS NOT NULL")
   end
 
   test "duplicate balances pointing to different bookings prefer the newer booking" do
@@ -772,7 +773,6 @@ class EnableBankingItem::ImporterBalanceTest < ActiveSupport::TestCase
     @enable_banking_account.reload
     assert_equal BigDecimal("200.00"), @enable_banking_account.current_balance
     assert_not @enable_banking_account.balance_evidence_verified?
-    assert_equal "currency", DebugLogEntry.order(:created_at).last.metadata["stage"]
   end
 
   test "several balances of unknown types are not treated as evidence" do

@@ -533,10 +533,6 @@ class EnableBankingItem::Importer
       nil
     end
 
-    def balance_currency(balance)
-      balance.dig(:balance_amount, :currency) || balance[:currency]
-    end
-
     def parse_balance_timestamp(value)
       return nil if value.blank?
       Time.zone.parse(value.to_s)

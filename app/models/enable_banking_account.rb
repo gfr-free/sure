@@ -5,12 +5,11 @@ class EnableBankingAccount < ApplicationRecord
   if encryption_ready?
     encrypts :raw_payload
     encrypts :raw_transactions_payload
-    # deterministic: true preserves equality lookups (e.g. find_by(iban:)) —
-    # the account's own IBAN was previously stored in plaintext here, unlike
-    # the other columns on this model.
-    # See Account#iban for the deliberate tradeoff this makes (accepted here
-    # for the same reason: DB-level uniqueness/lookup can't work otherwise).
-    encrypts :iban, deterministic: true
+    # This column stored plaintext before it was encrypted, so existing rows
+    # stay readable (support_unencrypted_data) until
+    # security:backfill_encryption encrypts them; new writes are always
+    # encrypted. Deterministic like Account#iban.
+    encrypts :iban, deterministic: true, support_unencrypted_data: true
   end
 
   # Same normalization as Account#normalize_iban, applied here too: a
@@ -194,9 +193,8 @@ class EnableBankingAccount < ApplicationRecord
       # different blank-iban accounts in the family can both pass that
       # validation concurrently and then lose at the raw DB unique index on
       # commit, which surfaces as RecordNotUnique -- save doesn't rescue
-      # that. Isolated in its own savepoint (same pattern as
-      # Account::ProviderImportAdapter#backfill_merchant_iban!): a failed
-      # statement would otherwise abort the whole surrounding transaction.
+      # that. Isolated in its own savepoint: a failed statement would
+      # otherwise abort the whole surrounding transaction.
       begin
         ActiveRecord::Base.transaction(requires_new: true) do
           target.enrich_attribute(:iban, iban, source: "enable_banking")

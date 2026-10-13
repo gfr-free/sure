@@ -78,7 +78,9 @@ class BillsController < ApplicationController
                   .map { |group| group.min_by(&:effective_due_on) }
                   .sort_by(&:effective_due_on)
 
-    @paid_this_month = closed.select { |occurrence| occurrence.paid? && occurrence.due_on >= today.beginning_of_month }
+    # Paid rows go by the snoozed date too, and stay inside the month: a bill
+    # paid ahead of time lists in the month it is due, not in this one as well.
+    @paid_this_month = closed.select { |occurrence| occurrence.paid? && occurrence.effective_due_on.between?(today.beginning_of_month, month_end) }
 
     compute_kpis(today, month_end)
 
@@ -91,7 +93,7 @@ class BillsController < ApplicationController
     # iterates, which would otherwise be separate queries.
     @suggested_series = accessible_suggested_series.includes(:merchant).order(next_expected_date: :asc).load
     @has_transaction_history = Current.family.entries.where(entryable_type: "Transaction").exists?
-    @suggested_allocations = suggested_allocations(occurrences)
+    @suggested_allocations = suggested_allocations(open_occurrences + @paid_this_month)
     # A row waiting on a match decision offers Review rather than Find.
     # Already loaded for the queue above, so indexing is free.
     # A posted entry under review already pays its row, so only matcher
@@ -466,10 +468,11 @@ class BillsController < ApplicationController
     def payable_occurrences
       # Price changes ride along because bills_attention_reason asks every
       # row whether its amount changed recently, and recurrence rules because
-      # every row's subline names its schedule.
+      # every row's subline names its schedule. Closed rows count from their
+      # snoozed date, the one index lists them by.
       Current.family.recurring_occurrences
              .where(recurring_transaction_id: payable_series_ids)
-             .where("due_on >= ? OR status = 'scheduled'", Date.current.beginning_of_month)
+             .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} >= ? OR status = 'scheduled'", Date.current.beginning_of_month)
              .where("due_on <= ?", Date.current + 90)
              .includes(recurring_transaction: [ :merchant, :recurring_price_changes, :recurrence_rules ])
              .to_a
@@ -609,13 +612,11 @@ class BillsController < ApplicationController
     # Ending a bill leaves its scheduled occurrences behind and the matcher
     # still scores them, and skipping closes an occurrence but keeps its
     # suggestion, so neither may ask about a row the page doesn't show.
-    def suggested_allocations(occurrences)
-      listed_ids = occurrences.select { |occurrence| occurrence.scheduled? || occurrence.paid? }.map(&:id)
-
+    def suggested_allocations(listed)
       RecurringAllocation
         .awaiting_review
         .joins(recurring_occurrence: :recurring_transaction)
-        .where(recurring_occurrence_id: listed_ids)
+        .where(recurring_occurrence_id: listed.map(&:id))
         # Income never reviews here: the matcher no longer suggests it, and
         # this filter also retires any suggestion written before that rule.
         # A posted entry under review is the exception: a posted paycheck

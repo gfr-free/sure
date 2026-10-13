@@ -205,7 +205,7 @@
       "file": "app/controllers/recurring_transactions_controller.rb",
       "line": 385,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:recurring_transaction).permit(:name, :amount, :account_id, :first_due_on, :frequency_preset, :frequency_interval, :frequency_interval_unit, :payment_url, :autopay, :auto_post, :notes, :is_income)",
+      "code": "params.require(:recurring_transaction).permit(:name, :amount, :currency, :account_id, :first_due_on, :frequency_preset, :frequency_interval, :frequency_interval_unit, :payment_url, :autopay, :auto_post, :notes, :is_income)",
       "render_path": null,
       "location": {
         "type": "controller",

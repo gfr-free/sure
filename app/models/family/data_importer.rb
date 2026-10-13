@@ -388,7 +388,7 @@ class Family::DataImporter
     end
 
     def importable_integer(value, range)
-      integer = Integer(value.to_s, exception: false)
+      integer = Integer(value.to_s, 10, exception: false)
       integer if integer && range.cover?(integer)
     end
 

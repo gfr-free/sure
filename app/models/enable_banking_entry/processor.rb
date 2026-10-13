@@ -289,7 +289,12 @@ class EnableBankingEntry::Processor
       parts << data[:note] if data[:note].present?
 
       bank_name = counterparty_account_info[:bank_name]
-      parts << I18n.t("enable_banking_items.entry.bank_note", name: bank_name) if bank_name.present?
+      if bank_name.present?
+        # Stored in the entry's notes, so use the family's locale rather than
+        # whatever locale the sync job happens to run under.
+        note_locale = account&.family&.locale.presence || I18n.default_locale
+        parts << I18n.with_locale(note_locale) { I18n.t("enable_banking_items.entry.bank_note", name: bank_name) }
+      end
 
       parts.join("\n\n").presence
     end
@@ -319,8 +324,8 @@ class EnableBankingEntry::Processor
       # opposite, hardcoded-provider-list anti-pattern this avoids.
       # Always assigned, even to nil. A nil value does not clear what an earlier sync
       # captured: some ASPSPs drop the account data on the booked re-delivery of a
-      # transaction whose pending version had it, so Account::ProviderImportAdapter only
-      # replaces the stored values when this payload actually carries counterparty data.
+      # transaction whose pending version had it, so Account::ProviderImportAdapter
+      # replaces a stored value only when this payload carries one.
       #
       # Passed through this same `extra` hash for
       # Account::ProviderImportAdapter#import_transaction to pick up, but NOT

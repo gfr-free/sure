@@ -288,15 +288,20 @@ class Account::ProviderImportAdapter
       # Persist extra provider metadata on the transaction (non-enriched; always merged)
       apply_provider_extra(entry, extra, replace_extra_namespaces)
 
-      # Unlike the protected path above, a later sync that does carry
-      # counterparty data replaces both columns, so a corrected IBAN wins.
-      # A blank redelivery leaves them alone: some ASPSPs drop the account
-      # data once a pending transaction is booked, and clearing here would
-      # lose an IBAN that an earlier sync of the same transaction captured.
-      if counterparty_keys_present && entry.entryable.is_a?(Transaction) &&
-          (incoming_counterparty_iban.present? || incoming_counterparty_account_id.present?)
-        entry.transaction.counterparty_iban = incoming_counterparty_iban
-        entry.transaction.counterparty_account_id = incoming_counterparty_account_id
+      # Unlike the protected path above, a later sync that carries a value
+      # replaces that column, so a corrected IBAN wins. A blank value leaves
+      # its column alone: some ASPSPs drop the IBAN once a pending
+      # transaction is booked and send only a non-IBAN account id, and
+      # clearing here would lose an IBAN an earlier sync captured. The
+      # account id is only a fallback for a missing IBAN, so an incoming
+      # IBAN also replaces it (with nil when the payload has none).
+      if counterparty_keys_present && entry.entryable.is_a?(Transaction)
+        if incoming_counterparty_iban.present?
+          entry.transaction.counterparty_iban = incoming_counterparty_iban
+          entry.transaction.counterparty_account_id = incoming_counterparty_account_id
+        elsif incoming_counterparty_account_id.present?
+          entry.transaction.counterparty_account_id = incoming_counterparty_account_id
+        end
         entry.transaction.save! if entry.transaction.changed?
       end
 

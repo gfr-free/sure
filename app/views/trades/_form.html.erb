@@ -45,8 +45,20 @@
                 trade_form_url_param: new_trade_path(account_id: account&.id, type: type, holding_kind: holding_kind),
                 trade_form_key_param: "bullion_product",
               }} %>
-        <%= form.select :bullion_size, bullion_size_options(product),
-            { label: t(".bullion_size"), selected: trade_form_param(:bullion_size) } %>
+        <% if product.bar? %>
+          <div class="flex gap-2">
+            <div class="grow">
+              <%= form.number_field :bullion_weight, label: t(".bullion_weight"), placeholder: "100", min: 0.0001, step: "any",
+                    value: trade_form_param(:bullion_weight), required: true %>
+            </div>
+            <%= form.select :bullion_weight_unit, bullion_weight_unit_options,
+                { label: t(".bullion_weight_unit"), selected: trade_form_param(:bullion_weight_unit) || "g" } %>
+          </div>
+          <p class="text-xs text-secondary"><%= t(".bullion_weight_hint") %></p>
+        <% else %>
+          <%= form.select :bullion_size, bullion_size_options(product),
+              { label: t(".bullion_size"), selected: trade_form_param(:bullion_size) } %>
+        <% end %>
       <% elsif bullion_trade && holding_kind == "custom_bullion" %>
         <% custom_id = trade_form_param(:custom_bullion_id) %>
         <% custom_options = custom_bullion_options(Current.family) %>

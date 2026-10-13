@@ -26,8 +26,8 @@ class Trade::CreateForm
 
   attr_accessor :account, :date, :amount, :currency, :qty,
                 :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id,
-                :holding_kind, :bullion_product, :bullion_size, :custom_bullion_id,
-                :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
+                :holding_kind, :bullion_product, :bullion_size, :bullion_weight, :bullion_weight_unit,
+                :custom_bullion_id, :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
 
   # Either creates a trade, transaction, or transfer based on type
   # Returns the model, regardless of success or failure
@@ -75,8 +75,16 @@ class Trade::CreateForm
       end
     end
 
+    # A coin is picked by size, a bar by its entered weight.
     def catalog_bullion_security
-      BullionCatalog.security_for(bullion_product, bullion_size)
+      product = BullionCatalog.find(bullion_product)
+      return nil unless product
+
+      if product.bar?
+        BullionCatalog.bar_security_for(product.key, bullion_weight, bullion_weight_unit)
+      else
+        BullionCatalog.security_for(product.key, bullion_size)
+      end
     rescue BullionCatalog::UnknownProductError
       nil
     end
@@ -130,7 +138,7 @@ class Trade::CreateForm
       label = SECURITY_TRADE_LABELS.fetch(type)
 
       account.entries.new(
-        name: trade_name(label, signed_qty.abs, bullion_trade? ? sec.name : sec.ticker),
+        name: bullion_trade? ? bullion_trade_name(label, signed_qty.abs, sec.name) : trade_name(label, signed_qty.abs, sec.ticker),
         date: date,
         amount: signed_amount,
         currency: currency,
@@ -147,6 +155,17 @@ class Trade::CreateForm
       entry = account.entries.build(entryable: Trade.new)
       entry.errors.add(:base, e.record.errors.full_messages.to_sentence)
       entry
+    rescue BullionCatalog::InvalidWeightError
+      entry = account.entries.build(entryable: Trade.new)
+      entry.errors.add(:base, I18n.t("trades.form.invalid_bar_weight", max: BullionCatalog::MAX_BAR_GRAMS.to_i / 1000))
+      entry
+    end
+
+    # Coins and bars are counted in pieces, not shares.
+    def bullion_trade_name(label, quantity, name)
+      pieces = ActiveSupport::NumberHelper.number_to_rounded(quantity, precision: 6, strip_insignificant_zeros: true)
+      key = %w[buy sell].include?(type) ? type : "other"
+      I18n.t("trades.bullion_trade_name.#{key}", label: label, qty: pieces, name: name)
     end
 
     # Dividends are always a Trade. Security is required.

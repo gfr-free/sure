@@ -393,10 +393,43 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    trade = Entry.order(created_at: :desc).first.trade
+    entry = Entry.order(created_at: :desc).first
+    trade = entry.trade
     assert_equal BullionSpec.catalog.find_by!(catalog_key: "krugerrand", size_key: "1-2oz").security, trade.security
     assert_equal 2, trade.qty
+    assert_equal "Buy 2 pcs of Krugerrand 1/2 oz", entry.name
     assert_redirected_to account_url(@entry.account)
+  end
+
+  test "buys a bar by its entered weight" do
+    assert_difference [ "Entry.count", "Trade.count", "BullionSpec.count" ], 1 do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_product: "gold_bar", bullion_weight: "100", bullion_weight_unit: "g",
+          date: Date.current, qty: 1, price: 12000, currency: "USD"
+        }
+      }
+    end
+
+    entry = Entry.order(created_at: :desc).first
+    spec = entry.trade.security.bullion_spec
+    assert_equal "gold_bar", spec.catalog_key
+    assert_equal BigDecimal("100"), spec.fine_weight_grams
+    assert_equal "Buy 1 pcs of Gold bar 100 g", entry.name
+    assert_redirected_to account_url(@entry.account)
+  end
+
+  test "a bar without a valid weight creates nothing" do
+    assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_product: "silver_bar", bullion_weight: "0", bullion_weight_unit: "g",
+          date: Date.current, qty: 1, price: 900, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
   end
 
   test "buys a new custom coin created inline" do
@@ -485,6 +518,15 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name='model[bullion_product]'] option[selected][value='panda']"
     assert_select "select[name='model[bullion_size]'] option[value='30g']"
     assert_select "input[name='model[manual_ticker]']", count: 0
+  end
+
+  test "the new trade form asks for a weight instead of a size for bars" do
+    get new_trade_url(account_id: @entry.account_id, type: "buy", holding_kind: "bullion", bullion_product: "platinum_bar")
+
+    assert_response :success
+    assert_select "input[name='model[bullion_weight]']"
+    assert_select "select[name='model[bullion_weight_unit]'] option[value='oz']"
+    assert_select "select[name='model[bullion_size]']", count: 0
   end
 
   test "the new trade form offers inline custom coin fields" do

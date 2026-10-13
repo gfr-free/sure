@@ -246,6 +246,12 @@ class Security < ApplicationRecord
     )
   end
 
+  # Catalogue bullion is shared by every family, so its stored name is the
+  # English one; read it back in the viewer's language.
+  def name
+    BullionCatalog.localized_name(ticker) || super
+  end
+
   def exchange_name
     self.class.exchange_name_for(exchange_operating_mic)
   end

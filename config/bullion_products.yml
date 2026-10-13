@@ -1,11 +1,18 @@
 # Catalogue of common, currently minted bullion coins and bars.
 #
-# Every size of a product becomes one offline Security (see BullionCatalog).
+# Every size of a coin becomes one offline Security (see BullionCatalog).
 # Weights are the FINE metal content, not the gross weight of the piece:
 #   fine_oz:    troy ounces of pure metal (1 oz = 31.1034768 g)
 #   fine_grams: grams of pure metal
 # Size keys are stable identifiers stored in bullion_specs.size_key; never
 # rename one that has shipped.
+#
+# Bars list no sizes: their weight is entered on the trade, because bars come
+# in too many sizes to keep a list of, and at 999.9 fine their gross weight is
+# their fine weight. One Security per bar product and weight.
+#
+# `name` is the English name, stored on the Security. Translations live in
+# config/locales/models/bullion_catalog/.
 #
 # metal: XAU gold, XAG silver, XPT platinum, XPD palladium
 # form:  coin or bar
@@ -98,9 +105,10 @@ products:
     metal: XAU
     form: coin
     sizes:
-      - { key: double, label: "Double Sovereign", fine_grams: 14.6448 }
-      - { key: full, label: "Sovereign", fine_grams: 7.3224 }
-      - { key: half, label: "Half Sovereign", fine_grams: 3.6612 }
+      - { key: double, label: "2", fine_grams: 14.6448 }
+      - { key: full, label: "1", fine_grams: 7.3224 }
+      - { key: half, label: "1/2", fine_grams: 3.6612 }
+      - { key: quarter, label: "1/4", fine_grams: 1.8306 }
 
   # --- Silver coins ---
   - key: silver_krugerrand
@@ -145,44 +153,73 @@ products:
     sizes:
       - { key: 1oz, label: "1 oz", fine_oz: 1 }
 
-  # --- Bars ---
+  - key: silver_noahs_ark
+    name: Noah's Ark Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_kookaburra
+    name: Kookaburra Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_koala
+    name: Koala Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: silver_libertad
+    name: Libertad Silver
+    metal: XAG
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  # --- Platinum and palladium coins ---
+  - key: platinum_maple_leaf
+    name: Maple Leaf Platinum
+    metal: XPT
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: platinum_britannia
+    name: Britannia Platinum
+    metal: XPT
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  - key: palladium_maple_leaf
+    name: Maple Leaf Palladium
+    metal: XPD
+    form: coin
+    sizes:
+      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+
+  # --- Bars (weight entered on the trade) ---
   - key: gold_bar
     name: Gold bar
     metal: XAU
     form: bar
-    sizes:
-      - { key: 1g, label: "1 g", fine_grams: 1 }
-      - { key: 2g, label: "2 g", fine_grams: 2 }
-      - { key: 5g, label: "5 g", fine_grams: 5 }
-      - { key: 10g, label: "10 g", fine_grams: 10 }
-      - { key: 20g, label: "20 g", fine_grams: 20 }
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 50g, label: "50 g", fine_grams: 50 }
-      - { key: 100g, label: "100 g", fine_grams: 100 }
-      - { key: 250g, label: "250 g", fine_grams: 250 }
-      - { key: 500g, label: "500 g", fine_grams: 500 }
-      - { key: 1kg, label: "1 kg", fine_grams: 1000 }
 
   - key: silver_bar
     name: Silver bar
     metal: XAG
     form: bar
-    sizes:
-      - { key: 100g, label: "100 g", fine_grams: 100 }
-      - { key: 250g, label: "250 g", fine_grams: 250 }
-      - { key: 500g, label: "500 g", fine_grams: 500 }
-      - { key: 1kg, label: "1 kg", fine_grams: 1000 }
 
   - key: platinum_bar
     name: Platinum bar
     metal: XPT
     form: bar
-    sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
 
   - key: palladium_bar
     name: Palladium bar
     metal: XPD
     form: bar
-    sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }

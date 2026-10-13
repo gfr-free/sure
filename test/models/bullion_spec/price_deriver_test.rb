@@ -6,7 +6,7 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     Setting.bullion_reference_securities = { "XAU" => "GC=F|CMX|" }
 
     @coin = BullionCatalog.security_for(:krugerrand, "1-2oz")
-    @bar = BullionCatalog.security_for(:gold_bar, "1oz")
+    @bar = BullionCatalog.bar_security_for(:gold_bar, 1, "oz")
 
     @reference.prices.create!(date: 2.days.ago.to_date, price: 4000, currency: "USD")
     @reference.prices.create!(date: 1.day.ago.to_date, price: 4100, currency: "USD", provisional: true)
@@ -61,7 +61,7 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
   end
 
   test "skips metals without a reference security" do
-    silver = BullionCatalog.security_for(:silver_bar, "1kg")
+    silver = BullionCatalog.bar_security_for(:silver_bar, 1, "kg")
 
     assert_nothing_raised { BullionSpec::PriceDeriver.new.derive_all }
     assert_not silver.prices.exists?

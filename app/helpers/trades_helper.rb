@@ -22,13 +22,17 @@ module TradesHelper
     BullionCatalog.find(trade_form_param(:bullion_product)) || BullionCatalog.products.first
   end
 
-  # Grouped as gold coins, silver coins and bars, in catalogue order.
+  # Grouped as coins per metal and bars, in catalogue order.
   def bullion_product_options
     BullionCatalog.products
-      .group_by { |product| product.form == "bar" ? "bar" : "coin_#{product.metal}" }
+      .group_by { |product| product.bar? ? "bar" : "coin_#{product.metal}" }
       .map do |group, products|
-        [ t("trades.form.bullion_groups.#{group}", default: group.humanize), products.map { |product| [ product.name, product.key ] } ]
+        [ t("trades.form.bullion_groups.#{group}", default: group.humanize), products.map { |product| [ product.display_name, product.key ] } ]
       end
+  end
+
+  def bullion_weight_unit_options
+    BullionCatalog::WEIGHT_UNITS.keys.map { |unit| [ t("trades.form.weight_units.#{unit}"), unit ] }
   end
 
   def bullion_size_options(product)

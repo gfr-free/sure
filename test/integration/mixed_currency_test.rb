@@ -108,13 +108,10 @@ class MixedCurrencyTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "a mixed-currency call site is caught" do
-    trade = Entry.where(account: @family.accounts, entryable_type: "Trade").first
-    sign_in @user
+  test "the probe sees a mismatch in report mode" do
+    reports = capture_error_reports(Money::CurrencyMismatchError) { Money.new(200, :usd) - Money.new(180, :eur) }
 
-    reports = capture_error_reports(Money::CurrencyMismatchError) { get trade_path(trade) }
-
-    assert_not_empty reports, "the probe must be able to see a mismatch, or the tests above prove nothing"
+    assert_equal 1, reports.size, "the probe must be able to see a mismatch, or the tests above prove nothing"
   end
 
   private

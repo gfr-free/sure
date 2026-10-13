@@ -3,6 +3,16 @@ require "test_helper"
 class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCase
   setup do
     @family = families(:dylan_family)
+    # Share family accounts with family_member so they're accessible to all active members
+    # except connected, which should remain private for tests that check private account behavior
+    connected_id = accounts(:connected).id
+    @family.accounts.each do |account|
+      next if account.owner_id == users(:family_member).id || account.id == connected_id
+      account.account_shares.find_or_create_by(user: users(:family_member)) do |share|
+        share.permission = "read_only"
+      end
+    end
+
     @series = @family.recurring_transactions.create!(
       name: "Horizon Power", account: accounts(:depository), amount: 100, currency: "USD",
       expected_day_of_month: 15, last_occurrence_date: Date.current,
@@ -40,6 +50,30 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
     assert_equal 1, sum_queries, "the confirmed-allocation sums must batch into one grouped query"
     assert_equal [ 60, 100, 100 ], entries.sort_by(&:date).map(&:amount).map(&:to_i),
       "the partially paid occurrence contributes only its remainder"
+  end
+
+  test "the projection starts from money reachable today, not from every deposit account" do
+    cd = @family.accounts.create!(
+      name: "Term deposit", balance: 10_000, currency: "USD", accountable: Depository.new(subtype: "cd"),
+      available_on: Date.current + 90
+    )
+    brokerage = @family.accounts.create!(
+      name: "Brokerage", balance: 10_000, currency: "USD", accountable: Investment.new(subtype: "brokerage")
+    )
+    # Share new accounts with family_member so they're accessible to all
+    [ cd, brokerage ].each do |account|
+      account.account_shares.create!(user: users(:family_member), permission: "read_only")
+    end
+
+    cash_accounts = Insight::Generators::CashFlowWarningGenerator.new(@family).send(:cash_accounts)
+
+    assert_includes cash_accounts, accounts(:depository)
+    assert_not_includes cash_accounts, cd
+    assert_not_includes cash_accounts, brokerage
+
+    cd.update!(available_on: Date.current)
+
+    assert_includes Insight::Generators::CashFlowWarningGenerator.new(@family).send(:cash_accounts), cd
   end
 
   # The feed is shared by the whole family: `connected` is private to

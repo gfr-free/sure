@@ -1,6 +1,6 @@
 class Transfer < ApplicationRecord
-  belongs_to :inflow_transaction, class_name: "Transaction"
-  belongs_to :outflow_transaction, class_name: "Transaction"
+  belongs_to :inflow_transaction, class_name: "Transaction", inverse_of: :transfer_as_inflow
+  belongs_to :outflow_transaction, class_name: "Transaction", inverse_of: :transfer_as_outflow
 
   has_many :fee_transactions, class_name: "Transaction", dependent: :destroy
 
@@ -17,19 +17,52 @@ class Transfer < ApplicationRecord
   validate :transfer_has_same_family
 
   class << self
-    def kind_for_account(account)
+    # The outflow leg's kind for a transfer into this account. Transfer::Creator,
+    # Family::DataImporter, auto-matching, rules and manual matches all call
+    # it (the inflow leg is always funds_movement, see kind_for_leg).
+    # from_account and date are the other leg's account and the booking date:
+    # money moved out of a savings account (investment, crypto or a bank
+    # account bound on that date) is a plain funds movement, and money moved
+    # from available money into a bound bank account counts as saving.
+    def kind_for_account(account, from_account: nil, date: nil)
       if account.loan?
         "loan_payment"
       elsif account.credit_card?
         "cc_payment"
-      elsif account.investment? || account.crypto?
+      elsif (account.investment? || account.crypto?) && (from_account.nil? || !savings_account?(from_account, date))
         "investment_contribution"
       elsif account.liability?
         "cc_payment"
+      elsif saving_into?(account, source: from_account, date: date)
+        "investment_contribution"
       else
         "funds_movement"
       end
     end
+
+    # Money moved from available money into a bank account that is locked or
+    # long-term on the booking date (term deposit, building savings, HSA)
+    # counts as saving, like a contribution to a brokerage account. Property,
+    # vehicles and other assets stay out: a down payment or money lent to a
+    # friend is not saving. A locked account past its release date is
+    # available again, so a transfer into it stays a plain funds movement.
+    # Moving money between two savings accounts is not new saving either, and
+    # neither is borrowed money (a loan or credit card as the source).
+    def saving_into?(destination, source: nil, date: nil)
+      return false unless bound_savings_account?(destination, date)
+      return true if source.nil?
+
+      source.available_on?(date || source.liquidity_today) && !savings_account?(source, date)
+    end
+
+    def savings_account?(account, date = nil)
+      account.investment? || account.crypto? || bound_savings_account?(account, date)
+    end
+
+    private
+      def bound_savings_account?(account, date)
+        account.depository? && !account.available_on?(date || account.liquidity_today)
+      end
   end
 
   def has_source_fee?
@@ -91,8 +124,24 @@ class Transfer < ApplicationRecord
     "transfer"
   end
 
+  # The kind a leg carries while this transfer exists: the outflow by the
+  # destination account, the inflow always funds_movement.
+  def kind_for_leg(transaction)
+    return "funds_movement" if transaction.id == inflow_transaction_id
+
+    Transfer.kind_for_account(to_account, from_account: from_account, date: outflow_transaction&.entry&.date)
+  end
+
+  # Based on the destination account rather than outflow_transaction.kind,
+  # which can be stale on rows a provider sync overwrote before
+  # Account::ProviderImportAdapter derived matched legs from their transfer
+  # (see Transaction#payment?, which has the same to_account-based reasoning).
   def categorizable?
-    to_account&.accountable_type == "Loan"
+    return false unless to_account
+
+    !Transaction::UNCATEGORIZED_EXCLUDED_KINDS.include?(
+      Transfer.kind_for_account(to_account, from_account: from_account, date: outflow_transaction&.entry&.date)
+    )
   end
 
   def reject!
@@ -108,7 +157,9 @@ class Transfer < ApplicationRecord
         next if transaction.nil?
         next unless Transaction.exists?(transaction.id)
         begin
-          transaction.update!(kind: "standard")
+          # A pending auto-match never changed the kind (see #confirm!), so a
+          # transfer kind on its transactions predates the match and stays.
+          transaction.update!(kind: "standard") if transaction.transfer? && !pending?
           # The entry survives this destroy (only the Transfer join row and
           # fee transactions go away), but its idempotency_key must not: a
           # later retry of the original create request looks up that key,
@@ -125,8 +176,26 @@ class Transfer < ApplicationRecord
     end
   end
 
+  # Auto-matched transfers start out pending and leave both transactions as
+  # they were, so an unconfirmed suggestion never moves budgets or reports.
+  # The transfer kinds (and the Investment Contributions category) only apply
+  # once the user confirms the match.
   def confirm!
-    update!(status: "confirmed")
+    Transfer.transaction do
+      update!(status: "confirmed")
+
+      # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic
+      outflow_kind = Transfer.kind_for_account(to_account, from_account: from_account, date: outflow_transaction&.entry&.date)
+      outflow_attrs = { kind: outflow_kind }
+
+      if outflow_kind == "investment_contribution" && outflow_transaction.category_id.blank?
+        category = to_account.family.investment_contributions_category
+        outflow_attrs[:category] = category if category.present?
+      end
+
+      inflow_transaction.update!(kind: "funds_movement")
+      outflow_transaction.update!(outflow_attrs)
+    end
   end
 
   def date

@@ -330,6 +330,7 @@ class Family::DataImporter
           notes: data["notes"],
           status: importable_account_status(data["status"])
         )
+        assign_imported_liquidity(account, data)
 
         account.save!
 
@@ -349,6 +350,46 @@ class Family::DataImporter
         @created_accounts << account if created
         increment_summary("Account", created ? :created : :updated)
       end
+    end
+
+    # Availability (Account::Liquidity). A level the user picked travels as
+    # the exported lock and stays manual; without one the account takes its
+    # subtype's default, as a new account would. Out-of-range values were
+    # already reported by SureImport::Preflight and are ignored here, so they
+    # leave an already imported account's value alone, as does a field missing
+    # from the record (an export from before availability existed). A blank
+    # value clears the field.
+    def assign_imported_liquidity(account, data)
+      level = data["liquidity"].to_s
+      if level.in?(Account::Liquidity::LEVELS)
+        manual = data.dig("locked_attributes", "liquidity").present?
+        account.liquidity_choice = manual ? level : Account::Liquidity::AUTOMATIC
+      end
+
+      assign_importable(account, :available_on, data) { |value| parse_import_date(value) }
+      assign_importable(account, :renewal_term_months, data) do |value|
+        importable_integer(value, 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
+      end
+      if data.key?("auto_renew") || data.key?("renewal_term_months")
+        renew = data.key?("auto_renew") ? ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true : account.auto_renew?
+        account.auto_renew = account.renewal_term_months.present? && renew
+      end
+    end
+
+    def assign_importable(account, attribute, data)
+      key = attribute.to_s
+      return unless data.key?(key)
+
+      raw = data[key]
+      value = raw.blank? ? nil : yield(raw)
+      return if raw.present? && value.nil?
+
+      account.public_send("#{key}=", value)
+    end
+
+    def importable_integer(value, range)
+      integer = Integer(value.to_s, exception: false)
+      integer if integer && range.cover?(integer)
     end
 
     def importable_account_status(status)
@@ -503,9 +544,15 @@ class Family::DataImporter
 
     # ProviderMerchant rows share the :merchants id-mapping namespace with
     # Merchant, so Transaction/RecurringTransaction merchant_id resolution below
-    # needs no changes to accept either source. A ProviderMerchant is shared
-    # across every family on the instance, so an existing match is reused as-is:
-    # an import never writes to a record it did not create.
+    # needs no changes to accept either source.
+    #
+    # A ProviderMerchant is shared by every family on the instance, and bank syncs
+    # find it by provider_merchant_id, which most providers derive from the payee
+    # name (e.g. "simplefin_" + MD5 of it). So an import only reuses one that
+    # already exists, as-is, and never creates one: otherwise any user could
+    # choose the name, logo and website that other families' synced transactions
+    # attach to. A merchant the instance does not know yet becomes this family's
+    # own FamilyMerchant.
     def import_provider_merchants(records)
       records.each do |record|
         data = record["data"]
@@ -519,32 +566,20 @@ class Family::DataImporter
           next
         end
 
-        merchant = ProviderMerchant.find_by_import_data(data, source)
-        merchant ||= create_provider_merchant(data, source)
-        created = merchant.previously_new_record?
+        if (merchant = ProviderMerchant.find_by_import_data(data, source))
+          increment_summary("ProviderMerchant", :updated)
+        else
+          merchant, created = FamilyMerchant.find_or_create_with_name(
+            @family,
+            data["name"],
+            logo_url: data["logo_url"],
+            website_url: data["website_url"]
+          )
+          increment_summary("ProviderMerchant", created ? :created : :updated)
+        end
 
         map_source!(:merchants, old_id, merchant)
-        increment_summary("ProviderMerchant", created ? :created : :updated)
       end
-    end
-
-    # ProviderMerchant does not support color, so a color in the file is not read.
-    # The savepoint keeps a lost race from aborting the surrounding import transaction.
-    # A race usually surfaces as the name-uniqueness validation (RecordInvalid) rather
-    # than the index (RecordNotUnique); either way, reuse the winner if it exists and
-    # let anything else propagate.
-    def create_provider_merchant(data, source)
-      ProviderMerchant.transaction(requires_new: true) do
-        ProviderMerchant.create!(
-          name: data["name"],
-          source: source,
-          provider_merchant_id: data["provider_merchant_id"].presence,
-          logo_url: data["logo_url"],
-          website_url: data["website_url"]
-        )
-      end
-    rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-      ProviderMerchant.find_by_import_data(data, source) || raise
     end
 
     def import_recurring_transactions(records)
@@ -1052,7 +1087,8 @@ class Family::DataImporter
           transfer.status = transfer_status_for(data["status"])
           transfer.notes = data["notes"]
         end
-        apply_transfer_transaction_kinds!(transfer)
+        # Transfer kinds only apply once a transfer is confirmed (see Transfer#confirm!)
+        apply_transfer_transaction_kinds!(transfer) if transfer.confirmed?
         increment_summary("Transfer", transfer.previously_new_record? ? :created : :updated)
       end
     end
@@ -1070,17 +1106,11 @@ class Family::DataImporter
     end
 
     def imported_transfer_outflow_kind(transfer)
-      source_account = transfer.outflow_transaction.entry.account
-      destination_account = transfer.inflow_transaction.entry.account
-      return "loan_payment" if destination_account.loan?
-      return "cc_payment" if destination_account.liability?
-      return "investment_contribution" if investment_account?(destination_account) && !investment_account?(source_account)
-
-      "funds_movement"
-    end
-
-    def investment_account?(account)
-      account.investment? || account.crypto?
+      Transfer.kind_for_account(
+        transfer.inflow_transaction.entry.account,
+        from_account: transfer.outflow_transaction.entry.account,
+        date: transfer.outflow_transaction.entry.date
+      )
     end
 
     def import_rejected_transfers(records)
@@ -1493,6 +1523,8 @@ class Family::DataImporter
 
     def resolve_multi_tag_action_value(action_data)
       value_ref = action_data["value_ref"]
+      validate_rule_text!(value_ref, field: "value_ref")
+      validate_rule_text!(action_data["value"], field: "value")
       refs = case value_ref
       when Array then value_ref
       when Hash then [ value_ref ]
@@ -1545,6 +1577,8 @@ class Family::DataImporter
 
     def rule_operand_value(data)
       raw_value = data["value"]
+      validate_rule_text!(raw_value, field: "value")
+      validate_rule_text!(data["value_ref"], field: "value_ref")
       value = raw_value.is_a?(String) ? raw_value.presence : raw_value
       value_ref_name = data.dig("value_ref", "name")
 
@@ -1552,6 +1586,12 @@ class Family::DataImporter
       return value unless value.nil?
 
       value_ref_name
+    end
+
+    def validate_rule_text!(value, field:)
+      return if DatabaseTextValidator.acceptable?(value)
+
+      raise InvalidRecordError.new(record_type: "Rule", field: field, value: "(invalid text)")
     end
 
     def uuid_like?(value)

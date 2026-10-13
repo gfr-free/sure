@@ -315,6 +315,13 @@ RSpec.configure do |config|
               classification: { type: :string },
               account_type: { type: :string, nullable: true },
               subtype: { type: :string, nullable: true },
+              liquidity: {
+                type: :string,
+                enum: %w[immediate short_term locked long_term],
+                description: 'How quickly the money can be reached. Locked accounts become available on available_on.'
+              },
+              available_on: { type: :string, format: :date, nullable: true, description: 'Release date of a locked account' },
+              available_now: { type: :boolean, description: 'Whether the money counts as available today (assets only)' },
               status: { type: :string, enum: %w[active draft disabled pending_deletion] },
               institution_name: { type: :string, nullable: true },
               institution_domain: { type: :string, nullable: true },
@@ -1760,13 +1767,13 @@ RSpec.configure do |config|
             type: :object, required: %w[basis income spending net_savings nodes links],
             description: 'Refunds net within each category. Parent direct amounts exclude child totals before partitioning by direction. Graph income/spending may differ from gross monthly totals; net savings agrees. Decimal strings retain FX precision. Empty flow has empty nodes and links.',
             properties: {
-              basis: { type: :string, enum: [ 'net_by_category' ] },
+              basis: { type: :string, enum: %w[net_by_category net_by_account], description: 'net_by_account (group_by=account) replaces the Cash Flow node with one account node per account, each balanced by Surplus or Deficit' },
               income: { type: :string }, spending: { type: :string }, net_savings: { type: :string },
               nodes: { type: :array, items: {
                 type: :object, required: %w[id name kind value percentage category_id filter_value color],
                 properties: {
                   id: { type: :string, description: 'Stable direction-prefixed category identifier or structural identifier' },
-                  name: { type: :string }, kind: { type: :string, enum: %w[income expense cash_flow surplus deficit] },
+                  name: { type: :string }, kind: { type: :string, enum: %w[income expense cash_flow account surplus deficit] },
                   value: { type: :string, description: 'Nonnegative decimal in envelope currency' },
                   percentage: { type: :string, description: 'Percentage of parent, or side total for root categories; structural balancing nodes use central capacity' },
                   category_id: { type: :string, format: :uuid, nullable: true },
@@ -1822,7 +1829,34 @@ RSpec.configure do |config|
               currency: { type: :string, description: 'Family primary currency' },
               net_worth: { '$ref' => '#/components/schemas/Money' },
               assets: { '$ref' => '#/components/schemas/Money' },
-              liabilities: { '$ref' => '#/components/schemas/Money' }
+              liabilities: { '$ref' => '#/components/schemas/Money' },
+              availability: { '$ref' => '#/components/schemas/BalanceSheetAvailability' }
+            }
+          },
+          BalanceSheetAvailability: {
+            type: :object,
+            description: 'Wealth split by account availability, evaluated on the family\'s current date',
+            required: %w[as_of available_net_worth available_assets bound_assets short_term_liabilities upcoming_releases],
+            properties: {
+              as_of: { type: :string, format: :date },
+              available_net_worth: { '$ref' => '#/components/schemas/Money', description: 'Available assets minus short-term liabilities' },
+              available_assets: { '$ref' => '#/components/schemas/Money', description: 'Assets that can be reached at short notice today' },
+              bound_assets: { '$ref' => '#/components/schemas/Money', description: 'Assets that are locked today' },
+              short_term_liabilities: { '$ref' => '#/components/schemas/Money', description: 'Credit cards and overdraft lines' },
+              upcoming_releases: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[account_id account_name date amount auto_renew],
+                  properties: {
+                    account_id: { type: :string, format: :uuid },
+                    account_name: { type: :string },
+                    date: { type: :string, format: :date },
+                    amount: { '$ref' => '#/components/schemas/Money' },
+                    auto_renew: { type: :boolean }
+                  }
+                }
+              }
             }
           },
           SuccessMessage: {

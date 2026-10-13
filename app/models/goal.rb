@@ -447,6 +447,16 @@ class Goal < ApplicationRecord
     kind == "maintained"
   end
 
+  # Linked accounts whose money cannot be reached on `date`
+  # (Account::Liquidity). Only a reserve cares: a one-off goal saving for a
+  # trip in 2027 may sit on a term deposit that matures before then, but an
+  # emergency fund on one is not there when the emergency comes.
+  def unavailable_linked_accounts(date = Account.liquidity_today_for(family))
+    return [] unless maintained?
+
+    linked_accounts.reject { |account| account.available_on?(date) }
+  end
+
   def months_of_expenses_target?
     target_mode == "months_of_expenses"
   end
@@ -746,7 +756,10 @@ class Goal < ApplicationRecord
     end
 
     segments = []
-    segments << { color: color.presence || "var(--color-blue-500)", amount: filled, id: "saved" } if filled.positive?
+    # A real colour, not a CSS variable: the ring runs this segment through
+    # d3.color, which cannot parse var(...) and left the ring blank (#4030).
+    # The same fallback as Goals::AvatarComponent, so ring and avatar match.
+    segments << { color: color.presence || Goal::COLORS.first, amount: filled, id: "saved" } if filled.positive?
     segments << { color: "var(--budget-unused-fill)", amount: rem, id: "unused" } if rem.positive?
     segments
   end

@@ -31,6 +31,200 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "Depository", account.accountable_type
   end
 
+  test "imports a manual availability with its release fields" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-cd",
+          name: "Term Deposit",
+          balance: "5000.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          accountable: { subtype: "savings" },
+          liquidity: "locked",
+          locked_attributes: { liquidity: "2026-10-01T00:00:00Z" },
+          available_on: "2027-03-31",
+          auto_renew: true,
+          renewal_term_months: 12
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal "locked", account.liquidity
+    assert account.liquidity_manual?
+    assert_equal Date.new(2027, 3, 31), account.available_on
+    assert account.auto_renew?
+    assert_equal 12, account.renewal_term_months
+  end
+
+  test "imports money moved from a locked deposit into investments as a funds movement" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "cd",
+          name: "Term Deposit",
+          balance: "5000.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          accountable: { subtype: "cd" },
+          liquidity: "locked",
+          locked_attributes: { liquidity: "2026-10-01T00:00:00Z" },
+          available_on: "2099-12-31"
+        }
+      },
+      {
+        type: "Account",
+        data: { id: "brokerage", name: "Brokerage", balance: "1000.00", currency: "USD", accountable_type: "Investment" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "cd-outflow", account_id: "cd", date: "2024-01-15", amount: "100.00", name: "To brokerage", currency: "USD", kind: "standard" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "brokerage-inflow", account_id: "brokerage", date: "2024-01-15", amount: "-100.00", name: "From term deposit", currency: "USD", kind: "standard" }
+      },
+      {
+        type: "Transfer",
+        data: { id: "cd-transfer", inflow_transaction_id: "brokerage-inflow", outflow_transaction_id: "cd-outflow", status: "confirmed", notes: "Locked to brokerage" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    transfer = Transfer.find_by!(notes: "Locked to brokerage")
+    assert_equal "funds_movement", transfer.outflow_transaction.kind
+    assert_equal "funds_movement", transfer.inflow_transaction.kind
+  end
+
+  test "an exported automatic availability follows the subtype default on import" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: {
+          id: "old-checking",
+          name: "Checking",
+          balance: "100.00",
+          currency: "USD",
+          accountable_type: "Depository",
+          subtype: "cd",
+          accountable: { subtype: "cd" },
+          liquidity: "immediate",
+          auto_renew: true
+        }
+      }
+    ])
+
+    account = Family::DataImporter.new(@family, ndjson).import![:accounts].first
+
+    assert_equal "locked", account.liquidity
+    assert_not account.liquidity_manual?
+    assert_not account.auto_renew?, "renewal needs a term"
+  end
+
+  test "a re-import without availability fields keeps the account's release settings" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-cd",
+      name: "Term Deposit",
+      balance: "5000.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "cd",
+      accountable: { subtype: "cd" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(
+      liquidity: "locked", available_on: "2027-03-31", auto_renew: true, renewal_term_months: 12
+    ) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+
+    Family::DataImporter.new(@family, build_ndjson([ { type: "Account", data: account_data } ]), import_session: session).import!
+
+    account.reload
+    assert_equal Date.new(2027, 3, 31), account.available_on
+    assert account.auto_renew?
+    assert_equal 12, account.renewal_term_months
+  end
+
+  test "a re-import of an automatic availability unlocks a manual choice" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-savings",
+      name: "Savings",
+      balance: "100.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "savings",
+      accountable: { subtype: "savings" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(
+      liquidity: "long_term", locked_attributes: { liquidity: "2026-10-01T00:00:00Z" }
+    ) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+    assert account.liquidity_manual?
+
+    second = build_ndjson([ { type: "Account", data: account_data.merge(liquidity: "immediate") } ])
+    Family::DataImporter.new(@family, second, import_session: session).import!
+
+    account.reload
+    assert_equal "immediate", account.liquidity
+    assert_not account.liquidity_manual?
+  end
+
+  test "a re-import with invalid availability values keeps the valid ones" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-cd",
+      name: "Term Deposit",
+      balance: "5000.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "cd",
+      accountable: { subtype: "cd" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(
+      available_on: "2027-03-31", auto_renew: true, renewal_term_months: 12
+    ) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+
+    second = build_ndjson([ { type: "Account", data: account_data.merge(
+      available_on: "someday", renewal_term_months: "invalid"
+    ) } ])
+    Family::DataImporter.new(@family, second, import_session: session).import!
+
+    account.reload
+    assert_equal Date.new(2027, 3, 31), account.available_on
+    assert_equal 12, account.renewal_term_months
+    assert account.auto_renew?
+  end
+
+  test "a re-import that clears the renewal term also stops the renewal" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      id: "old-cd",
+      name: "Term Deposit",
+      balance: "5000.00",
+      currency: "USD",
+      accountable_type: "Depository",
+      subtype: "cd",
+      accountable: { subtype: "cd" }
+    }
+    first = build_ndjson([ { type: "Account", data: account_data.merge(auto_renew: true, renewal_term_months: 12) } ])
+    account = Family::DataImporter.new(@family, first, import_session: session).import![:accounts].first
+    assert account.auto_renew?
+
+    second = build_ndjson([ { type: "Account", data: account_data.merge(renewal_term_months: nil) } ])
+    Family::DataImporter.new(@family, second, import_session: session).import!
+
+    account.reload
+    assert_nil account.renewal_term_months
+    assert_not account.auto_renew?
+  end
+
   test "imports non-destructive account status from ndjson" do
     ndjson = build_ndjson([
       {
@@ -1638,6 +1832,23 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "Candidate outflow", rejected_transfer.outflow_transaction.entry.name
   end
 
+  test "imports a pending transfer without applying transfer kinds" do
+    ndjson = build_ndjson([
+      { type: "Account", data: { id: "checking", name: "Checking", balance: "1000", currency: "USD", accountable_type: "Depository" } },
+      { type: "Account", data: { id: "savings", name: "Savings", balance: "2500", currency: "USD", accountable_type: "Depository" } },
+      { type: "Transaction", data: { id: "pending-outflow", account_id: "checking", date: "2024-01-15", amount: "100.00", name: "Pending outflow", currency: "USD", kind: "standard" } },
+      { type: "Transaction", data: { id: "pending-inflow", account_id: "savings", date: "2024-01-15", amount: "-100.00", name: "Pending inflow", currency: "USD", kind: "standard" } },
+      { type: "Transfer", data: { id: "transfer-1", inflow_transaction_id: "pending-inflow", outflow_transaction_id: "pending-outflow", status: "pending" } }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    transfer = Transfer.joins(inflow_transaction: :entry).find_by!(entries: { name: "Pending inflow" })
+    assert transfer.pending?
+    assert_equal "standard", transfer.inflow_transaction.kind
+    assert_equal "standard", transfer.outflow_transaction.kind
+  end
+
   test "skips rejected transfers with missing transactions under strict import" do
     session = @family.import_sessions.create!(expected_chunks: 1)
 
@@ -1881,6 +2092,35 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     category = @family.categories.find_by(name: "Coffee")
     assert_not_nil category
     assert_equal category.id, action.value
+  end
+
+  test "rejects invalid rule references before creating related records" do
+    valid_condition = { condition_type: "transaction_name", operator: "like", value: "coffee" }
+    cases = [
+      [ { condition_type: "transaction_category", operator: "=", value: "Bad\0Category" },
+        { action_type: "exclude_transaction" }, "value" ],
+      [ valid_condition,
+        { action_type: "set_transaction_merchant", value_ref: { name: "Bad\0Merchant" } }, "value_ref" ],
+      [ valid_condition,
+        { action_type: "set_transaction_tags", value_ref: [ { name: "Safe" }, { name: "Bad\0Tag" } ] }, "value_ref" ]
+    ]
+    counts = [ @family.rules.count, @family.categories.count, @family.merchants.count, @family.tags.count ]
+
+    cases.each do |condition, action, field|
+      ndjson = build_ndjson([ {
+        type: "Rule", version: 1,
+        data: { name: "Invalid reference", resource_type: "transaction", conditions: [ condition ], actions: [ action ] }
+      } ])
+
+      error = assert_raises(Family::DataImporter::InvalidRecordError) do
+        Family::DataImporter.new(@family, ndjson).import!
+      end
+
+      assert_equal "invalid_import_record", error.code
+      assert_equal field, error.details[:field]
+      assert_equal "(invalid text)", error.details[:value]
+      assert_equal counts, [ @family.rules.count, @family.categories.count, @family.merchants.count, @family.tags.count ]
+    end
   end
 
   test "imports transaction_tag rule condition by remapping the tag name to an id" do

@@ -242,6 +242,22 @@ class InsightsControllerTest < ActionDispatch::IntegrationTest
     assert other_insight.reload.active?
   end
 
+  test "an insight about an account not everyone can see is neither shown nor changed" do
+    hidden = @user.family.insights.create!(
+      insight_type: "idle_cash", priority: "low", status: "active", title: "Idle cash in Private",
+      body: "Body", metadata: { "account_id" => accounts(:connected).id },
+      dedup_key: "idle_cash:private:2026-07", generated_at: Time.current
+    )
+
+    get insights_url
+    assert_no_match "Idle cash in Private", response.body
+    assert hidden.reload.active?, "viewing the feed does not mark a hidden row read"
+
+    patch acknowledge_insight_url(hidden), as: :turbo_stream
+    assert_response :not_found
+    assert hidden.reload.active?
+  end
+
   test "refresh enqueues insight generation for the family" do
     assert_enqueued_with(job: GenerateInsightsJob, args: [ { family_id: @user.family_id } ]) do
       post refresh_insights_url
@@ -290,6 +306,23 @@ class InsightsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#insights-feed", count: 0
     assert_select "a[href=?]", insights_path, count: 0
+  end
+
+  test "renders a release reminder with its figure and account link" do
+    account = accounts(:depository)
+    @user.family.insights.create!(
+      insight_type: "account_release", priority: "medium", status: "active",
+      title: "Term deposit is released soon", body: "$5,000.00 on Term deposit becomes available on October 15, 2026.",
+      facts: { "balance" => "$5,000.00", "days" => 10 },
+      metadata: { "account_id" => account.id, "kind" => "upcoming", "release_on" => "2026-10-15" },
+      generated_at: Time.current, dedup_key: "account_release:upcoming:#{account.id}:2026-10-15"
+    )
+
+    get insights_url
+
+    assert_response :success
+    assert_includes response.body, "free in 10 days"
+    assert_select "a[href='#{account_path(account)}']", text: I18n.t("insights.actions.account_release")
   end
 
   private

@@ -1,0 +1,7 @@
+## r4265360071 (app/models/user.rb, re-check the password before issuing a token)
+
+Good catch, fixed in cd46dd0. Password logins now record a SHA-256 fingerprint of the digest they checked and pass it into `User#with_active_lock!`. Under the user row lock, the fingerprint is compared against the current digest, and `User::StaleCredentialsError` is raised if the password changed in between. `/api/v1/auth/login` and `/api/v1/auth/sso_link` pass it through `MobileDevice#issue_token!` and answer 401 "Invalid email or password". The web login and the OIDC account link pass it through `create_session_for`. Test: `Api::V1::AuthControllerTest#test_should_not_issue_a_token_when_the_password_changes_during_login`, which fails without the fix.
+
+## r4265360079 (app/controllers/admin/users_controller.rb, pending MFA sign-in after an admin reset)
+
+Fixed in cd46dd0 as well. When the password step hands off to MFA, it stores the same fingerprint in the session next to `mfa_user_id`, and `MfaController#complete_mfa_sign_in` hands it to `create_session_for`. If the password changed after the first factor (admin reset, self-service change or reset), completing the TOTP or passkey step no longer creates a session. The SSO entry points into MFA clear any leftover fingerprint, because no password was checked there. Test: `MfaControllerTest#test_verify_code_cannot_create_a_session_after_the_password_changed`, which fails without the fix.

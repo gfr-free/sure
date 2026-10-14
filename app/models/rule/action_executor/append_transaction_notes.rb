@@ -22,6 +22,11 @@ class Rule::ActionExecutor::AppendTransactionNotes < Rule::ActionExecutor
     [ :notes ]
   end
 
+  # A blank value changes nothing, so it must not keep note rules below away.
+  def actionable?(value)
+    value.to_s.strip.present?
+  end
+
   # Adds the text as a new line. Rules run again on every sync, so a line is
   # only added when no line of the notes already equals it; otherwise the notes
   # would grow every night. A value with several lines (API, imports) is

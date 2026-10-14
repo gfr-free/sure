@@ -20,6 +20,11 @@ class Rule::ActionExecutor::SetTransactionNotes < Rule::ActionExecutor
     [ :notes, :appended_notes ]
   end
 
+  # A blank value changes nothing, so it must not keep note rules below away.
+  def actionable?(value)
+    value.to_s.strip.present?
+  end
+
   def execute(transaction_scope, value: nil, ignore_attribute_locks: false, rule_run: nil)
     text = value.to_s.strip
     return 0 if text.blank?

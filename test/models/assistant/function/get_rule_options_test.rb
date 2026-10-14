@@ -36,6 +36,6 @@ class Assistant::Function::GetRuleOptionsTest < ActiveSupport::TestCase
 
     append = result[:actions].find { |a| a[:action_type] == "append_transaction_notes" }
     assert_equal "text", append[:value_type]
-    assert_match "one line", append[:values]
+    assert_match "one or more lines", append[:values]
   end
 end

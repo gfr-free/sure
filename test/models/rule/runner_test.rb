@@ -319,6 +319,18 @@ class Rule::RunnerTest < ActiveSupport::TestCase
     assert_equal "Check receipt\nReimbursable", @whole_foods.reload.entry.notes
   end
 
+  test "a blank note action above does not claim the notes" do
+    top = create_rule("Top", "Whole Foods", notes: "Placeholder")
+    top.actions.first.update_column(:value, " ")
+    blank_append = create_rule("Middle", "Whole Foods", append_notes: "Placeholder")
+    blank_append.actions.first.update_column(:value, "\n")
+    create_rule("Bottom", "Whole", notes: "Groceries run")
+
+    run_active_rules
+
+    assert_equal "Groceries run", @whole_foods.reload.entry.notes
+  end
+
   test "an appended note keeps a rule further down from replacing the notes" do
     create_rule("Top", "Whole Foods", append_notes: "Check receipt")
     create_rule("Bottom", "Whole Foods", notes: "Groceries run")

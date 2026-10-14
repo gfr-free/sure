@@ -5,3 +5,7 @@ Good catch, fixed in cd46dd0. Password logins now record a SHA-256 fingerprint o
 ## r4265360079 (app/controllers/admin/users_controller.rb, pending MFA sign-in after an admin reset)
 
 Fixed in cd46dd0 as well. When the password step hands off to MFA, it stores the same fingerprint in the session next to `mfa_user_id`, and `MfaController#complete_mfa_sign_in` hands it to `create_session_for`. If the password changed after the first factor (admin reset, self-service change or reset), completing the TOTP or passkey step no longer creates a session. The SSO entry points into MFA clear any leftover fingerprint, because no password was checked there. Test: `MfaControllerTest#test_verify_code_cannot_create_a_session_after_the_password_changed`, which fails without the fix.
+
+## CodeRabbit on cd46dd0 (app/controllers/api/v1/auth_controller.rb:120, take the fingerprint before the reload)
+
+Right, thanks. Fixed in f9fdc2d: `login` now takes the fingerprint immediately after `authenticate` succeeds and passes that value unchanged through the `active?` reload to `issue_token!`. New test `test_should_not_issue_a_token_when_the_password_changes_before_the_login_reloads_the_user` changes the password inside the reload step and fails without the fix. `sso_link`, the web login and the OIDC link don't reload the user between the password check and taking the fingerprint, so they were not affected.

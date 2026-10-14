@@ -115,15 +115,17 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
         .perform
     end
 
-    # Lets a test wait for a sortable list's order PATCH: once it answers,
-    # <html> carries data-order-saved with the response status. Waits for the
-    # sortable-list controller to connect first, so keys sent next are handled.
+    # Lets a dashboard or reports test wait for the section order PATCH: once
+    # it answers, <html> carries data-order-saved with the response status.
+    # Waits for the sortable-list controller to connect first, so keys sent
+    # next are handled.
     def record_saved_section_order
       page.document.synchronize do
         connected = page.evaluate_script(<<~JS)
-          !!window.Stimulus.getControllerForElementAndIdentifier(
-            document.querySelector("[data-controller~='sortable-list']"), "sortable-list"
-          )
+          (() => {
+            const list = document.querySelector("[data-controller~='sortable-list']");
+            return !!list && !!window.Stimulus.getControllerForElementAndIdentifier(list, "sortable-list");
+          })()
         JS
         raise Capybara::ExpectationNotMet, "sortable-list is not connected" unless connected
       end

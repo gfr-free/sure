@@ -26,7 +26,7 @@ class DashboardCustomizeTest < ApplicationSystemTestCase
   test "a widget moved with the keyboard keeps its new place" do
     sign_in @user
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
-    record_saved_section_order("dashboard-sortable")
+    record_saved_section_order
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)

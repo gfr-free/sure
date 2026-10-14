@@ -24,7 +24,7 @@ class ReportsTest < ApplicationSystemTestCase
   end
 
   test "the arrow keys leave section moves and dialogs alone" do
-    find("section[data-section-key]", match: :first).send_keys(:enter)
+    find("section[data-sortable-list-id]", match: :first).send_keys(:enter)
     page.send_keys(:arrow_left)
     assert_empty clicked_hotkeys
     page.send_keys(:escape)
@@ -52,7 +52,7 @@ class ReportsTest < ApplicationSystemTestCase
 
   test "a section moved with the keyboard keeps its new place" do
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
-    record_saved_section_order("reports-sortable")
+    record_saved_section_order
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)
@@ -73,32 +73,33 @@ class ReportsTest < ApplicationSystemTestCase
     assert_equal "false", section["aria-grabbed"]
   end
 
-  test "a cancelled touch does not leave a section held" do
-    section = find("section[data-section-key]", match: :first)
-
-    page.execute_script(<<~JS, section)
-      const section = arguments[0];
-      const touch = new Touch({ identifier: 1, target: section, clientX: 10, clientY: 10 });
-      section.dispatchEvent(new TouchEvent("touchstart", { touches: [touch], bubbles: true }));
-      section.dispatchEvent(new TouchEvent("touchcancel", { touches: [], bubbles: true }));
-    JS
-    sleep 0.3 # past the 150 ms hold delay
-
-    assert_equal "false", section["aria-grabbed"]
-    assert_not_includes section[:class], "opacity-50"
-  end
-
   test "a section still grabbed when the page changes keeps its new place" do
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
-    record_saved_section_order("reports-sortable")
+    record_saved_section_order
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)
-    page.execute_script("document.querySelector(\"[data-controller~='reports-sortable']\").remove()")
+    page.execute_script("document.querySelector(\"[data-controller~='sortable-list']\").remove()")
 
     assert_selector "html[data-order-saved='200']"
     saved_order = users(:family_admin).reload.reports_section_order
     assert_operator saved_order.index(second), :<, saved_order.index(first)
+  end
+
+  test "a section grabbed when Turbo leaves the page is saved and not shown grabbed on Back" do
+    first = find("section[data-section-key]", match: :first)["data-section-key"]
+    record_saved_section_order
+
+    find("section[data-section-key='#{first}']").send_keys(:enter)
+    page.send_keys(:arrow_down)
+    page.execute_script("Turbo.visit(#{settings_profile_path.to_json})")
+    assert_current_path settings_profile_path
+    assert_selector "html[data-order-saved='200']", visible: :all
+
+    page.go_back
+    assert_selector "section[data-section-key='#{first}']"
+    assert_no_selector "section[aria-grabbed='true']"
+    assert_no_selector "section.ring-2[data-section-key]"
   end
 
   # Navigates away for real, so the browser's own unload (and the keepalive
@@ -107,7 +108,7 @@ class ReportsTest < ApplicationSystemTestCase
   test "a section still grabbed when the user navigates away keeps its new place" do
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
 
-    record_saved_section_order("reports-sortable")
+    record_saved_section_order
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)

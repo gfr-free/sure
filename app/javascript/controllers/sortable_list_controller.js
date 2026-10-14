@@ -1,40 +1,31 @@
 import { Controller } from "@hotwired/stimulus";
 
-// Shared drag-and-drop reordering for a list of `section` targets. Sections
-// move by mouse drag, press-and-hold on touch, or Enter/Space plus the arrow
-// keys, with a border placeholder showing the drop position.
-//
-// Subclasses set `holdDelay` in their values and the static switches below,
-// and provide the save target (`saveUrl`, `orderPreference`, `logLabel`) or
-// override `saveOrder()`.
-export default class SortableController extends Controller {
-  static targets = ["section"];
+// Reorderable list with mouse, touch (hold on the handle) and keyboard
+// (Enter/Space to grab, arrow keys to move, release to save). Each item needs
+// data-sortable-list-target="item" and data-sortable-list-id. On every change
+// the ids are sent as JSON to urlValue, nested under paramValue
+// ("a.b" sends { a: { b: [...] } }).
+export default class extends Controller {
+  static targets = ["item"];
 
-  // Short delay to prevent accidental touches; subclasses may lengthen it.
+  // Hold delay to require deliberate press-and-hold before activating drag mode.
+  // Lists whose whole item reacts to touch (not just a small grip) should raise
+  // it so a normal scroll does not start a drag.
   static values = {
+    url: String,
+    param: String,
     holdDelay: { type: Number, default: 150 },
+    // Where a dragged item lands: "below" inserts it before the first item
+    // whose vertical centre is below the pointer (a single column),
+    // "nearest" before the item whose centre is closest (a grid).
+    dropTarget: { type: String, default: "below" },
+    // Leave keys pressed on a control inside an item to that control.
+    ownKeysOnly: { type: Boolean, default: false },
   };
-
-  // Where a dragged section lands: "below" inserts it before the first
-  // section whose vertical centre is below the pointer (a single column),
-  // "nearest" before the section whose centre is closest (a grid).
-  static dropTarget = "below";
-
-  // For long hold delays: block text selection while holding, cancel the
-  // hold once the finger moves more than 10px (scrolling or swiping), and
-  // ignore native drag while a touch is in progress.
-  static guardTouchHold = false;
-
-  // Leave keys pressed on a control inside a section to that control.
-  static ownKeysOnly = false;
-
-  // Swallow ArrowLeft/ArrowRight while a section is grabbed, so page hotkeys
-  // on those keys cannot leave before the new order is saved on release.
-  static holdHorizontalArrows = false;
 
   connect() {
     this.draggedElement = null;
-    this.pendingSection = null;
+    this.placeholder = null;
     this.touchStartX = 0;
     this.touchStartY = 0;
     this.currentTouchX = 0;
@@ -46,20 +37,16 @@ export default class SortableController extends Controller {
 
     // A full page load or closing the tab skips disconnect(), so release
     // the grab on pagehide too.
-    this.releaseOnPageHide = () => this.releaseKeyboardGrab();
-    window.addEventListener("pagehide", this.releaseOnPageHide);
+    this.releaseGrab = () => this.releaseKeyboardGrab();
+    window.addEventListener("pagehide", this.releaseGrab);
   }
 
   disconnect() {
-    window.removeEventListener("pagehide", this.releaseOnPageHide);
+    window.removeEventListener("pagehide", this.releaseGrab);
     this.cancelHold();
-    // A section still grabbed with the keyboard (e.g. Turbo navigation away)
+    // An item still grabbed with the keyboard (e.g. Turbo navigation away)
     // keeps the place it was moved to.
     this.releaseKeyboardGrab();
-  }
-
-  get options() {
-    return this.constructor;
   }
 
   // ===== Mouse Drag Events =====
@@ -67,10 +54,7 @@ export default class SortableController extends Controller {
     // If a touch interaction is in progress, cancel native drag —
     // use touch events with hold delay instead.
     // This avoids blocking mouse/trackpad drag on touch-capable laptops.
-    if (
-      this.options.guardTouchHold &&
-      (this.isTouching || this.pendingSection)
-    ) {
+    if (this.isTouching || this.pendingSection) {
       event.preventDefault();
       return;
     }
@@ -105,17 +89,18 @@ export default class SortableController extends Controller {
   }
 
   // ===== Touch Events =====
-  // Touch events are bound to each section, with a hold delay to prevent
-  // accidental touches.
+  // A press-and-hold gesture activates drag mode; a plain scroll gesture
+  // (finger moves before the hold delay elapses) cancels it.
 
   touchStart(event) {
-    // Find the parent section element from the handle
+    // Find the parent item element from the handle
     const section = event.currentTarget.closest(
-      `[data-${this.identifier}-target='section']`,
+      "[data-sortable-list-target='item']",
     );
     if (!section) return;
 
-    // Respect strict draggable="false" which might be set by other controllers (e.g. expand-controller)
+    // Another controller may switch dragging off for a while, e.g. the
+    // dashboard Sankey while its expanded view is open.
     if (section.getAttribute("draggable") === "false") return;
 
     this.pendingSection = section;
@@ -125,11 +110,9 @@ export default class SortableController extends Controller {
     this.currentTouchY = this.touchStartY;
     this.holdActivated = false;
 
-    if (this.options.guardTouchHold) {
-      // Prevent text selection while waiting for hold to activate
-      section.style.userSelect = "none";
-      section.style.webkitUserSelect = "none";
-    }
+    // Prevent text selection while waiting for hold to activate
+    section.style.userSelect = "none";
+    section.style.webkitUserSelect = "none";
 
     // Start hold timer
     this.holdTimer = setTimeout(() => {
@@ -156,16 +139,14 @@ export default class SortableController extends Controller {
     const touchX = event.touches[0].clientX;
     const touchY = event.touches[0].clientY;
 
+    // If hold hasn't activated yet, cancel if user moves too far (scrolling or swiping)
+    // Uses Euclidean distance to catch diagonal gestures too
     if (!this.holdActivated) {
-      // If hold hasn't activated yet, cancel if user moves too far (scrolling or swiping)
-      // Uses Euclidean distance to catch diagonal gestures too
-      if (this.options.guardTouchHold) {
-        const dx = touchX - this.touchStartX;
-        const dy = touchY - this.touchStartY;
-        // 10px radius
-        if (dx * dx + dy * dy > 100) {
-          this.cancelHold();
-        }
+      const dx = touchX - this.touchStartX;
+      const dy = touchY - this.touchStartY;
+      // 10px radius
+      if (dx * dx + dy * dy > 100) {
+        this.cancelHold();
       }
       return;
     }
@@ -198,6 +179,27 @@ export default class SortableController extends Controller {
     this.resetTouchState();
   }
 
+  touchCancel() {
+    this.cancelHold();
+
+    if (this.draggedElement) {
+      this.draggedElement.classList.remove("opacity-50", "scale-[1.02]");
+      this.draggedElement.setAttribute("aria-grabbed", "false");
+    }
+
+    this.clearPlaceholders();
+    this.resetTouchState();
+  }
+
+  // Belt-and-suspenders alongside the `[-webkit-touch-callout:none]` class:
+  // if a long-press context menu/link-preview still fires (e.g. a browser
+  // that ignores the CSS property), don't let it interrupt the hold gesture.
+  suppressContextMenu(event) {
+    if (this.pendingSection || this.isTouching) {
+      event.preventDefault();
+    }
+  }
+
   cancelHold() {
     if (this.holdTimer) {
       clearTimeout(this.holdTimer);
@@ -223,11 +225,17 @@ export default class SortableController extends Controller {
   }
 
   // ===== Keyboard Navigation =====
+  // Bound either on the item itself or on a handle inside it. Focus returns
+  // to the bound element after each move.
   handleKeyDown(event) {
-    const currentSection = event.currentTarget;
-    // Keys pressed on a control inside the card (a header button, a widget's
+    const currentSection = event.currentTarget.closest(
+      "[data-sortable-list-target='item']",
+    );
+    if (!currentSection) return;
+    // Keys pressed on a control inside the item (a header button, a widget's
     // own inputs) belong to that control, not to the reorder grab.
-    if (this.options.ownKeysOnly && event.target !== currentSection) return;
+    if (this.ownKeysOnlyValue && event.target !== event.currentTarget) return;
+    this.keyboardFocusElement = event.currentTarget;
 
     switch (event.key) {
       case "ArrowUp":
@@ -244,9 +252,9 @@ export default class SortableController extends Controller {
         break;
       case "ArrowLeft":
       case "ArrowRight":
-        if (this.options.holdHorizontalArrows && this.keyboardGrabbedElement) {
-          event.preventDefault();
-        }
+        // Keep the period hotkeys from leaving the page before the new
+        // order is saved, which only happens on release.
+        if (this.keyboardGrabbedElement) event.preventDefault();
         break;
       case "Enter":
       case " ":
@@ -296,17 +304,17 @@ export default class SortableController extends Controller {
 
   moveUp(section) {
     const previousSibling = section.previousElementSibling;
-    if (previousSibling?.hasAttribute("data-section-key")) {
+    if (previousSibling && this.itemTargets.includes(previousSibling)) {
       this.element.insertBefore(section, previousSibling);
-      section.focus();
+      this.keyboardFocusElement?.focus();
     }
   }
 
   moveDown(section) {
     const nextSibling = section.nextElementSibling;
-    if (nextSibling?.hasAttribute("data-section-key")) {
+    if (nextSibling && this.itemTargets.includes(nextSibling)) {
       this.element.insertBefore(nextSibling, section);
-      section.focus();
+      this.keyboardFocusElement?.focus();
     }
   }
 
@@ -332,17 +340,17 @@ export default class SortableController extends Controller {
   }
 
   getDragAfterElement(pointerX, pointerY) {
-    const draggableElements = this.sectionTargets.filter(
+    const draggableElements = this.itemTargets.filter(
       (section) => section !== this.draggedElement,
     );
 
-    return this.options.dropTarget === "nearest"
-      ? this.nearestSection(draggableElements, pointerX, pointerY)
-      : this.firstSectionBelow(draggableElements, pointerY);
+    return this.dropTargetValue === "nearest"
+      ? this.nearestItem(draggableElements, pointerX, pointerY)
+      : this.firstItemBelow(draggableElements, pointerY);
   }
 
-  firstSectionBelow(sections, pointerY) {
-    return sections.reduce(
+  firstItemBelow(items, pointerY) {
+    return items.reduce(
       (closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = pointerY - box.top - box.height / 2;
@@ -356,19 +364,14 @@ export default class SortableController extends Controller {
     ).element;
   }
 
-  nearestSection(sections, pointerX, pointerY) {
-    if (sections.length === 0) return null;
-
+  nearestItem(items, pointerX, pointerY) {
     let closest = null;
     let minDistance = Number.POSITIVE_INFINITY;
 
-    sections.forEach((child) => {
+    items.forEach((child) => {
       const rect = child.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-
-      const dx = pointerX - centerX;
-      const dy = pointerY - centerY;
+      const dx = pointerX - (rect.left + rect.width / 2);
+      const dy = pointerY - (rect.top + rect.height / 2);
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance < minDistance) {
@@ -391,7 +394,7 @@ export default class SortableController extends Controller {
   }
 
   clearPlaceholders() {
-    this.sectionTargets.forEach((section) => {
+    this.itemTargets.forEach((section) => {
       section.classList.remove(
         "border-t-4",
         "border-b-4",
@@ -402,44 +405,74 @@ export default class SortableController extends Controller {
     });
   }
 
-  // ===== Saving =====
-  async saveOrder() {
-    const { saveUrl, orderPreference, logLabel } = this.options;
-    const order = this.sectionTargets.map(
-      (section) => section.dataset.sectionKey,
-    );
+  buildBody(order) {
+    return this.paramValue
+      .split(".")
+      .reduceRight((value, key) => ({ [key]: value }), order);
+  }
 
-    // Safely obtain CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]');
-    if (!csrfToken) {
-      console.error(
-        `[${logLabel}] CSRF token not found. Cannot save section order.`,
-      );
-      return;
+  // Saves run one at a time. A change made while a save is in flight is sent
+  // once it finishes, with the latest order only, so an older request can
+  // never land after a newer one and restore an earlier order.
+  saveOrder() {
+    this.pendingOrder = this.itemTargets.map(
+      (item) => item.dataset.sortableListId,
+    );
+    if (!this.saving) this.flushSaves();
+  }
+
+  async flushSaves() {
+    this.saving = true;
+    while (this.pendingOrder) {
+      const order = this.pendingOrder;
+      this.pendingOrder = null;
+      await this.sendOrder(order);
     }
+    this.saving = false;
+  }
+
+  async sendOrder(order) {
+    // The meta tag is missing when forgery protection is off (e.g. in tests);
+    // the server still rejects requests without a valid token when it is on.
+    const csrfToken = document.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+    const headers = { "Content-Type": "application/json" };
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
     try {
-      const response = await fetch(saveUrl, {
+      const response = await fetch(this.urlValue, {
         method: "PATCH",
         // Lets the save finish when it is sent while the page unloads.
         keepalive: true,
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken.content,
-        },
-        body: JSON.stringify({ preferences: { [orderPreference]: order } }),
+        headers,
+        body: JSON.stringify(this.buildBody(order)),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error(
-          `[${logLabel}] Failed to save section order:`,
+          "[Sortable List] Failed to save order:",
           response.status,
           errorData,
         );
+        // Show the order that is actually saved instead of the unsaved one,
+        // e.g. when the list changed in another tab.
+        this.pendingOrder = null;
+        this.reloadIfStillShown();
       }
     } catch (error) {
-      console.error(`[${logLabel}] Network error saving section order:`, error);
+      console.error("[Sortable List] Network error saving order:", error);
+      // A newer order still gets sent; otherwise show what is actually saved.
+      if (!this.pendingOrder) this.reloadIfStillShown();
+    }
+  }
+
+  // A save sent on the way out (see disconnect) can fail after the next page
+  // is shown; reloading then would reload that page, not this list.
+  reloadIfStillShown() {
+    if (this.element.isConnected) {
+      Turbo.visit(window.location.href, { action: "replace" });
     }
   }
 }

@@ -263,4 +263,21 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to account_path(@holding.account, tab: "holdings")
     assert_not_equal "krugerrand", @holding.reload.security.bullion_spec&.catalog_key
   end
+
+  test "a read-only share cannot change a coin holding" do
+    old_coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: old_coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    @account.account_shares.where(user: users(:family_member)).destroy_all
+    @account.account_shares.create!(user: users(:family_member), permission: "read_only")
+    sign_in users(:family_member)
+
+    get edit_bullion_holding_path(holding)
+    assert_redirected_to account_path(@account)
+
+    patch remap_bullion_holding_path(holding), params: { model: { bullion_choice: "product:maple_leaf", bullion_size: "1oz" } }
+
+    assert_redirected_to account_path(@account)
+    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+    assert_equal old_coin, holding.reload.security
+  end
 end

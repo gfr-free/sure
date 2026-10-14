@@ -19,3 +19,7 @@ Fixed in 89443f66e: when the reconnect job is discarded on a SimpleFIN error, it
 
 ## discussion_r4265785458 (jjmata, update never validates synchronously)
 Good catch, fixed in 89443f66e. The update action now runs the same claim-URL check (scheme and resolved addresses) before queueing the reconnect job, so a disallowed or malformed token gets the "Invalid setup token" error immediately and no job is queued. Test added.
+
+## r4265452154 (Codex, IPv4-translated) — updated reply, post after CI is green on 1921df471
+
+Good catch — the earlier change only covered IPv4-mapped addresses (`::ffff:a.b.c.d`). IPv4-translated addresses in `::ffff:0:0:0/96` (e.g. `::ffff:0:169.254.169.254`) are now unwrapped like NAT64 and checked as their embedded IPv4 address, with a test case added. Fixed in 1921df471.

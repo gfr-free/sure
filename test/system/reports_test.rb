@@ -52,7 +52,7 @@ class ReportsTest < ApplicationSystemTestCase
 
   test "a section moved with the keyboard keeps its new place" do
     first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
-    record_saved_section_order("reports-sortable")
+    record_saved_section_order
 
     find("section[data-section-key='#{first}']").send_keys(:enter)
     page.send_keys(:arrow_down)

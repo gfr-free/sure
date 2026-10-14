@@ -36,4 +36,26 @@ class DashboardCustomizeTest < ApplicationSystemTestCase
     saved_order = @user.reload.dashboard_section_order
     assert_operator saved_order.index(second), :<, saved_order.index(first)
   end
+
+  test "a widget dropped on the lower half of the last widget moves to the end" do
+    sign_in @user
+    keys = all("section[data-section-key]").map { |section| section["data-section-key"] }
+    record_saved_section_order
+
+    page.execute_script(<<~JS, keys.first, keys.last)
+      const [draggedKey, targetKey] = arguments;
+      const dragged = document.querySelector(`section[data-section-key='${draggedKey}']`);
+      const target = document.querySelector(`section[data-section-key='${targetKey}']`);
+      const box = target.getBoundingClientRect();
+      const point = { clientX: box.left + box.width / 2, clientY: box.bottom - 5 };
+      const dataTransfer = new DataTransfer();
+      dragged.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+      target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer, ...point }));
+      target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer, ...point }));
+      dragged.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+    JS
+
+    assert_selector "html[data-order-saved='200']"
+    assert_equal keys.drop(1) + [ keys.first ], @user.reload.dashboard_section_order.select { |key| keys.include?(key) }
+  end
 end

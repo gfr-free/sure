@@ -320,33 +320,41 @@ export default class extends Controller {
 
   // ===== Drop Position =====
   showDropPosition(pointerX, pointerY) {
-    const afterElement = this.getDragAfterElement(pointerX, pointerY);
-
-    if (afterElement == null) {
-      this.showPlaceholder(this.element.lastElementChild, "after");
-    } else {
-      this.showPlaceholder(afterElement, "before");
-    }
+    const { element, position } = this.dropSlot(pointerX, pointerY);
+    this.showPlaceholder(element, position);
   }
 
   moveDraggedTo(pointerX, pointerY) {
-    const afterElement = this.getDragAfterElement(pointerX, pointerY);
+    const { element, position } = this.dropSlot(pointerX, pointerY);
 
-    if (afterElement == null) {
-      this.element.appendChild(this.draggedElement);
+    if (position === "after") {
+      element.after(this.draggedElement);
     } else {
-      this.element.insertBefore(this.draggedElement, afterElement);
+      element.before(this.draggedElement);
     }
   }
 
-  getDragAfterElement(pointerX, pointerY) {
+  // The item the dragged one lands next to, and on which side.
+  dropSlot(pointerX, pointerY) {
     const draggableElements = this.itemTargets.filter(
       (section) => section !== this.draggedElement,
     );
 
-    return this.dropTargetValue === "nearest"
-      ? this.nearestItem(draggableElements, pointerX, pointerY)
-      : this.firstItemBelow(draggableElements, pointerY);
+    if (this.dropTargetValue === "nearest") {
+      const nearest = this.nearestItem(draggableElements, pointerX, pointerY);
+      if (nearest) {
+        // The lower half of the closest card drops after it, so a card can
+        // also move past the last one.
+        const box = nearest.getBoundingClientRect();
+        const after = pointerY > box.top + box.height / 2;
+        return { element: nearest, position: after ? "after" : "before" };
+      }
+    } else {
+      const below = this.firstItemBelow(draggableElements, pointerY);
+      if (below) return { element: below, position: "before" };
+    }
+
+    return { element: this.element.lastElementChild, position: "after" };
   }
 
   firstItemBelow(items, pointerY) {

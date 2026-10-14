@@ -33,28 +33,36 @@ class ApplyImmediateRulesJobTest < ActiveJob::TestCase
     assert_empty inactive.rule_runs
   end
 
-  test "a nightly-only rule above holds the field back until the nightly run" do
-    create_rule("Nightly", category: @dining)
+  test "active rules above run first on the same transactions and win their fields" do
+    nightly = create_rule("Nightly", category: @dining)
     create_rule("Immediate", category: @groceries, apply_immediately: true)
 
     ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
-    assert_nil @changed.reload.category
 
-    ApplyRulesJob.perform_now(@family)
     assert_equal @dining, @changed.reload.category
+    assert_nil @untouched.reload.category
+    assert_equal [ "immediate" ], nightly.rule_runs.pluck(:execution_type)
   end
 
-  test "a nightly-only rename above is not seen until the nightly run" do
-    create_rule("Nightly rename", match: "Whole Foods", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF Market"))
+  test "an immediate rule sees a rename made by a rule above" do
+    create_rule("Rename", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF Market"))
     create_rule("Immediate", match: "WF Market", category: @groceries, apply_immediately: true)
 
     ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
-    assert_equal "Whole Foods", @changed.reload.entry.name
-    assert_nil @changed.category
 
-    ApplyRulesJob.perform_now(@family)
     assert_equal "WF Market", @changed.reload.entry.name
     assert_equal @groceries, @changed.category
+    assert_equal "Whole Foods", @untouched.reload.entry.name
+  end
+
+  test "rules below the last immediate rule wait for the nightly run" do
+    create_rule("Immediate", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF Market"), apply_immediately: true)
+    below = create_rule("Below", category: @groceries)
+
+    ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
+
+    assert_nil @changed.reload.category
+    assert_empty below.rule_runs
   end
 
   test "keeps fields the person set themselves" do

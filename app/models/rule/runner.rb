@@ -12,13 +12,10 @@
 # Inactive rules above are skipped because they don't run nightly either.
 # ignore_attribute_locks only applies to the requested rules.
 #
-# With transaction_ids the run only looks at those transactions ("apply
-# immediately" after a manual or API change). Rules above that only run
-# nightly are matched against the current data but not executed: they keep
-# their fields and "stop processing" until the nightly run, and changes they
-# would make (e.g. a rename) are not seen by the rules below until then. Requested rules that match none of the
-# transactions are skipped without a RuleRun, so editing doesn't fill the
-# history.
+# With transaction_ids every rule, including the active rules above, only
+# looks at those transactions ("apply immediately" after a manual or API
+# change). Rules that match none of them are skipped without a RuleRun, so
+# editing doesn't fill the history.
 #
 # One run per family at a time, guarded by a PostgreSQL advisory lock. A busy
 # lock raises LockBusy so the calling job can retry instead of dropping the run.
@@ -64,26 +61,13 @@ class Rule::Runner
         break if remaining_ids.empty?
 
         if remaining_ids.delete?(rule.id)
-          rule_run = execute(rule, ignore_attribute_locks: ignore_attribute_locks)
-          rule_runs << rule_run if rule_run
-        elsif rule.active? && transaction_ids
-          match_without_executing(rule)
+          rule_runs << execute(rule, ignore_attribute_locks: ignore_attribute_locks)
         elsif rule.active?
           rule_runs << execute(rule, ignore_attribute_locks: false)
         end
       end
 
-      rule_runs
-    end
-
-    # In an immediate run, a "nightly only" rule above still wins its fields
-    # and stops processing, but its actions wait for the nightly run. A rule
-    # that cannot even be matched claims nothing and must not keep the rules
-    # below it from running.
-    def match_without_executing(rule)
-      record_claims(rule, unstopped_scope(rule).pluck(:id))
-    rescue => e
-      Rails.logger.error("Rule::Runner could not match rule #{rule.id}: #{e.class}: #{e.message}")
+      rule_runs.compact
     end
 
     def unstopped_scope(rule)

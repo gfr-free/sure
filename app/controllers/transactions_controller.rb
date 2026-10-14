@@ -10,7 +10,6 @@ class TransactionsController < ApplicationController
   def show
     super
     assign_mark_recurring_state
-    @pending_field_hints = @entry.split_child? || @entry.transaction.transfer? ? {} : Rule.pending_field_hints(@entry.transaction)
   end
 
   def new

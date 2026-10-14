@@ -1922,28 +1922,11 @@ end
     assert_no_enqueued_jobs(only: ApplyImmediateRulesJob)
   end
 
-  test "the drawer explains an empty category a nightly rule will set" do
-    @entry.transaction.update!(category: nil)
-    @entry.transaction.unlock_attr!(:category_id)
-    create_immediate_rule(match: "zzz-no-match")
-    @user.family.rules.create!(
-      name: "Nightly groceries", resource_type: "transaction", active: true,
-      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: @entry.name) ],
-      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
-    )
-
-    get transaction_url(@entry)
-
-    assert_response :success
-    assert_includes response.body, "Nightly groceries"
-    assert_includes response.body, "sets this on its next run"
-  end
-
   private
-    def create_immediate_rule(match: "Renamed")
+    def create_immediate_rule
       @user.family.rules.create!(
         name: "Immediate", resource_type: "transaction", active: true, apply_immediately: true,
-        conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
+        conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Renamed") ],
         actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
       )
     end

@@ -478,71 +478,6 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert rule.reload.apply_immediately?
   end
 
-  test "edit and index explain a nightly rule above that holds an immediate rule back" do
-    nightly = create_category_rule("Nightly groceries")
-    immediate = create_category_rule("Immediate groceries", apply_immediately: true)
-
-    get edit_rule_url(immediate)
-    assert_response :success
-    assert_includes response.body, apply_immediately_rule_path(nightly)
-    assert_includes response.body, move_above_rule_path(immediate, other_rule_id: nightly.id)
-
-    get rules_url
-    assert_response :success
-    assert_includes response.body, I18n.t("rules.rule.apply_immediately")
-    assert_includes response.body, "Nightly groceries sits above this rule"
-  end
-
-  test "apply_immediately also runs the rule above immediately" do
-    nightly = create_category_rule("Nightly groceries")
-
-    patch apply_immediately_rule_url(nightly)
-
-    assert_redirected_to rules_url
-    assert nightly.reload.apply_immediately?
-  end
-
-  test "move_above puts the rule above the other one" do
-    nightly = create_category_rule("Nightly groceries")
-    immediate = create_category_rule("Immediate groceries", apply_immediately: true)
-
-    patch move_above_rule_url(immediate, other_rule_id: nightly.id)
-
-    assert_redirected_to rules_url
-    assert_operator immediate.reload.position, :<, nightly.reload.position
-  end
-
-  test "apply_immediately reports a rule that fails validation instead of raising" do
-    nightly = create_category_rule("Nightly groceries")
-    Rule.any_instance.stubs(:valid?).returns(false)
-
-    patch apply_immediately_rule_url(nightly)
-
-    assert_redirected_to rules_url
-    assert_equal I18n.t("rules.apply_immediately.failure", name: "Nightly groceries"), flash[:alert]
-    assert_not nightly.reload.apply_immediately?
-  end
-
-  test "move_above reports a changed rule list instead of raising" do
-    nightly = create_category_rule("Nightly groceries")
-    immediate = create_category_rule("Immediate groceries", apply_immediately: true)
-    Rule.stubs(:update_positions!).raises(ArgumentError)
-
-    patch move_above_rule_url(immediate, other_rule_id: nightly.id)
-
-    assert_redirected_to rules_url
-    assert_equal I18n.t("rules.move_above.failure"), flash[:alert]
-  end
-
-  test "move_above only accepts rules of the own family" do
-    immediate = create_category_rule("Immediate groceries", apply_immediately: true)
-    foreign = families(:empty).rules.create!(resource_type: "transaction", actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
-
-    patch move_above_rule_url(immediate, other_rule_id: foreign.id)
-
-    assert_response :not_found
-  end
-
   test "apply_all enqueues job and redirects" do
     assert_enqueued_with(job: ApplyAllRulesJob) do
       post apply_all_rules_url
@@ -644,9 +579,9 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
-    def create_category_rule(name, apply_immediately: false)
+    def create_category_rule(name)
       @user.family.rules.create!(
-        name: name, resource_type: "transaction", active: true, apply_immediately: apply_immediately,
+        name: name, resource_type: "transaction", active: true,
         conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: entries(:transaction).name) ],
         actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
       )

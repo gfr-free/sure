@@ -1,0 +1,26 @@
+<%# locals: (rule:, conflicts:) %>
+<%= render DS::Alert.new(title: t(".title"), variant: :warning) do %>
+  <% conflicts.each do |other_rule| %>
+    <div class="space-y-2">
+      <p><%= t(".message", name: other_rule.display_name) %></p>
+      <div class="flex flex-wrap gap-2">
+        <%= render DS::Button.new(
+          text: t(".apply_other_immediately", name: other_rule.display_name),
+          href: apply_immediately_rule_path(other_rule),
+          method: :patch,
+          variant: :secondary,
+          size: :sm,
+          data: { turbo_frame: "_top" }
+        ) %>
+        <%= render DS::Button.new(
+          text: t(".move_above", name: other_rule.display_name),
+          href: move_above_rule_path(rule, other_rule_id: other_rule.id),
+          method: :patch,
+          variant: :secondary,
+          size: :sm,
+          data: { turbo_frame: "_top" }
+        ) %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

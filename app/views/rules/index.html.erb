@@ -82,7 +82,7 @@
                 data: { action: "touchstart->sortable-list#touchStart touchmove->sortable-list#touchMove touchend->sortable-list#touchEnd touchcancel->sortable-list#touchCancel contextmenu->sortable-list#suppressContextMenu keydown->sortable-list#handleKeyDown" }
               ) %>
               <div class="grow min-w-0">
-                <%= render "rule", rule: rule %>
+                <%= render "rule", rule: rule, conflicts: @immediate_conflicts.fetch(rule.id, []) %>
               </div>
             </div>
           <% end %>

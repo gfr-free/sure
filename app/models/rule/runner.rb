@@ -12,6 +12,13 @@
 # Inactive rules above are skipped because they don't run nightly either.
 # ignore_attribute_locks only applies to the requested rules.
 #
+# With transaction_ids the run only looks at those transactions ("apply
+# immediately" after a manual or API change). Rules above that only run
+# nightly are matched but not executed: they keep their fields and "stop
+# processing" until the nightly run. Requested rules that match none of the
+# transactions are skipped without a RuleRun, so editing doesn't fill the
+# history.
+#
 # One run per family at a time, guarded by a PostgreSQL advisory lock. A busy
 # lock raises LockBusy so the calling job can retry instead of dropping the run.
 class Rule::Runner
@@ -23,8 +30,9 @@ class Rule::Runner
     Digest::MD5.hexdigest("rule_runner:#{family_id}").to_i(16) % (2**62)
   end
 
-  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false)
+  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false, transaction_ids: nil)
     @family = family
+    @transaction_ids = transaction_ids&.map(&:to_s)
     @rule_ids = rules.map(&:id).to_set
     @execution_type = execution_type
     @ignore_attribute_locks = ignore_attribute_locks
@@ -45,7 +53,7 @@ class Rule::Runner
   end
 
   private
-    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :claimed_ids, :stopped_ids
+    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :claimed_ids, :stopped_ids, :transaction_ids
 
     def run_rules
       rule_runs = []
@@ -55,7 +63,10 @@ class Rule::Runner
         break if remaining_ids.empty?
 
         if remaining_ids.delete?(rule.id)
-          rule_runs << execute(rule, ignore_attribute_locks: ignore_attribute_locks)
+          rule_run = execute(rule, ignore_attribute_locks: ignore_attribute_locks)
+          rule_runs << rule_run if rule_run
+        elsif rule.active? && transaction_ids
+          match_without_executing(rule)
         elsif rule.active?
           rule_runs << execute(rule, ignore_attribute_locks: false)
         end
@@ -64,8 +75,22 @@ class Rule::Runner
       rule_runs
     end
 
+    # In an immediate run, a "nightly only" rule above still wins its fields
+    # and stops processing, but its actions wait for the nightly run. A rule
+    # that cannot even be matched claims nothing and must not keep the rules
+    # below it from running.
+    def match_without_executing(rule)
+      record_claims(rule, unstopped_scope(rule).pluck(:id))
+    rescue => e
+      Rails.logger.error("Rule::Runner could not match rule #{rule.id}: #{e.class}: #{e.message}")
+    end
+
     def unstopped_scope(rule)
-      Rule.excluding_transaction_ids(rule.matching_scope, stopped_ids)
+      scope = rule.matching_scope
+      # One array parameter, like Rule.excluding_transaction_ids, so a large
+      # bulk edit stays below PostgreSQL's bind limit.
+      scope = scope.where("transactions.id = ANY(?::uuid[])", PG::TextEncoder::Array.new.encode(transaction_ids)) if transaction_ids
+      Rule.excluding_transaction_ids(scope, stopped_ids)
     end
 
     def record_claims(rule, matched_ids)
@@ -95,6 +120,7 @@ class Rule::Runner
       begin
         scope = unstopped_scope(rule)
         matched_ids = scope.pluck(:id)
+        return nil if transaction_ids && matched_ids.empty?
 
         rule_run = RuleRun.create!(
           rule: rule,

@@ -593,10 +593,13 @@ class BillsController < ApplicationController
       series.where(manual: false, status: :active, id: payable_series_ids).count
     end
 
+    # Income suggestions are reviewed in Settings -> Recurring, so detect's
+    # count leaves them out too.
     def accessible_suggested_series
       Current.family.recurring_transactions
              .accessible_by(Current.user)
              .suggested
+             .not_typed_income
     end
 
     # Family-wide, not user-scoped: occurrence materialization is the same

@@ -68,9 +68,10 @@ class Rule::Action < ApplicationRecord
   end
 
   # For hints outside a run: the fields this action can set, or none when it
-  # cannot be resolved (e.g. an unknown action_type from an import).
+  # cannot change anything (e.g. a blank value) or cannot be resolved (e.g. an
+  # unknown action_type from an import).
   def settable_attributes
-    claimed_attributes
+    executor.actionable?(value) ? claimed_attributes : []
   rescue Rule::Registry::UnsupportedActionError
     []
   end

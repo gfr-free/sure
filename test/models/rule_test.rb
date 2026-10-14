@@ -523,6 +523,15 @@ class RuleTest < ActiveSupport::TestCase
     assert_empty below.immediate_conflicts
   end
 
+  test "immediate_conflicts ignores an action of the immediate rule that cannot set anything" do
+    create_transaction(account: @account, name: "Whole Foods")
+    create_category_rule("Nightly")
+    immediate = create_category_rule("Immediate", apply_immediately: true, action: Rule::Action.new(action_type: "set_transaction_name", value: "WF"))
+    immediate.actions.create!(action_type: "set_transaction_category", value: "")
+
+    assert_empty immediate.reload.immediate_conflicts
+  end
+
   test "immediate_conflicts includes a nightly stop-processing rule above" do
     create_transaction(account: @account, name: "Whole Foods")
     stopper = create_category_rule("Stopper", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF"), stop_processing: true)

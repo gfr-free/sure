@@ -1,6 +1,7 @@
 # Applies the "apply immediately" rules to transactions a person just created or
-# changed. Rules above them that only run nightly still count (top rule wins,
-# stop processing), exactly as in the nightly run.
+# changed. Rules above them that only run nightly still win their fields and
+# stop processing, but are matched against the current data, not executed: a
+# change they would make first (e.g. a rename) only takes effect overnight.
 class ApplyImmediateRulesJob < ApplicationJob
   queue_as :medium_priority
 

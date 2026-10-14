@@ -14,8 +14,9 @@
 #
 # With transaction_ids the run only looks at those transactions ("apply
 # immediately" after a manual or API change). Rules above that only run
-# nightly are matched but not executed: they keep their fields and "stop
-# processing" until the nightly run. Requested rules that match none of the
+# nightly are matched against the current data but not executed: they keep
+# their fields and "stop processing" until the nightly run, and changes they
+# would make (e.g. a rename) are not seen by the rules below until then. Requested rules that match none of the
 # transactions are skipped without a RuleRun, so editing doesn't fill the
 # history.
 #

@@ -44,6 +44,19 @@ class ApplyImmediateRulesJobTest < ActiveJob::TestCase
     assert_equal @dining, @changed.reload.category
   end
 
+  test "a nightly-only rename above is not seen until the nightly run" do
+    create_rule("Nightly rename", match: "Whole Foods", action: Rule::Action.new(action_type: "set_transaction_name", value: "WF Market"))
+    create_rule("Immediate", match: "WF Market", category: @groceries, apply_immediately: true)
+
+    ApplyImmediateRulesJob.perform_now(@family, transaction_ids: [ @changed.id ])
+    assert_equal "Whole Foods", @changed.reload.entry.name
+    assert_nil @changed.category
+
+    ApplyRulesJob.perform_now(@family)
+    assert_equal "WF Market", @changed.reload.entry.name
+    assert_equal @groceries, @changed.category
+  end
+
   test "keeps fields the person set themselves" do
     create_rule("Groceries", category: @groceries, apply_immediately: true)
     @changed.update!(category: @dining)
@@ -86,14 +99,14 @@ class ApplyImmediateRulesJobTest < ActiveJob::TestCase
   end
 
   private
-    def create_rule(name, category:, match: "Whole Foods", apply_immediately: false, active: true)
+    def create_rule(name, category: nil, match: "Whole Foods", apply_immediately: false, active: true, action: nil)
       @family.rules.create!(
         name: name,
         resource_type: "transaction",
         active: active,
         apply_immediately: apply_immediately,
         conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
-        actions: [ Rule::Action.new(action_type: "set_transaction_category", value: category.id) ]
+        actions: [ action || Rule::Action.new(action_type: "set_transaction_category", value: category.id) ]
       )
     end
 end

@@ -1,5 +1,7 @@
 Reply to jjmata (issuecomment-6182278189) on upstream PR 4216
 
+Status: posted 15.10. after upstream CI was green on 29f96567d (8/8): https://github.com/we-promise/sure/pull/4216#issuecomment-6184771204
+
 ---
 
 Thanks, good catch. Fixed in 29f96567d.

@@ -69,9 +69,14 @@ export default class extends Controller {
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();
+    this.draggedElement = null;
   }
 
+  // Only a drag that started on one of the items is a reorder; a file or
+  // text dragged in from outside is left to the browser.
   dragOver(event) {
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
 
@@ -80,6 +85,8 @@ export default class extends Controller {
   }
 
   drop(event) {
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.stopPropagation();
 

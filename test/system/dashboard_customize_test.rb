@@ -58,4 +58,29 @@ class DashboardCustomizeTest < ApplicationSystemTestCase
     assert_selector "html[data-order-saved='200']"
     assert_equal keys.drop(1) + [ keys.first ], @user.reload.dashboard_section_order.select { |key| keys.include?(key) }
   end
+
+  test "a drop that did not start on a widget changes nothing" do
+    sign_in @user
+    keys = all("section[data-section-key]").map { |section| section["data-section-key"] }
+    record_saved_section_order
+
+    # One finished widget drag, then a file or text dragged in from outside.
+    page.execute_script(<<~JS, keys.first, keys.last)
+      const [draggedKey, targetKey] = arguments;
+      const dragged = document.querySelector(`section[data-section-key='${draggedKey}']`);
+      const target = document.querySelector(`section[data-section-key='${targetKey}']`);
+      const box = target.getBoundingClientRect();
+      const point = { clientX: box.left + box.width / 2, clientY: box.top + 5 };
+      const drag = (element, type, init = {}) =>
+        element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer(), ...init }));
+      drag(dragged, "dragstart");
+      drag(dragged, "dragend");
+      drag(target, "dragover", point);
+      drag(target, "drop", point);
+    JS
+
+    assert_equal keys, all("section[data-section-key]").map { |section| section["data-section-key"] }
+    assert_no_text "null"
+    assert_nil page.evaluate_script("document.documentElement.dataset.orderSaved")
+  end
 end

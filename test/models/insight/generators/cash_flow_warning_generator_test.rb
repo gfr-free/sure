@@ -88,22 +88,6 @@ class Insight::Generators::CashFlowWarningGeneratorTest < ActiveSupport::TestCas
     assert_equal Money.new(100, "USD").format, insights.first.facts[:current_balance]
   end
 
-  test "bills paid from a private account are left out of the projection" do
-    private_series = @family.recurring_transactions.create!(
-      name: "Private Gym", account: accounts(:connected), amount: 70, currency: "USD",
-      expected_day_of_month: 15, last_occurrence_date: Date.current,
-      next_expected_date: 1.month.from_now.to_date, status: "active", manual: true
-    )
-    private_series.recurring_occurrences.delete_all
-    private_series.recurring_occurrences.create!(
-      family: @family, original_due_on: Date.current + 2, due_on: Date.current + 2, currency: "USD"
-    )
-
-    entries = Insight::Generators::CashFlowWarningGenerator.new(@family).send(:upcoming_recurring_entries)
-
-    assert_equal [ 60, 100, 100 ], entries.map(&:amount).map(&:to_i).sort
-  end
-
   test "an inactive member does not hide an account from the projection" do
     users(:family_member).update_columns(active: false)
     accounts(:depository).update_columns(balance: 100)

@@ -1,6 +1,6 @@
 Reply to CodeRabbit (Major, app/models/transfer.rb, "Enforce cross-role uniqueness at the database boundary") on upstream PR 4216
 
-Status: draft, not posted. Fix commit d98cd7b62.
+Status: POSTED https://github.com/we-promise/sure/pull/4216#discussion_r4279905050 (thread resolved). Fix commit d98cd7b62.
 
 ---
 

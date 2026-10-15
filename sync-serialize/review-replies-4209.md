@@ -22,7 +22,7 @@ Outside-diff comments have no thread, so post as a PR comment starting with `@co
 
 > @coderabbitai Fixed in 3552a8f. Right after `with_syncable_execution_lock` is acquired, `perform` now re-reads the sync (`refresh_after_lock`) and returns without `start!` when it is no longer `may_start?`, so a sync that was run by a duplicate job, cancelled or marked stale while the job waited is skipped instead of being moved back to `syncing`. The syncable-deleted and scheduled-for-deletion guards moved under the lock as well, and the re-read also picks up a window that a joined `sync_later` request widened in the meantime. The syncable instance the caller loaded is reloaded in place rather than dropped, so callers holding it keep working on the same object. Covered by "skips a sync that was finished elsewhere while it waited for the lock" and "runs with the window stored when it takes the lock, not the one it was loaded with".
 
-## Round 3: reply to CodeRabbit, inline thread r4279139459 (app/models/sync.rb, discard the connection if the unlock fails), fix commit 300be2bf8
+## Round 3: reply to CodeRabbit, inline thread r4279139459 (app/models/sync.rb, discard the connection if the unlock fails), fix commit 300be2bf8 — POSTED https://github.com/we-promise/sure/pull/4209#discussion_r4279846084
 
 Check first whether gfr-free already replied in this thread; if so, only resolve it. Otherwise reply in the thread, then resolve it:
 

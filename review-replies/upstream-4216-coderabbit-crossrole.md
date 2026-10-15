@@ -1,13 +1,17 @@
 Reply to CodeRabbit (Major, app/models/transfer.rb, "Enforce cross-role uniqueness at the database boundary") on upstream PR 4216
 
-Status: draft, not posted.
+Status: draft, not posted. Fix commit d98cd7b62.
 
 ---
 
-Thanks. I traced the paths and I'm keeping this at the model validation for now.
+Thanks. Addressed in d98cd7b62 by closing the race; I'm not adding a database-level constraint.
 
-For the race to happen, two writes would have to commit at the same time, one using a transaction as an inflow and the other using it as an outflow. Every write path checks the sign first: `transfer_has_opposite_amounts` needs the inflow negative and the outflow positive, and the auto-matcher, the Trade Republic importer and the manual match all pick a transaction's role from its sign. So both writes can only pass if the transaction's sign is edited between them, during an overlapping sync or match. Same-role races, the ones the syncs actually produce, are already enforced by the two unique indexes.
+The cross-role validation now takes a transaction-scoped advisory lock (`pg_advisory_xact_lock`) on each leg before it checks the transfers table. The lock is held until the save transaction commits. A concurrent save that uses the same transaction in the other role waits on that lock and then sees the committed transfer, so it fails the validation instead of inserting a duplicate. Locks are taken in sorted order. The same-role case is still enforced by the two unique indexes.
 
-`Transfer.insert!` skips validations, but the app never calls it. Only the index tests in this PR use it.
+Test: `TransferTest` checks from a second database connection that both legs are locked while the validating transaction is open. It fails without the lock.
 
-A database-level guard would mean either a transfer-leg table (a schema change across every reader of `inflow_transaction_id` and `outflow_transaction_id`) or a trigger with an advisory lock. A trigger would also not survive `db/schema.rb`, so the test database wouldn't have it without switching the project to `structure.sql`. Either way, that is a lot of code for a sign-edit-plus-race that no caller produces, and the migration already cleans up any existing cross-role pairs. If maintainers want the trigger anyway, I'm happy to add it in a follow-up.
+I did not add a trigger or a transfer-leg table:
+- A trigger can't be represented in `db/schema.rb`, so the test database wouldn't have it without switching the project to `structure.sql`.
+- A leg table would be a data-model change across every reader of `inflow_transaction_id` and `outflow_transaction_id`.
+
+`Transfer.insert!` still bypasses the check. The app never calls it; only the index tests in this PR do.

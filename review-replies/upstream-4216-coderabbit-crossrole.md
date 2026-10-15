@@ -10,4 +10,4 @@ For the race to happen, two writes would have to commit at the same time, one us
 
 `Transfer.insert!` skips validations, but the app never calls it. Only the index tests in this PR use it.
 
-A database-level guard would mean either a transfer-leg table (a schema change across every reader of `inflow_transaction_id` and `outflow_transaction_id`) or a trigger with an advisory lock. Both are a lot of code for a sign-edit-plus-race that no caller produces, and the migration already cleans up any existing cross-role pairs. If maintainers want the trigger anyway, I'm happy to add it in a follow-up.
+A database-level guard would mean either a transfer-leg table (a schema change across every reader of `inflow_transaction_id` and `outflow_transaction_id`) or a trigger with an advisory lock. A trigger would also not survive `db/schema.rb`, so the test database wouldn't have it without switching the project to `structure.sql`. Either way, that is a lot of code for a sign-edit-plus-race that no caller produces, and the migration already cleans up any existing cross-role pairs. If maintainers want the trigger anyway, I'm happy to add it in a follow-up.

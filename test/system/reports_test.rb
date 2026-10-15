@@ -63,6 +63,67 @@ class ReportsTest < ApplicationSystemTestCase
     assert_operator saved_order.index(second), :<, saved_order.index(first)
   end
 
+  test "Enter on a link inside a section follows the link" do
+    link = find_link(I18n.t("reports.transactions_breakdown.export.google_sheets"))
+    section = link.find(:xpath, "ancestor::section[@data-section-key]")
+
+    link.send_keys(:enter)
+
+    assert_selector "dialog[open]"
+    assert_equal "false", section["aria-grabbed"]
+  end
+
+  test "a section still grabbed when the page changes keeps its new place" do
+    first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
+    record_saved_section_order
+
+    find("section[data-section-key='#{first}']").send_keys(:enter)
+    page.send_keys(:arrow_down)
+    page.execute_script("document.querySelector(\"[data-controller~='sortable-list']\").remove()")
+
+    assert_selector "html[data-order-saved='200']"
+    saved_order = users(:family_admin).reload.reports_section_order
+    assert_operator saved_order.index(second), :<, saved_order.index(first)
+  end
+
+  test "a section grabbed when Turbo leaves the page is saved and not shown grabbed on Back" do
+    first = find("section[data-section-key]", match: :first)["data-section-key"]
+    record_saved_section_order
+
+    find("section[data-section-key='#{first}']").send_keys(:enter)
+    page.send_keys(:arrow_down)
+    page.execute_script("Turbo.visit(#{settings_profile_path.to_json})")
+    assert_current_path settings_profile_path
+    assert_selector "html[data-order-saved='200']", visible: :all
+
+    page.go_back
+    assert_selector "section[data-section-key='#{first}']"
+    assert_no_selector "section[aria-grabbed='true']"
+    assert_no_selector "section.ring-2[data-section-key]"
+  end
+
+  # Navigates away for real, so the browser's own unload (and the keepalive
+  # request) has to carry the save. The order is read back from the database
+  # once the destination page has loaded, not from a synthetic event.
+  test "a section still grabbed when the user navigates away keeps its new place" do
+    first, second = all("section[data-section-key]").first(2).map { |section| section["data-section-key"] }
+
+    record_saved_section_order
+
+    find("section[data-section-key='#{first}']").send_keys(:enter)
+    page.send_keys(:arrow_down)
+
+    visit settings_profile_path
+    assert_current_path settings_profile_path
+
+    page.document.synchronize do
+      saved_order = users(:family_admin).reload.reports_section_order
+      unless saved_order.index(second) && saved_order.index(first) && saved_order.index(second) < saved_order.index(first)
+        raise Capybara::ExpectationNotMet, "section order was not saved on navigation"
+      end
+    end
+  end
+
   private
     def clicked_hotkeys
       page.evaluate_script("window.clickedHotkeys")

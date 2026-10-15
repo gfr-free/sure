@@ -42,7 +42,7 @@ class AccountableSparklinesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/SELECT .*"accounts"\."id".*"account_providers"\."id" FROM "accounts"/, queries.join("\n"))
     assert_empty queries.grep(/SELECT "accounts"\.\* FROM "accounts"/)
     assert_empty queries.grep(/SELECT 1 AS one FROM "accounts".*JOIN "account_providers"/)
-    assert_empty queries.grep(/SELECT "accounts"\."id" FROM "accounts" WHERE "accounts"\."family_id" = .*"accounts"\."status" IN .*"accounts"\."accountable_type" =/)
+    assert_empty queries.grep(/SELECT (DISTINCT )?"accounts"\."id" FROM "accounts" .*"accounts"\."accountable_type" =/)
   end
 
   test "sparkline skips accounts excluded from reports" do
@@ -62,12 +62,14 @@ class AccountableSparklinesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "sparkline cache follows the member's finance setting" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     sign_in users(:family_member)
     share = account_shares(:depository_shared_with_member)
 
     assert_includes sparkline_account_ids("depository"), accounts(:depository).id
 
-    share.update!(include_in_finances: false)
+    # Only the share changes, so the family's data-update timestamps stay put.
+    share.update_columns(include_in_finances: false)
 
     assert_not_includes sparkline_account_ids("depository", clear_cache: false), accounts(:depository).id
   end

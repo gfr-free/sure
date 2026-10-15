@@ -2197,6 +2197,31 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal [ "auto_categorize" ], other_rule.actions.map(&:action_type)
   end
 
+  test "session rule reimport keeps apply immediately when the export predates it" do
+    rule = @family.rules.create!(name: "Immediate Rule", resource_type: "transaction", active: true, apply_immediately: true,
+      actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    session.source_mappings.create!(family: @family, source_type: "Rule", source_id: "rule-1", target: rule)
+
+    ndjson = build_ndjson([
+      {
+        type: "Rule",
+        version: 1,
+        data: {
+          id: "rule-1",
+          name: "Immediate Rule",
+          resource_type: "transaction",
+          active: true,
+          actions: [ { action_type: "exclude_transaction" } ]
+        }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson, import_session: session).import!
+
+    assert rule.reload.apply_immediately
+  end
+
   test "imports rules from normalized operand value refs" do
     ndjson = build_ndjson([
       {

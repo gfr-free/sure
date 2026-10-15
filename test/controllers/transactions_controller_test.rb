@@ -1797,4 +1797,12 @@ end
 
       queries
     end
+
+    def create_immediate_rule(match: "Renamed")
+      @user.family.rules.create!(
+        name: "Immediate", resource_type: "transaction", active: true, apply_immediately: true,
+        conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
+        actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ]
+      )
+    end
 end

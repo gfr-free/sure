@@ -1,4 +1,4 @@
-<!-- Reply to the review comment issuecomment-6182172229 on the upstream PR. Fix commit: 5fbc856 -->
+<!-- Reply to the review comment issuecomment-6182172229 on the upstream PR. Fix commit: 5fbc856 — POSTED https://github.com/we-promise/sure/pull/4208#issuecomment-6185147856 -->
 
 Thanks for catching this, you're right that the admin path contradicted the stated policy. Fixed in 5fbc856.
 

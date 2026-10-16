@@ -10,6 +10,33 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     @account = accounts(:depository)
   end
 
+  test "preview users see the account forecast tab with expected payments" do
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+    @user.family.recurring_transactions.destroy_all
+    today = Account.liquidity_today_for(@user.family)
+    series = @user.family.recurring_transactions.create!(
+      name: "Forecast Rent", account: @account, amount: 650, currency: "USD", bill_type: "bill",
+      expected_day_of_month: 15, last_occurrence_date: today, next_expected_date: today + 30,
+      status: "active", manual: true
+    )
+    series.recurring_occurrences.delete_all
+    series.recurring_occurrences.create!(family: @user.family, original_due_on: today + 5, due_on: today + 5, currency: "USD")
+
+    get account_url(@account, tab: "forecast")
+
+    assert_response :success
+    assert_select "[data-testid='account-forecast']" do
+      assert_select "a", text: "Forecast Rent"
+    end
+  end
+
+  test "the forecast tab stays hidden without preview features" do
+    get account_url(@account)
+
+    assert_response :success
+    assert_select "[data-testid='account-forecast']", count: 0
+  end
+
   test "should get index" do
     get accounts_url
     assert_response :success

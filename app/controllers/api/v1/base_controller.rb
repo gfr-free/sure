@@ -221,6 +221,17 @@ class Api::V1::BaseController < ApplicationController
       authorize_scope!(:read)
     end
 
+    # Preview-only endpoints answer like the web app: not for users who have
+    # not opted into preview features.
+    def require_preview_features_for_api
+      return if current_resource_owner.preview_features_enabled?
+
+      render_json(
+        { error: "feature_disabled", message: "Preview features are not enabled for this user" },
+        status: :forbidden
+      )
+    end
+
     # Consistent JSON response method
     def render_json(data, status: :ok)
       render json: data, status: status

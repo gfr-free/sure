@@ -122,6 +122,7 @@ de:
         schedule: Tilgungsplan
         statements: Auszüge
         details: Details
+        forecast: Prognose
     update:
       success: "%{type}-Konto aktualisiert"
     sidebar:
@@ -154,6 +155,34 @@ de:
       eu: Europa
       generic: Generisch
       in: Indien
+    forecast:
+      title: Kontoprognose
+      horizon:
+        payday: Erwartete Buchungen auf diesem Konto bis zum Tag vor dem nächsten Gehaltseingang am %{date}.
+        default:
+          one: Erwartete Buchungen auf diesem Konto für den nächsten Tag, bis %{date}.
+          other: Erwartete Buchungen auf diesem Konto für die nächsten %{count} Tage, bis %{date}.
+        custom: Erwartete Buchungen auf diesem Konto bis %{date}.
+      today: Heute
+      low: Tiefststand (%{date})
+      left_over: Bleibt übrig am %{date}
+      shortfall: "Am %{date} fällt das Konto auf %{low}. Überweise bis zum %{by} mindestens %{amount} auf das Konto."
+      unconvertible:
+        one: Eine Buchung in anderer Währung fehlt, weil kein Wechselkurs vorliegt.
+        other: "%{count} Buchungen in anderer Währung fehlen, weil kein Wechselkurs vorliegt."
+      events_title: Erwartete Buchungen
+      empty: Bis %{date} sind auf diesem Konto keine Buchungen erwartet. Die Prognose entspricht dem heutigen Saldo.
+      view_bills: Zu den Rechnungen
+      columns:
+        date: Datum
+        name: Buchung
+        amount: Betrag
+        balance: Saldo danach
+      kinds:
+        expense: Rechnung
+        income: Einnahme
+        transfer_in: Umbuchung herein
+        transfer_out: Umbuchung hinaus
     liquidity:
       preview: Vorschau
       levels:

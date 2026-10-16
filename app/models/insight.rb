@@ -27,6 +27,7 @@ class Insight < ApplicationRecord
     budget_at_risk
     budget_on_track
     maintained_goal_depleted
+    account_shortfall
     account_release
   ].freeze
 

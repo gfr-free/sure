@@ -155,6 +155,29 @@ class Api::V1::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, response_body["available_now"]
   end
 
+  test "should show the family's own subtype with its rules" do
+    account = accounts(:depository)
+    custom = account.family.custom_account_subtypes.create!(
+      accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked", "tax_treatment" => "taxable" }
+    )
+    account.update!(custom_account_subtype: custom)
+
+    get "/api/v1/accounts/#{account.id}", headers: api_headers(@api_key)
+
+    assert_response :success
+    response_body = JSON.parse(response.body)
+    assert_equal({ "id" => custom.id, "name" => "Fixed 2y", "rules" => { "liquidity" => "locked", "tax_treatment" => "taxable" } },
+                 response_body["custom_subtype"])
+    assert_equal "locked", response_body["liquidity"]
+  end
+
+  test "should return a null custom subtype for accounts without one" do
+    get "/api/v1/accounts/#{accounts(:depository).id}", headers: api_headers(@api_key)
+
+    assert_response :success
+    assert_nil JSON.parse(response.body).fetch("custom_subtype")
+  end
+
   test "should return 404 for unknown account on show" do
     get "/api/v1/accounts/#{SecureRandom.uuid}", headers: api_headers(@api_key)
 

@@ -2,8 +2,13 @@ module TaxTreatable
   extend ActiveSupport::Concern
 
   # Delegates tax treatment to the accountable (Investment or Crypto)
-  # Returns nil for account types that don't support tax treatment
+  # Returns nil for account types that don't support tax treatment. A family's
+  # own subtype replaces the built-in subtype's tax treatment on the types
+  # that derive it from the subtype (Depository, Investment).
   def tax_treatment
+    custom = try(:custom_account_subtype)
+    return custom.tax_treatment if custom&.tax_treatment_supported?
+
     return nil unless accountable.respond_to?(:tax_treatment)
     accountable.tax_treatment&.to_sym
   end

@@ -6,6 +6,7 @@
       controller: "liquidity-fields",
       liquidity_fields_default_level_value: account.default_liquidity,
       liquidity_fields_defaults_value: liquidity_defaults_by_subtype(account).to_json,
+      liquidity_fields_custom_defaults_value: custom_account_subtype_liquidity_defaults(account).to_json,
       liquidity_fields_labels_value: Account::Liquidity::LEVELS.index_with { |level| t("accounts.liquidity.levels.#{level}") }.to_json,
       liquidity_fields_automatic_template_value: t("accounts.liquidity.form.automatic", level: "__LEVEL__")
     } do %>

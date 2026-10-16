@@ -25,12 +25,20 @@ class Account::RuleDetails
   end
 
   def subtype_label
-    account.subtype.present? ? account.long_subtype_label : nil
+    account.custom_subtype? || account.subtype.present? ? account.long_subtype_label : nil
+  end
+
+  # The family's own subtype the rules come from, nil for a built-in one.
+  def custom_subtype
+    account.custom_account_subtype
   end
 
   private
-    # Where a default comes from: the subtype when there is one, else the type.
+    # Where a default comes from: the family's own subtype, the built-in
+    # subtype when there is one, else the type.
     def default_source
+      return :custom_subtype if account.custom_subtype?
+
       account.subtype.present? ? :subtype : :account_type
     end
 
@@ -49,7 +57,7 @@ class Account::RuleDetails
     end
 
     # Crypto keeps its tax treatment in a column the user sets; Investment and
-    # Depository derive it from the subtype.
+    # Depository derive it from the subtype (or the family's own subtype).
     def tax_treatment_row
       return nil if account.tax_treatment.nil?
 

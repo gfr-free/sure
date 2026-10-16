@@ -174,6 +174,7 @@ module AccountableResource
         :institution_name, :institution_domain, :notes, :exclude_from_reports,
         :enable_category_matcher,
         :liquidity_choice, :available_on, :auto_renew, :renewal_term_months,
+        :custom_account_subtype_id,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

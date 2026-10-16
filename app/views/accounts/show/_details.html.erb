@@ -8,7 +8,9 @@
     <%= render DS::Pill.new(label: t("accounts.liquidity.preview")) %>
   </div>
   <p class="text-sm text-secondary">
-    <% if details.subtype_label.present? %>
+    <% if details.custom_subtype %>
+      <%= t("accounts.liquidity.details.intro_custom_subtype", subtype: details.subtype_label) %>
+    <% elsif details.subtype_label.present? %>
       <%= t("accounts.liquidity.details.intro_subtype", subtype: details.subtype_label) %>
     <% else %>
       <%= t("accounts.liquidity.details.intro_type", type: account.accountable_class.singular_display_name) %>

@@ -1,0 +1,45 @@
+---
+de:
+  custom_account_subtypes:
+    guest_read_only: Gäste können Kontosubtypen ansehen, aber nicht ändern.
+    index:
+      title: Eigene Subtypen
+      new: Neuer Subtyp
+      intro: Lege eigene Subtypen an und wähle die Regeln, die sie mitbringen. Konten mit eigenem Subtyp folgen dessen Regeln statt denen des mitgelieferten Subtyps. Eine am Konto von Hand gesetzte Verfügbarkeit bleibt.
+      empty_title: Noch keine eigenen Subtypen
+      empty_description: Starte mit einem mitgelieferten Subtyp wie Festgeld und passe seine Regeln an.
+    custom_account_subtype:
+      accounts:
+        zero: Keine Konten
+        one: 1 Konto
+        other: "%{count} Konten"
+      edit: Bearbeiten
+      delete: Löschen
+      delete_title: "%{name} löschen?"
+      delete_body:
+        zero: Kein Konto verwendet diesen Subtyp.
+        one: 1 Konto verwendet diesen Subtyp. Es folgt danach wieder den Regeln seines mitgelieferten Subtyps.
+        other: "%{count} Konten verwenden diesen Subtyp. Sie folgen danach wieder den Regeln ihres mitgelieferten Subtyps."
+    form:
+      template_label: Vorlage
+      template_hint: Übernimmt die Regeln eines mitgelieferten Subtyps. Du kannst sie unten ändern.
+      template_type_only: "%{type} ohne Subtyp"
+      account_type: "Kontoart: %{type}"
+      name_label: Name
+      name_placeholder: z. B. Festgeld 2 Jahre
+      liquidity_label: Verfügbarkeit
+      liquidity_hint: Wie schnell das Geld auf diesen Konten erreichbar ist.
+      tax_treatment_label: Steuerart
+      tax_treatment_none: Keine
+      tax_treatment_hint: Steuerlich geförderte Konten zählen nicht in Budget und Cashflow.
+      update_hint: Konten mit diesem Subtyp folgen den neuen Regeln, außer wo die Verfügbarkeit am Konto von Hand gesetzt wurde.
+    new:
+      title: Neuer Kontosubtyp
+    edit:
+      title: Kontosubtyp bearbeiten
+    create:
+      created: Subtyp angelegt
+    update:
+      updated: Subtyp aktualisiert
+    destroy:
+      deleted: Subtyp gelöscht

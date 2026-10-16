@@ -11,7 +11,8 @@ class Assistant::Function::GetAccounts < Assistant::Function
         Returns account ids. Use them for account_ids filters in other tools.
 
         Each account says how available its money is (liquidity, available_on,
-        available_now). When the user asks how much money they have or can
+        available_now) and, when the family named its own subtype for it,
+        custom_subtype with its rules. When the user asks how much money they have or can
         spend, separate available money from money that is locked.
 
         Pass include_balance_series: true only when the user asks about balance
@@ -57,6 +58,9 @@ class Assistant::Function::GetAccounts < Assistant::Function
           classification: account.classification,
           type: account.accountable_type,
           subtype: account.subtype,
+          # The family's own subtype, when set: its name and the rules that
+          # replace the built-in subtype's.
+          custom_subtype: account.custom_account_subtype&.then { |custom| { name: custom.name, rules: custom.rules_for_export } },
           # How quickly the money can be reached (Account::Liquidity):
           # immediate, short_term, locked (until available_on) or long_term.
           liquidity: account.liquidity,
@@ -81,7 +85,7 @@ class Assistant::Function::GetAccounts < Assistant::Function
     # No balances preload: the series goes through Balance::ChartSeriesBuilder,
     # which runs its own query keyed by account ids.
     def accounts_scope(_include_series)
-      user.accessible_accounts.visible.includes(:account_providers, :accountable)
+      user.accessible_accounts.visible.includes(:account_providers, :accountable, :custom_account_subtype)
     end
 
     def historical_balances(account, period)

@@ -272,8 +272,11 @@ class Demo::Generator
 
       # Money locked until a date (Account::Liquidity): a term deposit maturing
       # in a few months and a building savings contract running for years.
+      # A family's own subtype (CustomAccountSubtype) on the term deposit.
+      term_deposit = family.custom_account_subtypes.create!(accountable_type: "Depository", name: "CD ladder rung",
+                                                            rules: { "liquidity" => "locked" })
       @ally_cd = family.accounts.create!(accountable: Depository.new(subtype: "cd"), name: "Ally 12-Month CD", balance: 0, currency: "USD",
-                                         available_on: 5.months.from_now.to_date)
+                                         available_on: 5.months.from_now.to_date, custom_account_subtype: term_deposit)
       @building_savings = family.accounts.create!(accountable: Depository.new(subtype: "building_savings"), name: "Building Savings Contract", balance: 0,
                                                   currency: "USD", available_on: 3.years.from_now.to_date)
 

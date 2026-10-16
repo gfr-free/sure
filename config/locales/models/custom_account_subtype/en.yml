@@ -1,0 +1,17 @@
+---
+en:
+  activerecord:
+    models:
+      custom_account_subtype: Account subtype
+    attributes:
+      custom_account_subtype:
+        accountable_type: Account type
+        name: Name
+        liquidity: Availability
+        tax_treatment: Tax treatment
+    errors:
+      models:
+        custom_account_subtype:
+          attributes:
+            accountable_type:
+              in_use: cannot change while accounts use this subtype

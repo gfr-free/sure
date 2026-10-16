@@ -196,6 +196,7 @@ en:
         title: Details
         intro_subtype: "Rules for this account. Defaults come from the subtype %{subtype}."
         intro_type: "Rules for this account. Defaults come from the account type %{type}."
+        intro_custom_subtype: "Rules for this account. Defaults come from your own subtype %{subtype}."
         edit: Change availability
         "yes": "Yes"
         "no": "No"
@@ -211,10 +212,16 @@ en:
           counts_as_budget_cash: Balance counts as free money in the budget
         sources:
           subtype: "From subtype %{subtype}"
+          custom_subtype: "From your subtype %{subtype}"
           account_type: "From account type %{type}"
           user: Set by you
           tax_treatment: Follows the tax treatment
           liquidity: Follows the availability
+    custom_subtype:
+      label: Own subtype
+      none: None (use the subtype above)
+      hint: An own subtype replaces the rules of the subtype above.
+      manage: Manage own subtypes
     tax_treatments:
       taxable: Taxable
       tax_deferred: Tax-Deferred

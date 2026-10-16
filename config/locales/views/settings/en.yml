@@ -357,6 +357,7 @@ en:
         revoked: Connection revoked.
     settings_nav:
       accounts_label: Accounts
+      account_subtypes_label: Account subtypes
       advanced_section_title: Advanced
       ai_prompts_label: AI Prompts
       background_jobs_label: Background jobs

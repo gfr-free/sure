@@ -230,7 +230,10 @@ SCHRITT 4  WERKZEUGE (bei vor-pr, fork-job, upstream Pflicht; bei fremd soweit m
   fork-job, 05:27 und PR-Check; Owner 16.10.) und `/security-review` auf denselben Diff, dazu
   `/simplify` im Lesemodus (nur Befunde sammeln, nicht anwenden, sofern {{AKTION}} = nur-bericht);
   jeden ihrer Befunde wie eigene Befunde verifizieren (SCHRITT 5), nicht ungeprüft übernehmen.
-- Modell: Reviews laufen mit Fable (Owner-Vorgabe 16.10.), auch im Fork-PR-Job.
+- Modell: Reviews laufen mit Opus 5.5 (Owner-Vorgabe 16.10., Fable verbraucht zu viele Tokens),
+  auch im Fork-PR-Job.
+- Umfang (Owner 16.10.): Ein Review nur für neue PRs und neue Commits (neuer Head-SHA, der noch
+  nicht als geprüft vermerkt ist). Keine Komplett-Durchläufe über bestehende, schon geprüfte PRs.
 - Prüfliste aus docs/llm-guides/development.md ausführen und Ergebnis mit Zahlen nennen:
   bin/rails test (voll), Systemtests falls zutreffend, bin/rubocop, erb_lint, npm run lint,
   bin/brakeman. Was nicht lief, steht mit Grund im Bericht.
@@ -298,7 +301,8 @@ Keine Code-Änderung, wenn {{AKTION}} = nur-bericht.
 | Review-Lern-Job Di 07:10 | – | – | nutzt Teil D, nicht Teil A |
 
 Stufe und Modell (Owner 16.10.): /code-review max vor jedem neuen PR und vor der Upstream-Freigabe
-(PR-Threads), high in den Nachtjobs (Fork-PR-Job, 05:27, PR-Check); Review-Modell Fable;
+(PR-Threads), high in den Nachtjobs (Fork-PR-Job, 05:27, PR-Check); Review-Modell Opus 5.5;
+Reviews nur bei neuem Head-SHA, keine Komplett-Durchläufe über bestehende PRs;
 SCHRITT 5 mit Prüf-Subagenten überall gleich.
 
 ## Teil C: GitHub-Ausgabe (Englisch)

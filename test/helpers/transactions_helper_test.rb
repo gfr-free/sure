@@ -150,4 +150,16 @@ class TransactionsHelperTest < ActionView::TestCase
 
     assert_nil build_transaction_extra_details(transaction_with({ Entry::AUTO_MUTATION_KEY => note }))
   end
+
+  test "investment_activity_label_name translates the stored label" do
+    I18n.with_locale(:ru) do
+      assert_equal "Перевод", investment_activity_label_name("Transfer")
+      assert_equal "Автоперевод (зачисление)", investment_activity_label_name("Sweep In")
+    end
+    assert_equal "Buy", investment_activity_label_name("Buy")
+  end
+
+  test "investment_activity_label_name falls back to the stored label when it has no translation" do
+    assert_equal "Legacy Label", investment_activity_label_name("Legacy Label")
+  end
 end

@@ -204,10 +204,11 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
-      - name: DB setup
+      - name: DB and asset setup
         run: |
           bin/rails db:create
           bin/rails db:schema:load
+          bin/rails tailwindcss:build
 
       - name: Encryption tests
         run: |

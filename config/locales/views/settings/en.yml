@@ -371,6 +371,7 @@ en:
       self_hosting_label: Self-Hosting
       sso_providers_label: SSO Providers
       statement_vault_label: Statement Vault
+      paperless_label: Paperless
       system_health_label: System health
       tags_label: Tags
       transactions_section_title: Transactions

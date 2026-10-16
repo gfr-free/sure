@@ -42,6 +42,7 @@ it:
         other: Ultimi %{count} giorni
       date_range: "%{from} - %{to}"
     figures:
+      percent: "%{value}%"
       need_attention: richiedono attenzione
       vs_previous: rispetto al mese precedente
       today: oggi

@@ -26,6 +26,7 @@ fr:
       header_new: Nouveau
       view_all: Voir toutes les analyses
     figures:
+      percent: "%{value} %"
       days_overdue:
         one: "%{count} jour de retard"
         other: "%{count} jours de retard"

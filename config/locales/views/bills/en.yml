@@ -1,6 +1,9 @@
 ---
 en:
   bills:
+    auto_post_pill:
+      label: Automatic
+      title: Sure posts this transaction by itself on each due date
     row_overdue: Overdue
     row_today: Today
     detect:
@@ -34,6 +37,7 @@ en:
         autopay_on: "On"
         apply: Apply selected
     detail:
+      auto_posted: Posted automatically
       current: Current
       next_payment: Next payment
       around: "around %{date}"
@@ -233,6 +237,7 @@ en:
         paid: Paid
         paused: Paused
         ended: Dismissed
+        auto_post: Posts automatically
       subscription_monthly: A month
       subscription_annual: A year
       subscription_active: Active
@@ -262,6 +267,10 @@ en:
         other: Other
     show:
       edit: Edit bill
+      auto_post_on: Post automatically
+      auto_post_off: Stop posting automatically
+      auto_posting_since: "Posts automatically since %{date}"
+      auto_posting_stopped_linked: Automatic posting stopped because an account on this bill is now linked to a bank.
     index:
       left_to_pay: left to pay
       paid_so_far: Paid so far
@@ -283,6 +292,9 @@ en:
         one: "1 smaller change"
         other: "%{count} smaller changes"
       suggestion_line: "%{entry} looks like a payment of %{bill}"
+      auto_posted_line: "Sure posted %{entry} for %{bill}. Keep it?"
+      auto_posted_confirm: Confirm
+      auto_posted_discard: Discard and skip
       suggestion_unknown_entry: A transaction
       confidence: "%{percent}% match"
       accept: Apply

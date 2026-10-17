@@ -1,0 +1,46 @@
+<%# locals: (allocation:, account_id:) %>
+
+<%# A nightly post waits for the user, like an auto-matched transfer: confirm
+    keeps it, discard deletes it and skips that date of the bill. Only someone
+    who can write the account gets the two buttons. %>
+<div class="flex items-center gap-1">
+  <% if allocation.pending_review? %>
+    <%= render DS::Pill.new(
+      label: t("transactions.auto_posted.pending"),
+      tone: :warning,
+      marker: false,
+      icon: "repeat",
+      title: t("transactions.auto_posted.pending_tooltip")
+    ) %>
+
+    <% if @auto_post_writable_account_ids&.include?(account_id) %>
+      <%= render DS::Button.new(
+        variant: "icon",
+        size: :sm,
+        icon: "check",
+        href: confirm_recurring_allocation_path(allocation),
+        method: :post,
+        title: t("transactions.auto_posted.confirm"),
+        aria_label: t("transactions.auto_posted.confirm")
+      ) %>
+      <%= render DS::Button.new(
+        variant: "icon",
+        size: :sm,
+        icon: "x",
+        href: reject_recurring_allocation_path(allocation),
+        method: :post,
+        confirm: t("transactions.auto_posted.discard_confirm"),
+        title: t("transactions.auto_posted.discard"),
+        aria_label: t("transactions.auto_posted.discard")
+      ) %>
+    <% end %>
+  <% else %>
+    <%= render DS::Pill.new(
+      label: t("transactions.transaction.auto_posted"),
+      tone: :neutral,
+      marker: false,
+      icon: "repeat",
+      title: t("transactions.transaction.auto_posted_tooltip")
+    ) %>
+  <% end %>
+</div>

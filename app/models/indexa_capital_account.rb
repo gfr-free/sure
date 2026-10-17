@@ -4,6 +4,12 @@ class IndexaCapitalAccount < ApplicationRecord
   include CurrencyNormalizable
   include IndexaCapitalAccount::DataHelpers
 
+  # Dropped in RemoveAccountNumberFromIndexaCapitalAccounts. Ignoring it lets
+  # this code run whether or not that migration has run yet. It does not
+  # protect processes still running the previous release, which write the
+  # column until they restart. Can be removed in a later release.
+  self.ignored_columns += [ "account_number" ]
+
   belongs_to :indexa_capital_item
 
   # Association through account_providers
@@ -52,7 +58,6 @@ class IndexaCapitalAccount < ApplicationRecord
     # currency → always EUR for Indexa Capital
     attrs = {
       indexa_capital_account_id: data[:account_number]&.to_s,
-      account_number: data[:account_number]&.to_s,
       name: data[:name] || "Indexa Capital Account",
       currency: data[:currency] || "EUR",
       account_status: data[:status],

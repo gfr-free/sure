@@ -12,6 +12,11 @@
 # Inactive rules above are skipped because they don't run nightly either.
 # ignore_attribute_locks only applies to the requested rules.
 #
+# With transaction_ids every rule, including the active rules above, only
+# looks at those transactions ("apply immediately" after a manual or API
+# change). Rules that match none of them are skipped without a RuleRun, so
+# editing doesn't fill the history.
+#
 # One run per family at a time, guarded by a PostgreSQL advisory lock. A busy
 # lock raises LockBusy so the calling job can retry instead of dropping the run.
 class Rule::Runner
@@ -23,8 +28,9 @@ class Rule::Runner
     Digest::MD5.hexdigest("rule_runner:#{family_id}").to_i(16) % (2**62)
   end
 
-  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false)
+  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false, transaction_ids: nil)
     @family = family
+    @transaction_ids = transaction_ids&.map(&:to_s)
     @rule_ids = rules.map(&:id).to_set
     @execution_type = execution_type
     @ignore_attribute_locks = ignore_attribute_locks
@@ -45,7 +51,7 @@ class Rule::Runner
   end
 
   private
-    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :claimed_ids, :stopped_ids
+    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :claimed_ids, :stopped_ids, :transaction_ids
 
     def run_rules
       rule_runs = []
@@ -61,11 +67,15 @@ class Rule::Runner
         end
       end
 
-      rule_runs
+      rule_runs.compact
     end
 
     def unstopped_scope(rule)
-      Rule.excluding_transaction_ids(rule.matching_scope, stopped_ids)
+      scope = rule.matching_scope
+      # One array parameter, like Rule.excluding_transaction_ids, so a large
+      # bulk edit stays below PostgreSQL's bind limit.
+      scope = scope.where("transactions.id = ANY(?::uuid[])", PG::TextEncoder::Array.new.encode(transaction_ids)) if transaction_ids
+      Rule.excluding_transaction_ids(scope, stopped_ids)
     end
 
     def record_claims(rule, matched_ids)
@@ -95,6 +105,7 @@ class Rule::Runner
       begin
         scope = unstopped_scope(rule)
         matched_ids = scope.pluck(:id)
+        return nil if transaction_ids && matched_ids.empty?
 
         rule_run = RuleRun.create!(
           rule: rule,

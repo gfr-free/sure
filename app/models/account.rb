@@ -1,5 +1,5 @@
 class Account < ApplicationRecord
-  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Encryptable, IbanNormalizable
+  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Liquidity, Encryptable, IbanNormalizable
 
   # Deterministic so the family_id+iban+currency unique index and the
   # uniqueness validation below still compare equal values once the column
@@ -881,6 +881,12 @@ class Account < ApplicationRecord
   end
 
   private
+    # Account::Liquidity locks `liquidity` itself, only when the user picks a
+    # level. Locking it whenever it changed would freeze the subtype default
+    # written on create as if the user had chosen it.
+    def ignored_enrichable_attributes
+      super + %w[liquidity locked_attributes]
+    end
 
     # perform_later raises (the Sidekiq adapter re-raises RedisClient errors) or
     # returns false (ActiveJob::EnqueueError). Either way the status goes back.

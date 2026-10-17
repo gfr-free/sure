@@ -202,6 +202,7 @@ module AccountableResource
         :opening_balance_date,
         :institution_name, :institution_domain, :iban, :remove_iban, :notes, :exclude_from_reports,
         :enable_category_matcher,
+        :liquidity_choice, :available_on, :auto_renew, :renewal_term_months,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

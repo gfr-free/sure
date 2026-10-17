@@ -43,6 +43,7 @@ zh-TW:
         other: 過去 %{count} 天
       date_range: '%{from} 至 %{to}'
     figures:
+      percent: "%{value}%"
       vs_previous: 相較上月
       today: 今天
       on_pace: 依目前進度

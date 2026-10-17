@@ -42,6 +42,7 @@ es:
         other: Últimos %{count} días
       date_range: "%{from} a %{to}"
     figures:
+      percent: "%{value} %"
       vs_previous: frente al mes anterior
       today: hoy
       on_pace: al ritmo previsto

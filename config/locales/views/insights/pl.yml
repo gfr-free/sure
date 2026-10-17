@@ -23,6 +23,7 @@ pl:
       header_new: Nowe
       view_all: Zobacz wszystkie analizy
     figures:
+      percent: "%{value}%"
       days_overdue:
         few: "%{count} dni po terminie"
         many: "%{count} dni po terminie"

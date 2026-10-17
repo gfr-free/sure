@@ -871,6 +871,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_151000) do
   create_table "families", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "ai_prompt_overrides", default: {}, null: false
     t.string "assistant_type", default: "builtin", null: false
+    t.boolean "auto_generate_transaction_names", default: false, null: false
     t.boolean "auto_match_transfers_disabled", default: false, null: false
     t.boolean "auto_sync_on_login", default: true, null: false
     t.string "bills_feed_token"
@@ -2001,7 +2002,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_151000) do
     t.datetime "updated_at", null: false
     t.integer "year_built"
     t.index ["avm_last_synced_on"], name: "index_properties_on_avm_provider_sync", order: "NULLS FIRST", where: "(avm_provider IS NOT NULL)"
-    t.check_constraint "avm_provider IS NULL OR (avm_provider::text = ANY (ARRAY['rentcast'::character varying, 'realie'::character varying, 'chimnie'::character varying]::text[]))", name: "properties_avm_provider_check"
+    t.check_constraint "avm_provider IS NULL OR (avm_provider::text = ANY (ARRAY['rentcast'::character varying::text, 'realie'::character varying::text, 'chimnie'::character varying::text]))", name: "properties_avm_provider_check"
   end
 
   create_table "provider_request_counts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

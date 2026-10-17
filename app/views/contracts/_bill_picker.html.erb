@@ -1,0 +1,25 @@
+<%# locals: (contract:, bills:, selected_ids:) %>
+<%# The bills this user may link, the contract's own merchant first: a
+    contract is usually paid by bills of the same merchant, but some are
+    charged under another name, so the rest stay below. %>
+<% merchant_bills, other_bills = bills.partition { |bill| contract.merchant_id.present? && bill.merchant_id == contract.merchant_id } %>
+<% if bills.any? %>
+  <div class="max-h-64 overflow-y-auto rounded-lg border border-secondary divide-y divide-subdued">
+    <% [ [ merchant_bills, t("contracts.bill_picker.from_merchant", name: contract.merchant&.name) ], [ other_bills, (t("contracts.bill_picker.other") if merchant_bills.any?) ] ].each do |group, heading| %>
+      <% next if group.empty? %>
+      <% if heading %>
+        <p class="px-3 py-1.5 text-xs font-medium text-secondary bg-container-inset"><%= heading %></p>
+      <% end %>
+      <% group.each do |bill| %>
+        <label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer">
+          <%= check_box_tag "contract[recurring_transaction_ids][]", bill.id, selected_ids.include?(bill.id), id: "contract_bill_#{bill.id}", class: "checkbox checkbox--light" %>
+          <span class="flex-1 min-w-0 truncate text-primary"><%= bill.display_name %></span>
+          <span class="text-secondary privacy-sensitive"><%= format_money(bill.amount_money.abs) %></span>
+        </label>
+      <% end %>
+    <% end %>
+  </div>
+  <%= hidden_field_tag "contract[recurring_transaction_ids][]", "" %>
+<% else %>
+  <p class="text-sm text-secondary"><%= t("contracts.bill_picker.none") %></p>
+<% end %>

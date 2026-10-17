@@ -1,0 +1,25 @@
+---
+de:
+  contract_mailer:
+    notice_reminder:
+      subject: "Kündigungsfrist für %{name}: %{date}"
+      heading: "Zeit für eine Entscheidung über %{name}"
+      intro: "Damit %{name} zum %{term_ends_on} endet, muss deine Kündigung bis zum %{deadline} eingehen. Wenn du nichts tust, läuft der Vertrag weiter."
+      days_left:
+        zero: "Das ist heute."
+        one: "Das ist morgen."
+        other: "Das ist in %{count} Tagen."
+      portal: "Kundenportal:"
+      cta: "Vertrag öffnen"
+      footer: "Du bekommst diese E-Mail, weil du diesen Vertrag verwaltest. E-Mail-Erinnerungen kannst du in den Einstellungen des Vertrags ausschalten."
+    price_guarantee_reminder:
+      subject: "Preisgarantie für %{name} endet am %{date}"
+      heading: "Die Preisgarantie für %{name} läuft aus"
+      intro: "Die Preisgarantie für %{name} endet am %{date}. Danach darf der Anbieter den Preis erhöhen. Jetzt ist ein guter Zeitpunkt, Angebote zu vergleichen."
+      days_left:
+        zero: "Das ist heute."
+        one: "Das ist morgen."
+        other: "Das ist in %{count} Tagen."
+      portal: "Kundenportal:"
+      cta: "Vertrag öffnen"
+      footer: "Du bekommst diese E-Mail, weil du diesen Vertrag verwaltest. E-Mail-Erinnerungen kannst du in den Einstellungen des Vertrags ausschalten."

@@ -121,6 +121,7 @@ de:
         overview: Übersicht
         schedule: Tilgungsplan
         statements: Auszüge
+        contracts: Verträge
     update:
       success: "%{type}-Konto aktualisiert"
     sidebar:

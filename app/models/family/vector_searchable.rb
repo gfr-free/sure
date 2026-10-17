@@ -52,14 +52,20 @@ module Family::VectorSearchable
 
     return nil unless response.success?
 
-    family_documents.create!(
-      filename: filename,
-      content_type: Marcel::MimeType.for(name: filename),
-      file_size: file_content.bytesize,
-      provider_file_id: response.data[:file_id],
-      status: "ready",
-      metadata: metadata || {}
-    )
+    begin
+      family_documents.create!(
+        filename: filename,
+        content_type: Marcel::MimeType.for(name: filename),
+        file_size: file_content.bytesize,
+        provider_file_id: response.data[:file_id],
+        status: "ready",
+        metadata: metadata || {}
+      )
+    rescue StandardError
+      # Without a local record nothing could find and remove this copy later.
+      adapter.remove_file(store_id: store_id, file_id: response.data[:file_id]) rescue nil
+      raise
+    end
   end
 
   def remove_document(family_document)

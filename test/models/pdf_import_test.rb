@@ -86,6 +86,29 @@ class PdfImportTest < ActiveSupport::TestCase
     assert @import.valid?
   end
 
+  test "process_with_ai keeps the terms of a contract document" do
+    provider = mock("llm_provider")
+    provider.stubs(:supports_pdf_processing?).returns(true)
+    provider.stubs(:process_pdf).returns(
+      Provider::Response.new(
+        success?: true,
+        data: Provider::LlmConcept::PdfProcessingResult.new(
+          summary: "Home contents insurance policy",
+          document_type: "contract",
+          extracted_data: { "contract" => { "name" => "Home contents", "provider" => "Allianz", "kind" => "insurance" } }
+        ),
+        error: nil
+      )
+    )
+    Provider::Registry.stubs(:preferred_llm_provider).returns(provider)
+    @import.stubs(:pdf_file_content).returns("%PDF-1.4")
+
+    @import.process_with_ai
+
+    assert_equal "contract", @import.reload.document_type
+    assert_equal "Allianz", @import.extracted_data.dig("contract", "provider")
+  end
+
   test "process_with_ai_later enqueues ProcessPdfJob" do
     import = PdfImport.create_from_statement!(statement: create_pdf_statement)
 

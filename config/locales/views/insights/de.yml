@@ -6,6 +6,7 @@ de:
       body: Öffne Sure, um deine neueste KI-Analyse anzusehen.
     actions:
       contract: Vertrag ansehen
+      account_release: Zum Konto
       budget: Budget ansehen
       cash_flow_warning: Wiederkehrende Buchungen prüfen
       idle_cash: Zum Konto
@@ -34,6 +35,11 @@ de:
         one: "%{count} Zahlung"
         other: "%{count} Zahlungen"
       percent: "%{value} %"
+      released: jetzt verfügbar
+      released_in:
+        one: frei in %{count} Tag
+        other: frei in %{count} Tagen
+      renews_on: "verlängert am %{date}"
       days_overdue:
         one: "%{count} Tag überfällig"
         other: "%{count} Tage überfällig"
@@ -70,6 +76,10 @@ de:
         plain: "%{name} kostet seit dem %{effective_on} %{new_amount} statt %{previous_amount}."
       contract_charges_after_end: "%{name} ist am %{ends_on} geendet, trotzdem wurden %{count} Zahlungen über insgesamt %{amount} abgebucht, zuletzt am %{latest_on}. Möglicherweise steht dir eine Erstattung zu."
       contract_price_guarantee_ending: "Die Preisgarantie für %{name} endet am %{guarantee_until}. Danach darf der Anbieter den Preis erhöhen, ein guter Zeitpunkt also, Angebote zu vergleichen."
+      account_release:
+        upcoming: "%{balance} auf %{account} werden am %{date} verfügbar."
+        released: "%{balance} auf %{account} sind seit %{date} verfügbar. Setze ein neues Datum, wenn du das Geld neu anlegst, oder stufe das Konto als verfügbar ein."
+        renewal_notice: "%{account} (%{balance}) verlängert sich am %{date} automatisch. Wenn du das Geld brauchst, kündige vorher."
       budget_at_risk:
         near: "%{categories} nähern sich diesen Monat ihrer Grenze. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
         over: "%{categories} liegen diesen Monat über dem Budget. Bisher hast du %{budget_spent_pct} % deines Gesamtbudgets genutzt."
@@ -94,6 +104,10 @@ de:
       contract_price_increase: "%{name} ist teurer geworden"
       contract_charges_after_end: "%{name} bucht weiter ab"
       contract_price_guarantee_ending: "Preisgarantie für %{name} läuft aus"
+      account_release:
+        upcoming: "%{account} wird bald frei"
+        released: "%{account} ist jetzt verfügbar"
+        renewal: "%{account} verlängert sich bald"
       budget_at_risk:
         one: Eine Kategorie in deinem Budget braucht Aufmerksamkeit
         other: "%{count} Kategorien in deinem Budget brauchen Aufmerksamkeit"
@@ -117,6 +131,7 @@ de:
       contract_price_increase: Vertrag
       contract_charges_after_end: Vertrag
       contract_price_guarantee_ending: Vertrag
+      account_release: Freigabe
       budget_at_risk: Budget
       budget_on_track: Budget
       cash_flow_warning: Liquidität

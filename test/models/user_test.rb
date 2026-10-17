@@ -1388,4 +1388,11 @@ class UserTest < ActiveSupport::TestCase
     assert_not @user.update_manual_account_order("transactions", [ accounts(:depository).id ])
     assert_equal({}, @user.reload.manual_account_order)
   end
+
+  test "account_release_lead_days reads leading zeros as decimal" do
+    user = users(:family_admin)
+    user.preferences = { "account_release_lead_days" => "010" }
+
+    assert_equal 10, user.account_release_lead_days
+  end
 end

@@ -63,7 +63,7 @@ class UI::AccountPage < ApplicationComponent
       [ :activity ]
     end
 
-    base_tabs + [ :statements ] + (contracts.any? ? [ :contracts ] : [])
+    base_tabs + [ :statements ] + (contracts.any? ? [ :contracts ] : []) + preview_tabs
   end
 
   # Contracts tied to this account (the car's insurance, the flat's rent) that
@@ -78,6 +78,12 @@ class UI::AccountPage < ApplicationComponent
         []
       end
     end
+  end
+
+  # "Details" lists the rules that apply to the account (Account::RuleDetails).
+  # Preview only, decision E10.
+  def preview_tabs
+    Current.user&.preview_features_enabled? ? [ :details ] : []
   end
 
   def fx_coverage_start_date
@@ -123,6 +129,8 @@ class UI::AccountPage < ApplicationComponent
       render_statement_tab
     when :contracts
       render "contracts/account_tab", account: account, contracts: contracts
+    when :details
+      render "accounts/show/details", account: account
     end
   end
 

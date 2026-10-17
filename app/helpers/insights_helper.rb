@@ -15,7 +15,8 @@ module InsightsHelper
     "contract_price_increase" => "trending-up",
     "contract_charges_after_end" => "receipt",
     "contract_price_guarantee_ending" => "lock-open",
-    "exchange_rate_jump" => "arrow-left-right"
+    "exchange_rate_jump" => "arrow-left-right",
+    "account_release" => "calendar-clock"
   }.freeze
 
   def insight_icon_key(insight)
@@ -96,6 +97,8 @@ module InsightsHelper
       facts["days_left"] && [ facts["guarantee_until"], t("insights.figures.days_left", count: facts["days_left"].to_i) ]
     when "exchange_rate_jump"
       facts["change_pct"] && [ t("insights.figures.percent", value: facts["change_pct"]), facts["date"] ]
+    when "account_release"
+      facts["balance"] && [ facts["balance"], account_release_caption(insight) ]
     end
   end
 
@@ -135,6 +138,9 @@ module InsightsHelper
     when "contract_notice_deadline", "contract_price_increase", "contract_charges_after_end", "contract_price_guarantee_ending"
       contract = insight.family.contracts.find_by(id: metadata["contract_id"])
       contract && { text: t("insights.actions.contract"), href: contract_path(contract) }
+    when "account_release"
+      account = insight.family.accounts.visible.find_by(id: metadata["account_id"])
+      account && { text: t("insights.actions.account_release"), href: account_path(account) }
     end
   end
 
@@ -178,6 +184,13 @@ module InsightsHelper
       metadata["negative"] ? :negative : :warning
     when "contract_charges_after_end"
       :negative
+    when "account_release"
+      # Money coming free is good news; a renewal is a deadline to act on.
+      case metadata["kind"]
+      when "released" then :positive
+      when "renewal" then :warning
+      else :neutral
+      end
     when "budget_at_risk", "maintained_goal_depleted", "contract_notice_deadline", "contract_price_increase",
          "contract_price_guarantee_ending", "exchange_rate_jump"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
@@ -189,6 +202,16 @@ module InsightsHelper
   end
 
   private
+    def account_release_caption(insight)
+      facts = insight.facts || {}
+
+      case insight.metadata&.dig("kind")
+      when "released" then t("insights.figures.released")
+      when "renewal" then t("insights.figures.renews_on", date: facts["date"])
+      else t("insights.figures.released_in", count: facts["days"].to_i)
+      end
+    end
+
     # "June" for month-aligned periods, "Next 30 days" / "Last 30 days" for
     # rolling windows, an explicit range otherwise; subject name (account,
     # merchant) for insights without a period.

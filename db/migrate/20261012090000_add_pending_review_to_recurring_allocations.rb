@@ -3,6 +3,8 @@
 # this time). Defaults to false, so existing payments need no review.
 class AddPendingReviewToRecurringAllocations < ActiveRecord::Migration[8.1]
   def change
+    return if column_exists?(:recurring_allocations, :pending_review)
+
     add_column :recurring_allocations, :pending_review, :boolean, default: false, null: false
   end
 end

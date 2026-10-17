@@ -45,7 +45,7 @@ SCHRITT 0  KONTEXT
    (nicht mehr, nicht weniger). Abweichung = Befund L13.
 2. Repo-Regeln lesen: AGENTS.md, docs/llm-guides/architecture.md und die zum Diff passenden
    Guides (design-system, testing, providers, api-endpoint-consistency, gating-a-preview-feature).
-3. LEKTIONEN.md lesen: den Abschnitt L1–L32 vollständig, aus "Nachträge" alle Einträge zu den
+3. LEKTIONEN.md lesen: den Abschnitt L1–L33 vollständig, aus "Nachträge" alle Einträge zu den
    Lektionen, die zum Diff passen (grep nach "L<n>" und nach berührten Dateinamen).
 4. Duplikate und Überschneidungen (L17): offene und geschlossene PRs und Issues upstream und im Fork
    zum selben Thema und zu jeder geänderten Spalte, Methode und Datei suchen (Titel UND Diff-Inhalt,
@@ -77,9 +77,27 @@ Rolle (Gast, Mitglied, Admin, Super-Admin, Impersonation), Feature-Flags. Nebenw
 SCHRITT 3  PRÜFDIMENSIONEN
 Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnummer in Klammern.
 
-3.1 Korrektheit und Datenrandfälle (L1, L10, L22, L26, L28, L31)
+3.1 Korrektheit und Datenrandfälle (L1, L10, L22, L26, L28, L31, L33)
 - nil, "", nur Leerzeichen (alle Arten), Nicht-ASCII/Unicode-Steuerzeichen, sehr kurze und sehr
   lange Werte, 0, negative Werte, Grenzen (< vs. <=), leere Collections, Duplikate.
+- Eingabeprüfung (L33, Owner-Vorgabe 17.10., Pflicht in jedem Modus): Für JEDES neue oder geänderte
+  Eingabefeld (Formular, API v1, Import/CSV, Regel, Assistent/MCP, Einstellungen) die vier Fälle
+  durchspielen und je Fall Datei:Zeile der Prüfung und des Tests nennen:
+  (1) Falscheingabe: Text statt Zahl, ungültiges Datum, falsches Enum, UUID eines fremden Datensatzes,
+      Sonderzeichen, überlanger Text → Validierungsfehler mit Re-Render/422, nie 500, nie stilles
+      Speichern von 0 oder nil.
+  (2) Leere Eingabe: "", nur Leerzeichen, fehlender Param, Feld nicht im Formular → nil oder
+      Default bewusst gewählt, Pflichtfeld abgelehnt, bestehender Wert nicht stillschweigend gelöscht.
+  (3) Negative Eingabe: -5, -0, "−5" (Unicode-Minus), "(5)" → erlaubt oder abgelehnt mit Begründung;
+      Vorzeichenkonvention des Modells (Ausgabe positiv, Einnahme negativ) eingehalten; bei Mengen,
+      Preisen, Kursen, Prozenten und Laufzeiten negative Werte abgelehnt, sofern nicht fachlich nötig.
+  (4) Komma und Dezimalstellen: "1,5" vs. "1.5" je Locale, Tausendertrennzeichen "1.234,56"/"1,234.56",
+      viele Nachkommastellen "1,2345678" und "0,005" → Parsen über eine Stelle (Money/Number-Helper,
+      kein `to_f`/`to_d` auf Rohtext), Rundung nach Währung (JPY 0, EUR 2, Krypto/Mengen bis 8+),
+      Rundungsmodus benannt (half-up vs. banker), gespeicherter Wert gleich angezeigtem Wert,
+      unverändertes Absenden ändert nichts (upstream 4184), Summen aus gerundeten Einzelwerten stimmen.
+  Dazu Zahlen in wissenschaftlicher Schreibweise ("1e5"), führende Nullen, Plus-Zeichen, Währungssymbole
+  im Feld ("5 €"), sehr große Werte (Overflow der Spalte, precision/scale in schema.rb).
 - "nicht gesendet" vs. "bewusst geleert" vs. "ungültig": Update/Re-Import überschreibt nichts
   ungewollt (`key?` statt Truthiness).
 - Geld: Decimal, Vorzeichen-Konvention, Währung Konto vs. Familie, Umrechnung nur mit vorhandenem
@@ -266,7 +284,7 @@ Abweichend von Anthropics Security-Review-Vorlage WERDEN gemeldet: fehlende Vers
 Auth-Einstiegen und Races mit realem Pfad (in Sure mehrfach echte Befunde, L4, L23).
 
 SCHRITT 6  LEKTIONEN-ABGLEICH
-Für jede zum Diff passende Lektion (L1–L32) eine Zeile: "L<n>: eingehalten / Befund #<k> / nicht
+Für jede zum Diff passende Lektion (L1–L33) eine Zeile: "L<n>: eingehalten / Befund #<k> / nicht
 zutreffend weil …". Nicht passende Lektionen weglassen. Bei {{AKTION}} = beheben: jeden
 behobenen Befund unter "Nachträge" in LEKTIONEN.md einer Lektion zuordnen (neue Fehlerart = neue
 Lektion, durchgerutschte bekannte Art = Prüffrage schärfen).

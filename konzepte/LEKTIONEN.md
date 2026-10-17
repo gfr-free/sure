@@ -203,6 +203,19 @@ Generator mit `produces`, Eintrag in `Insight::TYPES` und `GeneratorRegistry`, I
 `accessible_by_all_active_members`, Test für Erzeugen, Nicht-Erzeugen und Rechte. Nein (kurz begründen), wenn der
 Hinweis nur Bedienung betrifft. Im PR und im Thread mit einem Satz beantworten. Beispiel: Fork 105 (negative Bestände).
 
+**L33 Eingabeprüfung: falsch, leer, negativ, Komma (neu 17.10., Owner-Vorgabe).**
+Für jedes neue oder geänderte Eingabefeld auf jedem Weg (Formular, API v1, Import, Regel, Assistent/MCP,
+Einstellungen) vier Fälle prüfen und testen: (1) Falscheingabe (Text statt Zahl, ungültiges Datum/Enum/UUID,
+Sonderzeichen, überlang) → Validierungsfehler statt 500 und nie stilles 0/nil; (2) leer ("", Leerzeichen,
+Param fehlt) → bewusster Default, Pflichtfeld abgelehnt, Bestandswert nicht still gelöscht; (3) negativ
+(-5, Unicode-Minus, "(5)") → erlaubt oder abgelehnt mit Begründung, Vorzeichenkonvention eingehalten, bei Mengen,
+Preisen, Prozenten, Laufzeiten abgelehnt; (4) Komma und Dezimalstellen ("1,5" vs. "1.5" je Locale, "1.234,56",
+"1,2345678", "0,005") → Parsen nur über den gemeinsamen Money/Number-Helper (kein `to_f`/`to_d` auf Rohtext),
+Rundung nach Währung mit benanntem Modus, gespeichert = angezeigt, unverändertes Absenden ändert nichts.
+Prüffragen: Welche Stelle parst die Eingabe, und ist es für Web, API und Import dieselbe? Gibt es je Fall einen
+Test mit der konkreten Eingabe? Was zeigt das Formular nach dem Fehler (Wert bleibt stehen, L6)?
+Beispiele: upstream 4184 (JPY-Rundung beim unveränderten Absenden); L1-Nachträge zu führenden Nullen und UUIDs.
+
 **Erweiterungen bestehender Lektionen:**
 - L6: Stimulus disconnect() räumt Listener, Timer und Body-Styles auf; fetch mit Timeout; data-targets statt
   querySelector; Turbo.visit statt window.location; Bedienelemente nicht nur per Hover sichtbar (Tastatur).
@@ -1233,3 +1246,22 @@ Hinweis nur Bedienung betrifft. Im PR und im Thread mit einem Satz beantworten. 
 - **16.10.2026, upstream PR 4203 (Datei-Zugriff), jjmata-Nitpick, Fix d24895a (gleich in 4205 5c37f07):** L8 geschärft: Neue Rechte-Prüfungen neben bestehenden übernehmen deren rescue-Liste (hier `NoMethodError` wie `transaction_attachment_authorized?`), damit sie gleich „fail closed“ mit 404 statt 500 enden. Kopien derselben Methode in Parallel-PRs gleich halten.
 - **16.10.2026, upstream PR 4202 (AI-Compose-Defaults), CodeRabbit Minor, Fix 67c4012:** L1 (Doku): Ein Hinweistext, der eine Sicherheitseigenschaft für „die Dienste“ behauptet („nur auf Loopback“), muss gegen alle `ports:`-Einträge der Datei geprüft werden; hier blieben Sure (3000) und Pipelock (8889) auf allen Schnittstellen. Prüffrage: Nennt jede pauschale Sicherheitsaussage in Kommentaren oder Doku die betroffenen Dienste namentlich, und stimmt sie mit `docker compose config` überein?
 - **16.10.2026, Fork 131 (Kontonummern maskieren), eigenes Review vor Freigabe, Fix d1615512f:** L5 geschärft: In einer Migration ist `quote(x)` nicht `connection.quote(x)`. `Migration#quote` reicht per method_missing das erste Argument als Tabellenname weiter, `quote(nil)` liefert `''` statt `NULL`. Prüffrage: Nutzt jede Migration mit selbst gebautem SQL `connection.quote`, und gibt es einen Test mit nil-Wert? L3 erneut: Wer ein Leck in neuen Importen schließt (Mercury-`details` in Notizen), prüft den Bestand und räumt ihn per Migration auf, dabei gesperrte (vom Nutzer bearbeitete) Felder auslassen.
+- 16.10.2026, upstream PR 3020 (Pi-Nachtjob-Review + eigenes Review auf high, behoben in b273b56):
+  - L2/L4: Sperre nur für „Split anlegen“ zentralisiert; „Split bearbeiten/aufheben“ (Web und API) liefen weiter ohne bzw. mit eigener Sperre. Prüffrage: Für jede Schreibaktion auf dieselbe Zeile (anlegen, ändern, löschen) dieselbe Sperre in derselben Reihenfolge?
+  - L1: Prozent-Anteile auf 2 Stellen gerundet ergaben Bruchteile von Yen; Rundung nach Währung, aber gedeckelt auf die Spaltenskala (Krypto hat 8 Stellen, Spalte 4). Unbekannter Währungscode darf die Schleife nicht abbrechen.
+  - L8: name.blank? wirft bei kaputtem UTF-8 → 500. Text-Gültigkeit vor blank?/length prüfen.
+  - L2/L22: JSON-String verbirgt NUL als \u0000; Textprüfung auf dem dekodierten Wert, gemeinsam für beide Importer.
+- **17.10.2026, upstream PR 4185 (Verkauf nur aus Bestand), PR-Check-Review (high), behoben lokal:** L1 geschärft: Anzeige einer Menge mit fester Präzision (`precision: 8`) rundet AUF, wenn die Spalte mehr Stellen speichert (scale 18); wer den angezeigten Bestand verkauft, wird abgelehnt, und die Meldung nennt auf beiden Seiten dieselbe Zahl. Prüffrage: Hat jede angezeigte Menge, die der Nutzer zurück eingeben kann, die volle Spaltenpräzision? L8 geschärft: `Date.iso8601` wirft ab 129 Zeichen einen reinen `ArgumentError`, kein `Date::Error`; `rescue Date::Error` reicht für Params nicht. L3 erneut: Neue Warnungen mit Mengen brauchen `privacy-sensitive` wie die Werte daneben.
+- **17.10.2026, upstream PR 4205 (Datei-Zugriff), PR-Check-Review (high), behoben lokal:** L8 geschärft: Nach `send_blob_stream` (ActionController::Live) ist die Antwort schon geschrieben; ein `rescue` mit `render json:` wirft `DoubleRenderError`. Prüffrage: Prüft jedes rescue nach einem Stream `performed?`, bevor es rendert?
+- **17.10.2026, upstream PR 4184 (Einstandswert-Editor), PR-Check-Review (high), behoben lokal:** L10 erneut: Der Editor wertete einen gespeicherten Einstandswert 0 als echt, `Holding#avg_cost` nur, wenn er gesperrt ist; unverändertes Speichern sperrte so 0 über dem berechneten Wert. Gleiche Regel an einer Stelle (`Holding#known_cost_basis`) für Anzeige und Berechnung.
+- **17.10.2026, upstream PR 3997 (Sidebar-Sparklines), PR-Check-Review (high), behoben lokal:** L6/L26 geschärft: Ein Guard „nur auslösen, solange `busy`“ deckt auch den Fehlerfall zu: Turbo nimmt `busy` nach einem Netzfehler weg, ohne `turbo:frame-load`. Prüffrage: Hat jeder Timer, der auf ein Abschluss-Ereignis wartet, auch einen Weg für den Fehlerfall (`turbo:fetch-request-error`)?
+- **17.10.2026, upstream PR 3020 (Split-Regel), PR-Check-Review (high), behoben lokal:** L1: Feste Anteile ohne Prüfung der Nachkommastellen werden gerundet gespeichert, die Kinder ergeben dann nicht mehr den Elternbetrag. L13: Eine Auswahl „kein Händler“, die in Wahrheit den Händler der Hauptbuchung übernimmt, verspricht etwas anderes, als sie tut; Beschriftung nach dem tatsächlichen Verhalten. L14: Zeilen, die nie passen (Split-Kinder, ausgeschlossene), schon in der Abfrage ausfiltern statt je Zeile prüfen.
+- 17.10. upstream 4205 (PR-Check + CodeRabbit, Fix 190c16f):
+  - L2 (bekannte Art: fail-open bei fehlendem Datensatz): `disk_service_blob` gab bei gültig signiertem Disk-Key ohne
+    Blob-Zeile nil zurück, und `return unless authorized_blob` ließ die Datei ohne Prüfung durch (nachgestellt: 200).
+    Prüffrage: Führt jedes "nicht gefunden" in einer Autorisierungs-Kette zu 404 statt zum Überspringen der Prüfung?
+  - Neu (Parallel-PRs): Der PR-Text behauptete "merged sauber mit 4203", geprüft war das nur vor einem späteren Commit.
+    Prüffrage: Nach jedem Push `git merge-tree` gegen alle offenen Nachbar-PRs auf derselben Datei wiederholen, und
+    Merge-Aussagen im PR-Text nur mit dem geprüften Commit machen. Gemeinsame Prüfungen in getrennten Zeilen halten
+    statt dieselbe Liste/Case-Verzweigung in beiden PRs zu ändern.
+- **17.10.2026, upstream PR 4184 (Einstandswert-Editor), PR-Check, Fix 3ec289e:** L10 geschärft: Speichert das Modell eine andere Größe als das Formular sendet (Preis pro Anteil mit 4 Stellen vs. auf Cent gerundetes Total), entsteht beim Umrechnen ein Rundungsfehler, auch beim unveränderten Speichern. Prüffrage: Sendet das Formular genau die gespeicherte Größe mit deren Nachkommastellen?

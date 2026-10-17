@@ -1,0 +1,32 @@
+---
+# German product names for config/bullion_products.yml. English names come
+# from the catalogue itself.
+de:
+  bullion_catalog:
+    products:
+      american_buffalo: American Buffalo
+      american_eagle: American Eagle
+      britannia: Britannia
+      gold_bar: Goldbarren
+      kangaroo: Känguru
+      krugerrand: Krügerrand
+      maple_leaf: Maple Leaf
+      palladium_bar: Palladiumbarren
+      palladium_maple_leaf: Maple Leaf Palladium
+      panda: Panda
+      philharmonic: Wiener Philharmoniker
+      platinum_bar: Platinbarren
+      platinum_britannia: Britannia Platin
+      platinum_maple_leaf: Maple Leaf Platin
+      silver_american_eagle: American Eagle Silber
+      silver_bar: Silberbarren
+      silver_britannia: Britannia Silber
+      silver_kangaroo: Känguru Silber
+      silver_koala: Koala Silber
+      silver_kookaburra: Kookaburra Silber
+      silver_krugerrand: Krügerrand Silber
+      silver_libertad: Libertad Silber
+      silver_maple_leaf: Maple Leaf Silber
+      silver_noahs_ark: Arche Noah Silber
+      silver_philharmonic: Wiener Philharmoniker Silber
+      sovereign: Sovereign

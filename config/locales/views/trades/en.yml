@@ -1,12 +1,52 @@
 ---
 en:
   trades:
+    bullion_trade_name:
+      buy: "Buy %{qty} pcs of %{name}"
+      other: "%{label} %{qty} pcs of %{name}"
+      sell: "Sell %{qty} pcs of %{name}"
     api_errors:
       activity_label_must_match_type: "investment_activity_label must be %{label} when type is %{type}"
       invalid_activity_label: Invalid investment activity label
       invalid_type: Invalid type
       supported_types: "type must be one of: %{types}"
     form:
+      bullion_choice: Coin or bar
+      bullion_groups:
+        bar: Bars
+        coin_XAG: Silver coins
+        coin_XAU: Gold coins
+        coin_XPD: Palladium coins
+        coin_XPT: Platinum coins
+        custom: My coins
+        new_custom: New coin
+      bullion_size: Size
+      bullion_weight: Weight
+      bullion_weight_hint: Fine weight of the bar. Bars are almost always 999.9 fine, so this is the weight printed on the bar or invoice.
+      bullion_weight_unit: Unit
+      custom_bullion_fine_grams: Fine weight (g)
+      custom_bullion_hint: Fine weight is the pure metal content of one piece. The price follows the metal's reference security.
+      custom_bullion_metal: Metal
+      custom_bullion_name: Name
+      custom_bullion_name_placeholder: 20 Mark Wilhelm II
+      custom_bullion_new: "+ New custom coin"
+      holding_kind: Asset
+      holding_kinds:
+        bullion: Precious metal
+        security: Security
+      metals:
+        XAG: Silver
+        XAU: Gold
+        XPD: Palladium
+        XPT: Platinum
+      price_per_piece: Price per piece
+      qty_pieces: Quantity (pieces)
+      trade_requires_bullion: Choose a coin or bar for buy and sell trades
+      invalid_bar_weight: "Please enter a bar weight between 0 and %{max} kg"
+      weight_units:
+        g: g
+        kg: kg
+        oz: oz (troy)
       account: Transfer account (optional)
       account_prompt: Search account
       amount: Amount

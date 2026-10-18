@@ -169,13 +169,18 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal [ 10, -10 ], subgroups.map { |subgroup| subgroup.weight.round }
   end
 
-  test "subgroups are empty when every account shares one value" do
+  test "a group whose accounts share one value still shows its one subgroup" do
     create_account(balance: 1000, accountable: Depository.new, custom_group: "Kids")
     create_account(balance: 2000, accountable: Depository.new, custom_group: "kids")
+    create_account(balance: 500, accountable: CreditCard.new)
 
-    group = BalanceSheet.new(@family).assets.account_groups.first
+    balance_sheet = BalanceSheet.new(@family)
+    group = balance_sheet.assets.account_groups.first
+    credit_cards = balance_sheet.liabilities.account_groups.first
 
-    assert_empty group.subgroups("custom_group", user: users(:empty))
+    assert_equal [ "Kids" ], group.subgroups("custom_group", user: users(:empty)).map(&:name)
+    assert_equal [ I18n.t("account_grouping.none") ], credit_cards.subgroups("custom_group", user: users(:empty)).map(&:name)
+    assert_equal [ 500 ], credit_cards.subgroups("custom_group", user: users(:empty)).map(&:total)
     assert_empty group.subgroups("unknown", user: users(:empty))
   end
 
@@ -214,6 +219,15 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal "Household", group.name
     assert_equal [ Depository.display_name, Investment.display_name ], subgroups.map(&:name)
     assert_equal [ 1000, 2000 ], subgroups.map(&:total)
+  end
+
+  test "groups by ownership for the balance sheet's own viewer by default" do
+    viewer = users(:empty)
+    create_account(balance: 1000, accountable: Depository.new, owner: viewer)
+
+    groups = BalanceSheet.new(@family, user: viewer).account_groups(by: "ownership")
+
+    assert_equal [ I18n.t("account_grouping.ownership.mine") ], groups.map(&:name)
   end
 
   test "account type as first level keeps the default type groups" do

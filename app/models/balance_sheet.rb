@@ -31,6 +31,7 @@ class BalanceSheet
   end
 
   def account_groups(by: nil, user: nil)
+    user ||= self.user
     [ assets.account_groups(by: by, user: user), liabilities.account_groups(by: by, user: user) ].flatten
   end
 

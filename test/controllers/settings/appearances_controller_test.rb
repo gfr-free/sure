@@ -66,6 +66,27 @@ class Settings::AppearancesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#balance-sheet details[data-group-key='depository']", count: 0
   end
 
+  test "keeps assets and debts apart in the all tab when another first level leaves both unset" do
+    @user.update!(preferences: @user.preferences.merge("account_grouping_primary" => { "sidebar" => "custom_group" }))
+    none = I18n.t("account_grouping.none")
+
+    get root_path
+
+    assert_response :success
+    sections = css_select("#account-sidebar-tabs [data-sidebar-classification]").map { |node| node["data-sidebar-classification"] }
+    assert_equal %w[asset liability], sections.uniq
+    %w[asset liability].each do |classification|
+      assert_select "#account-sidebar-tabs [data-sidebar-classification='#{classification}'] [data-group-key^='#{classification}_custom_group_']", text: /#{none}/
+    end
+  end
+
+  test "keeps the all tab flat when grouped by account type" do
+    get root_path
+
+    assert_response :success
+    assert_select "#account-sidebar-tabs [data-sidebar-classification]", count: 0
+  end
+
   test "keeps other preferences when saving the grouping" do
     @user.update!(preferences: @user.preferences.merge("always_expanded_account_groups" => [ "depository" ]))
 

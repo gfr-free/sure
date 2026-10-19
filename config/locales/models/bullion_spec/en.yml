@@ -1,0 +1,14 @@
+---
+en:
+  activerecord:
+    attributes:
+      bullion_spec:
+        fine_weight_grams: Fine weight
+        metal: Metal
+        name: Name
+    errors:
+      models:
+        bullion_spec:
+          attributes:
+            base:
+              in_use: is still used by trades or holdings

@@ -1,8 +1,8 @@
 class HoldingsController < ApplicationController
   include StreamExtensions
 
-  before_action :set_holding, only: %i[show update destroy unlock_cost_basis remap_security reset_security sync_prices]
-  before_action :require_holding_write_permission!, only: %i[update destroy unlock_cost_basis remap_security reset_security sync_prices]
+  before_action :set_holding, only: %i[show update destroy unlock_cost_basis remap_security edit_bullion remap_bullion reset_security sync_prices]
+  before_action :require_holding_write_permission!, only: %i[update destroy unlock_cost_basis remap_security edit_bullion remap_bullion reset_security sync_prices]
 
   def index
     @account = accessible_accounts.find(params[:account_id])
@@ -102,19 +102,26 @@ class HoldingsController < ApplicationController
 
   def sync_prices
     security = @holding.security
+    bullion = security.bullion_spec.present?
 
-    if security.offline?
+    if security.offline? && !bullion
       redirect_to account_path(@holding.account, tab: "holdings"),
                   alert: t("holdings.sync_prices.unavailable")
       return
     end
 
-    prices_updated, @provider_error = security.import_provider_prices(
-      start_date: 31.days.ago.to_date,
-      end_date: Date.current,
-      clear_cache: true
-    )
-    security.import_provider_details
+    if bullion
+      # Coins and bars have no feed of their own: refresh the metal's
+      # reference price and derive this piece's prices from it.
+      prices_updated = derive_bullion_prices(security, start_date: 31.days.ago.to_date)
+    else
+      prices_updated, @provider_error = security.import_provider_prices(
+        start_date: 31.days.ago.to_date,
+        end_date: Date.current,
+        clear_cache: true
+      )
+      security.import_provider_details
+    end
 
     @last_price_updated = @holding.security.prices.maximum(:updated_at)
 
@@ -138,6 +145,42 @@ class HoldingsController < ApplicationController
     end
   end
 
+  # Corrects a coin or bar picked by mistake: the whole position, with its
+  # trades, moves to the newly picked piece.
+  def edit_bullion
+    redirect_to account_path(@holding.account, tab: "holdings") unless @holding.security.bullion_spec
+  end
+
+  def remap_bullion
+    return redirect_to(account_path(@holding.account, tab: "holdings")) unless @holding.security.bullion_spec
+
+    account = @holding.account
+    new_security = nil
+    # A new custom coin is only kept when the position moves to it.
+    Holding.transaction do
+      new_security = bullion_choice_security
+      @holding.remap_bullion!(new_security) if new_security
+    end
+
+    unless new_security
+      @error = t(".not_found")
+      return render :edit_bullion, status: :unprocessable_entity
+    end
+
+    account.sync_later
+
+    respond_to do |format|
+      format.html { redirect_to account_path(account, tab: "holdings"), notice: t(".success") }
+      format.turbo_stream { stream_redirect_to account_path(account, tab: "holdings"), notice: t(".success") }
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    @error = e.record.errors.full_messages.to_sentence
+    render :edit_bullion, status: :unprocessable_entity
+  rescue BullionCatalog::InvalidWeightError
+    @error = t("trades.form.invalid_bar_weight", max: BullionCatalog::MAX_BAR_GRAMS.to_i / 1000)
+    render :edit_bullion, status: :unprocessable_entity
+  end
+
   def reset_security
     @holding.reset_security_to_provider!
     flash[:notice] = t(".success")
@@ -149,6 +192,27 @@ class HoldingsController < ApplicationController
   end
 
   private
+    def bullion_choice_security
+      picked = params.fetch(:model, {}).permit(
+        :bullion_choice, :bullion_size, :bullion_weight, :bullion_weight_unit,
+        :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
+      )
+
+      BullionSpec::Choice.new(
+        family: Current.family, value: picked[:bullion_choice],
+        size: picked[:bullion_size], weight: picked[:bullion_weight], weight_unit: picked[:bullion_weight_unit],
+        custom_name: picked[:custom_bullion_name], custom_metal: picked[:custom_bullion_metal],
+        custom_fine_grams: picked[:custom_bullion_fine_grams]
+      ).security
+    end
+
+    # The number of this piece's prices in the window after derivation; zero
+    # means the reference had none to derive from.
+    def derive_bullion_prices(security, start_date:)
+      BullionSpec::PriceDeriver.new(start_date: start_date, security_ids: [ security.id ]).derive_all
+      security.prices.where(date: start_date..).count
+    end
+
 
     def trade_republic_categories_for(account)
       provider = account.account_providers.includes(:provider).map(&:provider).find do |candidate|

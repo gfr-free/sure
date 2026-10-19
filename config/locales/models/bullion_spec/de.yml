@@ -1,0 +1,14 @@
+---
+de:
+  activerecord:
+    attributes:
+      bullion_spec:
+        fine_weight_grams: Feingewicht
+        metal: Metall
+        name: Name
+    errors:
+      models:
+        bullion_spec:
+          attributes:
+            base:
+              in_use: wird noch von Trades oder Beständen verwendet

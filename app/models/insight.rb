@@ -35,6 +35,7 @@ class Insight < ApplicationRecord
     contract_charges_after_end
     contract_price_guarantee_ending
     exchange_rate_jump
+    account_release
   ].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)

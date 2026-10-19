@@ -3,6 +3,8 @@
 # come from config/bullion_products.yml; custom entries belong to one family.
 class BullionSpec < ApplicationRecord
   TROY_OUNCE_GRAMS = BigDecimal("31.1034768")
+  # 100 kg; the column keeps eight digits before the decimal point.
+  MAX_FINE_WEIGHT_GRAMS = BigDecimal("100000")
   METALS = %w[XAU XAG XPT XPD].freeze
   TICKER_PREFIX = "BULLION-".freeze
   CUSTOM_TICKER_PREFIX = "#{TICKER_PREFIX}CUSTOM-".freeze
@@ -13,7 +15,10 @@ class BullionSpec < ApplicationRecord
   delegate :name, to: :security, allow_nil: true
 
   validates :metal, inclusion: { in: METALS }
-  validates :fine_weight_grams, numericality: { greater_than: 0 }
+  # Stored with four decimals; rounding first keeps a weight that would round
+  # to zero, or overflow the column, a validation error instead of a crash.
+  before_validation { self.fine_weight_grams = fine_weight_grams.round(4) if fine_weight_grams.is_a?(Numeric) }
+  validates :fine_weight_grams, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FINE_WEIGHT_GRAMS }
   validates :catalog_key, :size_key, presence: true, unless: :custom?
   validates :catalog_key, :size_key, absence: true, if: :custom?
   validates :security_id, uniqueness: true

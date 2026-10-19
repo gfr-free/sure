@@ -32,7 +32,7 @@ class Trade::CreateForm
 
   # Coins and bars are counted in pieces, not shares.
   def self.bullion_trade_name(type, label, quantity, name)
-    pieces = ActiveSupport::NumberHelper.number_to_rounded(quantity, precision: 6, strip_insignificant_zeros: true)
+    pieces = ActiveSupport::NumberHelper.number_to_rounded(quantity, precision: 18, strip_insignificant_zeros: true)
     key = %w[buy sell].include?(type) ? type : "other"
     I18n.t("trades.bullion_trade_name.#{key}", label: label, qty: pieces, name: name)
   end

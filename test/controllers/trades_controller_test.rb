@@ -419,6 +419,49 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to account_url(@entry.account)
   end
 
+  test "a kilo bar bought as 1000 g lands on the same bar as one bought as 1 kg" do
+    [ [ "1", "kg" ], [ "1000", "g" ] ].each do |weight, unit|
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_choice: "product:gold_bar", bullion_weight: weight, bullion_weight_unit: unit,
+          date: Date.current, qty: 1, price: 120000, currency: "USD"
+        }
+      }
+    end
+
+    securities = Entry.order(created_at: :desc).limit(2).map { |entry| entry.trade.security }
+    assert_equal 1, securities.uniq.size
+    assert_equal BigDecimal("1000"), securities.first.bullion_spec.fine_weight_grams
+  end
+
+  test "many decimals are kept in quantity, price and the trade name" do
+    post trades_url(account_id: @entry.account_id), params: {
+      model: {
+        type: "buy", holding_kind: "bullion", bullion_choice: "product:krugerrand", bullion_size: "1oz",
+        date: Date.current, qty: "0.000000000123456789", price: "1234.56789", currency: "USD"
+      }
+    }
+
+    entry = Entry.order(created_at: :desc).first
+    assert_equal BigDecimal("0.000000000123456789"), entry.trade.qty
+    assert_equal BigDecimal("1234.56789"), entry.trade.price
+    assert_equal "Buy 0.000000000123456789 pcs of Krugerrand 1 oz", entry.name
+  end
+
+  test "a custom coin heavier than 100 kg is a form error, not a crash" do
+    assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_choice: BullionSpec::Choice::NEW_CUSTOM,
+          custom_bullion_name: "Typo", custom_bullion_metal: "XAU", custom_bullion_fine_grams: "123456789012345",
+          date: Date.current, qty: 1, price: 100, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
   test "a bar without a valid weight creates nothing" do
     assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
       post trades_url(account_id: @entry.account_id), params: {

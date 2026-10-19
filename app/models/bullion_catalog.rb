@@ -9,7 +9,7 @@ class BullionCatalog
   WEIGHT_UNITS = { "g" => BigDecimal("1"), "kg" => BigDecimal("1000"), "oz" => BullionSpec::TROY_OUNCE_GRAMS }.freeze
   # Large enough for any traded bar (the heaviest common ones are 12.5 kg gold
   # and 30 kg silver), small enough to catch a typo in the unit.
-  MAX_BAR_GRAMS = BigDecimal("100000")
+  MAX_BAR_GRAMS = BullionSpec::MAX_FINE_WEIGHT_GRAMS
 
   class UnknownProductError < StandardError; end
   class InvalidWeightError < StandardError; end
@@ -57,6 +57,12 @@ class BullionCatalog
       raise UnknownProductError, "#{product_key} is a coin; pick one of its sizes" unless product.bar?
 
       grams = bar_grams(weight, unit)
+      # A bar is told apart by metal and weight alone, so "1 kg" and "1000 g"
+      # are the same bar. Looking it up by weight also finds bars saved under
+      # an older size key such as "1kg".
+      existing = BullionSpec.catalog.where(catalog_key: product.key, fine_weight_grams: grams).order(:created_at).first
+      return existing.security if existing
+
       size = Size.new(key: bar_size_key(grams), label: bar_label(grams, locale: :en), fine_weight_grams: grams)
       find_or_create_security(product, size)
     end
@@ -74,8 +80,8 @@ class BullionCatalog
         weight = ticker.delete_prefix("#{ticker_stem(product)}-")
         next if weight == ticker
 
-        grams = weight[/\A(\d+(?:\.\d+)?)G\z/, 1]
-        return "#{product.display_name} #{bar_label(BigDecimal(grams))}" if grams
+        grams = bar_ticker_grams(weight)
+        return "#{product.display_name} #{bar_label(grams)}" if grams
       end
 
       nil
@@ -170,6 +176,14 @@ class BullionCatalog
         grams
       rescue ArgumentError, TypeError
         raise InvalidWeightError, "Invalid bar weight: #{weight.inspect}"
+      end
+
+      # "1000G" and the older size keys "1KG" and "1OZ" from a bar's ticker.
+      def bar_ticker_grams(weight)
+        amount, unit = weight.match(/\A(\d+(?:\.\d+)?)(G|KG|OZ)\z/)&.captures
+        return nil unless amount
+
+        (BigDecimal(amount) * WEIGHT_UNITS.fetch(unit.downcase)).round(4)
       end
 
       # Grams without trailing zeros: "100g", "31.1035g".

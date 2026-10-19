@@ -118,6 +118,26 @@ class BullionCatalogTest < ActiveSupport::TestCase
     assert_equal "2,5 g", BullionCatalog.bar_label(BigDecimal("2.5"), locale: :de)
   end
 
+  test "bar_security_for finds a bar saved under an older size key by its weight" do
+    # Before weights were entered freely, a kilo bar was saved with size key "1kg".
+    old_kilo = Security.create!(ticker: "BULLION-GOLD-BAR-1KG", name: "Gold bar 1 kg", **BullionSpec.security_attributes)
+    BullionSpec.create!(security: old_kilo, metal: "XAU", fine_weight_grams: 1000, catalog_key: "gold_bar", size_key: "1kg")
+    old_ounce = Security.create!(ticker: "BULLION-PLATINUM-BAR-1OZ", name: "Platinum bar 1 oz", **BullionSpec.security_attributes)
+    BullionSpec.create!(security: old_ounce, metal: "XPT", fine_weight_grams: BigDecimal("31.1035"), catalog_key: "platinum_bar", size_key: "1oz")
+
+    assert_no_difference [ "Security.count", "BullionSpec.count" ] do
+      assert_equal old_kilo, BullionCatalog.bar_security_for(:gold_bar, "1000", "g")
+      assert_equal old_kilo, BullionCatalog.bar_security_for(:gold_bar, "1", "kg")
+      assert_equal old_ounce, BullionCatalog.bar_security_for(:platinum_bar, "1", "oz")
+    end
+
+    I18n.with_locale(:de) do
+      assert_equal "Goldbarren 1 kg", old_kilo.name
+      assert_equal "Platinbarren 1 oz", old_ounce.name
+    end
+    assert_equal :bar, BullionCatalog.kind_for_ticker(old_kilo.ticker)
+  end
+
   test "catalogue security names follow the locale, custom coins keep theirs" do
     coin = BullionCatalog.security_for(:philharmonic, "1-2oz")
     bar = BullionCatalog.bar_security_for(:gold_bar, 1, "kg")

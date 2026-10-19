@@ -227,6 +227,23 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Buy 2 pcs of Maple Leaf 1 oz", entry.reload.name
   end
 
+  test "remap_bullion merges a coin into a bar the account already holds" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    bar = BullionCatalog.bar_security_for(:gold_bar, "100", "g")
+    coin_holding = @account.holdings.create!(security: coin, date: Date.current, qty: 2, price: 4000, amount: 8000, currency: "USD")
+    @account.holdings.create!(security: bar, date: Date.current, qty: 1, price: 12000, amount: 12000, currency: "USD")
+
+    patch remap_bullion_holding_path(coin_holding), params: {
+      model: { bullion_choice: "product:gold_bar", bullion_weight: "0.1", bullion_weight_unit: "kg" }
+    }
+
+    assert_redirected_to account_path(@account, tab: "holdings")
+    merged = @account.holdings.where(security: bar, date: Date.current)
+    assert_equal 1, merged.count
+    assert_equal BigDecimal("3"), merged.first.qty
+    assert_not @account.holdings.exists?(security: coin)
+  end
+
   test "remap_bullion can move a holding to a new custom coin" do
     old_coin = BullionCatalog.security_for(:krugerrand, "1oz")
     holding = @account.holdings.create!(security: old_coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")

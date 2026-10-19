@@ -35,6 +35,22 @@ class BullionSpecTest < ActiveSupport::TestCase
     end
   end
 
+  test "fine weight is kept to four decimals and must fit between zero and 100 kg" do
+    spec = BullionSpec.create_custom!(family: @family, name: "Ducat", metal: "XAU", fine_weight_grams: BigDecimal("3.44123456789"))
+    assert_equal BigDecimal("3.4412"), spec.reload.fine_weight_grams
+
+    assert_no_difference [ "Security.count", "BullionSpec.count" ] do
+      # Rounds to zero in the column, so it must not reach the database check.
+      assert_raises(ActiveRecord::RecordInvalid) do
+        BullionSpec.create_custom!(family: @family, name: "Tiny", metal: "XAU", fine_weight_grams: BigDecimal("0.00001"))
+      end
+      # Would overflow the column.
+      assert_raises(ActiveRecord::RecordInvalid) do
+        BullionSpec.create_custom!(family: @family, name: "Huge", metal: "XAU", fine_weight_grams: BigDecimal("123456789012345"))
+      end
+    end
+  end
+
   test "catalogue specs need catalogue keys and custom specs must not have them" do
     catalog_spec = BullionSpec.new(security: securities(:aapl), metal: "XAU", fine_weight_grams: 1)
     assert_not catalog_spec.valid?

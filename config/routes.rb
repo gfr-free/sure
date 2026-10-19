@@ -588,6 +588,22 @@ Rails.application.routes.draw do
   end
   get "bills_feed/:token", to: "bills_feeds#show", as: :bills_feed, defaults: { format: :ics }
 
+  # The contract register, a segment of Bills (docs/llm-guides/contracts.md).
+  resources :contracts do
+    collection do
+      get :overview
+    end
+
+    member do
+      get :payments
+      post :end_linked_bills
+    end
+
+    resource :ending, only: %i[new create destroy], controller: "contracts/endings"
+    resource :sharing, only: %i[show update], controller: "contracts/sharings"
+    resources :documents, only: %i[show create update destroy], controller: "contracts/documents"
+  end
+
   resources :recurring_occurrences, only: %i[show] do
     member do
       post :mark_paid

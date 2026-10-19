@@ -1,0 +1,4 @@
+phone_plan_shared_with_member:
+  contract: phone_plan
+  user: family_member
+  permission: read_only

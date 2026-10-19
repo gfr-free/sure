@@ -186,6 +186,14 @@ class ReportsController < ApplicationController
           collapsible: true
         },
         {
+          key: "contracts",
+          title: "reports.contracts.title",
+          partial: "reports/contracts",
+          locals: { report: contracts_report },
+          visible: contracts_report.present? && contracts_report.any?,
+          collapsible: true
+        },
+        {
           key: "transactions_breakdown",
           title: "reports.transactions_breakdown.title",
           partial: "reports/transactions_breakdown",
@@ -212,6 +220,15 @@ class ReportsController < ApplicationController
       end
 
       ordered_sections
+    end
+
+    # Behind the Bills gates, like the contract register it reports on.
+    def contracts_report
+      return @contracts_report if defined?(@contracts_report)
+      return @contracts_report = nil unless preview_features_enabled? && !Current.family.recurring_transactions_disabled?
+
+      @contracts_report = Contract::CostReport.new(family: Current.family, user: Current.user,
+                                                   start_date: @start_date, end_date: @end_date)
     end
 
     def validate_and_fix_date_range(show_flash: false)

@@ -231,10 +231,13 @@ class PdfImport < Import
     end
 
     result = response.data
-    update!(
-      ai_summary: result.summary,
-      document_type: result.document_type
-    )
+    attrs = { ai_summary: result.summary, document_type: result.document_type }
+    # A contract's terms are kept so the import page can offer to record it.
+    contract_terms = result.extracted_data.to_h.with_indifferent_access[:contract]
+    if result.document_type == "contract" && contract_terms.is_a?(Hash) && contract_terms.compact.any?
+      attrs[:extracted_data] = (extracted_data || {}).merge("contract" => contract_terms.to_h.stringify_keys)
+    end
+    update!(attrs)
 
     result
   end

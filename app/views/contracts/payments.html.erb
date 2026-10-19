@@ -1,0 +1,10 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title", name: @contract.name)) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with model: @contract, class: "space-y-4" do |f| %>
+      <p class="text-sm text-secondary"><%= t(".intro") %></p>
+      <%= render "contracts/bill_picker", contract: @contract, bills: @bills, selected_ids: @selected_bill_ids %>
+      <%= f.submit t(".save") if @bills.any? %>
+    <% end %>
+  <% end %>
+<% end %>

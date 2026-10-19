@@ -91,7 +91,27 @@ class Provider::Anthropic::PdfProcessor
         opening_balance: { type: [ "number", "null" ] },
         closing_balance: { type: [ "number", "null" ] },
         currency: { type: [ "string", "null" ] },
-        account_holder: { type: [ "string", "null" ] }
+        account_holder: { type: [ "string", "null" ] },
+        contract: {
+          type: [ "object", "null" ],
+          description: "Terms of an ongoing consumer contract, only for document_type contract. Never contract, policy or customer numbers.",
+          properties: {
+            name: { type: [ "string", "null" ] },
+            provider: { type: [ "string", "null" ] },
+            kind: { type: [ "string", "null" ], enum: Contract.kinds.keys + [ nil ] },
+            started_on: { type: [ "string", "null" ], description: "YYYY-MM-DD or null" },
+            minimum_term_months: { type: [ "integer", "null" ] },
+            notice_period_value: { type: [ "integer", "null" ] },
+            notice_period_unit: { type: [ "string", "null" ], enum: [ "days", "weeks", "months", nil ] },
+            notice_anchor: { type: [ "string", "null" ], enum: [ "end_of_term", "end_of_month", "any_day", nil ] },
+            renewal_period_months: { type: [ "integer", "null" ] },
+            renewal_anchor_on: { type: [ "string", "null" ], description: "Main due date, YYYY-MM-DD or null" },
+            ends_on: { type: [ "string", "null" ], description: "YYYY-MM-DD or null" },
+            premium_amount: { type: [ "number", "null" ] },
+            premium_frequency: { type: [ "string", "null" ], enum: [ "monthly", "quarterly", "semiannual", "annual", nil ] }
+          },
+          additionalProperties: false
+        }
       }
 
       {
@@ -140,6 +160,9 @@ class Provider::Anthropic::PdfProcessor
           - If a field is unclear/redacted, return null for it
           - Do not invent figures or names you cannot read
           - For statements with many transactions, return the count rather than enumerating them
+          - For an ongoing consumer contract (insurance, phone, internet, energy, gym, membership,
+            subscription, rent), fill extracted_data.contract with the terms you can read. Never
+            include contract, policy, customer or account numbers, names or addresses
       INSTRUCTIONS
     end
 

@@ -4,7 +4,14 @@ it:
     combobox:
       display: "%{symbol} - %{name} (%{exchange})"
       exchange_label: "%{symbol} (%{exchange})"
+    price_source:
+      assigned: "%{provider}"
+      default: "%{provider} (predefinito)"
+      offline: "%{provider} (offline)"
+      unavailable: "%{provider} (non disponibile)"
+      none: "Nessuna, prezzi dalla sincronizzazione del conto o dalle operazioni"
     providers:
+      unknown: "Sconosciuto"
       twelve_data: Twelve Data
       yahoo_finance: Yahoo Finance
       tiingo: Tiingo

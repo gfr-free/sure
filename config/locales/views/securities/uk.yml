@@ -4,7 +4,14 @@ uk:
     combobox:
       display: "%{symbol} - %{name} (%{exchange})"
       exchange_label: "%{symbol} (%{exchange})"
+    price_source:
+      assigned: "%{provider}"
+      default: "%{provider} (за замовчуванням)"
+      offline: "%{provider} (офлайн)"
+      unavailable: "%{provider} (недоступний)"
+      none: "Немає, ціни із синхронізації рахунку або угод"
     providers:
+      unknown: "Невідомо"
       twelve_data: "Twelve Data"
       yahoo_finance: "Yahoo Finance"
       tiingo: "Tiingo"

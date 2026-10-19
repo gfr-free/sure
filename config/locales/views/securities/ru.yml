@@ -4,7 +4,14 @@ ru:
     combobox:
       display: "%{symbol} - %{name} (%{exchange})"
       exchange_label: "%{symbol} (%{exchange})"
+    price_source:
+      assigned: "%{provider}"
+      default: "%{provider} (по умолчанию)"
+      offline: "%{provider} (офлайн)"
+      unavailable: "%{provider} (недоступен)"
+      none: "Нет, цены из синхронизации счёта или сделок"
     providers:
+      unknown: "Неизвестно"
       alpha_vantage: Alpha Vantage
       binance_public: Binance
       eodhd: EODHD

@@ -40,19 +40,35 @@ class RecurringAllocationsController < ApplicationController
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
 
-    RecurringTransaction::Allocator.new(occurrence).confirm_suggestion!(allocation)
-
-    redirect_with_return notice: t(".success")
+    if allocation.pending_review?
+      RecurringTransaction::Allocator.new(occurrence).confirm_posted!(allocation)
+      redirect_with_return notice: t("recurring_allocations.confirm_posted.success")
+    else
+      RecurringTransaction::Allocator.new(occurrence).confirm_suggestion!(allocation)
+      redirect_with_return notice: t(".success")
+    end
   end
 
+  # For an entry Sure posted overnight, "not this one" means the payment was
+  # not needed: the entry is deleted and the date skipped, rather than the
+  # pair being remembered as a bad match.
   def reject
     allocation = find_allocation
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
 
-    RecurringTransaction::Allocator.new(occurrence).reject_suggestion!(allocation)
-
-    redirect_with_return notice: t(".success")
+    if allocation.pending_review?
+      ensure_posted_entries_writable(allocation)
+      accounts = RecurringTransaction::Allocator.new(occurrence).discard_posted!(allocation)
+      accounts.each { |account| account.sync_later(window_start_date: allocation.paid_on) }
+      redirect_with_return notice: t("recurring_allocations.discard.success")
+    else
+      RecurringTransaction::Allocator.new(occurrence).reject_suggestion!(allocation)
+      redirect_with_return notice: t(".success")
+    end
+  rescue RecurringTransaction::Allocator::NotPendingReviewError
+    # A confirm in another tab won the race: the entry stays.
+    redirect_with alert: t("recurring_allocations.invalid")
   end
 
   private
@@ -72,6 +88,16 @@ class RecurringAllocationsController < ApplicationController
       series = occurrence.recurring_transaction
       return if series.account_id.nil?
       return if Account.writable_by(Current.user).where(id: series.account_id).exists?
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # Discarding deletes entries, on both accounts of a transfer, so the user
+    # must be able to write every account involved, not just the bill's.
+    def ensure_posted_entries_writable(allocation)
+      series = allocation.recurring_occurrence.recurring_transaction
+      account_ids = [ allocation.entry&.account_id, series.destination_account_id ].compact.uniq
+      return if Account.writable_by(Current.user).where(id: account_ids).count == account_ids.size
 
       raise ActiveRecord::RecordNotFound
     end

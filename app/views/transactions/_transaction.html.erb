@@ -124,6 +124,11 @@
                       <% end %>
                     <% end %>
 
+                    <%# Posted by an auto-posting bill %>
+                    <% if (auto_posted_allocation = @auto_posted_allocations&.[](entry.id)) %>
+                      <%= render "transactions/auto_posted", allocation: auto_posted_allocation, account_id: entry.account_id %>
+                    <% end %>
+
                     <%# Split indicator %>
                     <% if @split_parent_entry_ids ? @split_parent_entry_ids.include?(entry.id) : entry.split_parent? %>
                       <%= render DS::Pill.new(

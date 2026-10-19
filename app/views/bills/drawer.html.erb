@@ -30,6 +30,15 @@
                  href: smart_configuration_bill_path(@series),
                  data: { turbo_frame: :modal }) %>
           <% end %>
+          <% if @series.amount_fixed? && (@series.auto_post? || @series.auto_post_accounts_manual?) %>
+            <% menu.with_item(
+                 variant: "button",
+                 text: @series.auto_post? ? t("bills.show.auto_post_off") : t("bills.show.auto_post_on"),
+                 icon: "repeat",
+                 href: toggle_auto_post_recurring_transaction_path(@series),
+                 method: :post,
+                 frame: "_top") %>
+          <% end %>
           <% menu.with_item(
                variant: "button",
                text: @series.active? ? t("recurring_transactions.actions.pause") : t("recurring_transactions.actions.resume"),

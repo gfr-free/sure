@@ -17,6 +17,7 @@ class RecurringTransaction
   class Allocator
     class OverAllocationError < StandardError; end
     class MissingRateError < StandardError; end
+    class NotPendingReviewError < StandardError; end
 
     # Postgres keeps single-key and two-key advisory locks in separate spaces,
     # so this cannot collide with the single-key family locks the jobs take.
@@ -108,6 +109,40 @@ class RecurringTransaction
       end
     end
 
+    # The Poster's write path for an entry it just created for this very
+    # occurrence. Confirmed and auto-closed, so deleting the entry reopens the
+    # occurrence; it teaches the matcher nothing, since the entry's name and
+    # amount came from the series in the first place.
+    #
+    # A nightly post is `pending_review`: it counts as the payment straight
+    # away, so balances, forecasts and the bill's state stay right, but the
+    # user still confirms it or discards it. "Post now" is the user's own
+    # click and needs no review.
+    def allocate_posted!(entry:, pending_review: false)
+      occurrence.with_lock do
+        with_entry_lock(entry) do
+          allocated, source_amount, source_currency = resolve_amounts(nil, entry)
+          guard_entry_capacity!(entry, source_amount)
+          freeze_expected_amount!
+
+          allocation = occurrence.allocations.create!(
+            entry: entry,
+            allocated_amount: allocated,
+            currency: occurrence.currency,
+            source_amount: source_amount,
+            source_currency: source_currency,
+            state: "confirmed",
+            source: "auto_posted",
+            pending_review: pending_review,
+            paid_on: entry.date
+          )
+
+          refresh_close_state!
+          allocation
+        end
+      end
+    end
+
     # Accepting a suggestion makes it a real payment.
     def confirm_suggestion!(allocation)
       occurrence.with_lock do
@@ -115,6 +150,36 @@ class RecurringTransaction
           freeze_expected_amount!
           allocation.update!(state: "confirmed", source: "user_confirmed")
           refresh_close_state!
+        end
+      end
+    end
+
+    # The user keeps a posted entry as it is. A second click is a no-op.
+    def confirm_posted!(allocation)
+      occurrence.with_lock do
+        allocation.reload
+        allocation.update!(pending_review: false) if allocation.pending_review?
+      end
+    end
+
+    # The user says a posted payment was not needed this time: the entry goes
+    # (both legs for a transfer), and the date is skipped unless another
+    # payment is recorded on it. Checked again under the lock, so a confirm
+    # that won the race is never undone. Returns the accounts whose balances
+    # need a resync.
+    def discard_posted!(allocation)
+      occurrence.with_lock do
+        allocation.reload
+        raise NotPendingReviewError unless allocation.pending_review?
+
+        with_entry_lock(allocation.entry) do
+          entries = posted_entries(allocation.entry)
+          allocation.destroy!
+          entries.each(&:destroy!)
+
+          refresh_close_state!
+          occurrence.skip! if occurrence.scheduled? && occurrence.allocations.none?
+          entries.map(&:account).uniq
         end
       end
     end
@@ -172,6 +237,16 @@ class RecurringTransaction
     end
 
     private
+      # The entry itself, plus the other leg when it is half of a transfer.
+      def posted_entries(entry)
+        return [] if entry.nil?
+
+        transfer = entry.entryable.try(:transfer)
+        return [ entry ] if transfer.nil?
+
+        [ transfer.outflow_transaction&.entry, transfer.inflow_transaction&.entry ].compact.uniq
+      end
+
       # Serializes every write touching this entry, whichever occurrence it
       # targets. Always taken inside the occurrence row lock, so the ordering is
       # occurrence then entry and no pair can deadlock.

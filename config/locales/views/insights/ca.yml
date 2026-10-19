@@ -43,6 +43,7 @@ ca:
         other: Últims %{count} dies
       date_range: Del %{from} al %{to}
     figures:
+      percent: "%{value} %"
       vs_previous: vs. el mes anterior
       today: avui
       on_pace: al ritme actual

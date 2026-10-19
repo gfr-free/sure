@@ -49,6 +49,7 @@ uk:
         many: Останні %{count} днів
       date_range: "З %{from} по %{to}"
     figures:
+      percent: "%{value} %"
       vs_previous: порівняно з попереднім місяцем
       today: сьогодні
       on_pace: за планом

@@ -29,7 +29,7 @@ de:
       contracts: Verträge
     index:
       title: Rechnungen
-      add_bill: Rechnung hinzufügen
-      add_income: Einkommen hinzufügen
+      add_bill: Neue Rechnung
+      add_income: Neues Einkommen
       review_with_ai: Mit KI prüfen
       notices_heading: Änderungen

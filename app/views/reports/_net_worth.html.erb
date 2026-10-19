@@ -38,6 +38,20 @@
     </div>
   </div>
 
+  <%# Field the chart and tables group accounts by (preview) %>
+  <% if preview_features_enabled? && net_worth_metrics[:grouping] %>
+    <%= styled_form_with url: update_net_worth_grouping_reports_path, method: :patch,
+          class: "flex justify-end",
+          data: { controller: "auto-submit-form" } do |form| %>
+      <div class="w-full sm:w-64">
+        <%= form.select :net_worth_grouping,
+              AccountGrouping::DIMENSIONS.map { |key| [ AccountGrouping.dimension_label(key, user: Current.user), key ] },
+              { label: t("reports.net_worth.group_by"), selected: net_worth_metrics[:grouping] },
+              { data: { auto_submit_form_target: "auto" } } %>
+      </div>
+    <% end %>
+  <% end %>
+
   <%# Net Worth Over Time chart %>
   <% breakdown_series = net_worth_metrics[:breakdown_series] %>
   <% if breakdown_series && breakdown_series[:values].size >= 2 %>

@@ -29,6 +29,19 @@ class ReportsController < ApplicationController
     end
   end
 
+  # Saves the field the net worth section groups accounts by and returns to
+  # the report. Preview-only for now; unknown keys fall back to the account
+  # type.
+  def update_net_worth_grouping
+    if Current.user.preview_features_enabled?
+      dimension = params[:net_worth_grouping].to_s
+      dimension = AccountGrouping::DEFAULT_PRIMARY unless AccountGrouping.valid_dimension?(dimension)
+      Current.user.update_reports_preferences("reports_net_worth_grouping" => dimension)
+    end
+
+    redirect_back_or_to reports_path, status: :see_other
+  end
+
   def export_transactions
     @period_type = params[:period_type]&.to_sym || :monthly
     @start_date = parse_date_param(:start_date) || default_start_date
@@ -641,29 +654,39 @@ class ReportsController < ApplicationController
       net_worth_series = balance_sheet.net_worth_series(period: @period)
       trend = net_worth_series&.trend
 
-      # Get asset and liability groups for breakdown
-      asset_groups = balance_sheet.assets.account_groups.map do |group|
+      # Get asset and liability groups for breakdown, by account type or the
+      # field the user picked in the report
+      grouping = net_worth_grouping
+
+      asset_groups = balance_sheet.assets.account_groups(by: grouping, user: Current.user).map do |group|
         { name: group.name, total: Money.new(group.total, currency) }
       end.reject { |g| g[:total].zero? }
 
-      liability_groups = balance_sheet.liabilities.account_groups.map do |group|
+      liability_groups = balance_sheet.liabilities.account_groups(by: grouping, user: Current.user).map do |group|
         { name: group.name, total: Money.new(group.total, currency) }
       end.reject { |g| g[:total].zero? }
 
       # Monthly net worth series with per-account-group breakdown for the chart
       breakdown_series = BalanceSheet::NetWorthBreakdownSeriesBuilder
         .new(Current.family, user: Current.user)
-        .breakdown_series(period: @period)
+        .breakdown_series(period: @period, group_by: grouping)
 
       {
         current_net_worth: Money.new(current_net_worth, currency),
         total_assets: Money.new(total_assets, currency),
         total_liabilities: Money.new(total_liabilities, currency),
         trend: trend,
+        grouping: grouping,
         asset_groups: asset_groups,
         liability_groups: liability_groups,
         breakdown_series: breakdown_series
       }
+    end
+
+    def net_worth_grouping
+      return AccountGrouping::DEFAULT_PRIMARY unless Current.user.preview_features_enabled?
+
+      Current.user.reports_net_worth_grouping
     end
 
     def apply_transaction_filters(scope)

@@ -18,6 +18,7 @@ class Rule < ApplicationRecord
   # Rules run top to bottom. created_at breaks ties, e.g. for rules created at
   # the same moment before anyone reordered them.
   scope :ordered, -> { order(:position, :created_at, :id) }
+  scope :applied_immediately, -> { where(active: true, apply_immediately: true) }
 
   validates :resource_type, presence: true, if: -> { resource_type.to_s.valid_encoding? }
   validates :name, length: { minimum: 1 }, allow_nil: true, if: -> { name.to_s.valid_encoding? }
@@ -170,6 +171,27 @@ class Rule < ApplicationRecord
     else
       total_modified
     end
+  end
+
+  # Runs the "apply immediately" rules for transactions a person just created
+  # or changed (web, bulk edit, API, assistant). Families without such rules
+  # enqueue nothing. Best-effort: the change is already saved and the nightly
+  # run applies the rules anyway, so a failed enqueue must not fail the request.
+  # Callers inside a database transaction call this after it, so the enqueue
+  # is not deferred to an after-commit callback outside this rescue.
+  def self.apply_immediately_later(family, transaction_ids)
+    transaction_ids = Array(transaction_ids).compact.uniq
+    return if transaction_ids.empty? || !family.rules.applied_immediately.exists?
+
+    # perform_later returns false instead of raising when the adapter
+    # refuses the job (see RulesController#enqueue_clear_ai_cache).
+    return if ApplyImmediateRulesJob.perform_later(family, transaction_ids: transaction_ids)
+
+    Rails.logger.error("Rule.apply_immediately_later could not enqueue ApplyImmediateRulesJob for family #{family.id}")
+    nil
+  rescue StandardError => e
+    Rails.logger.error("Rule.apply_immediately_later failed for family #{family.id}: #{e.class}: #{e.message}")
+    nil
   end
 
   def apply_later(ignore_attribute_locks: false)

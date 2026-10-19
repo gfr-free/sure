@@ -1,0 +1,21 @@
+<%# locals: (account:, contracts:) %>
+<%# Contracts related to this account (the car's insurance, the flat's rent)
+    that the viewer may see. %>
+<div class="bg-container rounded-xl shadow-border-xs">
+  <ul class="divide-y divide-subdued">
+    <% costs = Contract.annual_costs_for(contracts, Current.user) %>
+    <% contracts.each do |contract| %>
+      <li>
+        <%= link_to contract_path(contract), class: "group flex items-center gap-3 px-4 py-3 hover:bg-surface-hover focus-ring", data: { turbo_frame: "_top" } do %>
+          <%= contract_avatar(contract) %>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-primary truncate group-hover:underline"><%= contract.name %></p>
+            <p class="text-xs text-secondary truncate"><%= contract_kind_label(contract.kind) %> &middot; <%= contract.provider_display_name %></p>
+          </div>
+          <p class="hidden sm:block text-sm text-secondary privacy-sensitive"><%= contract_annual_cost(costs.fetch(contract.id, [ nil, 0 ])) %></p>
+          <%= contract_status_pill(contract) %>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+</div>

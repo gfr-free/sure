@@ -8,6 +8,7 @@
       <%= form_with url: new_recurring_transaction_path, method: :get, data: { turbo_frame: :modal } do %>
         <%= hidden_field_tag :picker, "1" %>
         <%= hidden_field_tag(:income, "1") if @is_income %>
+        <%= hidden_field_tag(:contract_id, bill_dialog_params[:contract_id]) if bill_dialog_params[:contract_id] %>
         <%= render DS::SearchInput.new(
               name: "q",
               value: @picker_query,
@@ -30,7 +31,7 @@
       <% end %>
 
       <%= link_to t(".back"),
-            new_recurring_transaction_path(income: @is_income ? "1" : nil),
+            new_recurring_transaction_path(**bill_dialog_params),
             class: "block text-sm text-secondary hover:text-primary" %>
     </div>
   <% end %>

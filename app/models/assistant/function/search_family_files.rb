@@ -111,10 +111,14 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
 
     Rails.logger.debug("[SearchFamilyFiles] #{results.size} chunk(s) returned")
 
+    # Filtered before logging, so hits from private contract documents never
+    # reach the logs; no content preview either.
+    results = results_visible_to_user(results)
+
     results.each_with_index do |r, i|
       Rails.logger.debug(
         "[SearchFamilyFiles] chunk[#{i}] score=#{r[:score]} file=#{r[:filename].inspect} " \
-        "content_length=#{r[:content]&.length} preview=#{r[:content]&.truncate(10).inspect}"
+        "content_length=#{r[:content]&.length}"
       )
     end
 
@@ -150,6 +154,38 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
   end
 
   private
+    # The document store is per family, but a contract document is private to
+    # the contract's owner and shares. Hits from a contract the user cannot see
+    # are dropped here; everything else keeps its family-wide visibility.
+    # A contract file whose contract document is already deleted or opted out
+    # of search (its removal from the store may still be pending) is dropped
+    # as well. Every upload leaves a local record, so a hit without one is an
+    # orphaned copy (an interrupted upload) and is dropped too.
+    def results_visible_to_user(results)
+      file_ids = results.filter_map { |result| result[:file_id] }.uniq
+      return [] if file_ids.empty?
+
+      contract_by_file = ContractDocument.joins(:family_document, :contract)
+                                         .where(family_documents: { family_id: family.id, provider_file_id: file_ids })
+                                         .where(ai_searchable: true)
+                                         .pluck("family_documents.provider_file_id", "contract_documents.contract_id")
+                                         .to_h
+      contract_files = family.family_documents.where(provider_file_id: file_ids)
+                                              .where("metadata ->> 'type' = ?", "contract")
+                                              .pluck(:provider_file_id)
+      known_files = family.family_documents.where(provider_file_id: file_ids).pluck(:provider_file_id).to_set
+      results = results.select { |result| known_files.include?(result[:file_id]) }
+      return results if contract_by_file.empty? && contract_files.empty?
+
+      visible = family.contracts.accessible_by(user).where(id: contract_by_file.values.uniq).pluck(:id).to_set
+      results.reject do |result|
+        contract_id = contract_by_file[result[:file_id]]
+        next !visible.include?(contract_id) if contract_id
+
+        contract_files.include?(result[:file_id])
+      end
+    end
+
     def langfuse_client
       return unless ENV["LANGFUSE_PUBLIC_KEY"].present? && ENV["LANGFUSE_SECRET_KEY"].present?
 

@@ -1,0 +1,25 @@
+---
+en:
+  contract_mailer:
+    notice_reminder:
+      subject: "Notice deadline for %{name}: %{date}"
+      heading: "Time to decide about %{name}"
+      intro: "To end %{name} on %{term_ends_on}, your notice has to arrive by %{deadline}. If you do nothing, it runs on."
+      days_left:
+        zero: "That is today."
+        one: "That is tomorrow."
+        other: "That is in %{count} days."
+      portal: "Customer portal:"
+      cta: "Open the contract"
+      footer: "You get this because you manage this contract. Switch off email reminders in the contract's settings."
+    price_guarantee_reminder:
+      subject: "Price guarantee for %{name} ends on %{date}"
+      heading: "The price guarantee for %{name} is ending"
+      intro: "The price guarantee for %{name} ends on %{date}. After that the provider may raise the price. Now is a good time to compare offers."
+      days_left:
+        zero: "That is today."
+        one: "That is tomorrow."
+        other: "That is in %{count} days."
+      portal: "Customer portal:"
+      cta: "Open the contract"
+      footer: "You get this because you manage this contract. Switch off email reminders in the contract's settings."

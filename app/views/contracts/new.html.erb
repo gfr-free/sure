@@ -1,0 +1,6 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title")) %>
+  <% dialog.with_body do %>
+    <%= render "form", contract: @contract, prefill_bill_ids: @prefill_bill_ids %>
+  <% end %>
+<% end %>

@@ -1,0 +1,69 @@
+---
+de:
+  activerecord:
+    models:
+      contract:
+        one: Vertrag
+        other: Verträge
+      contract_share: Vertragsfreigabe
+      contract_document: Vertragsdokument
+    attributes:
+      contract:
+        name: Name
+        kind: Art
+        status: Status
+        contract_number: Vertragsnummer
+        customer_number: Kundennummer
+        started_on: Vertragsbeginn
+        minimum_term_months: Mindestlaufzeit
+        notice_period_value: Kündigungsfrist
+        notice_period_unit: Einheit der Kündigungsfrist
+        notice_anchor: Kündigung zum
+        renewal_period_months: Verlängert sich um
+        renewal_anchor_on: Hauptfälligkeit
+        ends_on: Vertragsende
+        portal_url: Kundenportal
+        service_phone: Service-Telefon
+        service_email: Service-E-Mail
+        claims_phone: Schadenhotline
+        document_links: Dokument-Links
+        notes: Notizen
+        account: Verknüpftes Konto
+        merchant: Händler
+        owner: Eigentümer
+        replaced_by: Nachfolger
+        notice_not_required: Keine Kündigung nötig
+      contract_share:
+        user: Mitglied
+        permission: Berechtigung
+      contract_document:
+        file: Datei
+    errors:
+      models:
+        contract:
+          invalid_predecessor: "Wähle den ersetzten Vertrag aus der Liste."
+          attributes:
+            notice_period_value:
+              incomplete: "braucht eine Zahl und eine Einheit"
+            ends_on:
+              before_start: "darf nicht vor dem Vertragsbeginn liegen"
+            document_links:
+              invalid: "müssen gültige http://- oder https://-Adressen sein"
+              too_many: "dürfen höchstens %{count} Einträge haben"
+            details:
+              invalid_field: "hat einen ungültigen Wert für %{field}"
+            portal_url:
+              invalid: "muss eine gültige http://- oder https://-Adresse sein"
+        contract_share:
+          attributes:
+            user:
+              owner: "ist bereits Eigentümer dieses Vertrags"
+              other_family: "muss zur selben Familie gehören"
+            permission:
+              guest_read_only: "kann für Gäste nur Lesen sein"
+        contract_document:
+          too_many: "Ein Vertrag kann höchstens %{max} Dokumente enthalten"
+          attributes:
+            file:
+              too_large: "ist zu groß (maximal %{max_mb} MB)"
+              invalid_format: "hat ein nicht unterstütztes Format (%{file_format})"

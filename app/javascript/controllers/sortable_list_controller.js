@@ -34,10 +34,19 @@ export default class extends Controller {
     this.keyboardGrabbedElement = null;
     this.holdTimer = null;
     this.holdActivated = false;
+
+    // A full page load or closing the tab skips disconnect(), so release
+    // the grab on pagehide too.
+    this.releaseGrab = () => this.releaseKeyboardGrab();
+    window.addEventListener("pagehide", this.releaseGrab);
   }
 
   disconnect() {
+    window.removeEventListener("pagehide", this.releaseGrab);
     this.cancelHold();
+    // An item still grabbed with the keyboard (e.g. Turbo navigation away)
+    // keeps the place it was moved to.
+    this.releaseKeyboardGrab();
   }
 
   // ===== Mouse Drag Events =====
@@ -449,6 +458,8 @@ export default class extends Controller {
     try {
       const response = await fetch(this.urlValue, {
         method: "PATCH",
+        // Lets the save finish when it is sent while the page unloads.
+        keepalive: true,
         headers,
         body: JSON.stringify(this.buildBody(order)),
       });
@@ -463,14 +474,20 @@ export default class extends Controller {
         // Show the order that is actually saved instead of the unsaved one,
         // e.g. when the list changed in another tab.
         this.pendingOrder = null;
-        Turbo.visit(window.location.href, { action: "replace" });
+        this.reloadIfStillShown();
       }
     } catch (error) {
       console.error("[Sortable List] Network error saving order:", error);
       // A newer order still gets sent; otherwise show what is actually saved.
-      if (!this.pendingOrder) {
-        Turbo.visit(window.location.href, { action: "replace" });
-      }
+      if (!this.pendingOrder) this.reloadIfStillShown();
+    }
+  }
+
+  // A save sent on the way out (see disconnect) can fail after the next page
+  // is shown; reloading then would reload that page, not this list.
+  reloadIfStillShown() {
+    if (this.element.isConnected) {
+      Turbo.visit(window.location.href, { action: "replace" });
     }
   }
 }

@@ -427,6 +427,19 @@ class Rule::ConditionTest < ActiveSupport::TestCase
     assert_equal paypal_entry.transaction.id, filtered.first.id
   end
 
+  test "transaction_details condition ignores the sync's exclusion note" do
+    entry = create_transaction(date: Date.current, account: @account, amount: 12, name: "Card hold")
+    entry.transaction.update!(
+      extra: { Entry::AUTO_MUTATION_KEY => { "action" => "excluded", "reason" => "stale_pending", "by" => "sync:enable_banking" } }
+    )
+
+    contains = Rule::Condition.new(rule: @transaction_rule, condition_type: "transaction_details", operator: "like", value: "stale_pending")
+    assert_not_includes contains.apply(contains.prepare(@rule_scope)).pluck(:id), entry.transaction.id
+
+    empty = Rule::Condition.new(rule: @transaction_rule, condition_type: "transaction_details", operator: "is_null", value: nil)
+    assert_includes empty.apply(empty.prepare(@rule_scope)).pluck(:id), entry.transaction.id
+  end
+
   test "applies transaction_details condition with equal operator case-sensitive" do
     scope = @rule_scope
 

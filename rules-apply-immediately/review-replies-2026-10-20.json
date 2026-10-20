@@ -1,16 +1,46 @@
 {
   "4346": [
-    {"thread": "PRRT_kwDOPRMXr86uU-z6", "body": "Fixed in 2affeb90b. The read, duplicate check and save of an append now run inside `Entry.transaction` with `entry.lock!`, which also reloads the entry, so an edit committed in between (including one that locks the notes) is seen instead of overwritten. `entry.with_lock` isn't usable here: `Entry#transaction` is the delegated-type reader, so `with_lock` never yields. New test `append_transaction_notes builds on notes saved after the entry was loaded` fails without the fix."}
+    {
+      "thread": "PRRT_kwDOPRMXr86uU-z6",
+      "body": "Fixed in 2affeb90b. The read, duplicate check and save of an append now run inside `Entry.transaction` with `entry.lock!`, which also reloads the entry, so an edit committed in between (including one that locks the notes) is seen instead of overwritten. `entry.with_lock` isn't usable here: `Entry#transaction` is the delegated-type reader, so `with_lock` never yields. New test `append_transaction_notes builds on notes saved after the entry was loaded` fails without the fix. Follow-up b126e19de: since `lock!` reloads, a transaction deleted after the scope was loaded is now skipped instead of failing the rule run."
+    }
   ],
   "4347": [
-    {"thread": "PRRT_kwDOPRMXr86uVB_y", "body": "Fixed in 2f9cfd929. `Entry#rule_input_snapshot` is taken before the edit and `apply_immediate_rules_later(changed_from:)` only enqueues when the transaction's values or tags actually changed. A PATCH whose permitted params are empty therefore runs no rules. Test: `an update reduced to nothing by the account permission runs no immediate rules`."},
-    {"thread": "PRRT_kwDOPRMXr86uVB_4", "body": "Fixed in 2f9cfd929. `Rule#matching_scope(within_ids:)` adds the id restriction before a regex condition is resolved, and the runner passes `transaction_ids` there instead of filtering afterwards. Test: `matching_scope resolves a pattern only within the given transactions`."},
-    {"thread": "PRRT_kwDOPRMXr86uVCAC", "body": "Fixed in 2f9cfd929. The job now offers the toast only when a run already modified something; a run with AI actions that is still pending offers it from `RuleRun#complete_job!` once its last job finished and changed something (immediate runs only). Tests in `rule_run_test.rb`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNii", "body": "Fixed in 2f9cfd929 with one mechanism for every trigger: a snapshot of the entry, the transaction and its tag ids (read from the database) before the update, compared afterwards, so nested transaction changes and tag-only updates count and same-value updates don't. `@transaction` stays assigned for rendering. Test: `an API update that changes nothing runs no immediate rules`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNip", "body": "Fixed in 2f9cfd929, same snapshot comparison in `update`. Test: `an update that changes nothing runs no immediate rules`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNit", "body": "Fixed in 2f9cfd929. Tags are compared before and after, so re-sending the same set runs nothing; a real toggle still enqueues. Tests: `setting the same tags again runs no immediate rules`, `toggling a tag runs immediate rules`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNi2", "body": "Fixed in 2f9cfd929. `Entry.bulk_update!` now yields each transaction entry whose values actually changed; the controller collects those from both partitions and passes only them. The returned count is unchanged. Test: `bulk update runs immediate rules only on transactions it changed`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNi7", "body": "Fixed in 2f9cfd929 through the same `bulk_update!` block, so a transaction that already had the category is left out (both bulk categorize and assign_entry). Test: `create runs immediate rules only on transactions whose category changed`."},
-    {"thread": "PRRT_kwDOPRMXr86uVNjH", "body": "Fixed in 2f9cfd929, snapshot taken before `update!` and compared after, tags included. Test: `an update that changes nothing runs no immediate rules`."}
+    {
+      "thread": "PRRT_kwDOPRMXr86uVB_y",
+      "body": "Fixed in 2f9cfd929. `Entry#rule_input_snapshot` is taken before the edit and `apply_immediate_rules_later(changed_from:)` only enqueues when the transaction's values or tags actually changed. A PATCH whose permitted params are empty therefore runs no rules. Test: `an update reduced to nothing by the account permission runs no immediate rules`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVB_4",
+      "body": "Fixed in 2f9cfd929. `Rule#matching_scope(within_ids:)` adds the id restriction before a regex condition is resolved, and the runner passes `transaction_ids` there instead of filtering afterwards. Test: `matching_scope resolves a pattern only within the given transactions`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVCAC",
+      "body": "Fixed in 2f9cfd929. The job now offers the toast only when a run already modified something; a run with AI actions that is still pending offers it from `RuleRun#complete_job!` once its last job finished and changed something (immediate runs only). Tests in `rule_run_test.rb`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNii",
+      "body": "Fixed in 2f9cfd929 with one mechanism for every trigger: a snapshot of the entry, the transaction and its tag ids (read from the database) before the update, compared afterwards, so nested transaction changes and tag-only updates count and same-value updates don't. `@transaction` stays assigned for rendering. Test: `an API update that changes nothing runs no immediate rules`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNip",
+      "body": "Fixed in 2f9cfd929, same snapshot comparison in `update`. Test: `an update that changes nothing runs no immediate rules`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNit",
+      "body": "Fixed in 2f9cfd929. Tags are compared before and after, so re-sending the same set runs nothing; a real toggle still enqueues. Tests: `setting the same tags again runs no immediate rules`, `toggling a tag runs immediate rules`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNi2",
+      "body": "Fixed in 2f9cfd929. `Entry.bulk_update!` now yields each transaction entry whose values actually changed; the controller collects those from both partitions and passes only them. The returned count is unchanged. Test: `bulk update runs immediate rules only on transactions it changed`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNi7",
+      "body": "Fixed in 2f9cfd929 through the same `bulk_update!` block, so a transaction that already had the category is left out (both bulk categorize and assign_entry). Test: `create runs immediate rules only on transactions whose category changed`."
+    },
+    {
+      "thread": "PRRT_kwDOPRMXr86uVNjH",
+      "body": "Fixed in 2f9cfd929, snapshot taken before `update!` and compared after, tags included. Test: `an update that changes nothing runs no immediate rules`."
+    }
   ]
 }

@@ -4,7 +4,7 @@ require "ostruct"
 class DestroyJobTest < ActiveJob::TestCase
   test "destroys the model" do
     model = mock
-    model.expects(:destroy).once
+    model.expects(:destroy).once.returns(true)
 
     DestroyJob.perform_now(model)
   end
@@ -135,6 +135,56 @@ class DestroyJobTest < ActiveJob::TestCase
     assert_no_difference -> { DebugLogEntry.count } do
       DestroyJob.perform_now(account)
     end
+  end
+
+  test "a destroy that a callback aborts is recorded and resets the flag" do
+    item = plaid_items(:one)
+    item.update_column(:scheduled_for_deletion, true)
+    item.stubs(:destroy).returns(false)
+
+    assert_difference -> { DebugLogEntry.where(source: "DestroyJob").count }, 1 do
+      DestroyJob.perform_now(item)
+    end
+
+    assert_equal "ActiveRecord::RecordNotDestroyed", DebugLogEntry.recent.first.metadata["error_class"]
+    assert_not item.reload.scheduled_for_deletion?
+  end
+
+  test "a deadlock is retried instead of failing the deletion" do
+    item = plaid_items(:one)
+    item.update_column(:scheduled_for_deletion, true)
+    item.stubs(:destroy).raises(ActiveRecord::Deadlocked, "deadlock detected")
+
+    assert_no_difference -> { DebugLogEntry.count } do
+      assert_enqueued_with(job: DestroyJob, args: [ item ]) do
+        DestroyJob.perform_now(item)
+      end
+    end
+
+    assert item.reload.scheduled_for_deletion?
+  end
+
+  test "an account whose destroy deadlocks once is deleted on the retry" do
+    account = accounts(:depository)
+    account.mark_for_deletion!
+    Account.any_instance.stubs(:cleanup_transfers).raises(ActiveRecord::Deadlocked, "deadlock detected").then.returns(nil)
+
+    assert_difference "Account.count", -1 do
+      perform_enqueued_jobs { DestroyJob.perform_later(account) }
+    end
+  end
+
+  test "a deadlock that outlasts the retries is recorded and resets the flag" do
+    item = plaid_items(:one)
+    item.update_column(:scheduled_for_deletion, true)
+    PlaidItem.any_instance.stubs(:destroy).raises(ActiveRecord::Deadlocked, "deadlock detected")
+
+    assert_difference -> { DebugLogEntry.where(source: "DestroyJob").count }, 1 do
+      perform_enqueued_jobs { DestroyJob.perform_later(item) }
+    end
+
+    assert_equal "ActiveRecord::Deadlocked", DebugLogEntry.recent.first.metadata["error_class"]
+    assert_not item.reload.scheduled_for_deletion?
   end
 
   test "inherits the deferred-enqueue policy from ApplicationJob" do

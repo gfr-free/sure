@@ -265,4 +265,104 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("splits.destroy.success"), flash[:notice]
     refute @entry.reload.excluded?
   end
+
+  test "edit carries a split's own merchant so update keeps it" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+    changed = @entry.child_entries.find_by(name: "Part 1")
+    changed.entryable.update!(merchant: merchants(:netflix))
+    changed.entryable.lock_attr!(:merchant_id)
+
+    other = @entry.child_entries.find_by(name: "Part 2")
+    other.entryable.update!(merchant: merchants(:one))
+
+    get edit_transaction_split_path(@entry)
+
+    assert_select "input[type=hidden][name$='[merchant_id]']", count: 2
+    assert_select "input[type=hidden][name$='[merchant_id]'][value=?]", merchants(:netflix).id
+    assert_select "input[type=hidden][name$='[merchant_id]'][value=?]", merchants(:one).id
+  end
+
+  test "edit leaves out the merchant of splits that inherit it" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    get edit_transaction_split_path(@entry)
+
+    assert_select "input[type=hidden][name$='[merchant_id]']", count: 0
+  end
+
+  test "update keeps a split's own merchant and gives other splits the parent's" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: merchants(:netflix).id },
+          { name: "Part 2", amount: "-40", category_id: "" }
+        ]
+      }
+    }
+
+    assert_redirected_to transactions_url
+    children = @entry.reload.child_entries.index_by(&:name)
+    assert_equal merchants(:netflix), children["Part 1"].entryable.merchant
+    assert children["Part 1"].entryable.locked?(:merchant_id)
+    assert_equal merchants(:amazon), children["Part 2"].entryable.merchant
+  end
+
+  test "update keeps a split whose merchant the user cleared without a merchant" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: "" },
+          { name: "Part 2", amount: "-40", category_id: "" }
+        ]
+      }
+    }
+
+    children = @entry.reload.child_entries.index_by(&:name)
+    assert_nil children["Part 1"].entryable.merchant
+    assert children["Part 1"].entryable.locked?(:merchant_id)
+    assert_equal merchants(:amazon), children["Part 2"].entryable.merchant
+  end
+
+  test "update ignores a merchant the user cannot use" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+    foreign_merchant = families(:empty).merchants.create!(name: "Foreign")
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: foreign_merchant.id },
+          { name: "Part 2", amount: "-40", category_id: "" }
+        ]
+      }
+    }
+
+    assert_redirected_to transactions_url
+    child = @entry.reload.child_entries.find_by(name: "Part 1")
+    assert_equal merchants(:amazon), child.entryable.merchant
+    refute child.entryable.locked?(:merchant_id)
+  end
 end

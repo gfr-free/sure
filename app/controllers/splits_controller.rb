@@ -50,8 +50,12 @@ class SplitsController < ApplicationController
     raw_splits = split_params[:splits]
     raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
+    merchant_ids = available_merchant_ids(raw_splits.map { |s| s[:merchant_id] })
+
     splits = raw_splits.map do |s|
-      { name: s[:name], amount: s[:amount].to_d * -1, category_id: s[:category_id].presence, excluded: s[:excluded] }
+      split = { name: s[:name], amount: s[:amount].to_d * -1, category_id: s[:category_id].presence, excluded: s[:excluded] }
+      split[:merchant_id] = s[:merchant_id].presence if s.key?(:merchant_id) && (s[:merchant_id].blank? || merchant_ids.include?(s[:merchant_id]))
+      split
     end
 
     Entry.transaction do
@@ -95,7 +99,19 @@ class SplitsController < ApplicationController
     end
 
     def split_params
-      params.require(:split).permit(splits: [ :name, :amount, :category_id, :excluded ])
+      params.require(:split).permit(splits: [ :name, :amount, :category_id, :merchant_id, :excluded ])
+    end
+
+    # The edit form carries a split's own merchant (or its explicit "none") so
+    # re-creating the splits keeps it. Accept only merchants already on one of
+    # the splits or belonging to the family.
+    def available_merchant_ids(merchant_ids)
+      merchant_ids = merchant_ids.compact_blank
+      return Set.new if merchant_ids.empty?
+
+      split_merchant_ids = Transaction.where(id: @entry.child_entries.select(:entryable_id), merchant_id: merchant_ids).pluck(:merchant_id)
+      family_merchant_ids = Current.family.merchants.where(id: merchant_ids).pluck(:id)
+      (split_merchant_ids + family_merchant_ids).to_set
     end
 
     def grouped_categories

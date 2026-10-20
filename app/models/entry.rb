@@ -470,7 +470,11 @@ class Entry < ApplicationRecord
 
   # Splits this entry into child entries. Marks parent as excluded.
   #
-  # @param splits [Array<Hash>] array of { name:, amount:, category_id:, excluded: } hashes
+  # A split given its own merchant_id key (nil means "no merchant") keeps it
+  # locked, so later merchant changes on the parent leave it alone; splits
+  # without the key inherit the parent's merchant.
+  #
+  # @param splits [Array<Hash>] array of { name:, amount:, category_id:, merchant_id:, excluded: } hashes
   # @return [Array<Entry>] the created child entries
   def split!(splits)
     total = splits.sum { |s| s[:amount].to_d }
@@ -480,10 +484,12 @@ class Entry < ApplicationRecord
 
     self.class.transaction do
       children = splits.map do |split_attrs|
+        own_merchant = split_attrs.key?(:merchant_id)
         child_transaction = Transaction.new(
           category_id: split_attrs[:category_id],
-          merchant_id: entryable.try(:merchant_id),
-          kind: entryable.try(:kind)
+          merchant_id: own_merchant ? split_attrs[:merchant_id].presence : entryable.try(:merchant_id),
+          kind: entryable.try(:kind),
+          locked_attributes: own_merchant ? { "merchant_id" => Time.current } : {}
         )
 
         child_entries.create!(

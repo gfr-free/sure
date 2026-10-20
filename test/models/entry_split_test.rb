@@ -221,4 +221,62 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_includes visible_entries.pluck(:id), non_excluded_child.id
     refute_includes visible_entries.pluck(:id), excluded_child.id
   end
+
+  test "split! uses a row's own merchant and locks it, falling back to the parent's" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+
+    children = @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil, merchant_id: merchants(:netflix).id },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    assert_equal merchants(:netflix), children.first.entryable.merchant
+    assert children.first.entryable.locked?(:merchant_id)
+    assert_equal merchants(:amazon), children.last.entryable.merchant
+    refute children.last.entryable.locked?(:merchant_id)
+  end
+
+  test "changing the parent's merchant passes it on to children the user has not changed" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+    inherited, changed = @entry.child_entries.order(:amount).reverse
+    changed.entryable.update!(merchant: merchants(:one))
+    changed.entryable.lock_attr!(:merchant_id)
+
+    @entry.entryable.update!(merchant: merchants(:netflix))
+
+    assert_equal merchants(:netflix), inherited.reload.entryable.merchant
+    assert_equal merchants(:one), changed.reload.entryable.merchant
+  end
+
+  test "changing the parent's merchant keeps a different merchant a child already has" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+    # e.g. set by a rule or an older import, without a lock
+    own = @entry.child_entries.find_by(name: "Part 1")
+    own.entryable.update!(merchant: merchants(:one))
+
+    @entry.entryable.update!(merchant: merchants(:netflix))
+
+    assert_equal merchants(:one), own.reload.entryable.merchant
+    assert_equal merchants(:netflix), @entry.child_entries.find_by(name: "Part 2").entryable.merchant
+  end
+
+  test "clearing the parent's merchant clears it on children the user has not changed" do
+    @entry.entryable.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    @entry.entryable.update!(merchant: nil)
+
+    assert @entry.child_entries.reload.all? { |child| child.entryable.merchant_id.nil? }
+  end
 end

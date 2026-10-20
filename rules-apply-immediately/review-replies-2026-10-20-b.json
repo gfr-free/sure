@@ -1,0 +1,4 @@
+{
+  "4347_thread_rule_run_rb_43": "Fixed in 649d127da. `RuleRun.offer_immediate_result` is best-effort now: a failing broadcast is rescued and logged with `Rails.logger.warn`, so neither `complete_job!` nor `ApplyImmediateRulesJob` fails and retries after the rules already ran. Test: `a failed result broadcast does not fail the job that finished the run`.",
+  "4346_pr_comment_nitpick": "@coderabbitai On the nitpick about taking the row lock in `append_transaction_notes.rb` even when nothing is missing: I'm keeping it as is. As you noted, checking before the lock would read the same stale notes the lock is there to avoid, and the cost is one short row lock per matched transaction inside a run that already writes per row."
+}

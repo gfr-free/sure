@@ -48,6 +48,71 @@ class DestroyJobTest < ActiveJob::TestCase
     end
   end
 
+  test "a failed account destroy is recorded in the debug log" do
+    account = accounts(:depository)
+    account.mark_for_deletion!
+    account.stubs(:cleanup_transfers).raises(StandardError, "destroy failed")
+
+    assert_difference -> { DebugLogEntry.count }, 1 do
+      DestroyJob.perform_now(account)
+    end
+
+    entry = DebugLogEntry.recent.first
+    assert_equal "background_jobs", entry.category
+    assert_equal "error", entry.level
+    assert_equal "DestroyJob", entry.source
+    assert_equal account, entry.account
+    assert_equal account.family, entry.family
+    assert_equal "Account", entry.metadata["record_type"]
+    assert_equal account.id, entry.metadata["record_id"]
+    assert_equal "StandardError", entry.metadata["error_class"]
+    assert_equal "destroy failed", entry.metadata["error_message"]
+  end
+
+  test "a failed provider item destroy is recorded in the debug log with its family" do
+    item = plaid_items(:one)
+    item.update_column(:scheduled_for_deletion, true)
+    item.stubs(:destroy).raises(StandardError, "destroy failed")
+
+    assert_difference -> { DebugLogEntry.where(family: item.family, source: "DestroyJob").count }, 1 do
+      DestroyJob.perform_now(item)
+    end
+
+    entry = DebugLogEntry.recent.first
+    assert_nil entry.account
+    assert_equal "PlaidItem", entry.metadata["record_type"]
+    assert_equal item.id, entry.metadata["record_id"]
+    assert_not item.reload.scheduled_for_deletion?
+  end
+
+  test "a failed family destroy is recorded against that family" do
+    family = families(:dylan_family)
+    family.stubs(:destroy).raises(StandardError, "destroy failed")
+
+    assert_difference -> { DebugLogEntry.where(family: family, source: "DestroyJob").count }, 1 do
+      DestroyJob.perform_now(family)
+    end
+  end
+
+  test "a failed destroy of a record without a family is still recorded" do
+    model = OpenStruct.new(scheduled_for_deletion: true)
+    model.stubs(:destroy).raises(ActiveRecord::RecordNotDestroyed.new("nope"))
+    model.stubs(:update!)
+
+    assert_difference -> { DebugLogEntry.where(family_id: nil, source: "DestroyJob").count }, 1 do
+      DestroyJob.perform_now(model)
+    end
+  end
+
+  test "a successful destroy writes no debug log entry" do
+    account = accounts(:depository)
+    account.mark_for_deletion!
+
+    assert_no_difference -> { DebugLogEntry.count } do
+      DestroyJob.perform_now(account)
+    end
+  end
+
   test "inherits the deferred-enqueue policy from ApplicationJob" do
     account = accounts(:depository)
     enqueued_mid_transaction = nil

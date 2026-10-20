@@ -36,13 +36,20 @@ class RecurringTransaction
     # After a schedule edit: drop the re-generatable future and rebuild it under
     # the new rules. Rows with payments or closed state are kept as they were.
     def regenerate_future!(through: nil)
-      series.recurring_occurrences
-            .open_status
-            .where("due_on >= ?", Date.current)
-            .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
-            .delete_all
+      regenerable = series.recurring_occurrences
+                          .open_status
+                          .where("due_on >= ?", Date.current)
+                          .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
+      # A date that already posted (its entry since deleted) must not post
+      # again if the new schedule keeps it, so its stamp carries over.
+      posted = regenerable.where.not(auto_posted_at: nil).pluck(:due_on, :auto_posted_at)
+      regenerable.delete_all
 
-      generate!(through: through)
+      created = generate!(through: through)
+      posted.each do |due_on, posted_at|
+        series.recurring_occurrences.where(due_on: due_on, auto_posted_at: nil).update_all(auto_posted_at: posted_at)
+      end
+      created
     end
 
     # Materializes a past window (catch-up/backfill). The caller decides what

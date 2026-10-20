@@ -5,7 +5,9 @@ class RecurringOccurrencesController < ApplicationController
 
   before_action :ensure_recurring_enabled
   before_action :set_occurrence
-  before_action :ensure_series_writable, only: %i[mark_paid skip reopen snooze override_amount]
+  before_action :ensure_series_writable, only: %i[mark_paid skip reopen snooze override_amount post_now]
+  before_action :ensure_destination_writable, only: :post_now
+  before_action :ensure_auto_post_destination_writable, only: %i[reopen snooze override_amount]
 
   # The dialog is delivered into the shared <turbo-frame id="modal"> (see
   # RecurringTransactionsController#edit for the two-frames trap).
@@ -17,6 +19,7 @@ class RecurringOccurrencesController < ApplicationController
     # The amount-nearness list is the fallback, so it must not repeat what the
     # ranked list promoted. The extra fetch keeps it full after subtraction.
     @other_entries = candidate_entries.reject { |entry| ranked_ids.include?(entry.id) }.first(FALLBACK_SHOWN)
+    @can_post_now = can_post_now?
 
     render layout: dialog_layout
   end
@@ -24,6 +27,16 @@ class RecurringOccurrencesController < ApplicationController
   def mark_paid
     allocator.mark_paid!
     redirect_after_action t(".success")
+  end
+
+  def post_now
+    entry = RecurringTransaction::Poster.new(Current.family).post_now!(@occurrence)
+
+    if entry
+      redirect_after_action t(".success", date: l(entry.date, format: :long))
+    else
+      redirect_after_action t(".failure"), alert: true
+    end
   end
 
   def skip
@@ -66,6 +79,38 @@ class RecurringOccurrencesController < ApplicationController
       series = @occurrence.recurring_transaction
       return if series.account_id.nil?
       return if Account.writable_by(Current.user).where(id: series.account_id).exists?
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # The drawer only offers the button when posting would work and the user
+    # may write every account it touches.
+    def can_post_now?
+      series = @occurrence.recurring_transaction
+      return false unless @occurrence.postable_now? && series_writable?(series.account_id)
+
+      !series.transfer? || series_writable?(series.destination_account_id)
+    end
+
+    def series_writable?(account_id)
+      Account.writable_by(Current.user).where(id: account_id).exists?
+    end
+
+    # A posted transfer writes into the destination account too, so posting
+    # one needs write access there, not only on the source.
+    def ensure_destination_writable
+      series = @occurrence.recurring_transaction
+      return unless series.transfer?
+      return if series_writable?(series.destination_account_id)
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # Reopening, snoozing or re-pricing a date of an auto-posting transfer
+    # decides what it books into the destination, so the same applies.
+    def ensure_auto_post_destination_writable
+      destination_id = @occurrence.recurring_transaction.auto_post_destination_account_id
+      return if destination_id.nil? || series_writable?(destination_id)
 
       raise ActiveRecord::RecordNotFound
     end

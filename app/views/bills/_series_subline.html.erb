@@ -1,0 +1,6 @@
+<%# The subline under a bill's name, with the "Automatic" pill for a series
+    that posts its own entries. %>
+<div class="flex items-center gap-1 min-w-0">
+  <p class="text-xs text-secondary truncate"><%= bills_series_subline(series) %></p>
+  <%= render "bills/auto_post_pill" if series.auto_post? %>
+</div>

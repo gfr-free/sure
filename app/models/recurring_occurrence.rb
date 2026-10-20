@@ -58,6 +58,13 @@ class RecurringOccurrence < ApplicationRecord
     Money.new(resolved_expected_amount, currency)
   end
 
+  # "Post now" can book this date: still open, nothing recorded against it,
+  # something to pay, and a series that may post at all. Poster#post_now!
+  # checks the same again under the row lock.
+  def postable_now?
+    scheduled? && allocations.none? && resolved_expected_amount.positive? && recurring_transaction.postable_now?
+  end
+
   # effective_due_on as SQL, for queries that select by it. GREATEST skips a
   # NULL snoozed_until the way compact does below.
   EFFECTIVE_DUE_ON_SQL = "GREATEST(recurring_occurrences.due_on, recurring_occurrences.snoozed_until)".freeze

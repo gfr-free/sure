@@ -15,9 +15,12 @@ class RecurringTransactionsController < ApplicationController
   # its preview gate like every other Bills surface. The actions that predate
   # Bills (index, toggle_status, destroy, update_settings, identify, cleanup)
   # keep their historical reach.
-  before_action :ensure_recurring_enabled, only: %i[new create edit update confirm dismiss]
-  before_action :set_recurring_transaction, only: %i[edit update toggle_status destroy confirm dismiss]
-  before_action :ensure_series_writable, only: %i[update toggle_status destroy confirm dismiss]
+  before_action :ensure_recurring_enabled, only: %i[new create edit update confirm dismiss toggle_auto_post]
+  before_action :set_recurring_transaction, only: %i[edit update toggle_status toggle_auto_post destroy confirm dismiss]
+  before_action :ensure_series_writable, only: %i[update toggle_status toggle_auto_post destroy confirm dismiss]
+  # Pausing, ending, deleting or switching auto-posting off write nothing into
+  # the destination, so only edits that shape the next post need it.
+  before_action :ensure_auto_post_destination_writable_for_edit, only: %i[update toggle_status]
 
   def index
     scope = Current.family.recurring_transactions
@@ -181,6 +184,7 @@ class RecurringTransactionsController < ApplicationController
   def update
     @recurring_transaction.assign_attributes(recurring_transaction_params)
     apply_editable_identity
+    ensure_auto_post_destination_writable
     apply_frequency_preset
 
     if @recurring_transaction.typed_installment? && @recurring_transaction.end_after_count.present?
@@ -225,6 +229,19 @@ class RecurringTransactionsController < ApplicationController
         redirect_back_or_to recurring_transactions_path
       end
     end
+  end
+
+  def toggle_auto_post
+    @recurring_transaction.auto_post = !@recurring_transaction.auto_post?
+    ensure_auto_post_destination_writable
+
+    if @recurring_transaction.errors.none? && @recurring_transaction.save
+      flash[:notice] = t(@recurring_transaction.auto_post? ? ".enabled" : ".disabled")
+    else
+      flash[:alert] = @recurring_transaction.errors.full_messages.to_sentence
+    end
+
+    redirect_back_or_to bill_path(@recurring_transaction)
   end
 
   def destroy
@@ -353,6 +370,16 @@ class RecurringTransactionsController < ApplicationController
     # account, so a read-only account share must not mutate the series.
     # Accountless series carry no account gate. Same contract as
     # RecurringOccurrencesController#ensure_series_writable.
+    # An auto-posting transfer books its next entries into the destination, so
+    # changing its amount, schedule or status needs write access there as well.
+    def ensure_auto_post_destination_writable_for_edit
+      destination_id = @recurring_transaction.auto_post_destination_account_id
+      return if destination_id.nil?
+      return if Account.writable_by(Current.user).where(id: destination_id).exists?
+
+      raise ActiveRecord::RecordNotFound
+    end
+
     def ensure_series_writable
       return if @recurring_transaction.account_id.nil?
       return if Account.writable_by(Current.user).where(id: @recurring_transaction.account_id).exists?
@@ -366,7 +393,7 @@ class RecurringTransactionsController < ApplicationController
     # raw permit.
     def recurring_transaction_params
       params.require(:recurring_transaction).permit(
-        :payment_url, :autopay, :notes, :bill_type, :category_id,
+        :payment_url, :autopay, :auto_post, :notes, :bill_type, :category_id,
         :renews_on, :trial_ends_on, :cancelled_on, :end_after_count,
         :frequency_preset, :frequency_day_of_month, :frequency_second_day_of_month,
         :frequency_weekday, :frequency_month_of_year, :frequency_interval, :frequency_interval_unit
@@ -377,7 +404,7 @@ class RecurringTransactionsController < ApplicationController
       params.require(:recurring_transaction).permit(
         :name, :amount, :currency, :account_id, :first_due_on, :frequency_preset,
         :frequency_interval, :frequency_interval_unit,
-        :payment_url, :autopay, :notes, :is_income
+        :payment_url, :autopay, :auto_post, :notes, :is_income
       )
     end
 
@@ -453,6 +480,17 @@ class RecurringTransactionsController < ApplicationController
           @recurring_transaction.errors.add(:account, :invalid)
         end
       end
+    end
+
+    # A posted transfer writes an entry into the destination too, so switching
+    # auto-posting on needs write access there, not only on the source that
+    # ensure_series_writable checks.
+    def ensure_auto_post_destination_writable
+      series = @recurring_transaction
+      return unless series.auto_post? && series.will_save_change_to_auto_post? && series.transfer?
+      return if Account.writable_by(Current.user).where(id: series.destination_account_id).exists?
+
+      series.errors.add(:auto_post, :destination_not_writable)
     end
 
     def apply_frequency_preset

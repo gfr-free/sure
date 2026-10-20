@@ -101,7 +101,7 @@
                 <%= render "bills/series_avatar", series: series %>
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium <%= bills_series_tone(series) %> truncate hover:underline"><%= series.display_name %></p>
-                  <p class="text-xs text-secondary truncate"><%= bills_series_subline(series) %></p>
+                  <%= render "bills/series_subline", series: series %>
                 </div>
                 <div class="shrink-0 text-right">
                   <p class="text-sm font-medium <%= bills_series_amount_tone(series) %> privacy-sensitive">
@@ -147,7 +147,7 @@
               <%= render "bills/series_avatar", series: series %>
               <div class="min-w-0">
                 <%= link_to series.display_name, bill_path(series), data: { turbo_frame: "drawer", turbo_prefetch: false, clickable_row_target: "link" }, class: "block truncate font-medium #{bills_series_tone(series)} hover:underline" %>
-                <p class="text-xs text-secondary truncate"><%= bills_series_subline(series) %></p>
+                <%= render "bills/series_subline", series: series %>
               </div>
             </div>
           <% end %>

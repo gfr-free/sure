@@ -13,3 +13,7 @@ de:
       success: Zahlung der Rechnung zugeordnet
     reject:
       success: Vorschlag abgelehnt. Diese Transaktion wird für diese Rechnung nicht mehr vorgeschlagen.
+    discard:
+      success: Buchung verworfen und der Termin der Rechnung übersprungen
+    confirm_posted:
+      success: Buchung bestätigt

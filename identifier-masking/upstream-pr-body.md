@@ -11,11 +11,11 @@ This is the follow-up to the shared `mask_last4` helper (#3826). It implements t
 - **`IdentifierMask`** (`app/models/identifier_mask.rb`): one masking rule for helpers and models. `ApplicationHelper#mask_last4` delegates to it. Sophtron (keeps its stored `****1234` format) and the Trade Republic connection card (strip spaces, hide values under 4 characters) reuse it with their own options.
 - **Setup and linking screens** use `mask_last4`: Enable Banking, Lunch Flow, Indexa Capital, Plaid (incl. the duplicate warning), Akahu, Fio (3 views + settings panel, bank code kept), Interactive Brokers, Trade Republic, Trading 212.
 - **Generated account names** use the masked number: Questrade, Indexa Capital, Fio, Interactive Brokers (`IbkrAccount.default_name`, also used by the Flex report parser that previously named the record after the bare id), Trade Republic, Trading 212.
-- **Data migration** `MaskAccountNumbersInGeneratedAccountNames`: rewrites provider records and their linked accounts only where the name ends with `(<full number>)`, ends with `Fio banka <number>`, or (IBKR provider record) equals the bare number. Renamed accounts without the number are untouched.
-- **Additional details**: `mask_extra_identifiers` masks every value under identifier-like keys (`iban`, `counter_iban`, `counter_edrpou`, `counter_account`, `other_account`, `account_number`, `routingNumber`, `sort_code`, `card_number`, `pan`, ...), matched on the key's final words so `counter_account_name`, `counter_account_type` or `account_number_last_4` stay readable. Applies to the raw dump and to SimpleFIN/Plaid structured rows. Fio's `<account>/<bank>` keeps the bank code.
-- **Notes**: Akahu keeps only the last 4 digits of the counterparty account; Mercury only keeps `details` when it is a plain string.
-- **Data migration** `RemoveMercuryRoutingDetailsFromNotes`: removes the trailing `details` hash from Mercury notes already stored and keeps the note in front of it. Notes the user edited (locked) are skipped. The details stay in the raw transactions payload.
-- **Indexa Capital**: drops the duplicate `account_number` column (same value as `indexa_capital_account_id`, which every lookup already uses; reversible migration). The column is ignored so the code runs before and after the migration; processes still on the previous release write it until they restart. The invalid-number error message is masked too.
+- **Data migration** `MaskAccountNumbersInGeneratedAccountNames`: rewrites provider records and their linked accounts only where the name ends with `(<full number>)`, ends with `Fio banka <number>`, or (IBKR provider record) equals the bare number. Renamed accounts without the number are untouched. It works in batches of 500 provider rows, joined to their linked accounts.
+- **Additional details**: `IdentifierMask.mask_identifiers` masks every value under identifier-like keys (`iban`, `counter_iban`, `counter_edrpou`, `counter_account`, `other_account`, `account_number`, `routingNumber`, `sort_code`, `card_number`, `pan`, ...), matched on the key's final words so `counter_account_name`, `counter_account_type` or `account_number_last_4` stay readable. Applies to the raw dump and to SimpleFIN/Plaid structured rows. Fio's `<account>/<bank>` keeps the bank code.
+- **Akahu**: `AkahuAccount#masked_account_number` (dashes dropped before masking) is used by the setup views; notes keep only the last 4 digits of the counterparty account. **Mercury** notes only keep `details` when it is a plain string.
+- **Data migration** `RemoveMercuryRoutingDetailsFromNotes`: removes the trailing `details` hash (only when it starts with one of Mercury's details keys) from Mercury notes already stored and keeps the note in front of it. Notes the user edited (locked), or that change while the migration runs, are skipped. The details stay in the raw transactions payload.
+- **Indexa Capital**: stops reading and writing the duplicate `account_number` column (same value as `indexa_capital_account_id`, which every lookup already uses) via `ignored_columns`. The column itself stays, so workers on the previous release can still write it during a rolling deploy; a later release can drop it. The invalid-number error message is masked too.
 - **Boundary documented and tested**: values of 4 characters or fewer are shown in full (`mask_last4("123")` is `•••123`), so the helper is for identifiers only, never for secrets.
 
 Deliberately unchanged, as the audit comment recommended: wallet address abbreviations, secret placeholders and the mobile money masker follow their own rules.
@@ -32,7 +32,7 @@ Transaction "Additional details" (Fio and Monobank counterparty, demo data):
 
 ## Effects on other processes
 
-- **Balances, syncs, matching:** none. Only display strings, generated names and Mercury notes change; lookups use the provider id columns, which keep the full value. The dropped Indexa column was never used for lookups.
+- **Balances, syncs, matching:** none. Only display strings, generated names and Mercury notes change; lookups use the provider id columns, which keep the full value.
 - **Account names:** existing default names change once (migration), so exports, reports and API output show the masked form afterwards. Providers that rebuild names on sync (Questrade, Trade Republic) now produce the masked form.
 - **Mercury notes:** existing unlocked notes lose the details hash once (migration); later syncs keep them that way.
 - **Rules:** rules match accounts by id, not by name, so they are unaffected.
@@ -47,5 +47,5 @@ Transaction "Additional details" (Fio and Monobank counterparty, demo data):
 ## Tests
 
 - New tests: `IdentifierMask`, helper short-input boundary, extras masking (incl. nested values and look-alike keys), generated names per provider, both data migrations, Akahu notes, Mercury notes, IBKR report parser.
-- Full suite on the branch merged with current `main`: 12460 runs, 0 failures, 0 errors.
+- Full suite on the branch merged with current `main`: 12467 runs, 0 failures, 0 errors.
 - RuboCop, erb_lint and Brakeman clean. No JavaScript changes.

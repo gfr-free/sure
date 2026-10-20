@@ -253,6 +253,18 @@ class Rule::ActionTest < ActiveSupport::TestCase
     assert_not_includes option_ids, foreign.id
   end
 
+  test "set_transaction_merchant keeps a saved merchant the current user can't see in the options" do
+    hidden = ProviderMerchant.create!(name: "Hidden provider merchant", source: "plaid")
+    @txn1.update!(merchant: hidden)
+
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_transaction_merchant", value: hidden.id)
+    Current.stubs(:user).returns(users(:family_member))
+
+    assert_not_includes action.executor.options.map(&:last), hidden.id
+    assert_includes action.options.map(&:last), hidden.id
+    assert_equal "Hidden provider merchant", action.value_display
+  end
+
   test "set_transaction_name" do
     new_name = "Renamed Transaction"
 

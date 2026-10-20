@@ -455,8 +455,10 @@ class Family < ApplicationRecord
   # available_merchants_for, recently unlinked merchants are left out, since a
   # rule that set one again would undo the unlink.
   def assignable_merchants_for(user)
-    provider_merchant_ids = assigned_merchants_for(user).where(type: "ProviderMerchant").select(:id)
-    Merchant.where(id: merchants.select(:id)).or(Merchant.where(id: provider_merchant_ids))
+    assigned_ids = Transaction.joins(:entry)
+      .where(entries: { account_id: accounts.accessible_by(user).select(:id) })
+      .select(:merchant_id)
+    Merchant.where(id: merchants.select(:id)).or(Merchant.where(type: "ProviderMerchant", id: assigned_ids))
   end
 
   def available_merchants_for(user)

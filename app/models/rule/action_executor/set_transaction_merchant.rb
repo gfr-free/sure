@@ -7,6 +7,11 @@ class Rule::ActionExecutor::SetTransactionMerchant < Rule::ActionExecutor
     family.assignable_merchants_for(Current.user).alphabetically.pluck(:name, :id)
   end
 
+  def option_for(value)
+    merchant = assignable_merchant(value)
+    [ merchant.name, merchant.id ] if merchant
+  end
+
   def claimed_attributes
     [ :merchant_id ]
   end

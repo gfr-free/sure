@@ -538,6 +538,13 @@ class FamilyTest < ActiveSupport::TestCase
     assert family.valid?
   end
 
+  test "stores an empty timezone from the settings form as nil" do
+    family = families(:dylan_family)
+    family.update!(timezone: "")
+
+    assert_nil family.reload.timezone
+  end
+
   test "does not re-validate an existing invalid timezone when saving unrelated changes" do
     family = families(:dylan_family)
     # Bypasses validations, simulating data that predates this validation --

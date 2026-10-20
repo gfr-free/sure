@@ -156,11 +156,17 @@ class HoldingCostBasisTest < ApplicationSystemTestCase
   test "unlocking the cost basis asks first and keeps the lock when cancelled" do
     @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_source: "manual", cost_basis_locked: true)
 
-    visit holding_path(@holding)
+    # The overwrite confirmation blurs its body; the next confirmation on the
+    # same page must not keep that blur.
+    open_cost_basis_editor
+    find(per_share_field).ancestor("form").click_on I18n.t("holdings.cost_basis_cell.save")
+    within("#confirm-dialog") { find("button[value=cancel]").click }
+
     click_on I18n.t("holdings.show.unlock_cost_basis")
     within "#confirm-dialog" do
       assert_text I18n.t("holdings.show.unlock_confirm_title")
       assert_no_selector "[data-confirm-dialog-target=subtitle].privacy-sensitive"
+      assert_selector "button[value=confirm]", text: I18n.t("layouts.shared.confirm_dialog.confirm"), visible: true
       find("button[value=cancel]").click
     end
     assert @holding.reload.cost_basis_locked?

@@ -5,6 +5,16 @@ import { Controller } from "@hotwired/stimulus";
 export default class extends Controller {
   static targets = ["title", "subtitle", "confirmButton"];
 
+  // The server renders the dialog with localized defaults; keep them for
+  // confirmations that leave out a title, body or button text.
+  connect() {
+    this.defaults = {
+      title: this.titleTarget.textContent.trim(),
+      body: this.subtitleTarget.textContent.trim(),
+      confirmText: this.confirmButtonTargets[0]?.textContent.trim(),
+    };
+  }
+
   handleConfirm(rawData) {
     const data = this.#normalizeRawData(rawData);
 
@@ -35,15 +45,14 @@ export default class extends Controller {
         button.setAttribute("hidden", true);
       }
 
-      button.textContent = data.confirmText || "Confirm";
+      button.textContent = data.confirmText || this.defaults.confirmText;
     });
 
-    this.titleTarget.textContent = data.title || "Are you sure?";
+    this.titleTarget.textContent = data.title || this.defaults.title;
     // Text, never HTML: bodies interpolate record names (merchants, accounts,
     // brokerages, tickers) that come from bank feeds, providers and other
     // family members, however the caller built the confirmation.
-    this.subtitleTarget.textContent =
-      data.body || "This action cannot be undone.";
+    this.subtitleTarget.textContent = data.body || this.defaults.body;
     // A body that names an amount opts in to the privacy-mode blur.
     this.subtitleTarget.classList.toggle(
       "privacy-sensitive",
@@ -57,7 +66,7 @@ export default class extends Controller {
       const parsed = JSON.parse(rawData);
 
       if (typeof parsed === "boolean") {
-        return { title: "Are you sure?" };
+        return {};
       }
 
       return parsed;

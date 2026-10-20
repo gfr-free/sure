@@ -114,15 +114,13 @@
                 <% if @holding.cost_basis_source.present? %>
                   <span class="text-xs text-secondary">(<%= @holding.cost_basis_source_label %>)</span>
                 <% end %>
-                <button type="button"
-                        class="ml-1"
-                        aria-label="<%= t(".edit_cost_basis") %>"
-                        aria-expanded="false"
-                        aria-controls="<%= dom_id(@holding, :drawer_cost_basis_editor) %>"
-                        data-action="click->drawer-cost-basis#toggle"
-                        data-drawer-cost-basis-target="opener">
-                  <%= icon "pencil", size: "xs", class: "text-secondary hover:text-primary" %>
-                </button>
+                <%= render DS::Button.new(
+                      variant: :icon,
+                      icon: "pencil",
+                      size: :sm,
+                      aria: { label: t(".edit_cost_basis"), expanded: "false", controls: dom_id(@holding, :drawer_cost_basis_editor) },
+                      data: { action: "click->drawer-cost-basis#toggle", drawer_cost_basis_target: "opener" }
+                    ) %>
               </dd>
             </div>
             <%# Inline cost basis editor (hidden by default) %>

@@ -25,6 +25,7 @@ pt-BR:
       missing_data: Dados em falta
     show:
       avg_cost_label: Custo Médio
+      edit_cost_basis: Editar custo médio
       current_market_price_label: Preço de Mercado Atual
       delete: Excluir
       delete_subtitle: Isso excluirá a posição e todas as suas negociações associadas

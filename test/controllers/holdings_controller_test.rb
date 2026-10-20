@@ -181,6 +181,7 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "dd span.privacy-sensitive", text: "$12.50"
     assert_select "dd.privacy-sensitive", text: "$125.00"
     assert_select "##{dom_id(@holding, :market_value)} dd.privacy-sensitive"
+    assert_select "li p.privacy-sensitive", text: /AAPL/
   end
 
   test "holding drawer names the cost basis pencil and tells whether its editor is open" do
@@ -315,5 +316,18 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to account_path(@holding.account, tab: "holdings")
     assert_equal "Yahoo Finance rate limit exceeded", flash[:alert]
+  end
+
+  test "sync_prices keeps the drawer's market value blurred in privacy mode" do
+    Security.any_instance.stubs(:import_provider_prices).returns([ 31, nil ])
+    Security.any_instance.stubs(:import_provider_details)
+    Balance::Materializer.any_instance.stubs(:materialize_balances)
+
+    post sync_prices_holding_path(@holding), as: :turbo_stream
+
+    assert_response :success
+    assert_select "turbo-stream[target=#{dom_id(@holding, :market_value)}] template" do |templates|
+      assert_includes templates.first.inner_html, %(<dd class="text-primary privacy-sensitive">)
+    end
   end
 end

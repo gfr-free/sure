@@ -28,15 +28,15 @@ class ExchangeRate::ImportLockTest < ActiveSupport::TestCase
     # Another worker (a parallel account sync or the daily import) on its own connection.
     # A raw connection: the test pool shares one connection across checkouts, and
     # advisory locks are re-entrant within a session.
-    @other_worker = PG.connect(**ActiveRecord::Base.connection_db_config.configuration_hash
-                                 .slice(:host, :port, :user, :password)
-                                 .merge(dbname: ActiveRecord::Base.connection_db_config.database)
-                                 .compact)
+    db = ActiveRecord::Base.connection_db_config.configuration_hash
+    @other_worker = PG.connect(
+      { host: db[:host], port: db[:port], user: db[:username], password: db[:password], dbname: db[:database] }.compact
+    )
     @lock_key = Digest::MD5.hexdigest("exchange_rate_import:EUR:USD").to_i(16) % (2**62)
   end
 
   teardown do
-    @other_worker.close
+    @other_worker&.close
   end
 
   test "an account sync waits for another worker's import of the same pair" do

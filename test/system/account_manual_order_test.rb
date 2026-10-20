@@ -95,7 +95,8 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     end
 
     # The failed save reloads the page, which shows the order actually saved.
-    assert_eventually do
+    # The reload renders the whole page, which can take several seconds on CI.
+    assert_eventually(timeout: 15) do
       within_testid("account-sidebar-tabs") { visible_depository_ids.first(2) == [ checking.id, plaid.id ] }
     end
 

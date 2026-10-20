@@ -159,7 +159,11 @@ class Holding < ApplicationRecord
         .pluck(:date, :currency)
         .to_set
 
-      # Process each holding for the old security
+      # Holdings are written by Holding::Materializer via upsert_all, which skips
+      # validations. A reverse-synced account whose trades exceed the provider
+      # snapshot reconstructs negative historical quantities, so re-validating
+      # these rows here would abort the whole remap. Persist without validations,
+      # matching how the rows were written and how trades are moved below.
       account.holdings.where(security: old_security).find_each do |holding|
         if collision_keys.include?([ holding.date, holding.currency ])
           # Collision: merge into existing holding for new_security (same date AND currency)
@@ -187,16 +191,15 @@ class Holding < ApplicationRecord
           merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
           merge_attrs[:security_locked] = true # Lock merged holding to prevent provider overwrites
 
-          existing.update!(merge_attrs)
+          existing.update_columns(merge_attrs.merge(updated_at: Time.current))
           holding.destroy!
-        else
-          # No collision: update to new security
-          holding.provider_security_id ||= old_security.id
-          holding.security = new_security
-          holding.security_locked = true
-          holding.save!
         end
       end
+
+      # No collision: move the remaining holdings to the new security
+      remaining = account.holdings.where(security: old_security)
+      remaining.where(provider_security_id: nil).update_all(provider_security_id: old_security.id)
+      remaining.update_all(security_id: new_security.id, security_locked: true, updated_at: Time.current)
 
       # Move all trades for old security to new security
       account.trades.where(security: old_security).update_all(security_id: new_security.id)
@@ -229,14 +232,14 @@ class Holding < ApplicationRecord
       # Move trades back (see note above about limitation)
       account.trades.where(security: current_security).update_all(security_id: original_security.id)
 
-      # Reset ALL holdings that were remapped from this provider_security
-      account.holdings.where(security: current_security, provider_security: original_security).find_each do |holding|
-        holding.update!(
-          security: original_security,
-          security_locked: false,
-          provider_security_id: nil
-        )
-      end
+      # Reset ALL holdings that were remapped from this provider_security.
+      # Skips validations for the same reason as remap_security!.
+      account.holdings.where(security: current_security, provider_security: original_security).update_all(
+        security_id: original_security.id,
+        security_locked: false,
+        provider_security_id: nil,
+        updated_at: Time.current
+      )
     end
 
     # Reload self to reflect changes

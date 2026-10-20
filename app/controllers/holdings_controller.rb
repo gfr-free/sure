@@ -80,9 +80,18 @@ class HoldingsController < ApplicationController
     new_security.failed_fetch_count = 0
     new_security.failed_fetch_at = nil
 
-    new_security.save!
-
-    @holding.remap_security!(new_security)
+    # Securities are shared across families, so only persist the provider
+    # choice if the remap itself succeeds.
+    begin
+      Security.transaction do
+        new_security.save!
+        @holding.remap_security!(new_security)
+      end
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+      Rails.logger.warn("HoldingsController#remap_security failed for holding #{@holding.id}: #{e.message}")
+      redirect_with_alert(t(".error"))
+      return
+    end
 
     # Re-materialize holdings with the new security's prices.
     # Reload account to avoid stale associations from remap_security!.
@@ -139,7 +148,14 @@ class HoldingsController < ApplicationController
   end
 
   def reset_security
-    @holding.reset_security_to_provider!
+    begin
+      @holding.reset_security_to_provider!
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+      Rails.logger.warn("HoldingsController#reset_security failed for holding #{@holding.id}: #{e.message}")
+      redirect_with_alert(t(".error"))
+      return
+    end
+
     flash[:notice] = t(".success")
 
     respond_to do |format|
@@ -149,6 +165,15 @@ class HoldingsController < ApplicationController
   end
 
   private
+
+    def redirect_with_alert(message)
+      flash[:alert] = message
+
+      respond_to do |format|
+        format.html { redirect_to account_path(@holding.account, tab: "holdings") }
+        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, account_path(@holding.account, tab: "holdings")) }
+      end
+    end
 
     def trade_republic_categories_for(account)
       provider = account.account_providers.includes(:provider).map(&:provider).find do |candidate|

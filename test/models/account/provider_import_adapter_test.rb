@@ -36,6 +36,22 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     end
   end
 
+  test "leaves an entry alone when the user deleted it during the import" do
+    entry = @adapter.import_transaction(
+      external_id: "deleted_mid_sync", amount: 10, currency: "USD",
+      date: Date.current, name: "Original", source: "plaid"
+    )
+    Entry.any_instance.stubs(:lock_with_entryable!).raises(ActiveRecord::RecordNotFound)
+
+    assert_no_difference "@account.entries.count" do
+      @adapter.import_transaction(
+        external_id: "deleted_mid_sync", amount: 10, currency: "USD",
+        date: Date.current, name: "Renamed", source: "plaid"
+      )
+    end
+    assert_equal "Original", entry.reload.name
+  end
+
   test "imports transaction with minimal parameters" do
     assert_difference "@account.entries.count", 1 do
       entry = @adapter.import_transaction(

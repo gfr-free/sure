@@ -35,6 +35,41 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "CSV uploaded successfully.", flash[:notice]
   end
 
+  test "re-importing a Sure transactions.csv export keeps transfer directions" do
+    family = @user.family
+    source = family.accounts.create!(name: "Export Source", accountable: Depository.new, balance: 1000, currency: "USD")
+    destination = family.accounts.create!(name: "Export Destination", accountable: Depository.new, balance: 0, currency: "USD")
+    outflow = source.entries.create!(name: "Transfer to savings", date: Date.parse("2024-05-17"), amount: 100, currency: "USD", entryable: Transaction.new(kind: "funds_movement"))
+    inflow = destination.entries.create!(name: "Transfer from checking", date: Date.parse("2024-05-17"), amount: -100, currency: "USD", entryable: Transaction.new(kind: "funds_movement"))
+    Transfer.create!(outflow_transaction: outflow.entryable, inflow_transaction: inflow.entryable, status: "confirmed")
+
+    exported_csv = nil
+    Zip::File.open_buffer(Family::DataExporter.new(family).generate_export) do |zip|
+      exported_csv = zip.read("transactions.csv")
+    end
+
+    patch import_upload_url(@import), params: { import: { raw_file_str: exported_csv, col_sep: "," } }
+
+    # Configure the columns and keep the preselected sign convention, as the form does
+    patch import_configuration_url(@import), params: {
+      import: {
+        date_col_label: "date",
+        date_format: "%Y-%m-%d",
+        amount_col_label: "amount",
+        number_format: "1,234.56",
+        amount_type_strategy: "signed_amount",
+        signage_convention: @import.reload.signage_convention,
+        account_col_label: "account_name",
+        name_col_label: "name",
+        currency_col_label: "currency"
+      }
+    }
+
+    rows = @import.reload.rows
+    assert_equal outflow.amount, rows.find_by!(name: outflow.name, account: source.name).signed_amount
+    assert_equal inflow.amount, rows.find_by!(name: inflow.name, account: destination.name).signed_amount
+  end
+
   test "account select does not leak unshared family accounts (#1803)" do
     sign_in users(:family_member)
 

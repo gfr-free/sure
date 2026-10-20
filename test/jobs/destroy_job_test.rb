@@ -12,7 +12,7 @@ class DestroyJobTest < ActiveJob::TestCase
   test "resets scheduled_for_deletion when the destroy fails" do
     model = OpenStruct.new(scheduled_for_deletion: true)
     model.stubs(:destroy).raises(ActiveRecord::RecordNotDestroyed.new("nope"))
-    model.expects(:update!).with(scheduled_for_deletion: false).once
+    model.expects(:update_column).with(:scheduled_for_deletion, false).once
 
     DestroyJob.perform_now(model)
   end
@@ -67,6 +67,29 @@ class DestroyJobTest < ActiveJob::TestCase
     assert_equal account.id, entry.metadata["record_id"]
     assert_equal "StandardError", entry.metadata["error_class"]
     assert_equal "destroy failed", entry.metadata["error_message"]
+    assert entry.metadata["backtrace"].present?
+  end
+
+  test "a failed destroy is also sent to the Rails log and Sentry" do
+    item = plaid_items(:one)
+    item.stubs(:destroy).raises(StandardError, "destroy failed")
+    Rails.logger.expects(:error).with(regexp_matches(/DestroyJob failed for PlaidItem #{item.id}: StandardError: destroy failed/)).once
+    Sentry.expects(:capture_exception).with(instance_of(StandardError)).once
+
+    DestroyJob.perform_now(item)
+  end
+
+  # QuestradeItem only requires a refresh token while not scheduled for
+  # deletion, so a reset that re-ran validations would raise RecordInvalid out
+  # of the rescue and leave the job retrying with the flag still set.
+  test "resets the flag without re-running validations that depend on it" do
+    item = questrade_items(:one)
+    item.update_columns(scheduled_for_deletion: true, refresh_token: nil)
+    item.stubs(:destroy).raises(StandardError, "destroy failed")
+
+    assert_nothing_raised { DestroyJob.perform_now(item) }
+
+    assert_not item.reload.scheduled_for_deletion?
   end
 
   test "a failed provider item destroy is recorded in the debug log with its family" do
@@ -80,6 +103,7 @@ class DestroyJobTest < ActiveJob::TestCase
 
     entry = DebugLogEntry.recent.first
     assert_nil entry.account
+    assert_equal "plaid", entry.provider_key
     assert_equal "PlaidItem", entry.metadata["record_type"]
     assert_equal item.id, entry.metadata["record_id"]
     assert_not item.reload.scheduled_for_deletion?
@@ -97,7 +121,7 @@ class DestroyJobTest < ActiveJob::TestCase
   test "a failed destroy of a record without a family is still recorded" do
     model = OpenStruct.new(scheduled_for_deletion: true)
     model.stubs(:destroy).raises(ActiveRecord::RecordNotDestroyed.new("nope"))
-    model.stubs(:update!)
+    model.stubs(:update_column)
 
     assert_difference -> { DebugLogEntry.where(family_id: nil, source: "DestroyJob").count }, 1 do
       DestroyJob.perform_now(model)

@@ -90,6 +90,16 @@ module Enrichable
 
     was_modified = false
     ActiveRecord::Base.transaction do
+      # The locks checked above may be stale: a user edit can commit its value
+      # and lock after this record was loaded. Re-read the locks under a row
+      # lock, which also waits for an edit still in progress
+      # (see #save_and_lock_attributes), so a sync never overwrites it.
+      unless ignore_locks || new_record?
+        reload_locked_attributes_for_update
+        enrichable_attrs = enrichable_attrs.reject { |attr_key, _| locked?(attr_key) }
+        next if enrichable_attrs.empty?
+      end
+
       enrichable_attrs.each do |attr, value|
         self.send("#{attr}=", value)
 
@@ -152,6 +162,26 @@ module Enrichable
     end
   end
 
+  # Saves a user's edit and locks the attributes it changed in one database
+  # transaction. Syncs re-read locks under a row lock before they write (see
+  # #enrich_attributes), so they see the edit together with its locks or wait
+  # for both; saving and locking in two commits let a sync overwrite the edit
+  # in between.
+  #
+  # The block saves the record and returns whether it did. Nothing is locked
+  # when it returns false.
+  #
+  # @yieldreturn [Boolean] whether the save succeeded
+  # @return [Boolean] the block's result
+  def save_and_lock_attributes
+    self.class.transaction do
+      next false unless yield
+
+      lock_saved_attributes!
+      true
+    end
+  end
+
   # Returns the number of AI cache entries removed from this record.
   def clear_ai_cache
     removed_count = 0
@@ -188,6 +218,16 @@ module Enrichable
   end
 
   private
+    # Loads the committed locks with a row lock held until the surrounding
+    # transaction ends. An unsaved change to the locks is kept.
+    def reload_locked_attributes_for_update
+      return if locked_attributes_changed?
+
+      fresh = self.class.uncached { self.class.where(id: id).lock.pick(:locked_attributes) }
+      self.locked_attributes = fresh || {}
+      clear_attribute_changes([ :locked_attributes ])
+    end
+
     def log_enrichment(attribute_name:, attribute_value:, source:, metadata: {})
       de = DataEnrichment.find_or_create_by(
         enrichable: self,

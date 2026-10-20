@@ -61,6 +61,15 @@ class Account::ProviderImportAdapter
       # This prevents sync from overwriting user edits, CSV imports, or excluded entries.
       if entry.persisted?
         skip_reason = determine_skip_reason(entry)
+        # The entry was read without a row lock, so a user edit can commit its
+        # flags and locks right after. Skipping on a stale flag only defers the
+        # import to the next sync, but writing needs the current state: lock the
+        # row and check again, which also waits for an edit still in progress
+        # (Entry#save_and_lock_attributes).
+        unless skip_reason
+          entry.lock!
+          skip_reason = determine_skip_reason(entry)
+        end
         if skip_reason
           # Pending→booked bypass for user_modified entries: clear the stale pending flag
           # when the provider delivers a booked version of the same transaction.

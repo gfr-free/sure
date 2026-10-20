@@ -48,6 +48,7 @@ class Merchant::Merger
 
         # Reassign family's transactions to target
         scope.update_all(merchant_id: target_merchant.id)
+        Rule.replace_merchant_references!(family, from: source.id, to: target_merchant.id)
 
         # Delete FamilyMerchant, keep ProviderMerchant (it may be used by other families)
         source.destroy! if source.is_a?(FamilyMerchant)

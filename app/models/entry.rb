@@ -312,8 +312,14 @@ class Entry < ApplicationRecord
   # @yieldreturn [Boolean] whether the save succeeded
   # @return [Boolean] the block's result
   def save_and_lock_attributes(user_modified: false, lock_tags: nil)
+    saved = false
     self.class.transaction do
-      next false unless yield
+      # Saves write the entryable's row before the entry's (has_one touch), and
+      # syncs and rules lock them in that order too. Take the entryable's row
+      # first so an edit that only writes the entry and then its tag lock
+      # cannot deadlock with them.
+      lock_entryable_row if persisted?
+      raise ActiveRecord::Rollback unless yield
 
       lock_saved_attributes!
       # After lock_saved_attributes!: lock_attr! saves the transaction again,
@@ -322,8 +328,18 @@ class Entry < ApplicationRecord
         transaction.lock_attr!(:tag_ids)
       end
       mark_user_modified! if user_modified
-      true
+      saved = true
     end
+    saved
+  end
+
+  # Takes a row lock on the entryable, then on this entry, the order saves and
+  # syncs use (see #save_and_lock_attributes), and reloads this entry.
+  #
+  # @raise [ActiveRecord::RecordNotFound] when the entry was deleted meanwhile
+  def lock_with_entryable!
+    lock_entryable_row
+    lock!
   end
 
   # Enqueues an account sync whose window starts at the earliest date this
@@ -624,6 +640,9 @@ class Entry < ApplicationRecord
   end
 
   private
+    def lock_entryable_row
+      entryable_class.uncached { entryable_class.where(id: entryable_id).lock.pick(:id) }
+    end
 
     # Remembers the earliest date this entry had before any save that changed
     # it, for sync_account_later to use as the sync window start.

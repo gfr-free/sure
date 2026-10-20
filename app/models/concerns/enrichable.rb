@@ -168,18 +168,20 @@ module Enrichable
   # for both; saving and locking in two commits let a sync overwrite the edit
   # in between.
   #
-  # The block saves the record and returns whether it did. Nothing is locked
-  # when it returns false.
+  # The block saves the record and returns whether it did. When it returns
+  # false the transaction rolls back, so nothing the block wrote is kept.
   #
   # @yieldreturn [Boolean] whether the save succeeded
   # @return [Boolean] the block's result
   def save_and_lock_attributes
+    saved = false
     self.class.transaction do
-      next false unless yield
+      raise ActiveRecord::Rollback unless yield
 
       lock_saved_attributes!
-      true
+      saved = true
     end
+    saved
   end
 
   # Returns the number of AI cache entries removed from this record.

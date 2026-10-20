@@ -73,6 +73,20 @@ class EntryTest < ActiveSupport::TestCase
     assert_not entry.transaction.locked?(:tag_ids)
   end
 
+  test "save_and_lock_attributes rolls back what the block wrote when it fails" do
+    entry = create_transaction(account: accounts(:depository))
+
+    assert_not entry.save_and_lock_attributes(user_modified: true, lock_tags: :always) {
+      entry.transaction.tag_ids = [ tags(:one).id ]
+      false
+    }
+
+    entry.reload
+    assert_empty entry.transaction.tag_ids
+    assert_not entry.user_modified?
+    assert_not entry.transaction.locked?(:tag_ids)
+  end
+
   test "descriptive edits do not affect balances" do
     entry = create_transaction(account: accounts(:depository), amount: 100)
     entry = Entry.find(entry.id)

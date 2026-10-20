@@ -66,11 +66,33 @@ class Entry::SaveAndLockConcurrencyTest < ActiveSupport::TestCase
     assert transaction.locked?(:category_id)
   end
 
+  test "an edit of a tagged entry and a rule on its transaction do not deadlock" do
+    tag = Tag.create!(family: @family, name: "Race")
+    @entry.transaction.update!(tag_ids: [ tag.id ])
+    stale_transaction = Transaction.find(@entry.entryable_id)
+
+    # The edit writes only the entry, then locks its tags on the transaction;
+    # the rule writes the transaction, then touches the entry.
+    race_with_user_edit(
+      edit: ->(entry) { entry.update(notes: "User note") },
+      sync: -> { stale_transaction.enrich_attribute(:category_id, @category.id, source: "rule") },
+      lock_tags: :if_any
+    )
+
+    @entry.reload
+    assert_equal "User note", @entry.notes
+    assert @entry.transaction.locked?(:tag_ids)
+    assert_equal @category.id, @entry.transaction.category_id
+  ensure
+    Tagging.where(tag: tag).delete_all if tag
+    Tag.where(id: tag.id).delete_all if tag
+  end
+
   private
     # Runs the user's save in one connection and pauses it before the locks are
     # written. The sync runs in another connection meanwhile; the edit
     # continues once the sync waits on it (or has finished without waiting).
-    def race_with_user_edit(edit:, sync:)
+    def race_with_user_edit(edit:, sync:, lock_tags: nil)
       pool = ActiveRecord::Base.connection_pool
       assert_operator pool.size, :>=, 3, "race regression needs user, sync and observer connections"
       observer = Entry.connection
@@ -83,7 +105,7 @@ class Entry::SaveAndLockConcurrencyTest < ActiveSupport::TestCase
         pool.with_connection do |connection|
           connection.execute("SET statement_timeout = '30s'")
           entry = Entry.find(@entry.id)
-          entry.save_and_lock_attributes(user_modified: true) do
+          entry.save_and_lock_attributes(user_modified: true, lock_tags: lock_tags) do
             edit.call(entry).tap do
               saved << connection.select_value("SELECT pg_backend_pid()")
               resume.pop

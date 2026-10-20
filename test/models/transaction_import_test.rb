@@ -7,6 +7,50 @@ class TransactionImportTest < ActiveSupport::TestCase
     @subject = @import = imports(:transaction)
   end
 
+  test "presets incomes are negative for a Sure transactions.csv export" do
+    @import.amount_type_strategy = "custom_column"
+    @import.raw_file_str = "\uFEFF#{Family::DataExporter::TRANSACTIONS_CSV_HEADERS.join(",")},counterparty_iban\n2024-05-15,Checking,42.5,Grocery,,,,USD,\n"
+
+    @import.preset_signage_for_sure_export(nil)
+
+    assert_equal "signed_amount", @import.amount_type_strategy
+    assert_equal "inflows_negative", @import.signage_convention
+  end
+
+  test "does not treat the transaction import template as a Sure export" do
+    @import.raw_file_str = @import.csv_template.to_csv
+
+    @import.preset_signage_for_sure_export(nil)
+
+    assert_equal "inflows_positive", @import.signage_convention
+  end
+
+  test "keeps the chosen sign convention for other CSV files" do
+    @import.signage_convention = "inflows_negative"
+    @import.raw_file_str = "date,amount,name\n2024-05-15,-42.5,Grocery\n"
+
+    @import.preset_signage_for_sure_export("date,amount,payee\n2024-05-14,-10,Coffee\n")
+
+    assert_equal "inflows_negative", @import.signage_convention
+  end
+
+  test "restores the default sign convention when a Sure export is replaced by another CSV" do
+    sure_export = "#{Family::DataExporter::TRANSACTIONS_CSV_HEADERS.join(",")}\n2024-05-15,Checking,42.5,Grocery,,,,USD\n"
+    @import.signage_convention = "inflows_negative"
+    @import.raw_file_str = "date,amount,name\n2024-05-15,-42.5,Grocery\n"
+
+    @import.preset_signage_for_sure_export(sure_export)
+
+    assert_equal "inflows_positive", @import.signage_convention
+  end
+
+  test "ignores blank and malformed CSV headers when presetting the sign convention" do
+    @import.raw_file_str = "\"date,\"amount\n"
+
+    assert_nothing_raised { @import.preset_signage_for_sure_export("") }
+    assert_equal "inflows_positive", @import.signage_convention
+  end
+
   test "uploaded? if raw_file_str is present" do
     @import.expects(:raw_file_str).returns("test").once
     assert @import.uploaded?

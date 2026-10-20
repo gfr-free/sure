@@ -116,4 +116,26 @@ class TransactionImport < Import
     csv.delete("account") if account.present?
     csv
   end
+
+  # Sure's own transactions.csv export keeps the stored sign (outflows positive),
+  # so a re-import of it needs "incomes are negative" instead of the default.
+  def preset_signage_for_sure_export(previous_raw_file_str)
+    if sure_export_csv?(raw_file_str)
+      self.amount_type_strategy = "signed_amount"
+      self.signage_convention = "inflows_negative"
+    elsif sure_export_csv?(previous_raw_file_str)
+      self.signage_convention = "inflows_positive"
+    end
+  end
+
+  private
+    def sure_export_csv?(csv_str)
+      header_line = csv_str.to_s.delete_prefix("\uFEFF").each_line.first
+      return false if header_line.blank?
+
+      headers = CSV.parse_line(header_line, col_sep: col_sep.presence || ",", liberal_parsing: true).to_a.map { |header| header.to_s.strip.downcase }
+      (Family::DataExporter::TRANSACTIONS_CSV_HEADERS - headers).empty?
+    rescue CSV::MalformedCSVError
+      false
+    end
 end

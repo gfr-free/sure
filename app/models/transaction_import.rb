@@ -1,4 +1,11 @@
 class TransactionImport < Import
+  SURE_EXPORT_SETTINGS = {
+    amount_type_strategy: "signed_amount",
+    signage_convention: "inflows_negative",
+    date_format: "%Y-%m-%d",
+    number_format: "1,234.56"
+  }.freeze
+
   def import!
     transaction do
       mappings.each(&:create_mappable!)
@@ -118,22 +125,27 @@ class TransactionImport < Import
   end
 
   # Sure's own transactions.csv export keeps the stored sign (outflows positive),
-  # so a re-import of it needs "incomes are negative" instead of the default.
-  def preset_signage_for_sure_export(previous_raw_file_str)
-    if sure_export_csv?(raw_file_str)
-      self.amount_type_strategy = "signed_amount"
-      self.signage_convention = "inflows_negative"
-    elsif sure_export_csv?(previous_raw_file_str)
-      self.signage_convention = "inflows_positive"
+  # ISO dates and plain decimals, so a re-import of it needs matching settings.
+  # Call after assigning a new raw_file_str and before saving it.
+  def preset_for_uploaded_csv
+    if sure_export_csv?(raw_file_str, col_sep)
+      assign_attributes(SURE_EXPORT_SETTINGS)
+    elsif sure_export_csv?(raw_file_str_was, col_sep_was)
+      assign_attributes(amount_type_strategy: "signed_amount", signage_convention: "inflows_positive")
     end
   end
 
+  def apply_template!(import_template)
+    super
+    update!(SURE_EXPORT_SETTINGS) if sure_export_csv?(raw_file_str, col_sep)
+  end
+
   private
-    def sure_export_csv?(csv_str)
+    def sure_export_csv?(csv_str, separator)
       header_line = csv_str.to_s.delete_prefix("\uFEFF").each_line.first
       return false if header_line.blank?
 
-      headers = CSV.parse_line(header_line, col_sep: col_sep.presence || ",", liberal_parsing: true).to_a.map { |header| header.to_s.strip.downcase }
+      headers = CSV.parse_line(header_line, col_sep: separator.presence || ",", liberal_parsing: true).to_a.map { |header| header.to_s.strip.downcase }
       (Family::DataExporter::TRANSACTIONS_CSV_HEADERS - headers).empty?
     rescue CSV::MalformedCSVError
       false

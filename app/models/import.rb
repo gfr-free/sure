@@ -501,6 +501,10 @@ class Import < ApplicationRecord
     family.accounts.empty? && has_unassigned_account?
   end
 
+  # Hook for subclasses that recognise a known file format on upload
+  def preset_for_uploaded_csv
+  end
+
   # Used to optionally pre-fill the configuration for the current import
   def suggested_template
     family.imports

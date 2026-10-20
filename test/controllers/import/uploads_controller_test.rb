@@ -50,15 +50,20 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
 
     patch import_upload_url(@import), params: { import: { raw_file_str: exported_csv, col_sep: "," } }
 
-    # Configure the columns and keep the preselected sign convention, as the form does
+    get import_configuration_url(@import)
+    assert_select 'select[name="import[signage_convention]"] option[selected][value="inflows_negative"]'
+    assert_select 'select[name="import[date_format]"] option[selected][value="%Y-%m-%d"]'
+
+    # Submit the column mapping and keep every preselected setting, as the form does
+    @import.reload
     patch import_configuration_url(@import), params: {
       import: {
         date_col_label: "date",
-        date_format: "%Y-%m-%d",
+        date_format: @import.date_format,
         amount_col_label: "amount",
-        number_format: "1,234.56",
-        amount_type_strategy: "signed_amount",
-        signage_convention: @import.reload.signage_convention,
+        number_format: @import.number_format,
+        amount_type_strategy: @import.amount_type_strategy,
+        signage_convention: @import.signage_convention,
         account_col_label: "account_name",
         name_col_label: "name",
         currency_col_label: "currency"

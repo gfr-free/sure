@@ -93,6 +93,22 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to import_upload_url(Import.all.ordered.first)
   end
 
+  test "dropping a Sure transactions.csv export presets the export sign convention" do
+    exported_csv = "#{Family::DataExporter::TRANSACTIONS_CSV_HEADERS.join(",")}\n2024-05-15,Checking Account,42.5,Grocery,,,,USD\n"
+
+    post imports_url, params: {
+      import: {
+        type: "TransactionImport",
+        import_file: Rack::Test::UploadedFile.new(StringIO.new(exported_csv), "text/csv", original_filename: "transactions.csv")
+      }
+    }
+
+    import = Import.all.ordered.first
+    assert_redirected_to import_configuration_url(import)
+    assert_equal "inflows_negative", import.signage_convention
+    assert_equal "%Y-%m-%d", import.date_format
+  end
+
   test "create with an empty request body redirects back with an alert" do
     assert_no_difference "Import.count" do
       post imports_url

@@ -395,12 +395,20 @@ module LanguagesHelper
       .sort_by { |label, locale| label }
   end
 
-  def timezone_options
-    ActiveSupport::TimeZone.all
-      .sort_by { |tz| [ tz.utc_offset, tz.name ] }
-      .map do |tz|
-        name = tz.name.split(" - ").first.gsub(" (US & Canada)", "")
-        [ "(#{tz.formatted_offset}) #{name}", tz.tzinfo.identifier ]
-      end
+  # One option per IANA identifier, since that is what Family#timezone stores.
+  # Rails' friendly zone names map several cities onto one identifier (e.g.
+  # Moscow and St. Petersburg both use "Europe/Moscow"), which produced
+  # duplicate option values and the browser selected the wrong city.
+  # The Rails identifiers are kept so previously saved values stay in the list,
+  # and a saved value outside it (e.g. a zone alias) is appended.
+  def timezone_options(current = nil)
+    identifiers = TZInfo::Timezone.all_country_zone_identifiers |
+      ActiveSupport::TimeZone.all.map { |tz| tz.tzinfo.identifier }
+    identifiers |= [ current ] if current.present?
+
+    identifiers
+      .filter_map { |identifier| (tz = ActiveSupport::TimeZone[identifier]) && [ identifier, tz ] }
+      .sort_by { |identifier, tz| [ tz.utc_offset, identifier ] }
+      .map { |identifier, tz| [ "(#{tz.formatted_offset}) #{identifier.tr("_", " ")}", identifier ] }
   end
 end

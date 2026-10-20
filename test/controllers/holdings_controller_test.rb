@@ -34,7 +34,7 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     get holding_path(@holding)
 
-    assert_select "##{dom_id(@holding, :price_source)}", text: "Yahoo Finance"
+    assert_select "##{dom_id(@holding, :price_source)} dd", text: "Yahoo Finance"
   end
 
   test "marks the fallback price provider as default" do
@@ -44,7 +44,7 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     get holding_path(@holding)
 
-    assert_select "##{dom_id(@holding, :price_source)}", text: "Yahoo Finance (default)"
+    assert_select "##{dom_id(@holding, :price_source)} dd", text: "Yahoo Finance (default)"
   end
 
   test "says no provider fetches prices for an offline security" do
@@ -53,7 +53,7 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     get holding_path(@holding)
 
-    assert_select "##{dom_id(@holding, :price_source)}", text: I18n.t("securities.price_source.none")
+    assert_select "##{dom_id(@holding, :price_source)} dd", text: I18n.t("securities.price_source.none")
   end
 
   test "shows the exact stored quantity for a small crypto holding in the holdings list" do

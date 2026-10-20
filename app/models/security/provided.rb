@@ -193,7 +193,7 @@ module Security::Provided
   # provider key (nil when none); `status` says how it applies:
   # :assigned, :default (fallback to the first enabled provider),
   # :unavailable (assigned provider disabled or not configured),
-  # :offline (fetching paused) or :none (prices only from syncs or trades).
+  # :offline (fetching paused for this security) or :none (prices only from syncs or trades).
   def price_source
     resolved = price_data_provider
     resolved_key = resolved && self.class.provider_key_for(resolved)
@@ -201,10 +201,9 @@ module Security::Provided
     if resolved.nil? && price_provider.present?
       PriceSource.new(provider: price_provider, status: :unavailable)
     elsif offline?
-      # The health checker keeps probing paused securities against their
-      # provider, so a fallback provider still applies to them.
-      key = price_provider.presence || (resolved_key if offline_reason == "health_check_failed")
-      PriceSource.new(provider: key, status: key ? :offline : :none)
+      # Without an assigned provider an offline security may never have had
+      # provider prices (e.g. synced-only tickers), so name no fallback.
+      PriceSource.new(provider: price_provider.presence, status: price_provider.present? ? :offline : :none)
     elsif resolved.nil?
       PriceSource.new(provider: nil, status: :none)
     elsif price_provider.present?

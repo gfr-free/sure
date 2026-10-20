@@ -7,12 +7,12 @@ en:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (default)"
-      offline: "%{provider} (offline)"
+      offline: "%{provider} (paused)"
       unavailable: "%{provider} (unavailable)"
       none: "None, prices from account sync or trades"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Unknown"
-      tinkoff_invest: T-Invest
       twelve_data: Twelve Data
       yahoo_finance: Yahoo Finance
       tiingo: Tiingo

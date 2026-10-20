@@ -7,10 +7,11 @@ ca:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (per defecte)"
-      offline: "%{provider} (fora de línia)"
+      offline: "%{provider} (en pausa)"
       unavailable: "%{provider} (no disponible)"
       none: "Cap, preus de la sincronització del compte o de les operacions"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Desconegut"
       alpha_vantage: Alpha Vantage
       binance_public: Binance

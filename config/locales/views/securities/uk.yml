@@ -7,10 +7,11 @@ uk:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (за замовчуванням)"
-      offline: "%{provider} (офлайн)"
+      offline: "%{provider} (призупинено)"
       unavailable: "%{provider} (недоступний)"
       none: "Немає, ціни із синхронізації рахунку або угод"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Невідомо"
       twelve_data: "Twelve Data"
       yahoo_finance: "Yahoo Finance"

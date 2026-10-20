@@ -7,10 +7,11 @@ tr:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (varsayılan)"
-      offline: "%{provider} (çevrimdışı)"
+      offline: "%{provider} (duraklatıldı)"
       unavailable: "%{provider} (kullanılamıyor)"
       none: "Yok, fiyatlar hesap senkronizasyonundan veya işlemlerden"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Bilinmiyor"
       alpha_vantage: Alpha Vantage
       binance_public: Binance

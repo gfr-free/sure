@@ -94,10 +94,7 @@
               <% end %>
             </dd>
           </div>
-          <div class="flex items-center justify-between text-sm">
-            <dt class="text-secondary"><%= t(".price_source_label") %></dt>
-            <dd id="<%= dom_id(@holding, :price_source) %>" class="text-primary"><%= security_price_source_label(@holding.security) %></dd>
-          </div>
+          <%= render DS::DetailRow.new(label: t(".price_source_label"), value: security_price_source_label(@holding.security), align: :center, id: dom_id(@holding, :price_source)) %>
           <div class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".shares_label") %></dt>
             <dd id="<%= dom_id(@holding, :shares) %>" class="text-primary"><%= format_quantity(@holding.qty, exact: true) %></dd>

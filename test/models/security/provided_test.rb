@@ -226,11 +226,11 @@ class Security::ProvidedTest < ActiveSupport::TestCase
     assert_equal Security::PriceSource.new(provider: "twelve_data", status: :offline), @security.price_source
   end
 
-  test "price_source names the fallback provider of a security paused by the health check" do
+  test "price_source names no fallback for a synced-only security paused by the health check" do
     Security.stubs(:providers).returns([ Provider::YahooFinance.new ])
     @security.update!(price_provider: nil, offline: true, offline_reason: "health_check_failed")
 
-    assert_equal Security::PriceSource.new(provider: "yahoo_finance", status: :offline), @security.price_source
+    assert_equal Security::PriceSource.new(provider: nil, status: :none), @security.price_source
   end
 
   test "price_source is none for an offline security without a provider" do

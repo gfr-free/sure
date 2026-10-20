@@ -14,7 +14,7 @@ class SecuritiesHelperTest < ActionView::TestCase
   test "labels an offline provider" do
     @security.stubs(:price_source).returns(Security::PriceSource.new(provider: "twelve_data", status: :offline))
 
-    assert_equal "Twelve Data (offline)", security_price_source_label(@security)
+    assert_equal "Twelve Data (paused)", security_price_source_label(@security)
   end
 
   test "humanizes a provider without a translated name" do

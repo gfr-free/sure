@@ -7,10 +7,11 @@ pt-PT:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (predefinido)"
-      offline: "%{provider} (offline)"
+      offline: "%{provider} (em pausa)"
       unavailable: "%{provider} (indisponível)"
       none: "Nenhuma, preços da sincronização da conta ou das transações"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Desconhecido"
       twelve_data: Twelve Data
       yahoo_finance: Yahoo Finance

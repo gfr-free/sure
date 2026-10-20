@@ -7,10 +7,11 @@ nl:
     price_source:
       assigned: "%{provider}"
       default: "%{provider} (standaard)"
-      offline: "%{provider} (offline)"
+      offline: "%{provider} (gepauzeerd)"
       unavailable: "%{provider} (niet beschikbaar)"
       none: "Geen, koersen uit accountsynchronisatie of transacties"
     providers:
+      tinkoff_invest: T-Invest (T-Bank)
       unknown: "Onbekend"
       twelve_data: Twelve Data
       yahoo_finance: Yahoo Finance

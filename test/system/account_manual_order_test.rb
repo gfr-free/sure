@@ -12,14 +12,15 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     plaid = accounts(:connected)
 
     visit account_path(checking)
+    open_groups_before = open_group_count
 
     within_testid("account-sidebar-tabs") do
       assert_equal [ checking.id, plaid.id ], visible_depository_ids.first(2)
-      assert_no_selector "[data-sortable-list-target='item'] [role=button]", visible: true
+      assert_no_selector "[data-sortable-list-target='item'] button", visible: true
 
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] button")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
@@ -31,8 +32,10 @@ class AccountManualOrderTest < ApplicationSystemTestCase
 
     within_testid("account-sidebar-tabs") do
       click_button I18n.t("accounts.sidebar.sort_mode.done")
-      assert_no_selector "[data-sortable-list-target='item'] [role=button]", visible: true
+      assert_no_selector "[data-sortable-list-target='item'] button", visible: true
     end
+    # Groups opened for sort mode close again.
+    assert_equal open_groups_before, open_group_count
 
     visit account_path(checking)
     within_testid("account-sidebar-tabs") do
@@ -49,7 +52,7 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     within_testid("account-sidebar-tabs") do
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] button")
       handle.send_keys(:enter)
       handle.send_keys(:up)
 
@@ -76,21 +79,24 @@ class AccountManualOrderTest < ApplicationSystemTestCase
         });
       };
       document.querySelectorAll("[data-controller~='sortable-list']").forEach((list) => {
-        list.setAttribute("data-sortable-list-save-timeout-value", "300");
+        list.setAttribute("data-sortable-list-save-timeout-value", "1500");
       });
     JS
 
     within_testid("account-sidebar-tabs") do
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] button")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
 
       assert_equal [ plaid.id, checking.id ], visible_depository_ids.first(2)
-      # The failed save reloads the page, which shows the order actually saved.
-      assert_eventually { visible_depository_ids.first(2) == [ checking.id, plaid.id ] }
+    end
+
+    # The failed save reloads the page, which shows the order actually saved.
+    assert_eventually do
+      within_testid("account-sidebar-tabs") { visible_depository_ids.first(2) == [ checking.id, plaid.id ] }
     end
 
     assert_nil @user.reload.manual_account_order["depository"]
@@ -105,7 +111,7 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     within_testid("account-sidebar-tabs") do
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] button")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
@@ -119,7 +125,34 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     end
   end
 
+  test "a drag outside sort mode does not move a row" do
+    checking = accounts(:depository)
+    plaid = accounts(:connected)
+
+    visit account_path(checking)
+
+    # Like dragging an account logo or selected text: the drag starts inside
+    # a row that is not draggable and is dropped at the top of the list.
+    page.execute_script(<<~JS, plaid.id)
+      const row = document.querySelector(`[data-sortable-list-target='item'][data-sortable-list-id='${arguments[0]}']`);
+      const list = row.closest("[data-controller~='sortable-list']");
+      const dataTransfer = new DataTransfer();
+      row.querySelector("a").dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+      list.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer, clientY: 0 }));
+      list.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer, clientY: 0 }));
+    JS
+
+    within_testid("account-sidebar-tabs") do
+      assert_equal [ checking.id, plaid.id ], visible_depository_ids.first(2)
+    end
+    assert_nil @user.reload.manual_account_order["depository"]
+  end
+
   private
+    def open_group_count
+      evaluate_script("document.querySelectorAll(\"[data-testid='account-sidebar-tabs'] details[open]\").length")
+    end
+
     def visible_depository_ids
       list = all("[data-sortable-list-url-value='#{reorder_accounts_path(group: "depository")}']", visible: true).first
       list.all("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }

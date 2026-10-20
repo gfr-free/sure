@@ -43,7 +43,7 @@
             class: "flex-1 justify-start"
           ) %>
 
-          <%= render "accounts/sort_mode_toggle", sortable: sortable %>
+          <%= render "accounts/sort_mode_toggle", sortable: sortable && family.balance_sheet.assets.account_groups.any? %>
 
           <%= render DS::ExpandToggle.new(
             expand_label: t("accounts.sidebar.expand_all"),
@@ -53,11 +53,11 @@
           ) %>
         </div>
 
-        <%= render "accounts/sort_mode_bar", sortable: sortable %>
+        <%= render "accounts/sort_mode_bar", sortable: sortable && family.balance_sheet.assets.account_groups.any? %>
 
         <div>
           <% family.balance_sheet.assets.account_groups.each do |group| %>
-            <%= render "accounts/accountable_group", account_group: group, mobile: mobile %>
+            <%= render "accounts/accountable_group", account_group: group, mobile: mobile, sortable: sortable %>
           <% end %>
         </div>
       </div>
@@ -75,7 +75,7 @@
               class: "flex-1 justify-start"
             ) %>
 
-          <%= render "accounts/sort_mode_toggle", sortable: sortable %>
+          <%= render "accounts/sort_mode_toggle", sortable: sortable && family.balance_sheet.liabilities.account_groups.any? %>
 
           <%= render DS::ExpandToggle.new(
             expand_label: t("accounts.sidebar.expand_all"),
@@ -85,11 +85,11 @@
           ) %>
         </div>
 
-        <%= render "accounts/sort_mode_bar", sortable: sortable %>
+        <%= render "accounts/sort_mode_bar", sortable: sortable && family.balance_sheet.liabilities.account_groups.any? %>
 
         <div>
           <% family.balance_sheet.liabilities.account_groups.each do |group| %>
-            <%= render "accounts/accountable_group", account_group: group, mobile: mobile %>
+            <%= render "accounts/accountable_group", account_group: group, mobile: mobile, sortable: sortable %>
           <% end %>
         </div>
       </div>
@@ -107,7 +107,7 @@
               class: "flex-1 justify-start"
             ) %>
 
-          <%= render "accounts/sort_mode_toggle", sortable: sortable %>
+          <%= render "accounts/sort_mode_toggle", sortable: sortable && family.balance_sheet.account_groups.any? %>
 
           <%= render DS::ExpandToggle.new(
             expand_label: t("accounts.sidebar.expand_all"),
@@ -117,11 +117,11 @@
           ) %>
         </div>
 
-        <%= render "accounts/sort_mode_bar", sortable: sortable %>
+        <%= render "accounts/sort_mode_bar", sortable: sortable && family.balance_sheet.account_groups.any? %>
 
         <div>
           <% family.balance_sheet.account_groups.each do |group| %>
-            <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: true %>
+            <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: true, sortable: sortable %>
           <% end %>
         </div>
       </div>

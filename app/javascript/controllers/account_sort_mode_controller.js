@@ -8,8 +8,10 @@ import { Controller } from "@hotwired/stimulus";
 export default class extends Controller {
   static targets = ["toggle", "bar", "handle"];
 
+  // Also resets markup restored from Turbo's page cache in sort mode.
   connect() {
     this.sorting = false;
+    this.render();
   }
 
   toggle() {
@@ -19,10 +21,15 @@ export default class extends Controller {
   start() {
     this.sorting = true;
     this.render();
-    // Handles inside collapsed groups would stay out of sight.
+    // Handles inside collapsed groups would stay out of sight. They close
+    // again when sort mode ends.
+    this.openedGroups = new Set();
     this.handleTargets.forEach((handle) => {
       const group = handle.closest("details");
-      if (group) group.open = true;
+      if (group && !group.open) {
+        group.open = true;
+        this.openedGroups.add(group);
+      }
     });
   }
 
@@ -37,6 +44,10 @@ export default class extends Controller {
 
     this.sorting = false;
     this.render();
+    this.openedGroups?.forEach((group) => {
+      group.open = false;
+    });
+    this.openedGroups = null;
     if (focusWillHide) this.visibleToggle()?.focus();
   }
 
@@ -54,16 +65,25 @@ export default class extends Controller {
     });
     this.toggleTargets.forEach((toggle) => {
       toggle.setAttribute("aria-pressed", this.sorting ? "true" : "false");
-      toggle.classList.toggle("bg-surface-inset", this.sorting);
     });
   }
 
   // Rows can only be dragged in sort mode, so outside it a press on an
-  // account link or a text selection behaves as usual.
+  // account link or a text selection behaves as usual. In sort mode the link
+  // inside a row is not draggable on its own, so dragging it moves the row.
   renderHandle(handle) {
     handle.style.display = this.sorting ? "" : "none";
     const item = handle.closest("[data-sortable-list-target='item']");
-    if (item) item.draggable = this.sorting;
+    if (!item) return;
+
+    item.draggable = this.sorting;
+    item.querySelectorAll("a").forEach((link) => {
+      if (this.sorting) {
+        link.setAttribute("draggable", "false");
+      } else {
+        link.removeAttribute("draggable");
+      }
+    });
   }
 
   visibleToggle() {

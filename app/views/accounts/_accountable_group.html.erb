@@ -1,4 +1,4 @@
-<%# locals: (account_group:, mobile: false, all_tab: false, open: nil, **args) %>
+<%# locals: (account_group:, mobile: false, all_tab: false, open: nil, sortable: false, **args) %>
 
 <div id="<%= account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" data-group-key="<%= account_group.key %>">
   <% is_open = open.nil? ? (account_group.accounts.any? { |account| page_active?(account_path(account)) } || Current.user.always_expanded_account_group?(account_group.key)) : open %>
@@ -24,7 +24,6 @@
       </div>
     <% end %>
 
-    <% sortable = Current.user&.account_order&.manual? %>
     <%= tag.div class: "space-y-1",
           data: sortable ? {
             controller: "sortable-list",
@@ -45,18 +44,19 @@
               } : {} do %>
         <% if sortable %>
           <%# Hidden until the sidebar is in sort mode (account-sort-mode). %>
-          <%= tag.span role: "button",
-                tabindex: 0,
-                style: "display:none",
-                class: "shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-primary transition-colors cursor-grab active:cursor-grabbing touch-none [-webkit-touch-callout:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alpha-black-100",
-                aria: { label: t("accounts.sidebar.reorder_account", account: account.name) },
-                title: t("accounts.sidebar.reorder_hint"),
-                data: {
-                  account_sort_mode_target: "handle",
-                  action: "touchstart->sortable-list#touchStart touchmove->sortable-list#touchMove touchend->sortable-list#touchEnd touchcancel->sortable-list#touchCancel contextmenu->sortable-list#suppressContextMenu keydown->sortable-list#handleKeyDown"
-                } do %>
-            <%= icon "grip-vertical", size: "sm" %>
-          <% end %>
+          <%= render DS::Button.new(
+            variant: :icon,
+            icon: "grip-vertical",
+            size: :sm,
+            style: "display:none",
+            class: "shrink-0 cursor-grab active:cursor-grabbing touch-none [-webkit-touch-callout:none]",
+            aria_label: t("accounts.sidebar.reorder_account", account: account.name),
+            title: t("accounts.sidebar.reorder_hint"),
+            data: {
+              account_sort_mode_target: "handle",
+              action: "touchstart->sortable-list#touchStart touchmove->sortable-list#touchMove touchend->sortable-list#touchEnd touchcancel->sortable-list#touchCancel contextmenu->sortable-list#suppressContextMenu keydown->sortable-list#handleKeyDown"
+            }
+          ) %>
         <% end %>
         <%= link_to account_path(account),
                   class: class_names(
@@ -64,7 +64,6 @@
                     page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
                   ),
                   data: page_active?(account_path(account)) ? { active_account: true } : {},
-                  draggable: sortable ? "false" : nil,
                   title: account.name do %>
           <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>
 

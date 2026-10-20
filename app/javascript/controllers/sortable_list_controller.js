@@ -38,6 +38,10 @@ export default class extends Controller {
 
   // ===== Mouse Drag Events =====
   dragStart(event) {
+    // A drag starting inside a row that is not draggable itself (an image,
+    // selected text) is not a reorder.
+    if (!event.currentTarget.draggable) return;
+
     // If a touch interaction is in progress, cancel native drag —
     // use touch events with hold delay instead.
     // This avoids blocking mouse/trackpad drag on touch-capable laptops.
@@ -50,9 +54,10 @@ export default class extends Controller {
     this.draggedElement.classList.add("opacity-50");
     this.draggedElement.setAttribute("aria-grabbed", "true");
     event.dataTransfer.effectAllowed = "move";
-    // Firefox only starts a drag that carries data.
+    // Firefox only starts a drag that carries data. A custom type keeps text
+    // fields from accepting the row as a drop.
     event.dataTransfer.setData(
-      "text/plain",
+      "application/x-sortable-list-id",
       this.draggedElement.dataset.sortableListId ?? "",
     );
   }
@@ -386,32 +391,41 @@ export default class extends Controller {
   // once it finishes, with the latest order only, so an older request can
   // never land after a newer one and restore an earlier order.
   saveOrder() {
-    this.pendingOrder = this.itemTargets.map(
-      (item) => item.dataset.sortableListId,
-    );
-    if (this.mirrorListsValue) this.mirrorOrder(this.pendingOrder);
-    if (!this.saving) this.flushSaves();
+    const order = this.itemTargets.map((item) => item.dataset.sortableListId);
+    const queue = this.mirrorListsValue ? this.mirrorOrder(order) : this;
+    queue.pendingOrder = order;
+    if (!queue.saving) queue.flushSaves();
   }
 
+  // Applies the order to the other copies of this list and returns the
+  // controller whose queue saves for all copies, so their saves also run one
+  // at a time.
   mirrorOrder(order) {
-    document
-      .querySelectorAll("[data-controller~='sortable-list']")
-      .forEach((list) => {
-        if (
-          list === this.element ||
-          list.dataset.sortableListUrlValue !== this.urlValue ||
-          list.dataset.sortableListParamValue !== this.paramValue
-        ) {
-          return;
-        }
+    const lists = [
+      ...document.querySelectorAll(`[data-controller~='${this.identifier}']`),
+    ].filter(
+      (list) =>
+        list.dataset.sortableListUrlValue === this.urlValue &&
+        list.dataset.sortableListParamValue === this.paramValue,
+    );
 
-        order.forEach((id) => {
-          const item = list.querySelector(
-            `[data-sortable-list-id='${CSS.escape(id)}']`,
-          );
-          if (item) list.appendChild(item);
-        });
+    lists.forEach((list) => {
+      if (list === this.element) return;
+
+      order.forEach((id) => {
+        const item = list.querySelector(
+          `[data-sortable-list-id='${CSS.escape(id)}']`,
+        );
+        if (item) list.appendChild(item);
       });
+    });
+
+    return (
+      this.application.getControllerForElementAndIdentifier(
+        lists[0],
+        this.identifier,
+      ) ?? this
+    );
   }
 
   async flushSaves() {
@@ -439,7 +453,7 @@ export default class extends Controller {
         headers,
         body: JSON.stringify(this.buildBody(order)),
         signal:
-          this.saveTimeoutValue > 0
+          this.saveTimeoutValue > 0 && AbortSignal.timeout
             ? AbortSignal.timeout(this.saveTimeoutValue)
             : undefined,
       });

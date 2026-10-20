@@ -35,9 +35,29 @@ export default class extends Controller {
     this.keyboardGrabbedElement = null;
     this.holdTimer = null;
     this.holdActivated = false;
+    // What the server has; a save that cannot reach it puts this back.
+    this.savedOrder = this.currentOrder();
+
+    // A second finger anywhere on the page means a pinch zoom, not a
+    // reorder, also when it lands outside the items.
+    this.cancelOnSecondFinger = (event) => {
+      if (
+        event.touches.length > 1 &&
+        (this.pendingSection || this.isTouching)
+      ) {
+        this.touchCancel();
+      }
+    };
+    document.addEventListener("touchstart", this.cancelOnSecondFinger, {
+      capture: true,
+      passive: true,
+    });
   }
 
   disconnect() {
+    document.removeEventListener("touchstart", this.cancelOnSecondFinger, {
+      capture: true,
+    });
     this.cancelHold();
   }
 
@@ -50,6 +70,10 @@ export default class extends Controller {
       event.preventDefault();
       return;
     }
+
+    // Selected text, a link or an image inside the item drags as usual;
+    // only a drag of the item itself reorders.
+    if (event.target !== event.currentTarget) return;
 
     this.draggedElement = event.currentTarget;
     this.draggedElement.classList.add("opacity-50");
@@ -81,9 +105,9 @@ export default class extends Controller {
     event.preventDefault();
     event.stopPropagation();
 
-    this.moveDraggedTo(event.clientX, event.clientY);
+    const moved = this.moveDraggedTo(event.clientX, event.clientY);
     this.clearPlaceholders();
-    this.saveOrder();
+    if (moved) this.saveOrder();
   }
 
   // ===== Touch Events =====
@@ -91,6 +115,9 @@ export default class extends Controller {
   // (finger moves before the hold delay elapses) cancels it.
 
   touchStart(event) {
+    // The second finger of a pinch; the document listener cancelled the hold.
+    if (event.touches.length > 1) return;
+
     // Find the parent item element from the handle
     const section = event.currentTarget.closest(
       "[data-sortable-list-target='item']",
@@ -166,12 +193,12 @@ export default class extends Controller {
       return;
     }
 
-    this.moveDraggedTo(this.currentTouchX, this.currentTouchY);
+    const moved = this.moveDraggedTo(this.currentTouchX, this.currentTouchY);
 
     this.draggedElement.classList.remove("opacity-50", "scale-[1.02]");
     this.draggedElement.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();
-    this.saveOrder();
+    if (moved) this.saveOrder();
 
     this.resetTouchState();
   }
@@ -319,23 +346,39 @@ export default class extends Controller {
   // Measures the items before touching any classes, so a drag event does
   // not force an extra layout pass.
   showDropPosition(pointerX, pointerY) {
-    const { element, position } = this.dropSlot(pointerX, pointerY);
+    const slot = this.dropSlot(pointerX, pointerY);
     this.clearPlaceholders();
-    this.showPlaceholder(element, position);
+    if (slot) this.showPlaceholder(slot.element, slot.position);
   }
 
+  // Returns whether the order changed, so a drop back into the same place
+  // saves nothing.
   moveDraggedTo(pointerX, pointerY) {
-    const { element, position } = this.dropSlot(pointerX, pointerY);
+    const slot = this.dropSlot(pointerX, pointerY);
+    if (!slot) return false;
 
-    if (position === "after") {
-      element.after(this.draggedElement);
+    const before = JSON.stringify(this.currentOrder());
+    if (slot.position === "after") {
+      slot.element.after(this.draggedElement);
     } else {
-      element.before(this.draggedElement);
+      slot.element.before(this.draggedElement);
     }
+    return JSON.stringify(this.currentOrder()) !== before;
   }
 
-  // The item the dragged one lands next to, and on which side.
+  // The item the dragged one lands next to, and on which side. None while
+  // the pointer is over the dragged item itself: it stays where it is.
   dropSlot(pointerX, pointerY) {
+    const own = this.draggedElement.getBoundingClientRect();
+    if (
+      pointerX >= own.left &&
+      pointerX <= own.right &&
+      pointerY >= own.top &&
+      pointerY <= own.bottom
+    ) {
+      return null;
+    }
+
     const draggableElements = this.itemTargets.filter(
       (section) => section !== this.draggedElement,
     );
@@ -423,10 +466,12 @@ export default class extends Controller {
   // once it finishes, with the latest order only, so an older request can
   // never land after a newer one and restore an earlier order.
   saveOrder() {
-    this.pendingOrder = this.itemTargets.map(
-      (item) => item.dataset.sortableListId,
-    );
+    this.pendingOrder = this.currentOrder();
     if (!this.saving) this.flushSaves();
+  }
+
+  currentOrder() {
+    return this.itemTargets.map((item) => item.dataset.sortableListId);
   }
 
   async flushSaves() {
@@ -455,7 +500,9 @@ export default class extends Controller {
         body: JSON.stringify(this.buildBody(order)),
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        this.savedOrder = order;
+      } else {
         const errorData = await response.json().catch(() => ({}));
         console.error(
           "[Sortable List] Failed to save order:",
@@ -469,10 +516,55 @@ export default class extends Controller {
       }
     } catch (error) {
       console.error("[Sortable List] Network error saving order:", error);
-      // A newer order still gets sent; otherwise show what is actually saved.
+      // A newer order still gets sent. Otherwise put back the order that is
+      // saved and say so; reloading would fail too while offline.
       if (!this.pendingOrder) {
-        Turbo.visit(window.location.href, { action: "replace" });
+        this.restoreOrder(this.savedOrder);
+        this.showSaveFailed();
       }
     }
+  }
+
+  // Puts the items back in the given order. Items the order does not know
+  // keep their order behind the known ones. Only items out of place move, so
+  // the controllers inside the others do not reconnect.
+  restoreOrder(order) {
+    const rank = (item) => {
+      const index = order.indexOf(item.dataset.sortableListId);
+      return index === -1 ? order.length : index;
+    };
+    const sorted = [...this.itemTargets].sort((a, b) => rank(a) - rank(b));
+    const focused = document.activeElement;
+
+    sorted.forEach((item, index) => {
+      const current = this.itemTargets[index];
+      if (current !== item) current.before(item);
+    });
+
+    // Moving the focused item drops its focus; give it back.
+    if (focused !== document.activeElement && focused?.isConnected) {
+      focused.focus();
+    }
+  }
+
+  // The alert is rendered by the server into a template in the
+  // notification tray, so its text is translated. The list moving back is
+  // announced too, since the toast itself is not a live region.
+  showSaveFailed() {
+    const template = document.getElementById("sortable-list-save-failed");
+    const tray = document.getElementById("notification-tray");
+    if (!template || !tray) return;
+
+    // One alert, however often the save fails.
+    tray.querySelector("[data-sortable-list-save-failed]")?.remove();
+    tray.append(template.content.cloneNode(true));
+
+    // Cleared first, so the same message is read out again the next time.
+    const announcer = document.getElementById("aria-announcer");
+    if (!announcer) return;
+    announcer.textContent = "";
+    requestAnimationFrame(() => {
+      announcer.textContent = template.dataset.message;
+    });
   }
 }

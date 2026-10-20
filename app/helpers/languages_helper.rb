@@ -395,20 +395,43 @@ module LanguagesHelper
       .sort_by { |label, locale| label }
   end
 
-  # One option per IANA identifier, since that is what Family#timezone stores.
+  # One option per IANA zone, since Family#timezone stores the identifier.
   # Rails' friendly zone names map several cities onto one identifier (e.g.
   # Moscow and St. Petersburg both use "Europe/Moscow"), which produced
   # duplicate option values and the browser selected the wrong city.
-  # The Rails identifiers are kept so previously saved values stay in the list,
-  # and a saved value outside it (e.g. a zone alias) is appended.
+  # A saved identifier outside the list (e.g. an old alias) replaces the
+  # entry for its zone so it stays selected.
   def timezone_options(current = nil)
-    identifiers = TZInfo::Timezone.all_country_zone_identifiers |
-      ActiveSupport::TimeZone.all.map { |tz| tz.tzinfo.identifier }
-    identifiers |= [ current ] if current.present?
+    rows = LanguagesHelper.timezone_option_rows
+    zone = ActiveSupport::TimeZone[current] if current.present?
 
-    identifiers
-      .filter_map { |identifier| (tz = ActiveSupport::TimeZone[identifier]) && [ identifier, tz ] }
-      .sort_by { |identifier, tz| [ tz.utc_offset, identifier ] }
-      .map { |identifier, tz| [ "(#{tz.formatted_offset}) #{identifier.tr("_", " ")}", identifier ] }
+    if zone && rows.none? { |row| row[:identifier] == current }
+      canonical = zone.tzinfo.canonical_identifier
+      rows = (rows.reject { |row| row[:canonical] == canonical } << LanguagesHelper.timezone_option_row(current, zone))
+        .sort_by { |row| [ row[:offset], row[:identifier] ] }
+    end
+
+    rows.map { |row| [ row[:label], row[:identifier] ] }
+  end
+
+  # The zone list only changes with tzdata, so it is built once per process.
+  # Country zones come first so a current name wins over an old alias that
+  # Rails still uses (e.g. "Europe/Kyiv" over "Europe/Kiev").
+  def self.timezone_option_rows
+    @timezone_option_rows ||= (TZInfo::Timezone.all_country_zone_identifiers | ActiveSupport::TimeZone.all.map { |tz| tz.tzinfo.identifier })
+      .filter_map { |identifier| (zone = ActiveSupport::TimeZone[identifier]) && timezone_option_row(identifier, zone) }
+      .uniq { |row| row[:canonical] }
+      .sort_by { |row| [ row[:offset], row[:identifier] ] }
+      .freeze
+  end
+
+  def self.timezone_option_row(identifier, zone)
+    offset = zone.utc_offset
+    {
+      identifier: identifier,
+      canonical: zone.tzinfo.canonical_identifier,
+      offset: offset,
+      label: "(#{ActiveSupport::TimeZone.seconds_to_utc_offset(offset)}) #{identifier.tr("_", " ")}"
+    }
   end
 end

@@ -19,7 +19,8 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[type=hidden][name='user[family_attributes][timezone]'][value='Europe/Moscow']"
     assert_select "button#timezone_trigger", text: "(+03:00) Europe/Moscow"
-    assert_select "[role=option][aria-selected=true]", text: /St\. Petersburg/, count: 0
+    assert_select "[role=option][data-value='Europe/Moscow']", count: 1
+    assert_select "[role=option][aria-selected=true][data-value='Europe/Moscow']", count: 1
   end
 
   test "group moniker uses group currencies copy and hides legacy currency field" do

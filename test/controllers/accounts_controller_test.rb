@@ -1245,7 +1245,8 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "reorder saves the manual order of one account group" do
-    patch reorder_accounts_url, params: { group: "depository", account_ids: [ accounts(:connected).id, @account.id ] }, as: :json
+    # Same shape as the sidebar's sortable-list: group in the URL, ids in the body.
+    patch reorder_accounts_url(group: "depository"), params: { account_ids: [ accounts(:connected).id, @account.id ] }, as: :json
 
     assert_response :success
     assert_equal [ accounts(:connected).id, @account.id ], @user.reload.manual_account_order["depository"]
@@ -1269,12 +1270,12 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
   test "sidebar shows drag handles only with the manual account order" do
     get account_url(@account)
-    assert_select "[data-controller~='account-sortable']", count: 0
+    assert_select "[data-controller~='sortable-list']", count: 0
 
     @user.update!(default_account_order: "manual")
     get account_url(@account)
-    assert_select "[data-controller~='account-sortable'][data-account-sortable-group-value='depository']"
-    assert_select "[data-account-sortable-target='item'][data-account-id=?]", @account.id
+    assert_select "[data-controller~='sortable-list'][data-sortable-list-url-value=?]", reorder_accounts_path(group: "depository")
+    assert_select "[data-sortable-list-target='item'][data-sortable-list-id=?]", @account.id
   end
 
   private

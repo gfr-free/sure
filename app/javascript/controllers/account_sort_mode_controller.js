@@ -42,15 +42,13 @@ export default class extends Controller {
 
   // Handles rendered later (e.g. another tab's list) follow the current mode.
   handleTargetConnected(handle) {
-    handle.style.display = this.sorting ? "" : "none";
+    this.renderHandle(handle);
   }
 
   // Also runs after a Turbo morph refresh, which restores the server markup.
   render() {
     const display = this.sorting ? "" : "none";
-    this.handleTargets.forEach((handle) => {
-      handle.style.display = display;
-    });
+    this.handleTargets.forEach((handle) => this.renderHandle(handle));
     this.barTargets.forEach((bar) => {
       bar.style.display = display;
     });
@@ -58,6 +56,14 @@ export default class extends Controller {
       toggle.setAttribute("aria-pressed", this.sorting ? "true" : "false");
       toggle.classList.toggle("bg-surface-inset", this.sorting);
     });
+  }
+
+  // Rows can only be dragged in sort mode, so outside it a press on an
+  // account link or a text selection behaves as usual.
+  renderHandle(handle) {
+    handle.style.display = this.sorting ? "" : "none";
+    const item = handle.closest("[data-sortable-list-target='item']");
+    if (item) item.draggable = this.sorting;
   }
 
   visibleToggle() {

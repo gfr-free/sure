@@ -15,6 +15,13 @@ export default class extends Controller {
     url: String,
     param: String,
     holdDelay: { type: Number, default: 150 },
+    // Milliseconds after which an unanswered save counts as failed, so a
+    // stalled request cannot hold back every later save. 0 waits forever.
+    saveTimeout: { type: Number, default: 0 },
+    // The same list rendered more than once on a page (e.g. once per tab)
+    // follows a move right away: other sortable lists with the same url and
+    // param are reordered too.
+    mirrorLists: { type: Boolean, default: false },
   };
 
   connect() {
@@ -43,15 +50,24 @@ export default class extends Controller {
     this.draggedElement.classList.add("opacity-50");
     this.draggedElement.setAttribute("aria-grabbed", "true");
     event.dataTransfer.effectAllowed = "move";
+    // Firefox only starts a drag that carries data.
+    event.dataTransfer.setData(
+      "text/plain",
+      this.draggedElement.dataset.sortableListId ?? "",
+    );
   }
 
   dragEnd(event) {
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
+    this.draggedElement = null;
     this.clearPlaceholders();
   }
 
   dragOver(event) {
+    // A drag from another list on the page is not ours to drop.
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
 
@@ -68,6 +84,8 @@ export default class extends Controller {
   }
 
   drop(event) {
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -371,7 +389,29 @@ export default class extends Controller {
     this.pendingOrder = this.itemTargets.map(
       (item) => item.dataset.sortableListId,
     );
+    if (this.mirrorListsValue) this.mirrorOrder(this.pendingOrder);
     if (!this.saving) this.flushSaves();
+  }
+
+  mirrorOrder(order) {
+    document
+      .querySelectorAll("[data-controller~='sortable-list']")
+      .forEach((list) => {
+        if (
+          list === this.element ||
+          list.dataset.sortableListUrlValue !== this.urlValue ||
+          list.dataset.sortableListParamValue !== this.paramValue
+        ) {
+          return;
+        }
+
+        order.forEach((id) => {
+          const item = list.querySelector(
+            `[data-sortable-list-id='${CSS.escape(id)}']`,
+          );
+          if (item) list.appendChild(item);
+        });
+      });
   }
 
   async flushSaves() {
@@ -398,6 +438,10 @@ export default class extends Controller {
         method: "PATCH",
         headers,
         body: JSON.stringify(this.buildBody(order)),
+        signal:
+          this.saveTimeoutValue > 0
+            ? AbortSignal.timeout(this.saveTimeoutValue)
+            : undefined,
       });
 
       if (!response.ok) {

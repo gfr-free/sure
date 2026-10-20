@@ -15,11 +15,11 @@ class AccountManualOrderTest < ApplicationSystemTestCase
 
     within_testid("account-sidebar-tabs") do
       assert_equal [ checking.id, plaid.id ], visible_depository_ids.first(2)
-      assert_no_selector "[data-account-sortable-target='item'] [role=button]", visible: true
+      assert_no_selector "[data-sortable-list-target='item'] [role=button]", visible: true
 
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-account-sortable-target='item'][data-account-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
@@ -31,7 +31,7 @@ class AccountManualOrderTest < ApplicationSystemTestCase
 
     within_testid("account-sidebar-tabs") do
       click_button I18n.t("accounts.sidebar.sort_mode.done")
-      assert_no_selector "[data-account-sortable-target='item'] [role=button]", visible: true
+      assert_no_selector "[data-sortable-list-target='item'] [role=button]", visible: true
     end
 
     visit account_path(checking)
@@ -49,7 +49,7 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     within_testid("account-sidebar-tabs") do
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-account-sortable-target='item'][data-account-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
       handle.send_keys(:enter)
       handle.send_keys(:up)
 
@@ -59,51 +59,70 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ plaid.id, checking.id ] }
   end
 
-  test "a stalled save times out, shows the failure toast and lets later saves through" do
+  test "a stalled save times out and reloads the saved order" do
     checking = accounts(:depository)
     plaid = accounts(:connected)
 
     visit account_path(checking)
 
-    # A request that never answers, like a dropped mobile connection; it only
-    # ends when the caller aborts it.
+    # Order saves never answer, like a dropped mobile connection; they only
+    # end when the caller aborts them. Page loads still go through.
     page.execute_script(<<~JS)
       window.realFetch = window.fetch;
-      window.fetch = (url, options = {}) => new Promise((resolve, reject) => {
-        options.signal?.addEventListener("abort", () => reject(options.signal.reason));
-      });
-      document.querySelectorAll("[data-controller~='account-sortable']").forEach((list) => {
-        list.setAttribute("data-account-sortable-save-timeout-value", "300");
+      window.fetch = (url, options = {}) => {
+        if (!String(url).includes("/accounts/reorder")) return window.realFetch(url, options);
+        return new Promise((resolve, reject) => {
+          options.signal?.addEventListener("abort", () => reject(options.signal.reason));
+        });
+      };
+      document.querySelectorAll("[data-controller~='sortable-list']").forEach((list) => {
+        list.setAttribute("data-sortable-list-save-timeout-value", "300");
       });
     JS
 
     within_testid("account-sidebar-tabs") do
       find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
 
-      handle = find("[data-account-sortable-target='item'][data-account-id='#{plaid.id}'] [role=button]")
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
+
+      assert_equal [ plaid.id, checking.id ], visible_depository_ids.first(2)
+      # The failed save reloads the page, which shows the order actually saved.
+      assert_eventually { visible_depository_ids.first(2) == [ checking.id, plaid.id ] }
     end
 
-    assert_text I18n.t("layouts.shared.notification_tray.account_order_save_failed")
+    assert_nil @user.reload.manual_account_order["depository"]
+  end
 
-    page.execute_script("window.fetch = window.realFetch")
+  test "a move is mirrored in the other sidebar tabs" do
+    checking = accounts(:depository)
+    plaid = accounts(:connected)
+
+    visit account_path(checking)
 
     within_testid("account-sidebar-tabs") do
-      handle = find("[data-account-sortable-target='item'][data-account-id='#{checking.id}'] [role=button]")
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] [role=button]")
       handle.send_keys(:enter)
       handle.send_keys(:up)
       handle.send_keys(:enter)
     end
 
-    assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ checking.id, plaid.id ] }
+    lists = all("[data-sortable-list-url-value='#{reorder_accounts_path(group: "depository")}']", visible: :all)
+    assert_operator lists.size, :>, 1
+    lists.each do |list|
+      ids = list.all("[data-sortable-list-target='item']", visible: :all).map { |item| item["data-sortable-list-id"] }
+      assert_equal [ plaid.id, checking.id ], ids.first(2)
+    end
   end
 
   private
     def visible_depository_ids
-      list = all("[data-account-sortable-group-value='depository']", visible: true).first
-      list.all("[data-account-sortable-target='item']").map { |item| item["data-account-id"] }
+      list = all("[data-sortable-list-url-value='#{reorder_accounts_path(group: "depository")}']", visible: true).first
+      list.all("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
     end
 
     def assert_eventually(timeout: 5)

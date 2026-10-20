@@ -61,6 +61,7 @@ es:
       delete: Eliminar
       delete_subtitle: Esto eliminará la posición y todas tus operaciones asociadas en esta cuenta. Esta acción no se puede deshacer.
       delete_title: Eliminar posición
+      edit_cost_basis: Editar costo promedio
       edit_security: Editar valor
       history: Historial
       no_trade_history: No hay historial de operaciones disponible para esta posición.

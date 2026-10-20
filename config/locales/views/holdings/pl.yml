@@ -63,6 +63,7 @@ pl:
       delete_subtitle: Spowoduje to usunięcie pozycji i wszystkich powiązanych transakcji
         na tym koncie. Tej akcji nie można cofnąć.
       delete_title: Usuń pozycję
+      edit_cost_basis: Edytuj średni koszt
       edit_security: Edytuj papier wartościowy
       history: Historia
       last_price_update: Ostatnia aktualizacja ceny

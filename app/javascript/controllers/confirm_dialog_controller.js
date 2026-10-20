@@ -44,6 +44,11 @@ export default class extends Controller {
     // family members, however the caller built the confirmation.
     this.subtitleTarget.textContent =
       data.body || "This action cannot be undone.";
+    // A body that names an amount opts in to the privacy-mode blur.
+    this.subtitleTarget.classList.toggle(
+      "privacy-sensitive",
+      data.privacySensitive === true,
+    );
   }
 
   // If data is a string, it's the title.  Otherwise, return the parsed object.

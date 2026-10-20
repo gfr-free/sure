@@ -61,6 +61,7 @@ zh-TW:
       delete: 刪除
       delete_subtitle: 此操作將刪除該持股，以及此帳戶中所有相關的交易紀錄。此動作無法復原。
       delete_title: 刪除持股
+      edit_cost_basis: 編輯平均成本
       edit_security: 編輯證券
       history: 歷史紀錄
       no_trade_history: 這筆持股沒有可用的交易紀錄。

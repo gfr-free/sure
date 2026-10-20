@@ -21,7 +21,8 @@
   if holding.avg_cost
     form_data[:turbo_confirm] = {
       title: t("holdings.cost_basis_cell.overwrite_confirm_title"),
-      body: t("holdings.cost_basis_cell.overwrite_confirm_body", current: format_money(holding.avg_cost))
+      body: t("holdings.cost_basis_cell.overwrite_confirm_body", current: format_money(holding.avg_cost)),
+      privacySensitive: true
     }
   end
 %>

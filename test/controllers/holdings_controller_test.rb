@@ -163,6 +163,48 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-controller=cost-basis-form][data-turbo=false]", count: 0
   end
 
+  test "cost basis overwrite confirmation blurs the current average cost in privacy mode" do
+    @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_locked: true)
+
+    get holding_path(@holding)
+
+    form = css_select("form[data-controller=cost-basis-form]").first
+    assert JSON.parse(form["data-turbo-confirm"])["privacySensitive"]
+  end
+
+  test "holding drawer blurs the position's values in privacy mode" do
+    @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_locked: true)
+
+    get holding_path(@holding)
+
+    assert_select "##{dom_id(@holding, :shares)}.privacy-sensitive"
+    assert_select "dd span.privacy-sensitive", text: "$12.50"
+    assert_select "dd.privacy-sensitive", text: "$125.00"
+    assert_select "##{dom_id(@holding, :market_value)} dd.privacy-sensitive"
+  end
+
+  test "holding drawer names the cost basis pencil and tells whether its editor is open" do
+    get holding_path(@holding)
+
+    editor_id = dom_id(@holding, :drawer_cost_basis_editor)
+    assert_select "button[data-drawer-cost-basis-target=opener][aria-label=?][aria-expanded=false][aria-controls=?]",
+      I18n.t("holdings.show.edit_cost_basis"), editor_id
+    assert_select "##{editor_id}[data-drawer-cost-basis-target=form]"
+  end
+
+  test "holding drawer submits unlock and reset through Turbo so their confirmations show" do
+    @holding.update!(cost_basis: 12.5, cost_basis_locked: true, provider_security: securities(:msft))
+    Account.any_instance.stubs(:linked?).returns(true)
+
+    get holding_path(@holding)
+
+    [ unlock_cost_basis_holding_path(@holding), reset_security_holding_path(@holding) ].each do |path|
+      assert_select "form[action='#{path}'][data-turbo-frame=_top]:not([data-turbo])" do
+        assert_select "button[data-turbo-confirm]"
+      end
+    end
+  end
+
   test "cost basis editor shows a stored zero basis instead of placeholders" do
     @holding.update!(qty: 10, cost_basis: 0, cost_basis_locked: true)
 

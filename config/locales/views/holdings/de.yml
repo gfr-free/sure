@@ -57,6 +57,7 @@ de:
       delete: Löschen
       delete_subtitle: Dadurch wird die Position und alle zugehörigen Trades auf diesem Konto gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
       delete_title: Position löschen
+      edit_cost_basis: Durchschnittlichen Einstandspreis bearbeiten
       edit_security: Wertpapier bearbeiten
       history: Verlauf
       no_trade_history: Für diese Position ist keine Trade-Historie verfügbar.

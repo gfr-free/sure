@@ -10,6 +10,7 @@ export default class extends Controller {
   toggle(event) {
     event.preventDefault()
     const hidden = this.formTarget.classList.toggle("hidden")
+    this.openerTarget.setAttribute("aria-expanded", String(!hidden))
 
     if (hidden) {
       this.openerTarget.focus()

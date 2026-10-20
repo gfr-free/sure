@@ -60,6 +60,7 @@ fr:
       delete_subtitle: Cela supprimera l'holding et toutes vos transactions boursières
         associées sur ce compte. Cette action ne peut pas être annulée.
       delete_title: Supprimer l'holding
+      edit_cost_basis: Modifier le coût moyen
       edit_security: Modifier le titre
       history: Historique
       last_price_update: Dernière mise à jour du cours

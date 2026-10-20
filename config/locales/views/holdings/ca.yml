@@ -60,6 +60,7 @@ ca:
       delete_subtitle: Això eliminarà la posició i totes les operacions associades
         d'aquest compte. Aquesta acció no es pot desfer.
       delete_title: Elimina la posició
+      edit_cost_basis: Edita el cost mitjà
       edit_security: Edita el valor
       history: Historial
       last_price_update: Última actualització de preu

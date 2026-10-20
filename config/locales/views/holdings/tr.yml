@@ -59,6 +59,7 @@ tr:
       delete_subtitle: Bu işlem, bu varlığı ve bu hesaptaki ilişkili tüm işlemlerinizi
         silecektir. Bu işlem geri alınamaz.
       delete_title: Varlığı sil
+      edit_cost_basis: Ortalama maliyeti düzenle
       edit_security: Menkul kıymeti düzenle
       history: Geçmiş
       last_price_update: Son fiyat güncellemesi

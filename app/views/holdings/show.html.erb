@@ -96,7 +96,7 @@
           </div>
           <div class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".shares_label") %></dt>
-            <dd id="<%= dom_id(@holding, :shares) %>" class="text-primary"><%= format_quantity(@holding.qty, exact: true) %></dd>
+            <dd id="<%= dom_id(@holding, :shares) %>" class="text-primary privacy-sensitive"><%= format_quantity(@holding.qty, exact: true) %></dd>
           </div>
           <div class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".portfolio_weight_label") %></dt>
@@ -107,20 +107,26 @@
             <div class="flex items-center justify-between text-sm">
               <dt class="text-secondary"><%= t(".avg_cost_label") %></dt>
               <dd class="text-primary flex items-center gap-1">
-                <%= @holding.avg_cost ? format_money(@holding.avg_cost) : t(".unknown") %>
+                <%= tag.span @holding.avg_cost ? format_money(@holding.avg_cost) : t(".unknown"), class: "privacy-sensitive" %>
                 <% if @holding.cost_basis_locked? %>
                   <%= icon "lock", size: "xs", class: "text-secondary" %>
                 <% end %>
                 <% if @holding.cost_basis_source.present? %>
                   <span class="text-xs text-secondary">(<%= @holding.cost_basis_source_label %>)</span>
                 <% end %>
-                <button type="button" class="ml-1" data-action="click->drawer-cost-basis#toggle" data-drawer-cost-basis-target="opener">
+                <button type="button"
+                        class="ml-1"
+                        aria-label="<%= t(".edit_cost_basis") %>"
+                        aria-expanded="false"
+                        aria-controls="<%= dom_id(@holding, :drawer_cost_basis_editor) %>"
+                        data-action="click->drawer-cost-basis#toggle"
+                        data-drawer-cost-basis-target="opener">
                   <%= icon "pencil", size: "xs", class: "text-secondary hover:text-primary" %>
                 </button>
               </dd>
             </div>
             <%# Inline cost basis editor (hidden by default) %>
-            <div class="hidden mt-3 space-y-3" data-drawer-cost-basis-target="form">
+            <div id="<%= dom_id(@holding, :drawer_cost_basis_editor) %>" class="hidden mt-3 space-y-3" data-drawer-cost-basis-target="form">
               <p class="text-xs text-secondary">
                 <%= t("holdings.cost_basis_cell.set_cost_basis_header", ticker: @holding.ticker) %>
               </p>
@@ -129,14 +135,14 @@
           </div>
           <div class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".book_value_label") %></dt>
-            <dd class="text-primary">
+            <dd class="text-primary privacy-sensitive">
               <% book_value = @holding.avg_cost ? @holding.avg_cost * @holding.qty : nil %>
               <%= book_value ? format_money(book_value) : t(".unknown") %>
             </dd>
           </div>
           <div id="<%= dom_id(@holding, :market_value) %>" class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".market_value_label") %></dt>
-            <dd class="text-primary"><%= format_money(@holding.amount_money) %></dd>
+            <dd class="text-primary privacy-sensitive"><%= format_money(@holding.amount_money) %></dd>
           </div>
           <div id="<%= dom_id(@holding, :total_return) %>" class="flex items-center justify-between text-sm">
             <dt class="text-secondary"><%= t(".total_return_label") %></dt>
@@ -166,7 +172,7 @@
                   </div>
                   <div>
                     <p class="text-secondary text-xs uppercase"><%= l(trade_entry.date, format: :long) %></p>
-                    <p class="text-primary"><%= t(
+                    <p class="text-primary privacy-sensitive"><%= t(
                       ".trade_history_entry",
                       qty: trade_entry.trade.qty,
                       security: trade_entry.trade.security.ticker,
@@ -216,7 +222,7 @@
                   reset_security_holding_path(@holding),
                   method: :post,
                   class: "inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-primary button-bg-secondary-strong hover:button-bg-secondary-strong-hover",
-                  form: { data: { turbo: false } },
+                  form: { data: { turbo_frame: "_top" } },
                   data: { turbo_confirm: {
                     title: t(".reset_confirm_title"),
                     body: t(".reset_confirm_body", current: @holding.security.ticker, original: @holding.provider_security.ticker)
@@ -253,7 +259,7 @@
                   unlock_cost_basis_holding_path(@holding),
                   method: :post,
                   class: "inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-primary button-bg-secondary-strong hover:button-bg-secondary-strong-hover",
-                  form: { data: { turbo: false } },
+                  form: { data: { turbo_frame: "_top" } },
                   data: { turbo_confirm: { title: t(".unlock_confirm_title"), body: t(".unlock_confirm_body") } } %>
             </div>
           <% end %>

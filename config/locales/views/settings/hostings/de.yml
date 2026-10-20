@@ -29,10 +29,10 @@ de:
           title: Daten-Cache leeren?
           body: Bist du sicher, dass du den Daten-Cache leeren möchtest? Dadurch werden alle Wechselkurse, Wertpapierpreise, Kontostände und andere Daten entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
         reset_market_data: Marktdaten für alle Familien zurücksetzen
-        reset_market_data_warning: Löscht alle Wechselkurse und Wertpapierpreise dieser Instanz, lädt sie bei deinen Anbietern neu und synchronisiert danach jede Familie. Bis der Import fertig ist, sehen Familien Fremdwährungsbeträge eventuell unumgerechnet.
+        reset_market_data_warning: Löscht alle Wechselkurse und alle von Anbietern geladenen Wertpapierpreise dieser Instanz, lädt sie bei deinen Anbietern neu und synchronisiert danach jede Familie. Bis der Import fertig ist, sehen Familien Fremdwährungsbeträge eventuell unumgerechnet.
         confirm_reset_market_data:
           title: Marktdaten für alle Familien zurücksetzen?
-          body: Dadurch werden alle Wechselkurse und Wertpapierpreise für jede Familie dieser Instanz gelöscht und neu geladen. Bis der Import fertig ist, werden Fremdwährungsbeträge eventuell unumgerechnet angezeigt. Diese Aktion kann nicht rückgängig gemacht werden.
+          body: Dadurch werden alle Wechselkurse und alle von Anbietern geladenen Wertpapierpreise für jede Familie dieser Instanz gelöscht und neu geladen. Bis der Import fertig ist, werden Fremdwährungsbeträge eventuell unumgerechnet angezeigt. Diese Aktion kann nicht rückgängig gemacht werden.
         ai_assistant: KI-Assistent
         property_valuation_providers: Anbieter für Immobilienbewertung
       provider_selection:

@@ -39,10 +39,10 @@ en:
           title: Clear data cache?
           body: Are you sure you want to clear the data cache? This will remove all exchange rates, security prices, account balances, and other data. This action cannot be undone.
         reset_market_data: Reset market data for all families
-        reset_market_data_warning: Deletes all exchange rates and security prices on this instance, re-imports them from your providers, and then syncs every family. Families may see unconverted totals until the import finishes.
+        reset_market_data_warning: Deletes all exchange rates and all provider-fetched security prices on this instance, re-imports them from your providers, and then syncs every family. Families may see unconverted totals until the import finishes.
         confirm_reset_market_data:
           title: Reset market data for all families?
-          body: This deletes all exchange rates and security prices for every family on this instance and re-imports them. Until the import finishes, foreign-currency amounts may be shown unconverted. This action cannot be undone.
+          body: This deletes all exchange rates and all provider-fetched security prices for every family on this instance and re-imports them. Until the import finishes, foreign-currency amounts may be shown unconverted. This action cannot be undone.
       provider_selection:
         exchange_rate_title: Exchange Rate Provider
         exchange_rate_description: Select a single provider for fetching currency exchange rates.

@@ -350,13 +350,44 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     family = @user.family
     newest = family.rules.create!(resource_type: "transaction",
       actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
-    ordered_ids = [ newest.id ] + (family.rules.ordered.pluck(:id) - [ newest.id ])
-    Rule.update_positions!(family, ordered_ids)
+    ordered_keys = [ "rule:#{newest.id}" ] + (family.rules.ordered.pluck(:id) - [ newest.id ]).map { |id| "rule:#{id}" }
+    Rule::Layout.new(family).reorder!(ordered_keys)
 
     get rules_url
 
     assert_response :success
-    assert_equal ordered_ids, css_select("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
+    assert_equal ordered_keys, css_select("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
+  end
+
+  test "index shows groups with their rules in run order" do
+    family = @user.family
+    group = family.rule_groups.create!(name: "Groceries")
+    grouped = family.rules.create!(resource_type: "transaction", name: "Grouped rule", rule_group: group,
+      actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+
+    get rules_url
+
+    assert_response :success
+    assert_select "[data-sortable-list-id='group:#{group.id}']" do
+      assert_select "[data-sortable-list-id='#{grouped.id}'][data-rule-group='#{group.id}']"
+    end
+    assert_select "select[name='group'] option[value='#{group.id}']", text: "Groceries"
+  end
+
+  test "index renders search and filter data for each rule" do
+    family = @user.family
+    category = family.categories.first
+    3.times do |index|
+      family.rules.create!(resource_type: "transaction", name: "Rule #{index}",
+        conditions: [ Rule::Condition.new(condition_type: "transaction_category", operator: "=", value: category.id) ],
+        actions: [ Rule::Action.new(action_type: "set_transaction_category", value: category.id) ])
+    end
+
+    get rules_url
+
+    assert_response :success
+    assert_select "[data-rule-search*='#{category.name}']", minimum: 3
+    assert_select "select[name='action_type'] option[value='set_transaction_category']"
   end
 
   test "reorder saves the new order" do
@@ -365,7 +396,7 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
       actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
     ordered_ids = family.rules.ordered.pluck(:id).reverse
 
-    patch reorder_rules_url, params: { rule_ids: ordered_ids }, as: :json
+    patch reorder_rules_url, params: { items: ordered_ids.map { |id| "rule:#{id}" } }, as: :json
 
     assert_response :no_content
     assert_equal ordered_ids, family.rules.ordered.pluck(:id)
@@ -378,11 +409,34 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
       actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
     before = family.rules.ordered.pluck(:id, :position)
 
-    patch reorder_rules_url, params: { rule_ids: family.rules.pluck(:id) + [ other_rule.id ] }, as: :json
+    patch reorder_rules_url, params: { items: (family.rules.pluck(:id) + [ other_rule.id ]).map { |id| "rule:#{id}" } }, as: :json
 
     assert_response :unprocessable_entity
     assert_equal before, family.rules.ordered.pluck(:id, :position)
     assert_equal 1, other_rule.reload.position
+  end
+
+  test "creates a rule in a new group" do
+    assert_difference [ "Rule.count", "RuleGroup.count" ], 1 do
+      post rules_url, params: { rule: {
+        resource_type: "transaction",
+        new_rule_group_name: "  Subscriptions ",
+        conditions_attributes: { "0" => { condition_type: "transaction_name", operator: "like", value: "netflix" } },
+        actions_attributes: { "0" => { action_type: "exclude_transaction" } }
+      } }
+    end
+
+    assert_equal "Subscriptions", Rule.order(:created_at).last.rule_group.name
+  end
+
+  test "rejects a group of another family" do
+    rule = rules(:one)
+    foreign_group = families(:empty).rule_groups.create!(name: "Foreign")
+
+    patch rule_url(rule), params: { rule: { rule_group_id: foreign_group.id } }
+
+    assert_response :unprocessable_entity
+    assert_nil rule.reload.rule_group_id
   end
 
   test "can destroy conditions and actions while editing" do

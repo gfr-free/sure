@@ -45,12 +45,12 @@ class RulesTest < ApplicationSystemTestCase
 
     visit rules_path
 
-    grip = find("[data-sortable-list-id='#{first.id}'] button[data-action*='handleKeyDown']")
+    grip = find("[data-sortable-list-id='rule:#{first.id}'] button[data-action*='handleKeyDown']")
     grip.send_keys(:enter)
     grip.send_keys(:arrow_down)
     grip.send_keys(:enter)
 
-    assert_selector "[data-sortable-list-target='item']:first-child[data-sortable-list-id='#{second.id}']"
+    assert_selector "[data-sortable-list-target='item']:first-child[data-sortable-list-id='rule:#{second.id}']"
     # The order is saved by a fetch Capybara cannot wait on, so poll for it.
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + Capybara.default_max_wait_time
     sleep 0.05 until family.rules.ordered.pluck(:id) == [ second.id, first.id ] ||
@@ -101,4 +101,78 @@ class RulesTest < ApplicationSystemTestCase
     assert_equal "set_transaction_category", rule.actions.first.action_type
     assert rule.actions.first.value.present?
   end
+
+  test "moves a group with its rules and the rules inside it with the keyboard" do
+    family = @user.family
+    family.rules.destroy_all
+    loose = create_exclude_rule("Loose rule")
+    group = family.rule_groups.create!(name: "Food")
+    first_in_group = create_exclude_rule("First in group", group: group)
+    second_in_group = create_exclude_rule("Second in group", group: group)
+
+    visit rules_path
+
+    group_grip = find("[data-sortable-list-id='group:#{group.id}'] [data-rules-group-header] button[data-action*='handleKeyDown']")
+    group_grip.send_keys(:enter)
+    group_grip.send_keys(:arrow_up)
+    group_grip.send_keys(:enter)
+    wait_for_order(family, [ first_in_group.id, second_in_group.id, loose.id ])
+
+    rule_grip = find("[data-sortable-list-id='#{second_in_group.id}'] button[data-action*='handleKeyDown']")
+    rule_grip.send_keys(:enter)
+    rule_grip.send_keys(:arrow_up)
+    rule_grip.send_keys(:enter)
+    wait_for_order(family, [ second_in_group.id, first_in_group.id, loose.id ])
+  end
+
+  test "searches and filters rules and turns sorting off meanwhile" do
+    family = @user.family
+    family.rules.destroy_all
+    group = family.rule_groups.create!(name: "Housing")
+    groceries = create_exclude_rule("Groceries", active: false)
+    rent = create_exclude_rule("Rent", group: group)
+
+    visit rules_path
+    find("input[type='search']").fill_in(with: "rent")
+
+    assert_selector "[data-sortable-list-id='#{rent.id}']"
+    assert_no_selector "[data-sortable-list-id='rule:#{groceries.id}']"
+    assert_text "Sorting is off while a search or filter is active"
+    assert_selector "[data-sortable-list-id='#{rent.id}'][draggable='false'] button[data-action*='handleKeyDown']:disabled", visible: :all
+    assert_current_path(/q=rent/)
+
+    click_on "Reset"
+    select "Inactive", from: "status"
+
+    assert_selector "[data-sortable-list-id='rule:#{groceries.id}']"
+    assert_no_selector "[data-sortable-list-id='group:#{group.id}']"
+  end
+
+  test "folds a group and keeps it folded after a reload" do
+    family = @user.family
+    group = family.rule_groups.create!(name: "Food")
+    rule = create_exclude_rule("Folded rule", group: group)
+
+    visit rules_path
+    find("[data-sortable-list-id='group:#{group.id}'] [data-rules-filter-group-toggle]").click
+
+    assert_no_selector "[data-sortable-list-id='#{rule.id}']"
+    visit rules_path
+    assert_selector "[data-sortable-list-id='group:#{group.id}'] [data-rules-filter-group-toggle][aria-expanded='false']"
+    assert_no_selector "[data-sortable-list-id='#{rule.id}']"
+  end
+
+  private
+    def create_exclude_rule(name, group: nil, active: true)
+      @user.family.rules.create!(name: name, resource_type: "transaction", rule_group: group, active: active,
+        actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+    end
+
+    # The order is saved by a fetch Capybara cannot wait on, so poll for it.
+    def wait_for_order(family, ids)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + Capybara.default_max_wait_time
+      sleep 0.05 until family.rules.ordered.pluck(:id) == ids ||
+        Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      assert_equal ids, family.rules.ordered.pluck(:id)
+    end
 end

@@ -5,7 +5,9 @@ class RulesController < ApplicationController
   before_action :set_rule, only: [  :edit, :update, :destroy, :apply, :confirm ]
 
   def index
-    @rules = Current.family.rules.includes(conditions: :sub_conditions).ordered
+    @rules = Current.family.rules.includes(:actions, conditions: :sub_conditions).ordered
+    @layout = Rule::Layout.new(Current.family, rules: @rules)
+    @list_filter = Rule::ListFilter.new(@rules)
 
     # Fetch recent rule runs with pagination
     recent_runs_scope = RuleRun
@@ -97,8 +99,10 @@ class RulesController < ApplicationController
     redirect_to rules_path, notice: t(".success")
   end
 
+  # Orders the top-level items: groups and rules without a group. The rules
+  # inside a group are ordered by RuleGroupsController#reorder.
   def reorder
-    Rule.update_positions!(Current.family, params.require(:rule_ids))
+    Rule::Layout.new(Current.family).reorder!(params.require(:items))
     head :no_content
   rescue ArgumentError
     head :unprocessable_entity
@@ -226,6 +230,7 @@ class RulesController < ApplicationController
     def rule_params
       params.require(:rule).permit(
         :resource_type, :effective_date, :active, :name, :stop_processing,
+        :rule_group_id, :new_rule_group_name,
         conditions_attributes: [
           :id, :condition_type, :operator, :value, :_destroy,
           sub_conditions_attributes: [ :id, :condition_type, :operator, :value, :_destroy ]

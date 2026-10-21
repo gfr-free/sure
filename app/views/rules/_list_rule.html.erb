@@ -1,0 +1,20 @@
+<%# locals: (rule:, sortable_id:, list_filter:, list: "sortable-list") %>
+<div class="flex items-center"
+     data-<%= list %>-target="item"
+     data-sortable-list-id="<%= sortable_id %>"
+     draggable="true"
+     role="listitem"
+     aria-grabbed="false"
+     data-action="dragstart-><%= list %>#dragStart dragend-><%= list %>#dragEnd"
+     data-rules-filter-target="rule"
+     data-rule-search="<%= list_filter.search_text(rule) %>"
+     data-rule-active="<%= rule.active? %>"
+     data-rule-actions="<%= list_filter.action_types(rule).join(" ") %>"
+     data-rule-conditions="<%= list_filter.condition_types(rule).join(" ") %>"
+     data-rule-accounts="<%= list_filter.account_ids(rule).join(" ") %>"
+     data-rule-group="<%= rule.rule_group_id || "none" %>">
+  <%= render "rules/drag_handle", list: list, label: t("rules.index.reorder_rule", name: rule.name.presence || rule.primary_condition_title) %>
+  <div class="grow min-w-0">
+    <%= render "rules/rule", rule: rule %>
+  </div>
+</div>

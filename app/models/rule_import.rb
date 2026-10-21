@@ -15,7 +15,7 @@ class RuleImport < Import
   end
 
   def column_keys
-    %i[name resource_type active effective_date conditions actions]
+    %i[name resource_type active effective_date conditions actions rule_group]
   end
 
   def required_column_keys
@@ -32,7 +32,7 @@ class RuleImport < Import
 
   def csv_template
     csv_string = CSV.generate do |csv|
-      csv << %w[name resource_type* active effective_date conditions* actions*]
+      csv << %w[name resource_type* active effective_date conditions* actions* group]
 
       csv << [
         "Categorize groceries",
@@ -40,7 +40,8 @@ class RuleImport < Import
         "true",
         "2024-01-01",
         '[{"condition_type":"transaction_name","operator":"like","value":"grocery"}]',
-        '[{"action_type":"set_transaction_category","value":"Groceries"}]'
+        '[{"action_type":"set_transaction_category","value":"Groceries"}]',
+        "Shopping"
       ]
 
       csv << [
@@ -49,7 +50,8 @@ class RuleImport < Import
         "true",
         "",
         '[{"condition_type":"transaction_name","operator":"like","value":"amazon"}]',
-        '[{"action_type":"auto_categorize"}]'
+        '[{"action_type":"auto_categorize"}]',
+        ""
       ]
     end
 
@@ -70,6 +72,7 @@ class RuleImport < Import
         effective_date: normalized_row[:effective_date].to_s.strip,
         conditions: normalized_row[:conditions].to_s.strip,
         actions: normalized_row[:actions].to_s.strip,
+        rule_group: normalized_row[:rule_group] && normalized_rule_text(normalized_row[:rule_group], attribute: :rule_group),
         currency: default_currency
       )
     end
@@ -81,8 +84,16 @@ class RuleImport < Import
 
   private
 
+    # The optional group column is read by its header and left out of the
+    # positional fields, which re-assemble conditions and actions from
+    # everything after the fourth column.
     def normalize_rule_row(row)
-      fields = row.fields
+      fields = row.fields.dup
+      headers = row.headers
+      group_index = headers.index { |header| header.to_s.strip.delete_suffix("*") == "group" }
+      # Counted from the end, so a row whose JSON was split into extra fields
+      # still gives up the right one. A short row has no group.
+      group = fields.delete_at(group_index - headers.size) if group_index && fields.size >= headers.size
       name, resource_type, active, effective_date = fields[0..3]
       conditions, actions = extract_conditions_and_actions(fields[4..])
 
@@ -92,7 +103,8 @@ class RuleImport < Import
         active: row["active"].presence || active,
         effective_date: row["effective_date"].presence || effective_date,
         conditions: conditions,
-        actions: actions
+        actions: actions,
+        rule_group: group_index ? group.to_s : nil
       }
     end
 
@@ -164,6 +176,8 @@ class RuleImport < Import
 
       rule.active = row.active || false
       rule.effective_date = parse_date(row.effective_date)
+      # A file without the group column leaves the rule's group as it is.
+      rule.rule_group = find_or_create_rule_group(row.rule_group) unless row.rule_group.nil?
 
       # Clear existing conditions and actions
       rule.conditions.destroy_all
@@ -180,6 +194,13 @@ class RuleImport < Import
       end
 
       rule.save!
+    end
+
+    def find_or_create_rule_group(name)
+      name = name.strip
+      return if name.empty?
+
+      family.rule_groups.find_or_create_by!(name: name)
     end
 
     def build_condition(rule, condition_data, parent: nil)

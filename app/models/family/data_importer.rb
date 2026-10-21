@@ -1386,6 +1386,9 @@ class Family::DataImporter
           effective_date: data["effective_date"].present? ? Date.parse(data["effective_date"].to_s) : nil,
           stop_processing: data["stop_processing"] || false
         )
+        # Exports from before rule groups have no group key; an existing rule
+        # then keeps its group.
+        rule.rule_group = find_or_create_rule_group(data["group"]) if data.key?("group")
 
         rule.conditions.destroy_all unless created
         rule.actions.destroy_all unless created
@@ -1404,6 +1407,14 @@ class Family::DataImporter
         map_source!(:rules, old_id, rule)
         increment_summary("Rule", created ? :created : :updated)
       end
+    end
+
+    def find_or_create_rule_group(name)
+      validate_rule_text!(name, field: "group")
+      name = name.to_s.strip
+      return if name.empty?
+
+      @family.rule_groups.find_or_create_by!(name: name)
     end
 
     def build_rule_condition(rule, condition_data, parent: nil)

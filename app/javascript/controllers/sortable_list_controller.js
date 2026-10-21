@@ -5,6 +5,12 @@ import { Controller } from "@hotwired/stimulus";
 // data-sortable-list-target="item" and data-sortable-list-id. On every change
 // the ids are sent as JSON to urlValue, nested under paramValue
 // ("a.b" sends { a: { b: [...] } }).
+//
+// A list can hold another list (rule groups inside the rules list). The inner
+// one uses this controller as "sortable-sublist": Stimulus does not pass a
+// controller events from inside a nested controller of the same name, and
+// the outer list needs the dragover and drop events over the inner one to
+// move a whole group. Each list handles only drags of its own items.
 export default class extends Controller {
   static targets = ["item", "handle"];
 
@@ -31,6 +37,10 @@ export default class extends Controller {
 
   // ===== Mouse Drag Events =====
   dragStart(event) {
+    // A drag that started on an item of a nested list bubbles up to this
+    // list's item around it; the nested list handles it.
+    if (!this.ownsItem(event.target, event.currentTarget)) return;
+
     // If a touch interaction is in progress, cancel native drag —
     // use touch events with hold delay instead.
     // This avoids blocking mouse/trackpad drag on touch-capable laptops.
@@ -49,9 +59,12 @@ export default class extends Controller {
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();
+    this.draggedElement = null;
   }
 
   dragOver(event) {
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
 
@@ -68,6 +81,8 @@ export default class extends Controller {
   }
 
   drop(event) {
+    if (!this.draggedElement) return;
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -90,9 +105,7 @@ export default class extends Controller {
 
   touchStart(event) {
     // Find the parent item element from the handle
-    const section = event.currentTarget.closest(
-      "[data-sortable-list-target='item']",
-    );
+    const section = event.currentTarget.closest(this.itemSelector);
     if (!section) return;
 
     this.pendingSection = section;
@@ -230,9 +243,7 @@ export default class extends Controller {
   // Bound either on the item itself or on a handle inside it. Focus returns
   // to the bound element after each move.
   handleKeyDown(event) {
-    const currentSection = event.currentTarget.closest(
-      "[data-sortable-list-target='item']",
-    );
+    const currentSection = event.currentTarget.closest(this.itemSelector);
     if (!currentSection) return;
     this.keyboardFocusElement = event.currentTarget;
 
@@ -315,6 +326,19 @@ export default class extends Controller {
       this.element.insertBefore(nextSibling, section);
       this.keyboardFocusElement?.focus();
     }
+  }
+
+  get itemSelector() {
+    return `[data-${this.identifier}-target='item']`;
+  }
+
+  // Whether the drag started on `item` itself rather than on a draggable item
+  // of a list nested in it. A text drag starts on a text node, so look from
+  // its parent element.
+  ownsItem(target, item) {
+    const element =
+      target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+    return element?.closest("[draggable='true']") === item;
   }
 
   getDragAfterElement(y) {

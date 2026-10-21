@@ -59,6 +59,7 @@ class Family < ApplicationRecord
   has_many :entries, through: :accounts
   has_many :transactions, through: :accounts
   has_many :rules, dependent: :destroy
+  has_many :rule_groups, dependent: :destroy
   has_many :trades, through: :accounts
   has_many :holdings, through: :accounts
 

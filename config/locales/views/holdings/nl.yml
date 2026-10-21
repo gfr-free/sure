@@ -44,6 +44,7 @@ nl:
       missing_data: Ontbrekende gegevens
     show:
       avg_cost_label: Gemiddelde kostprijs
+      edit_cost_basis: Gemiddelde kostprijs bewerken
       current_market_price_label: Huidige marktprijs
       delete: Verwijderen
       delete_subtitle: Dit verwijdert het bezit en al uw bijbehorende transacties op dit account. Deze actie kan niet ongedaan worden gemaakt.

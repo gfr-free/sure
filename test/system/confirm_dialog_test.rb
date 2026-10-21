@@ -26,4 +26,18 @@ class ConfirmDialogTest < ApplicationSystemTestCase
     end
     assert_nil page.evaluate_script("document.body.dataset.injected")
   end
+
+  test "keeps the localized texts for a confirmation that sets no button text" do
+    @user.update!(locale: "de")
+    holding = holdings(:one)
+    holding.update!(cost_basis: 12.5, cost_basis_source: "manual", cost_basis_locked: true)
+
+    visit holding_path(holding)
+    click_on I18n.t("holdings.show.unlock_cost_basis", locale: :de)
+
+    within "#confirm-dialog" do
+      assert_text I18n.t("holdings.show.unlock_confirm_title", locale: :de)
+      assert_selector "button[value=confirm]", text: I18n.t("layouts.shared.confirm_dialog.confirm", locale: :de), visible: true
+    end
+  end
 end

@@ -60,6 +60,7 @@ pt-PT:
       delete_subtitle: Isto irá eliminar a posição e todas as negociações associadas
         nesta conta. Esta ação é irreversível.
       delete_title: Eliminar posição
+      edit_cost_basis: Editar custo médio
       edit_security: Editar título
       history: Histórico
       no_trade_history: Nenhum histórico de negociações disponível para esta posição.

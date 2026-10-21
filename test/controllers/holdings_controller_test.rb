@@ -163,6 +163,49 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-controller=cost-basis-form][data-turbo=false]", count: 0
   end
 
+  test "cost basis overwrite confirmation blurs the current average cost in privacy mode" do
+    @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_locked: true)
+
+    get holding_path(@holding)
+
+    form = css_select("form[data-controller=cost-basis-form]").first
+    assert JSON.parse(form["data-turbo-confirm"])["privacySensitive"]
+  end
+
+  test "holding drawer blurs the position's values in privacy mode" do
+    @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_locked: true)
+
+    get holding_path(@holding)
+
+    assert_select "##{dom_id(@holding, :shares)}.privacy-sensitive"
+    assert_select "dd span.privacy-sensitive", text: "$12.50"
+    assert_select "dd.privacy-sensitive", text: "$125.00"
+    assert_select "##{dom_id(@holding, :market_value)} dd.privacy-sensitive"
+    assert_select "li p.privacy-sensitive", text: /AAPL/
+  end
+
+  test "holding drawer names the cost basis pencil and tells whether its editor is open" do
+    get holding_path(@holding)
+
+    editor_id = dom_id(@holding, :drawer_cost_basis_editor)
+    assert_select "button[data-drawer-cost-basis-target=opener][aria-label=?][aria-expanded=false][aria-controls=?]",
+      I18n.t("holdings.show.edit_cost_basis"), editor_id
+    assert_select "##{editor_id}[data-drawer-cost-basis-target=form]"
+  end
+
+  test "holding drawer submits unlock and reset through Turbo so their confirmations show" do
+    @holding.update!(cost_basis: 12.5, cost_basis_locked: true, provider_security: securities(:msft))
+    Account.any_instance.stubs(:linked?).returns(true)
+
+    get holding_path(@holding)
+
+    [ unlock_cost_basis_holding_path(@holding), reset_security_holding_path(@holding) ].each do |path|
+      assert_select "form[action='#{path}'][data-turbo-frame=_top]:not([data-turbo])" do
+        assert_select "button[data-turbo-confirm]"
+      end
+    end
+  end
+
   test "cost basis editor shows a stored zero basis instead of placeholders" do
     @holding.update!(qty: 10, cost_basis: 0, cost_basis_locked: true)
 
@@ -273,5 +316,18 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to account_path(@holding.account, tab: "holdings")
     assert_equal "Yahoo Finance rate limit exceeded", flash[:alert]
+  end
+
+  test "sync_prices keeps the drawer's market value blurred in privacy mode" do
+    Security.any_instance.stubs(:import_provider_prices).returns([ 31, nil ])
+    Security.any_instance.stubs(:import_provider_details)
+    Balance::Materializer.any_instance.stubs(:materialize_balances)
+
+    post sync_prices_holding_path(@holding), as: :turbo_stream
+
+    assert_response :success
+    assert_select "turbo-stream[target=#{dom_id(@holding, :market_value)}] template" do |templates|
+      assert_includes templates.first.inner_html, %(<dd class="text-primary privacy-sensitive">)
+    end
   end
 end

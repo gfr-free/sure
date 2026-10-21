@@ -14,6 +14,13 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  # Turbo's snapshot cache would otherwise keep the last confirmation's texts in the dialog
+  test "confirm dialog resets its texts before Turbo caches the page" do
+    get root_path
+
+    assert_select "#confirm-dialog[data-action~='turbo:before-cache@document->confirm-dialog#reset']"
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 

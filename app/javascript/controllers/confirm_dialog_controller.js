@@ -15,6 +15,18 @@ export default class extends Controller {
     };
   }
 
+  // Runs on turbo:before-cache: Turbo snapshots the page as it is, and a
+  // restored snapshot would otherwise hand the last confirmation's texts to
+  // connect() as the "defaults" for the next one.
+  reset() {
+    this.titleTarget.textContent = this.defaults.title;
+    this.subtitleTarget.textContent = this.defaults.body;
+    this.subtitleTarget.classList.remove("privacy-sensitive");
+    this.confirmButtonTargets.forEach((button) => {
+      button.textContent = this.defaults.confirmText;
+    });
+  }
+
   handleConfirm(rawData) {
     const data = this.#normalizeRawData(rawData);
 

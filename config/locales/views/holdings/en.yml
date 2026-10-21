@@ -1,6 +1,17 @@
 ---
 en:
   holdings:
+    edit_bullion:
+      description: "Picked the wrong one? Choose the right piece. All buys and sells of %{name} move with it."
+      submit: Change
+      title: Change coin or bar
+    remap_bullion:
+      not_found: Choose a coin or bar.
+      success: Holding changed. Prices are being recalculated.
+    kinds:
+      bar: Bar
+      coin: Coin
+      custom_coin: Custom coin
     cash:
       brokerage_cash: Brokerage cash
     destroy:
@@ -27,6 +38,9 @@ en:
       calculated: From trades
       provider: From provider
     cost_basis_cell:
+      or_per_piece_label: "Or enter per piece:"
+      per_piece: per piece
+      set_cost_basis_header_pieces: "Set cost basis for %{ticker} (%{qty} pcs)"
       unknown: "--"
       set: Set
       set_cost_basis_header: "Set cost basis for %{ticker} (%{qty} shares)"
@@ -38,6 +52,8 @@ en:
       overwrite_confirm_title: Overwrite cost basis?
       overwrite_confirm_body: "This will replace the current cost basis of %{current}."
     holding:
+      per_piece: per piece
+      pieces: "%{qty} pcs"
       per_share: per share
       shares: "%{qty} shares"
       unknown: "--"
@@ -58,12 +74,17 @@ en:
         its returns or value.
       missing_data: Missing data
     show:
+      bullion_price_source: "Derived from %{metal} (%{source}) × %{ounces} oz fine"
+      bullion_face_value: "Face value %{value}: the coin is never valued below it."
+      pieces_label: Pieces
+      trade_history_entry_pieces: "%{qty} pcs of %{security} at %{price}"
       avg_cost_label: Average Cost
       current_market_price_label: Current Market Price
       delete: Delete
       delete_subtitle: This will delete the holding and all your associated trades
         on this account.  This action cannot be undone.
       delete_title: Delete holding
+      edit_bullion: Change coin or bar
       edit_security: Edit security
       history: History
       no_trade_history: No trade history available for this holding.

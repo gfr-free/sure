@@ -1,7 +1,49 @@
 ---
 de:
   trades:
+    bullion_trade_name:
+      buy: "Kauf von %{qty} Stück %{name}"
+      other: "%{label} %{qty} Stück %{name}"
+      sell: "Verkauf von %{qty} Stück %{name}"
     form:
+      bullion_choice: Münze oder Barren
+      bullion_groups:
+        bar: Barren
+        coin_XAG: Silbermünzen
+        coin_XAU: Goldmünzen
+        coin_XPD: Palladiummünzen
+        coin_XPT: Platinmünzen
+        custom: Meine Münzen
+        new_custom: Neue Münze
+      bullion_size: Größe
+      bullion_weight: Gewicht
+      bullion_weight_hint: Feingewicht des Barrens. Barren sind fast immer 999,9 fein, das ist also das Gewicht, das auf dem Barren oder der Rechnung steht.
+      bullion_weight_unit: Einheit
+      custom_bullion_fine_grams: Feingewicht (g)
+      custom_bullion_face_value: Nennwert (optional)
+      custom_bullion_face_value_hint: Für Münzen, die gesetzliches Zahlungsmittel sind, z. B. eine 20-Euro-Silbermünze. Die Münze wird nie unter ihrem Nennwert bewertet.
+      custom_bullion_hint: Das Feingewicht ist der reine Metallanteil eines Stücks. Der Kurs folgt dem Referenz-Wertpapier des Metalls.
+      custom_bullion_metal: Metall
+      custom_bullion_name: Name
+      custom_bullion_name_placeholder: 20 Mark Wilhelm II.
+      custom_bullion_new: "+ Neue eigene Münze"
+      holding_kind: Anlage
+      holding_kinds:
+        bullion: Edelmetall
+        security: Wertpapier
+      metals:
+        XAG: Silber
+        XAU: Gold
+        XPD: Palladium
+        XPT: Platin
+      price_per_piece: Preis pro Stück
+      qty_pieces: Anzahl (Stück)
+      trade_requires_bullion: Für Käufe und Verkäufe bitte eine Münze oder einen Barren wählen
+      invalid_bar_weight: "Bitte ein Barrengewicht zwischen 0 und %{max} kg eingeben"
+      weight_units:
+        g: g
+        kg: kg
+        oz: oz (Feinunze)
       account: Überweisungskonto (optional)
       account_prompt: Konto suchen
       amount: Betrag

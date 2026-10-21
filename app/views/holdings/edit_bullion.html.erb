@@ -1,0 +1,16 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t("holdings.edit_bullion.title")) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with url: remap_bullion_holding_path(@holding), method: :patch, scope: :model,
+          data: { controller: "trade-form" }, class: "space-y-4" do |form| %>
+      <% if @error %>
+        <%= render DS::Alert.new(message: @error, variant: :error) %>
+      <% end %>
+      <p class="text-sm text-secondary"><%= t("holdings.edit_bullion.description", name: @holding.name) %></p>
+      <%= render "trades/bullion_picker", form: form,
+            reload_url: edit_bullion_holding_path(@holding),
+            defaults: bullion_picker_defaults(@holding.security.bullion_spec) %>
+      <%= form.submit t("holdings.edit_bullion.submit") %>
+    <% end %>
+  <% end %>
+<% end %>

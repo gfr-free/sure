@@ -183,6 +183,9 @@ en:
       gold:
         short: Gold
         long: Gold (physical or digital)
+      precious_metals:
+        short: Precious Metals
+        long: Precious Metals (coins and bars)
       angel:
         short: Angel
         long: Angel Investment

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_181523) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -400,6 +400,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_090000) do
     t.index ["family_id", "start_date", "end_date"], name: "index_budgets_shared_unique", unique: true, where: "(user_id IS NULL)"
     t.index ["family_id"], name: "index_budgets_on_family_id"
     t.index ["user_id"], name: "index_budgets_on_user_id"
+  end
+
+  create_table "bullion_specs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "catalog_key"
+    t.datetime "created_at", null: false
+    t.decimal "face_value", precision: 19, scale: 4
+    t.string "face_value_currency"
+    t.uuid "family_id"
+    t.decimal "fine_weight_grams", precision: 12, scale: 4, null: false
+    t.string "metal", null: false
+    t.uuid "security_id", null: false
+    t.string "size_key"
+    t.datetime "updated_at", null: false
+    t.index ["catalog_key", "size_key"], name: "index_bullion_specs_on_catalog_product", unique: true, where: "(family_id IS NULL)"
+    t.index ["family_id"], name: "index_bullion_specs_on_family_id"
+    t.index ["security_id"], name: "index_bullion_specs_on_security_id", unique: true
+    t.check_constraint "(face_value IS NULL) = (face_value_currency IS NULL)", name: "chk_bullion_specs_face_value_currency"
+    t.check_constraint "face_value IS NULL OR face_value > 0::numeric", name: "chk_bullion_specs_face_value_positive"
+    t.check_constraint "family_id IS NULL AND catalog_key IS NOT NULL AND size_key IS NOT NULL OR family_id IS NOT NULL AND catalog_key IS NULL AND size_key IS NULL", name: "chk_bullion_specs_catalog_or_custom"
+    t.check_constraint "fine_weight_grams > 0::numeric", name: "chk_bullion_specs_fine_weight_positive"
+    t.check_constraint "metal::text = ANY (ARRAY['XAU'::character varying, 'XAG'::character varying, 'XPT'::character varying, 'XPD'::character varying]::text[])", name: "chk_bullion_specs_metal"
   end
 
   create_table "categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2975,6 +2996,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_090000) do
   add_foreign_key "budget_shares", "users", column: "viewer_id"
   add_foreign_key "budgets", "families"
   add_foreign_key "budgets", "users", on_delete: :cascade
+  add_foreign_key "bullion_specs", "families", on_delete: :cascade
+  add_foreign_key "bullion_specs", "securities", on_delete: :cascade
   add_foreign_key "categories", "families"
   add_foreign_key "categorization_comparisons", "families"
   add_foreign_key "categorization_comparisons", "transactions", on_delete: :nullify

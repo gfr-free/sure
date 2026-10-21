@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between">
       <div>
         <%= tag.h3 @holding.name, class: "text-2xl font-medium text-primary" %>
-        <%= tag.p @holding.ticker, class: "text-sm text-secondary" %>
+        <%= tag.p holding_subtitle(@holding), class: "text-sm text-secondary" %>
       </div>
       <div class="flex items-center gap-3">
         <% if (logo = @holding.security.display_logo_url).present? %>
@@ -39,21 +39,30 @@
         <dl class="space-y-3 px-3 py-2">
           <div data-controller="holding-security-remap">
             <div class="flex items-center justify-between text-sm">
-              <dt class="text-secondary"><%= t(".security_label") %></dt>
+              <dt class="text-secondary"><%= holding_security_label(@holding) %></dt>
               <dd class="text-primary flex items-center gap-2">
-                <%= @holding.ticker %>
+                <%= holding_security_value(@holding) %>
                 <% if @holding.security_remapped? && @holding.account.linked? %>
                   <span class="text-xs text-secondary">
                     (<%= t(".originally", ticker: @holding.provider_security.ticker) %>)
                   </span>
                   <%= icon "lock", size: "xs", class: "text-secondary" %>
                 <% end %>
-                <button type="button"
-                        data-action="click->holding-security-remap#toggle"
-                  class="text-secondary hover:text-primary"
-                  aria-label="<%= t(".edit_security") %>">
-                  <%= icon "pencil", size: "xs" %>
-                </button>
+                <% if @holding.security.bullion_spec %>
+                  <%= link_to edit_bullion_holding_path(@holding),
+                        data: { turbo_frame: :modal },
+                        class: "text-secondary hover:text-primary",
+                        aria: { label: t(".edit_bullion") } do %>
+                    <%= icon "pencil", size: "xs" %>
+                  <% end %>
+                <% else %>
+                  <button type="button"
+                          data-action="click->holding-security-remap#toggle"
+                    class="text-secondary hover:text-primary"
+                    aria-label="<%= t(".edit_security") %>">
+                    <%= icon "pencil", size: "xs" %>
+                  </button>
+                <% end %>
               </dd>
             </div>
             <div data-holding-security-remap-target="form" class="hidden mt-3 space-y-3">
@@ -95,7 +104,7 @@
             </dd>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <dt class="text-secondary"><%= t(".shares_label") %></dt>
+            <dt class="text-secondary"><%= t(holding_unit_key(@holding, ".shares_label")) %></dt>
             <dd id="<%= dom_id(@holding, :shares) %>" class="text-primary"><%= format_quantity(@holding.qty, exact: true) %></dd>
           </div>
           <div class="flex items-center justify-between text-sm">
@@ -141,7 +150,7 @@
                     class: "space-y-3",
                     data: drawer_form_data do |f| %>
                 <p class="text-xs text-secondary mb-2">
-                  <%= t("holdings.cost_basis_cell.set_cost_basis_header", ticker: @holding.ticker, qty: format_quantity(@holding.qty, exact: true)) %>
+                  <%= t(holding_unit_key(@holding, "holdings.cost_basis_cell.set_cost_basis_header"), ticker: holding_security_value(@holding), qty: format_quantity(@holding.qty, exact: true)) %>
                 </p>
                 <!-- Total cost basis input -->
                 <div class="form-field">
@@ -162,11 +171,11 @@
                   </div>
                 </div>
                 <p class="text-xs text-secondary -mt-2">
-                  = <%= currency.symbol %><span data-drawer-cost-basis-target="perShareValue"><%= number_with_precision(current_per_share, precision: 2) || "0.00" %></span> <%= t("holdings.cost_basis_cell.per_share") %>
+                  = <%= currency.symbol %><span data-drawer-cost-basis-target="perShareValue"><%= number_with_precision(current_per_share, precision: 2) || "0.00" %></span> <%= t(holding_unit_key(@holding, "holdings.cost_basis_cell.per_share")) %>
                 </p>
                 <!-- Per-share input -->
                 <div class="pt-2 border-t border-tertiary">
-                  <label class="text-xs text-secondary block mb-1"><%= t("holdings.cost_basis_cell.or_per_share_label") %></label>
+                  <label class="text-xs text-secondary block mb-1"><%= t(holding_unit_key(@holding, "holdings.cost_basis_cell.or_per_share_label")) %></label>
                   <div class="flex items-center gap-1">
                     <span class="text-secondary text-sm font-medium"><%= currency.symbol %></span>
                     <input type="number" step="any"
@@ -230,9 +239,9 @@
                   <div>
                     <p class="text-secondary text-xs uppercase"><%= l(trade_entry.date, format: :long) %></p>
                     <p class="text-primary"><%= t(
-                      ".trade_history_entry",
-                      qty: trade_entry.trade.qty,
-                      security: trade_entry.trade.security.ticker,
+                      holding_unit_key(@holding, ".trade_history_entry"),
+                      qty: format_quantity(trade_entry.trade.qty, exact: true),
+                      security: holding_security_value(@holding),
                       price: trade_entry.trade.price_money.format
                     ) %></p>
                   </div>
@@ -286,13 +295,19 @@
                   } } %>
             </div>
           <% end %>
-          <% unless @holding.security.offline? %>
+          <% if !@holding.security.offline? || @holding.security.bullion_spec %>
             <div id="<%= dom_id(@holding, :market_data_section) %>" class="flex items-center justify-between gap-2 p-3 border-b border-tertiary">
               <div class="text-sm space-y-1">
                 <h4 class="text-primary"><%= t(".market_data_label") %></h4>
                 <p class="text-secondary">
                   <%= t(".last_price_update") %>: <%= @last_price_updated ? l(@last_price_updated, format: :long) : t(".never") %>
                 </p>
+                <% if (spec = @holding.security.bullion_spec) %>
+                  <p class="text-xs text-secondary"><%= bullion_price_source(spec) %></p>
+                  <% if (face_value = bullion_face_value(spec)) %>
+                    <p class="text-xs text-secondary"><%= face_value %></p>
+                  <% end %>
+                <% end %>
               </div>
               <%= button_to t(".market_data_sync_button"),
                   sync_prices_holding_path(@holding),

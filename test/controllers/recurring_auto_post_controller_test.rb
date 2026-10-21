@@ -285,6 +285,25 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert_not @series.reload.auto_post?
   end
 
+  test "a read-only destination blocks reopening a date of an auto-posting transfer through its payments" do
+    @series.update_columns(destination_account_id: accounts(:credit_card).id, bill_type: "transfer", auto_post: true)
+    occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 1,
+                                                       due_on: Date.current - 1, currency: "USD")
+    payment = occurrence.allocations.create!(allocated_amount: 1, currency: "USD", source: "user_confirmed", state: "confirmed")
+    suggestion = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 2,
+                                                       due_on: Date.current - 2, currency: "USD")
+                        .allocations.create!(entry: entries(:transaction), allocated_amount: 1, currency: "USD",
+                                             source: "auto_matched", state: "suggested")
+    Account.stubs(:writable_by).returns(Account.where(id: accounts(:depository).id))
+
+    delete recurring_allocation_url(payment)
+    assert_response :not_found
+    post reject_recurring_allocation_url(suggestion)
+    assert_response :not_found
+    assert RecurringAllocation.exists?(payment.id)
+    assert RecurringAllocation.exists?(suggestion.id)
+  end
+
   private
     def post_provisionally!
       @series.update!(auto_post: true)

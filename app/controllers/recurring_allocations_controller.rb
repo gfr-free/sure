@@ -29,6 +29,7 @@ class RecurringAllocationsController < ApplicationController
     allocation = find_allocation
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
+    ensure_auto_post_destination_writable(occurrence)
 
     RecurringTransaction::Allocator.new(occurrence).unallocate!(allocation)
 
@@ -67,6 +68,7 @@ class RecurringAllocationsController < ApplicationController
       resync.each { |account, date| account.sync_later(window_start_date: date) }
       redirect_with_return notice: t("recurring_allocations.discard.success")
     else
+      ensure_auto_post_destination_writable(occurrence)
       RecurringTransaction::Allocator.new(occurrence).reject_suggestion!(allocation)
       redirect_with_return notice: t(".success")
     end
@@ -92,6 +94,14 @@ class RecurringAllocationsController < ApplicationController
       series = occurrence.recurring_transaction
       return if series.account_id.nil?
       return if Account.writable_by(Current.user).where(id: series.account_id).exists?
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # Removing a payment or a suggestion reopens the date for an auto-posting
+    # transfer, whose next post books into the destination.
+    def ensure_auto_post_destination_writable(occurrence)
+      return if occurrence.recurring_transaction.auto_post_destination_writable_by?(Current.user)
 
       raise ActiveRecord::RecordNotFound
     end

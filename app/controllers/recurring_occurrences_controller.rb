@@ -7,7 +7,7 @@ class RecurringOccurrencesController < ApplicationController
   before_action :set_occurrence
   before_action :ensure_series_writable, only: %i[mark_paid skip reopen snooze override_amount post_now]
   before_action :ensure_destination_writable, only: :post_now
-  before_action :ensure_auto_post_destination_writable, only: %i[reopen snooze override_amount]
+  before_action :ensure_auto_post_destination_writable, only: %i[mark_paid skip reopen snooze override_amount]
 
   # The dialog is delivered into the shared <turbo-frame id="modal"> (see
   # RecurringTransactionsController#edit for the two-frames trap).
@@ -106,8 +106,9 @@ class RecurringOccurrencesController < ApplicationController
       raise ActiveRecord::RecordNotFound
     end
 
-    # Reopening, snoozing or re-pricing a date of an auto-posting transfer
-    # decides what it books into the destination, so the same applies.
+    # Reopening, snoozing, re-pricing, skipping or settling a date of an
+    # auto-posting transfer decides what it books into the destination, so
+    # the same applies.
     def ensure_auto_post_destination_writable
       destination_id = @occurrence.recurring_transaction.auto_post_destination_account_id
       return if destination_id.nil? || series_writable?(destination_id)

@@ -306,6 +306,11 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     patch override_amount_recurring_occurrence_url(occurrence), params: { amount: "9999" }
     assert_response :not_found
     assert_nil occurrence.reload.expected_amount
+    post skip_recurring_occurrence_url(occurrence)
+    assert_response :not_found
+    post mark_paid_recurring_occurrence_url(occurrence)
+    assert_response :not_found
+    assert occurrence.reload.scheduled?
 
     # Stopping it writes nothing into the destination.
     post toggle_auto_post_recurring_transaction_url(@series)

@@ -142,9 +142,12 @@ class TransactionImport < Import
 
   private
     def sure_export_csv?(csv_str, separator)
-      header_line = csv_str.to_s.delete_prefix("\uFEFF").each_line.first
+      header_line = csv_str.to_s.each_line.first
       return false if header_line.blank?
 
+      # A dropped file is read as binary bytes; read the header line as UTF-8
+      # so a BOM or non-ASCII characters elsewhere in the file cannot raise.
+      header_line = header_line.dup.force_encoding(Encoding::UTF_8).scrub.delete_prefix("\uFEFF")
       headers = CSV.parse_line(header_line, col_sep: separator.presence || ",", liberal_parsing: true).to_a.map { |header| header.to_s.strip.downcase }
       (Family::DataExporter::TRANSACTIONS_CSV_HEADERS - headers).empty?
     rescue CSV::MalformedCSVError

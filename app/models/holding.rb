@@ -191,8 +191,9 @@ class Holding < ApplicationRecord
           merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
           merge_attrs[:security_locked] = true # Lock merged holding to prevent provider overwrites
 
-          existing.update_columns(merge_attrs.merge(updated_at: Time.current))
+          # Destroy first: merge_attrs may carry over holding's external_id, which is unique per account
           holding.destroy!
+          existing.update_columns(merge_attrs.merge(updated_at: Time.current))
         end
       end
 

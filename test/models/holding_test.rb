@@ -492,6 +492,17 @@ class HoldingTest < ActiveSupport::TestCase
     assert_equal 0, @account.holdings.where(security: old_security).count
   end
 
+  test "remap_security! carries the provider external_id over when merging a colliding holding" do
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    @amzn.update!(external_id: "provider-amzn-1")
+    existing_goog = @account.holdings.create!(date: @amzn.date, security: new_security, qty: 5, price: 100, amount: 500, currency: "USD")
+
+    @amzn.remap_security!(new_security)
+
+    assert_equal "provider-amzn-1", existing_goog.reload.external_id
+    assert_equal 0, @account.holdings.where(security: @amzn.security_id).count
+  end
+
   test "reset_security_to_provider! restores holdings with negative qty" do
     old_security = @amzn.security
     new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])

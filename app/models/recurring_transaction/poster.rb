@@ -21,10 +21,7 @@ class RecurringTransaction
 
     # Returns how many occurrences were posted.
     def post_due!
-      posted = 0
-      sync_from = {}
-
-      family.recurring_transactions.auto_posting.includes(:account, :destination_account).find_each do |series|
+      due = family.recurring_transactions.auto_posting.includes(:account, :destination_account).filter_map do |series|
         # Linking a bank, or changing the account's currency, changes nothing
         # on the series, so the switch can outlive what it needs.
         unless series.auto_post_available?
@@ -33,7 +30,20 @@ class RecurringTransaction
         end
         next unless series.auto_post_accounts_active?
 
-        series.auto_postable_occurrences(today).each do |occurrence|
+        occurrences = series.auto_postable_occurrences(today).to_a
+        [ series, occurrences ] if occurrences.any?
+      rescue => e
+        capture_failure(series, e)
+        nil
+      end
+      return 0 if due.empty?
+      return 0 unless match_existing_payments!
+
+      posted = 0
+      sync_from = {}
+
+      due.each do |series, occurrences|
+        occurrences.each do |occurrence|
           next unless post_occurrence!(series, occurrence, pending_review: true)
 
           posted += 1
@@ -84,9 +94,16 @@ class RecurringTransaction
     private
       # `repost` lets the user post a date again whose posted entry they
       # deleted; the nightly run never does.
-      def post_occurrence!(series, occurrence, date: occurrence.effective_due_on, key: idempotency_key(occurrence), repost: false, pending_review: false)
+      def post_occurrence!(series, occurrence, date: nil, key: idempotency_key(occurrence), repost: false, pending_review: false)
         RecurringOccurrence.transaction do
           occurrence.lock!
+          # A pause, snooze or switch-off saved while the nightly run was under
+          # way wins over what the run loaded before.
+          unless repost
+            next nil unless occurrence.effective_due_on <= today
+            next nil unless family.recurring_transactions.auto_posting.exists?(series.id)
+          end
+          date ||= occurrence.effective_due_on
           # Re-checked under the lock. Any existing allocation means the user
           # (or the matcher) already recorded a payment or a candidate for this
           # date, and posting another entry would count it twice.
@@ -134,6 +151,24 @@ class RecurringTransaction
         ).create
 
         transfer.outflow_transaction.entry
+      end
+
+      # A payment the user already entered by hand claims its date first, so
+      # it is not booked a second time. Families without a bank sync never run
+      # the sync-triggered matcher otherwise. If this pass fails nothing posts
+      # tonight; the next run catches up on the missed dates.
+      def match_existing_payments!
+        RecurringTransaction::Matcher.new(family).run!
+        true
+      rescue => e
+        DebugLogEntry.capture(
+          category: "recurring_auto_post",
+          level: "error",
+          message: "Family##{family.id}: matching before auto-posting failed: #{e.class} - #{e.message}",
+          source: "recurring_transaction_poster",
+          family: family
+        )
+        false
       end
 
       def idempotency_key(occurrence)

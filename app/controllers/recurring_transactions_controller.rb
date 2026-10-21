@@ -370,21 +370,17 @@ class RecurringTransactionsController < ApplicationController
     # account, so a read-only account share must not mutate the series.
     # Accountless series carry no account gate. Same contract as
     # RecurringOccurrencesController#ensure_series_writable.
-    # An auto-posting transfer books its next entries into the destination, so
-    # changing its amount, schedule or status needs write access there as well.
-    def ensure_auto_post_destination_writable_for_edit
-      destination_id = @recurring_transaction.auto_post_destination_account_id
-      return if destination_id.nil?
-      return if Account.writable_by(Current.user).where(id: destination_id).exists?
-
-      raise ActiveRecord::RecordNotFound
-    end
-
     def ensure_series_writable
       return if @recurring_transaction.account_id.nil?
       return if Account.writable_by(Current.user).where(id: @recurring_transaction.account_id).exists?
 
       raise ActiveRecord::RecordNotFound
+    end
+
+    # An auto-posting transfer books its next entries into the destination, so
+    # changing its amount, schedule or status needs write access there as well.
+    def ensure_auto_post_destination_writable_for_edit
+      raise ActiveRecord::RecordNotFound unless @recurring_transaction.auto_post_destination_writable_by?(Current.user)
     end
 
     # name, amount and account are handled by apply_editable_identity rather

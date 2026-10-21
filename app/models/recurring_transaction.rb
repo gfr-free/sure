@@ -303,6 +303,11 @@ class RecurringTransaction < ApplicationRecord
     destination_account_id if auto_post? && transfer?
   end
 
+  def auto_post_destination_writable_by?(user)
+    destination_id = auto_post_destination_account_id
+    destination_id.nil? || Account.writable_by(user).where(id: destination_id).exists?
+  end
+
   # Disabled accounts and ones being deleted take no new entries; the series
   # simply waits instead of switching itself off.
   def auto_post_accounts_active?

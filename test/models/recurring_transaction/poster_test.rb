@@ -283,6 +283,60 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_empty next_month.reload.allocations
   end
 
+  test "does not post a date the user already paid by hand" do
+    manual = @account.entries.create!(
+      date: @today - 1, name: "Rent", amount: 800, currency: "USD",
+      entryable: Transaction.new(merchant: merchants(:netflix))
+    )
+
+    assert_no_difference -> { @account.entries.count } do
+      assert_equal 0, post!
+    end
+
+    allocation = @occurrence.reload.allocations.sole
+    assert_equal manual, allocation.entry
+    assert_not allocation.from_auto_posted?
+    assert_nil @occurrence.auto_posted_at
+  end
+
+  test "skips the matching pass when nothing is due" do
+    @occurrence.update!(due_on: @today + 5, original_due_on: @today + 5)
+    RecurringTransaction::Matcher.any_instance.expects(:run!).never
+
+    assert_equal 0, post!
+  end
+
+  test "a failing matching pass posts nothing and is logged" do
+    RecurringTransaction::Matcher.any_instance.stubs(:run!).raises(StandardError, "boom")
+
+    assert_difference -> { DebugLogEntry.where(category: "recurring_auto_post", level: "error").count }, 1 do
+      assert_no_difference -> { Entry.count } do
+        assert_equal 0, post!
+      end
+    end
+    assert_nil @occurrence.reload.auto_posted_at
+  end
+
+  test "a snooze saved during the run wins" do
+    RecurringTransaction::Matcher.any_instance.stubs(:run!).with do
+      @occurrence.update_columns(snoozed_until: @today + 7)
+      true
+    end
+
+    assert_equal 0, post!
+    assert_nil @occurrence.reload.auto_posted_at
+  end
+
+  test "a switch-off saved during the run wins" do
+    RecurringTransaction::Matcher.any_instance.stubs(:run!).with do
+      @rent.update_columns(auto_post: false)
+      true
+    end
+
+    assert_equal 0, post!
+    assert_nil @occurrence.reload.auto_posted_at
+  end
+
   test "a snoozed date waits for its snooze and posts on that day" do
     @occurrence.snooze!(@today + 4)
 

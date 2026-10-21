@@ -111,6 +111,38 @@ class Api::V1::RecurringTransactionsControllerTest < ActionDispatch::Integration
     assert_equal "record_not_found", response_data["error"]
   end
 
+  test "should not update an auto-posting transfer into a read only destination" do
+    member = users(:family_member)
+    member.api_keys.active.destroy_all
+    member_api_key = ApiKey.create!(
+      user: member,
+      name: "Member Read-Write Key",
+      scopes: [ "read_write" ],
+      source: "web",
+      display_key: "test_member_rw_#{SecureRandom.hex(8)}"
+    )
+    @recurring_transaction.update_columns(
+      bill_type: "transfer",
+      destination_account_id: accounts(:credit_card).id,
+      auto_post: true
+    )
+
+    patch api_v1_recurring_transaction_url(@recurring_transaction),
+          params: { recurring_transaction: { expected_day_of_month: 20 } },
+          headers: api_headers(member_api_key)
+    assert_response :not_found
+    assert_equal "record_not_found", JSON.parse(response.body)["error"]
+    assert_equal 15, @recurring_transaction.reload.expected_day_of_month
+
+    # Without auto-posting nothing is booked there, so the own account suffices.
+    @recurring_transaction.update_columns(auto_post: false)
+    patch api_v1_recurring_transaction_url(@recurring_transaction),
+          params: { recurring_transaction: { expected_day_of_month: 20 } },
+          headers: api_headers(member_api_key)
+    assert_response :success
+    assert_equal 20, @recurring_transaction.reload.expected_day_of_month
+  end
+
   test "should return not found for missing recurring transaction" do
     get api_v1_recurring_transaction_url(SecureRandom.uuid), headers: api_headers(@api_key)
 

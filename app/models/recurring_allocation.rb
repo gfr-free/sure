@@ -34,7 +34,7 @@ class RecurringAllocation < ApplicationRecord
   def self.auto_posted_by_entry(entry_ids)
     return {} if entry_ids.empty?
 
-    from_auto_posted.where(entry_id: entry_ids).includes(recurring_occurrence: :recurring_transaction).index_by(&:entry_id)
+    from_auto_posted.where(entry_id: entry_ids).includes(:entry, recurring_occurrence: :recurring_transaction).index_by(&:entry_id)
   end
 
   private

@@ -7,6 +7,22 @@ module TradesHelper
     params[key].presence || params.dig(:model, key).presence
   end
 
+  # A posted currency code for re-rendering the form, nil when it is unknown.
+  def trade_form_currency_param(key)
+    code = trade_form_param(key)
+    Money::Currency.new(code).iso_code if code
+  rescue Money::Currency::UnknownCurrencyError
+    nil
+  end
+
+  # A posted number for re-rendering the form, nil when it is not one.
+  def trade_form_decimal_param(key)
+    value = trade_form_param(key)
+    BigDecimal(value.to_s.strip.tr(",", ".")) if value
+  rescue ArgumentError
+    nil
+  end
+
   # The form offers two kinds: a security, or precious metal (catalogue coins,
   # bars and the family's own coins in one list).
   FORM_HOLDING_KINDS = %w[security bullion].freeze

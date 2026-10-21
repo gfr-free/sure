@@ -25,6 +25,8 @@ en:
       bullion_weight_hint: Fine weight of the bar. Bars are almost always 999.9 fine, so this is the weight printed on the bar or invoice.
       bullion_weight_unit: Unit
       custom_bullion_fine_grams: Fine weight (g)
+      custom_bullion_face_value: Face value (optional)
+      custom_bullion_face_value_hint: For coins that are legal tender, such as a 20 euro silver coin. The coin is never valued below its face value.
       custom_bullion_hint: Fine weight is the pure metal content of one piece. The price follows the metal's reference security.
       custom_bullion_metal: Metal
       custom_bullion_name: Name

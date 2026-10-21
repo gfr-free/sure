@@ -189,6 +189,11 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     account.entries.create!(name: "Buy Maple Leaf", date: trade_date, amount: 3900, currency: "USD", entryable: trade)
 
     Security.stubs(:provider).returns(nil)
+    # The 50 CAD face value is far below the gold: one rate rules it out, no
+    # rate history is fetched for it.
+    @provider.expects(:fetch_exchange_rate).with(has_entries(from: "CAD", to: "USD")).once
+             .returns(provider_success_response(OpenStruct.new(from: "CAD", to: "USD", date: Date.current, rate: 0.73)))
+    @provider.expects(:fetch_exchange_rates).never
 
     Account::MarketDataImporter.new(account).import_security_prices
 
@@ -212,6 +217,8 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
       account_provider: AccountProvider.new(account: account, provider: plaid_accounts(:one))
     )
     Security.stubs(:provider).returns(nil)
+    @provider.stubs(:fetch_exchange_rate)
+             .returns(provider_success_response(OpenStruct.new(from: "AUD", to: "USD", date: Date.current, rate: 0.66)))
 
     Account::MarketDataImporter.new(account).import_security_prices
 

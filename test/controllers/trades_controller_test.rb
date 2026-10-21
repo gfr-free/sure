@@ -462,6 +462,40 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "a new custom coin keeps a face value typed with a comma in a foreign currency" do
+    assert_difference [ "Entry.count", "BullionSpec.count" ], 1 do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "bullion", bullion_choice: BullionSpec::Choice::NEW_CUSTOM,
+          custom_bullion_name: "5 Franken", custom_bullion_metal: "XAG", custom_bullion_fine_grams: "13,5",
+          custom_bullion_face_value: "5,5", custom_bullion_face_value_currency: "CHF",
+          date: Date.current, qty: 1, price: 30, currency: "USD"
+        }
+      }
+    end
+
+    spec = @user.family.bullion_specs.custom.order(:created_at).last
+    assert_equal BigDecimal("13.5"), spec.fine_weight_grams
+    assert_equal Money.new(BigDecimal("5.5"), "CHF"), spec.nominal_value
+  end
+
+  test "an invalid face value is a form error and creates nothing" do
+    [ [ "abc", "EUR" ], [ "-20", "EUR" ], [ "0", "EUR" ], [ "1.234,56", "EUR" ], [ "20", "XYZ" ] ].each do |value, currency|
+      assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ], "#{value} #{currency}" do
+        post trades_url(account_id: @entry.account_id), params: {
+          model: {
+            type: "buy", holding_kind: "bullion", bullion_choice: BullionSpec::Choice::NEW_CUSTOM,
+            custom_bullion_name: "Coin", custom_bullion_metal: "XAG", custom_bullion_fine_grams: "10",
+            custom_bullion_face_value: value, custom_bullion_face_value_currency: currency,
+            date: Date.current, qty: 1, price: 30, currency: "USD"
+          }
+        }
+      end
+
+      assert_response :unprocessable_entity
+    end
+  end
+
   test "a bar without a valid weight creates nothing" do
     assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
       post trades_url(account_id: @entry.account_id), params: {
@@ -601,6 +635,8 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='model[custom_bullion_name]']"
     assert_select "select[name='model[custom_bullion_metal]']"
     assert_select "input[name='model[custom_bullion_fine_grams]']"
+    assert_select "input[name='model[custom_bullion_face_value]']:not([required])"
+    assert_select "select[name='model[custom_bullion_face_value_currency]']"
   end
 
   test "an existing custom coin needs no further fields" do

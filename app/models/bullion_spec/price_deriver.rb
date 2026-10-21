@@ -4,6 +4,10 @@
 # (Setting.bullion_reference_provider); the reference symbol for each metal
 # follows from it. The reference is an ordinary security priced by that
 # provider. Derived prices keep the reference's currency.
+#
+# A coin that is legal tender is never priced below its face value, converted
+# into the reference's currency at that day's exchange rate. Without a rate
+# the metal value stands and the gap is logged, never a 1:1 guess.
 class BullionSpec::PriceDeriver
   DEFAULT_LOOKBACK_DAYS = MarketDataImporter::SNAPSHOT_DAYS
   DEFAULT_REFERENCE_PROVIDER = "yahoo_finance".freeze
@@ -112,17 +116,28 @@ class BullionSpec::PriceDeriver
       end
 
       reference_prices = Security::Price.where(security_id: reference.id, date: start_date..end_date).to_a
+      rates = FaceValueRates.new(start_date: start_date, end_date: end_date)
+      lowest_reference = reference_prices.min_by(&:price)
       rows = specs.flat_map do |spec|
+        face_value = spec.nominal_value
+        if face_value && lowest_reference &&
+           !rates.floor_possible?(face_value, to: lowest_reference.currency, lowest_metal_value: lowest_reference.price * spec.fine_troy_ounces)
+          face_value = nil
+        end
+
         reference_prices.map do |price|
+          metal_value = price.price * spec.fine_troy_ounces
+          floor = face_value && rates.convert(face_value, to: price.currency, date: price.date)
           {
             security_id: spec.security_id,
             date: price.date,
             currency: price.currency,
-            price: (price.price * spec.fine_troy_ounces).round(4),
+            price: [ metal_value, floor || 0 ].max.round(4),
             provisional: price.provisional
           }
         end
       end
+      capture_missing_rates(metal, rates.missing) if rates.missing.any?
       return if rows.empty?
 
       Security::Price.upsert_all(rows, unique_by: %i[security_id date currency])
@@ -152,10 +167,112 @@ class BullionSpec::PriceDeriver
       )
     end
 
+    def capture_missing_rates(metal, missing)
+      DebugLogEntry.capture(
+        category: "security_price_fetch",
+        level: "warn",
+        message: "No exchange rate for a bullion face value; the metal value was used",
+        source: self.class.name,
+        metadata: { metal: metal, missing: missing.map { |(from, to), dates| { from: from, to: to, first_date: dates.min, last_date: dates.max } } }
+      )
+    end
+
     # From the first trade of any piece of this metal, so history is complete.
     def start_date_for(specs)
       @start_date ||
         Trade.with_entry.where(security_id: specs.map(&:security_id)).minimum(:date) ||
         DEFAULT_LOOKBACK_DAYS.days.ago.to_date
+    end
+
+    # Daily exchange rates for converting face values. A day without its own
+    # rate takes the most recent one from up to five days before, as
+    # ExchangeRate.find_or_fetch_rate does. Rate history is only loaded for a
+    # coin whose face value could matter, so a Maple Leaf (50 CAD against
+    # thousands in gold) costs one cached rate, not a year of CAD rates.
+    class FaceValueRates
+      LOOKBACK_DAYS = 5
+      # Exchange rates move, but not by half within the window.
+      SAFETY_FACTOR = 2
+
+      attr_reader :missing
+
+      def initialize(start_date:, end_date:)
+        @start_date = start_date
+        @end_date = end_date
+        @rates = {}
+        @missing = Hash.new { |hash, key| hash[key] = [] }
+      end
+
+      # False when the face value stays far below the lowest metal value at
+      # the latest rate, so no day's floor can apply.
+      def floor_possible?(money, to:, lowest_metal_value:)
+        from = money.currency.iso_code
+        return true if from == to
+
+        rate = latest_rate(from, to)
+        rate.nil? || money.amount * rate * SAFETY_FACTOR >= lowest_metal_value
+      end
+
+      # The amount in `to` on `date`, or nil when no rate is known.
+      def convert(money, to:, date:)
+        from = money.currency.iso_code
+        return money.amount if from == to
+
+        rate = rate_on(from, to, date)
+        return money.amount * rate if rate
+
+        missing[[ from, to ]] << date
+        nil
+      end
+
+      private
+        attr_reader :start_date, :end_date
+
+        def latest_rate(from, to)
+          stored = stored(from, to)
+          return stored.last.last if stored.any?
+
+          rate = ExchangeRate.find_or_fetch_rate(from: from, to: to, date: end_date)&.rate
+          rate if rate && ExchangeRate.valid_rate?(rate)
+        rescue StandardError => e
+          Rails.logger.warn("Bullion face value rate #{from}/#{to} failed: #{e.class}: #{e.message}")
+          nil
+        end
+
+        def rate_on(from, to, date)
+          dated = (@rates[[ from, to ]] ||= load_rates(from, to))
+          # The last rate on or before the date.
+          position = (dated.bsearch_index { |(rate_date, _)| rate_date > date } || dated.size) - 1
+          return nil if position.negative?
+
+          rate_date, rate = dated[position]
+          rate if rate_date >= date - LOOKBACK_DAYS
+        end
+
+        def load_rates(from, to)
+          ExchangeRate.import_provider_rates(from: from, to: to, start_date: start_date, end_date: end_date) unless covered?(from, to)
+          stored(from, to)
+        rescue StandardError => e
+          Rails.logger.warn("Bullion face value rates #{from}/#{to} failed: #{e.class}: #{e.message}")
+          stored(from, to)
+        end
+
+        def covered?(from, to)
+          dates = stored(from, to).map(&:first)
+          dates.any? && dates.first <= start_date && dates.last >= end_date - LOOKBACK_DAYS
+        end
+
+        # [date, rate] pairs, oldest first. A pair stored only the other way
+        # round counts too, inverted.
+        def stored(from, to)
+          window = (start_date - LOOKBACK_DAYS)..end_date
+          direct = ExchangeRate.where(from_currency: from, to_currency: to, date: window).pluck(:date, :rate)
+          inverse = ExchangeRate.where(from_currency: to, to_currency: from, date: window).pluck(:date, :rate)
+            .select { |(_, rate)| ExchangeRate.valid_rate?(rate) }
+            .map { |(date, rate)| [ date, 1 / rate.to_d ] }
+
+          by_date = inverse.to_h.merge(direct.to_h)
+          by_date.select { |_, rate| ExchangeRate.valid_rate?(rate) }.sort_by(&:first)
+        end
     end
 end

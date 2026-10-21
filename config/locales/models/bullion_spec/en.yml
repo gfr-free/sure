@@ -3,6 +3,8 @@ en:
   activerecord:
     attributes:
       bullion_spec:
+        face_value: Face value
+        face_value_currency: Face value currency
         fine_weight_grams: Fine weight
         metal: Metal
         name: Name

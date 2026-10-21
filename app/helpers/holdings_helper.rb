@@ -44,4 +44,10 @@ module HoldingsHelper
       source: source.presence || t("holdings.show.unknown"),
       ounces: number_with_precision(spec.fine_troy_ounces, precision: 4, strip_insignificant_zeros: true))
   end
+
+  # "Face value 20,00 €: …", nil for a piece without one.
+  def bullion_face_value(spec)
+    money = spec.nominal_value
+    t("holdings.show.bullion_face_value", value: money.format) if money
+  end
 end

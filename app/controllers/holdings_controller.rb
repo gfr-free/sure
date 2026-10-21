@@ -195,14 +195,17 @@ class HoldingsController < ApplicationController
     def bullion_choice_security
       picked = params.fetch(:model, {}).permit(
         :bullion_choice, :bullion_size, :bullion_weight, :bullion_weight_unit,
-        :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams
+        :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams,
+        :custom_bullion_face_value, :custom_bullion_face_value_currency
       )
 
       BullionSpec::Choice.new(
         family: Current.family, value: picked[:bullion_choice],
         size: picked[:bullion_size], weight: picked[:bullion_weight], weight_unit: picked[:bullion_weight_unit],
         custom_name: picked[:custom_bullion_name], custom_metal: picked[:custom_bullion_metal],
-        custom_fine_grams: picked[:custom_bullion_fine_grams]
+        custom_fine_grams: picked[:custom_bullion_fine_grams],
+        custom_face_value: picked[:custom_bullion_face_value],
+        custom_face_value_currency: picked[:custom_bullion_face_value_currency]
       ).security
     end
 

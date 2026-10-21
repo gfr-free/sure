@@ -157,6 +157,30 @@ class BullionCatalogTest < ActiveSupport::TestCase
     assert_nil BullionCatalog.localized_name("AAPL")
   end
 
+  test "catalogue coins that are legal tender carry their face value" do
+    assert_equal Money.new(50, "CAD"), BullionCatalog.face_value_for(:maple_leaf, "1oz")
+    assert_equal Money.new(BigDecimal("1.5"), "EUR"), BullionCatalog.face_value_for(:silver_philharmonic, "1oz")
+    assert_equal Money.new(BigDecimal("0.25"), "GBP"), BullionCatalog.face_value_for(:sovereign, "quarter")
+    assert_nil BullionCatalog.face_value_for(:krugerrand, "1oz")
+    assert_nil BullionCatalog.face_value_for(:gold_bar, "1000g")
+    assert_nil BullionCatalog.face_value_for(:unknown, "1oz")
+  end
+
+  test "load_products rejects invalid face values" do
+    coin = { "key" => "x", "name" => "X", "metal" => "XAG", "form" => "coin", "face_value_currency" => "EUR",
+             "sizes" => [ { "key" => "1oz", "label" => "1 oz", "fine_oz" => 1, "face_value" => 20 } ] }
+    assert_equal BigDecimal("20"), BullionCatalog.load_products("products" => [ coin ]).first.sizes.first.face_value
+
+    assert_raises(ArgumentError) { BullionCatalog.load_products("products" => [ coin.except("face_value_currency") ]) }
+    assert_raises(ArgumentError) { BullionCatalog.load_products("products" => [ coin.merge("face_value_currency" => "XYZ") ]) }
+    [ 0, -1 ].each do |value|
+      sizes = [ coin["sizes"].first.merge("face_value" => value) ]
+      assert_raises(ArgumentError) { BullionCatalog.load_products("products" => [ coin.merge("sizes" => sizes) ]) }
+    end
+    without_values = coin.merge("sizes" => [ coin["sizes"].first.except("face_value") ])
+    assert_raises(ArgumentError) { BullionCatalog.load_products("products" => [ without_values ]) }
+  end
+
   test "load_products rejects invalid entries" do
     valid = { "key" => "x", "name" => "X", "metal" => "XAU", "form" => "coin", "sizes" => [ { "key" => "1oz", "label" => "1 oz", "fine_oz" => 1 } ] }
 

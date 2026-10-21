@@ -132,6 +132,19 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GC=F · Yahoo Finance"
   end
 
+  test "a coin holding shows its face value, a coin without one does not" do
+    coin = BullionCatalog.security_for(:philharmonic, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+
+    get holding_path(holding)
+    assert_includes response.body, I18n.t("holdings.show.bullion_face_value", value: Money.new(100, "EUR").format)
+
+    krugerrand = @account.holdings.create!(security: BullionCatalog.security_for(:krugerrand, "1oz"), date: Date.current,
+                                           qty: 1, price: 4000, amount: 4000, currency: "USD")
+    get holding_path(krugerrand)
+    assert_not_includes response.body, I18n.t("holdings.show.bullion_face_value", value: "|").split("|").first
+  end
+
   test "sync_prices derives a coin's prices from its metal reference" do
     coin = BullionCatalog.security_for(:krugerrand, "1oz")
     holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")

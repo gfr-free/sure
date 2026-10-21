@@ -20,6 +20,8 @@ de:
       bullion_weight_hint: Feingewicht des Barrens. Barren sind fast immer 999,9 fein, das ist also das Gewicht, das auf dem Barren oder der Rechnung steht.
       bullion_weight_unit: Einheit
       custom_bullion_fine_grams: Feingewicht (g)
+      custom_bullion_face_value: Nennwert (optional)
+      custom_bullion_face_value_hint: Für Münzen, die gesetzliches Zahlungsmittel sind, z. B. eine 20-Euro-Silbermünze. Die Münze wird nie unter ihrem Nennwert bewertet.
       custom_bullion_hint: Das Feingewicht ist der reine Metallanteil eines Stücks. Der Kurs folgt dem Referenz-Wertpapier des Metalls.
       custom_bullion_metal: Metall
       custom_bullion_name: Name

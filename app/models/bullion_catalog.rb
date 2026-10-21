@@ -14,9 +14,13 @@ class BullionCatalog
   class UnknownProductError < StandardError; end
   class InvalidWeightError < StandardError; end
 
-  Size = Data.define(:key, :label, :fine_weight_grams)
+  Size = Data.define(:key, :label, :fine_weight_grams, :face_value) do
+    def initialize(key:, label:, fine_weight_grams:, face_value: nil)
+      super
+    end
+  end
 
-  Product = Data.define(:key, :name, :metal, :form, :sizes) do
+  Product = Data.define(:key, :name, :metal, :form, :sizes, :face_value_currency) do
     def size(key)
       sizes.find { |size| size.key == key.to_s }
     end
@@ -38,6 +42,13 @@ class BullionCatalog
 
     def find(key)
       products.find { |product| product.key == key.to_s }
+    end
+
+    # A catalogue coin's face value as Money, nil when it has none.
+    def face_value_for(product_key, size_key)
+      product = find(product_key)
+      amount = product&.size(size_key)&.face_value
+      Money.new(amount, product.face_value_currency) if amount
     end
 
     # Idempotent: returns the existing Security when the coin size was already
@@ -210,7 +221,19 @@ class BullionCatalog
           raise ArgumentError, "Duplicate size key for #{key}" unless sizes.map(&:key).uniq.size == sizes.size
         end
 
-        Product.new(key: key, name: entry.fetch("name").to_s, metal: metal, form: form, sizes: sizes.freeze)
+        currency = entry["face_value_currency"].presence&.to_s
+        if sizes.any?(&:face_value)
+          raise ArgumentError, "#{key} lists face values but no face_value_currency" if currency.nil?
+          begin
+            Money::Currency.new(currency)
+          rescue Money::Currency::UnknownCurrencyError
+            raise ArgumentError, "Unknown face_value_currency #{currency} for #{key}"
+          end
+        elsif currency
+          raise ArgumentError, "#{key} has a face_value_currency but no face values"
+        end
+
+        Product.new(key: key, name: entry.fetch("name").to_s, metal: metal, form: form, sizes: sizes.freeze, face_value_currency: currency)
       end
 
       def build_size(product_key, entry)
@@ -223,7 +246,12 @@ class BullionCatalog
         raise ArgumentError, "Size #{entry["key"]} of #{product_key} needs fine_grams or fine_oz" if grams.nil?
         raise ArgumentError, "Size #{entry["key"]} of #{product_key} needs a positive weight" unless grams.positive?
 
-        Size.new(key: entry.fetch("key").to_s, label: entry.fetch("label").to_s, fine_weight_grams: grams.round(4))
+        face_value = BigDecimal(entry["face_value"].to_s) if entry.key?("face_value")
+        if face_value && !face_value.positive?
+          raise ArgumentError, "Size #{entry["key"]} of #{product_key} needs a positive face value"
+        end
+
+        Size.new(key: entry.fetch("key").to_s, label: entry.fetch("label").to_s, fine_weight_grams: grams.round(4), face_value: face_value)
       end
   end
 end

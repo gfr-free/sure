@@ -28,5 +28,11 @@
       { label: t("trades.form.custom_bullion_metal"), selected: trade_form_param(:custom_bullion_metal) } %>
   <%= form.number_field :custom_bullion_fine_grams, label: t("trades.form.custom_bullion_fine_grams"), placeholder: "6.22",
         value: trade_form_param(:custom_bullion_fine_grams), min: 0.0001, step: "any", required: true %>
+  <%= form.money_field :custom_bullion_face_value, currency_method: :custom_bullion_face_value_currency,
+        label: t("trades.form.custom_bullion_face_value"), placeholder: "20", step: "any", min: 0.0001,
+        value: trade_form_decimal_param(:custom_bullion_face_value),
+        currency_value_override: trade_form_currency_param(:custom_bullion_face_value_currency),
+        default_currency: Current.family.currency %>
+  <p class="text-xs text-secondary"><%= t("trades.form.custom_bullion_face_value_hint") %></p>
   <p class="text-xs text-secondary"><%= t("trades.form.custom_bullion_hint") %></p>
 <% end %>

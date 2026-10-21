@@ -29,6 +29,88 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert_equal [ false, true ], bar_prices.map(&:last)
   end
 
+  test "a coin is never priced below its face value in the reference currency" do
+    # 20 USD face value, 1 g silver: the metal is worth far less.
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "Dollar", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "USD").security
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_equal [ 20 ], coin.prices.pluck(:price).uniq.map(&:to_i)
+    # Above the face value, the metal value counts.
+    assert_in_delta 2000, @coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.01
+  end
+
+  test "a face value in another currency is converted at each day's rate" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 2.days.ago.to_date, rate: 1.1)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 1.day.ago.to_date, rate: 1.2)
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_in_delta 22, coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.0001
+    assert_in_delta 24, coin.prices.find_by!(date: 1.day.ago.to_date).price, 0.0001
+    assert_equal [ "USD" ], coin.prices.pluck(:currency).uniq
+  end
+
+  test "a day without a rate takes the last rate from up to five days before" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 4.days.ago.to_date, rate: 1.1)
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_equal [ 22 ], coin.prices.pluck(:price).map(&:to_i).uniq
+  end
+
+  test "without any exchange rate the metal value stands and the gap is logged" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    # None stored, so the provider is asked once; it has none either.
+    ExchangeRate.expects(:import_provider_rates).with(has_entries(from: "EUR", to: "USD")).once.returns(0)
+
+    assert_difference -> { DebugLogEntry.where("message LIKE ?", "%exchange rate%").count }, 1 do
+      BullionSpec::PriceDeriver.new.derive_all
+    end
+
+    # Fine ounces times 4000 USD, not a 1:1 guess of 20 USD.
+    metal_value = BigDecimal("0.0031") / BullionSpec::TROY_OUNCE_GRAMS * 4000
+    assert_in_delta metal_value, coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.0001
+  end
+
+  test "a rate older than five days is not used" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 8.days.ago.to_date, rate: 1.1)
+    ExchangeRate.stubs(:import_provider_rates).returns(0)
+
+    BullionSpec::PriceDeriver.new(start_date: 8.days.ago.to_date).derive_all
+
+    assert coin.prices.pluck(:price).all? { |price| price < 1 }
+  end
+
+  test "a rate stored only the other way round is inverted" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    ExchangeRate.create!(from_currency: "USD", to_currency: "EUR", date: 2.days.ago.to_date, rate: 0.8)
+    ExchangeRate.stubs(:import_provider_rates).returns(0)
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_in_delta 25, coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.0001
+  end
+
+  test "a face value far below the metal value loads no rate history" do
+    ExchangeRate.create!(from_currency: "CAD", to_currency: "USD", date: 1.day.ago.to_date, rate: 0.73)
+    maple = BullionCatalog.security_for(:maple_leaf, "1oz")
+    ExchangeRate.expects(:import_provider_rates).never
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_in_delta 4000, maple.prices.find_by!(date: 2.days.ago.to_date).price, 0.01
+  end
+
   test "overwrites earlier derived prices when the reference changes" do
     BullionSpec::PriceDeriver.new.derive_all
     @reference.prices.find_by!(date: 1.day.ago.to_date).update!(price: 4200, provisional: false)

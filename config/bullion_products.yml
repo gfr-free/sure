@@ -4,6 +4,9 @@
 # Weights are the FINE metal content, not the gross weight of the piece:
 #   fine_oz:    troy ounces of pure metal (1 oz = 31.1034768 g)
 #   fine_grams: grams of pure metal
+#   face_value: the nominal value of a coin that is legal tender, in the
+#               product's face_value_currency; a coin is never valued below it.
+#               Coins without one (Krugerrand, Libertad) leave it out.
 # Size keys are stable identifiers stored in bullion_specs.size_key; never
 # rename one that has shipped.
 #
@@ -33,82 +36,90 @@ products:
     name: Maple Leaf
     metal: XAU
     form: coin
+    face_value_currency: CAD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
-      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
-      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
-      - { key: 1-20oz, label: "1/20 oz", fine_oz: 0.05 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 50 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5, face_value: 20 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25, face_value: 10 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1, face_value: 5 }
+      - { key: 1-20oz, label: "1/20 oz", fine_oz: 0.05, face_value: 1 }
 
   - key: philharmonic
     name: Vienna Philharmonic
     metal: XAU
     form: coin
+    face_value_currency: EUR
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
-      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
-      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
-      - { key: 1-25oz, label: "1/25 oz", fine_oz: 0.04 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 100 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5, face_value: 50 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25, face_value: 25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1, face_value: 10 }
+      - { key: 1-25oz, label: "1/25 oz", fine_oz: 0.04, face_value: 4 }
 
   - key: kangaroo
     name: Kangaroo
     metal: XAU
     form: coin
+    face_value_currency: AUD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
-      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
-      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 100 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5, face_value: 50 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25, face_value: 25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1, face_value: 15 }
 
   - key: britannia
     name: Britannia
     metal: XAU
     form: coin
+    face_value_currency: GBP
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
-      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
-      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 100 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5, face_value: 50 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25, face_value: 25 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1, face_value: 10 }
 
   - key: american_eagle
     name: American Eagle
     metal: XAU
     form: coin
+    face_value_currency: USD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
-      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5 }
-      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25 }
-      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 50 }
+      - { key: 1-2oz, label: "1/2 oz", fine_oz: 0.5, face_value: 25 }
+      - { key: 1-4oz, label: "1/4 oz", fine_oz: 0.25, face_value: 10 }
+      - { key: 1-10oz, label: "1/10 oz", fine_oz: 0.1, face_value: 5 }
 
   - key: american_buffalo
     name: American Buffalo
     metal: XAU
     form: coin
+    face_value_currency: USD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 50 }
 
   - key: panda
     name: Panda
     metal: XAU
     form: coin
+    face_value_currency: CNY
     sizes:
-      - { key: 30g, label: "30 g", fine_grams: 30 }
-      - { key: 15g, label: "15 g", fine_grams: 15 }
-      - { key: 8g, label: "8 g", fine_grams: 8 }
-      - { key: 3g, label: "3 g", fine_grams: 3 }
-      - { key: 1g, label: "1 g", fine_grams: 1 }
+      - { key: 30g, label: "30 g", fine_grams: 30, face_value: 500 }
+      - { key: 15g, label: "15 g", fine_grams: 15, face_value: 200 }
+      - { key: 8g, label: "8 g", fine_grams: 8, face_value: 100 }
+      - { key: 3g, label: "3 g", fine_grams: 3, face_value: 50 }
+      - { key: 1g, label: "1 g", fine_grams: 1, face_value: 10 }
 
   # 22 carat (916.7/1000); fine content per the Royal Mint specification.
   - key: sovereign
     name: Sovereign
     metal: XAU
     form: coin
+    face_value_currency: GBP
     sizes:
-      - { key: double, label: "2", fine_grams: 14.6448 }
-      - { key: full, label: "1", fine_grams: 7.3224 }
-      - { key: half, label: "1/2", fine_grams: 3.6612 }
-      - { key: quarter, label: "1/4", fine_grams: 1.8306 }
+      - { key: double, label: "2", fine_grams: 14.6448, face_value: 2 }
+      - { key: full, label: "1", fine_grams: 7.3224, face_value: 1 }
+      - { key: half, label: "1/2", fine_grams: 3.6612, face_value: 0.5 }
+      - { key: quarter, label: "1/4", fine_grams: 1.8306, face_value: 0.25 }
 
   # --- Silver coins ---
   - key: silver_krugerrand
@@ -122,57 +133,65 @@ products:
     name: Maple Leaf Silver
     metal: XAG
     form: coin
+    face_value_currency: CAD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 5 }
 
   - key: silver_philharmonic
     name: Vienna Philharmonic Silver
     metal: XAG
     form: coin
+    face_value_currency: EUR
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 1.5 }
 
   - key: silver_britannia
     name: Britannia Silver
     metal: XAG
     form: coin
+    face_value_currency: GBP
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 2 }
 
   - key: silver_kangaroo
     name: Kangaroo Silver
     metal: XAG
     form: coin
+    face_value_currency: AUD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 1 }
 
   - key: silver_american_eagle
     name: American Eagle Silver
     metal: XAG
     form: coin
+    face_value_currency: USD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 1 }
 
   - key: silver_noahs_ark
     name: Noah's Ark Silver
     metal: XAG
     form: coin
+    face_value_currency: AMD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 500 }
 
   - key: silver_kookaburra
     name: Kookaburra Silver
     metal: XAG
     form: coin
+    face_value_currency: AUD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 1 }
 
   - key: silver_koala
     name: Koala Silver
     metal: XAG
     form: coin
+    face_value_currency: AUD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 1 }
 
   - key: silver_libertad
     name: Libertad Silver
@@ -186,22 +205,25 @@ products:
     name: Maple Leaf Platinum
     metal: XPT
     form: coin
+    face_value_currency: CAD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 50 }
 
   - key: platinum_britannia
     name: Britannia Platinum
     metal: XPT
     form: coin
+    face_value_currency: GBP
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 100 }
 
   - key: palladium_maple_leaf
     name: Maple Leaf Palladium
     metal: XPD
     form: coin
+    face_value_currency: CAD
     sizes:
-      - { key: 1oz, label: "1 oz", fine_oz: 1 }
+      - { key: 1oz, label: "1 oz", fine_oz: 1, face_value: 50 }
 
   # --- Bars (weight entered on the trade) ---
   - key: gold_bar

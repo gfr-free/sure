@@ -304,6 +304,9 @@
                 </p>
                 <% if (spec = @holding.security.bullion_spec) %>
                   <p class="text-xs text-secondary"><%= bullion_price_source(spec) %></p>
+                  <% if (face_value = bullion_face_value(spec)) %>
+                    <p class="text-xs text-secondary"><%= face_value %></p>
+                  <% end %>
                 <% end %>
               </div>
               <%= button_to t(".market_data_sync_button"),

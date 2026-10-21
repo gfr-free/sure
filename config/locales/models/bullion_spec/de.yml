@@ -3,6 +3,8 @@ de:
   activerecord:
     attributes:
       bullion_spec:
+        face_value: Nennwert
+        face_value_currency: Währung des Nennwerts
         fine_weight_grams: Feingewicht
         metal: Metall
         name: Name

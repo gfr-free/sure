@@ -28,6 +28,7 @@ class Trade::CreateForm
                 :price, :fee, :ticker, :manual_ticker, :type, :transfer_account_id,
                 :holding_kind, :bullion_product, :bullion_size, :bullion_weight, :bullion_weight_unit,
                 :custom_bullion_id, :custom_bullion_name, :custom_bullion_metal, :custom_bullion_fine_grams,
+                :custom_bullion_face_value, :custom_bullion_face_value_currency,
                 :bullion_choice
 
   # Coins and bars are counted in pieces, not shares.
@@ -92,7 +93,8 @@ class Trade::CreateForm
       BullionSpec::Choice.new(
         family: account.family, value: value,
         size: bullion_size, weight: bullion_weight, weight_unit: bullion_weight_unit,
-        custom_name: custom_bullion_name, custom_metal: custom_bullion_metal, custom_fine_grams: custom_bullion_fine_grams
+        custom_name: custom_bullion_name, custom_metal: custom_bullion_metal, custom_fine_grams: custom_bullion_fine_grams,
+        custom_face_value: custom_bullion_face_value, custom_face_value_currency: custom_bullion_face_value_currency
       ).security
     end
 

@@ -75,6 +75,7 @@ en:
       missing_data: Missing data
     show:
       bullion_price_source: "Derived from %{metal} (%{source}) × %{ounces} oz fine"
+      bullion_face_value: "Face value %{value}: the coin is never valued below it."
       pieces_label: Pieces
       trade_history_entry_pieces: "%{qty} pcs of %{security} at %{price}"
       avg_cost_label: Average Cost

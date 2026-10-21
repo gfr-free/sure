@@ -44,10 +44,72 @@ class BullionSpecTest < ActiveSupport::TestCase
       assert_raises(ActiveRecord::RecordInvalid) do
         BullionSpec.create_custom!(family: @family, name: "Tiny", metal: "XAU", fine_weight_grams: BigDecimal("0.00001"))
       end
+      # A typo such as "1.234,5" with the comma turned into a dot.
+      assert_raises(ActiveRecord::RecordInvalid) do
+        BullionSpec.create_custom!(family: @family, name: "Typo", metal: "XAU", fine_weight_grams: "1.234.5")
+      end
       # Would overflow the column.
       assert_raises(ActiveRecord::RecordInvalid) do
         BullionSpec.create_custom!(family: @family, name: "Huge", metal: "XAU", fine_weight_grams: BigDecimal("123456789012345"))
       end
+    end
+  end
+
+  test "a custom coin keeps its face value and currency" do
+    spec = BullionSpec.create_custom!(family: @family, name: "20 Euro Silber", metal: "XAG", fine_weight_grams: "16.65",
+                                      face_value: "20.123456", face_value_currency: " eur ")
+
+    spec.reload
+    assert_equal BigDecimal("20.1235"), spec.face_value
+    assert_equal "EUR", spec.face_value_currency
+    assert_equal Money.new(BigDecimal("20.1235"), "EUR"), spec.nominal_value
+  end
+
+  test "a custom coin without a face value drops the currency the form posts" do
+    spec = BullionSpec.create_custom!(family: @family, name: "Ducat", metal: "XAU", fine_weight_grams: 3.44,
+                                      face_value: "", face_value_currency: "EUR")
+
+    assert_nil spec.face_value
+    assert_nil spec.face_value_currency
+    assert_nil spec.nominal_value
+  end
+
+  test "rejects face values that are not a positive amount in a known currency" do
+    invalid = [
+      [ "0", "EUR" ], [ "-20", "EUR" ], [ "abc", "EUR" ], [ "0.00001", "EUR" ],
+      [ "1000000001", "EUR" ], [ "20", "XYZ" ], [ "20", "" ], [ "20", nil ]
+    ]
+
+    assert_no_difference [ "Security.count", "BullionSpec.count" ] do
+      invalid.each do |value, currency|
+        assert_raises(ActiveRecord::RecordInvalid, "#{value.inspect} #{currency.inspect}") do
+          BullionSpec.create_custom!(family: @family, name: "Coin", metal: "XAG", fine_weight_grams: 10,
+                                     face_value: value, face_value_currency: currency)
+        end
+      end
+    end
+  end
+
+  test "catalogue coins take their face value from the catalogue, not the record" do
+    spec = BullionCatalog.security_for(:philharmonic, "1oz").bullion_spec
+    assert_equal Money.new(100, "EUR"), spec.nominal_value
+    assert_nil BullionCatalog.security_for(:krugerrand, "1oz").bullion_spec.nominal_value
+    assert_nil BullionCatalog.bar_security_for(:silver_bar, 1, "kg").bullion_spec.nominal_value
+
+    spec.face_value = 5
+    spec.face_value_currency = "EUR"
+    assert_not spec.valid?
+    assert spec.errors[:face_value].any?
+  end
+
+  test "database requires a positive face value together with its currency" do
+    spec = BullionSpec.create_custom!(family: @family, name: "Coin", metal: "XAG", fine_weight_grams: 10)
+
+    assert_raises(ActiveRecord::CheckViolation) do
+      BullionSpec.transaction(requires_new: true) { spec.update_columns(face_value: 20) }
+    end
+    assert_raises(ActiveRecord::CheckViolation) do
+      BullionSpec.transaction(requires_new: true) { spec.update_columns(face_value: -1, face_value_currency: "EUR") }
     end
   end
 

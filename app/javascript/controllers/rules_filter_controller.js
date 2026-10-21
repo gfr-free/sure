@@ -13,6 +13,7 @@ export default class extends Controller {
     "rule",
     "group",
     "disclosure",
+    "ruleToggle",
     "handle",
     "dragHint",
     "empty",
@@ -40,6 +41,11 @@ export default class extends Controller {
       const show = !filtering || this.#matches(rule, rawQuery, query, filters);
       rule.classList.toggle("hidden", !show);
       if (show) visibleCount++;
+    });
+
+    this.ruleToggleTargets.forEach((toggle) => {
+      const rule = this.#ruleOf(toggle);
+      this.#setRuleOpen(rule, filtering || !this.#isCollapsed(rule));
     });
 
     this.groupTargets.forEach((group) => {
@@ -109,6 +115,31 @@ export default class extends Controller {
     );
   }
 
+  // A rule outside a group folds to its title line; remembered like a group.
+  toggleRule(event) {
+    const rule = this.#ruleOf(event.currentTarget);
+    const open = event.currentTarget.getAttribute("aria-expanded") !== "true";
+    if (!this.filtering) this.#storeCollapsed(rule, !open);
+    this.#setRuleOpen(rule, open);
+  }
+
+  #ruleOf(element) {
+    return this.ruleTargets.find((rule) => rule.contains(element));
+  }
+
+  #setRuleOpen(rule, open) {
+    if (!rule) return;
+
+    const toggle = this.ruleToggleTargets.find((target) =>
+      rule.contains(target),
+    );
+    toggle?.setAttribute("aria-expanded", String(open));
+    toggle?.classList.toggle("-rotate-90", !open);
+    rule.querySelectorAll("[data-rule-details]").forEach((details) => {
+      details.classList.toggle("hidden", !open);
+    });
+  }
+
   #setGroupOpen(group, open) {
     const details = this.disclosureTargets.find((target) =>
       group.contains(target),
@@ -126,26 +157,29 @@ export default class extends Controller {
     });
   }
 
-  #storageKey(group) {
-    return `rule-group-collapsed:${group.dataset.groupId}`;
+  // Groups and rules outside a group are folded by id.
+  #storageKey(element) {
+    return element.dataset.groupId
+      ? `rule-group-collapsed:${element.dataset.groupId}`
+      : `rule-collapsed:${element.dataset.ruleId}`;
   }
 
-  // Storage can be unavailable (private mode, blocked site data); the groups
-  // then simply start open.
-  #isCollapsed(group) {
+  // Storage can be unavailable (private mode, blocked site data); everything
+  // then simply starts open.
+  #isCollapsed(element) {
     try {
-      return localStorage.getItem(this.#storageKey(group)) === "true";
+      return localStorage.getItem(this.#storageKey(element)) === "true";
     } catch {
       return false;
     }
   }
 
-  #storeCollapsed(group, collapsed) {
+  #storeCollapsed(element, collapsed) {
     try {
       if (collapsed) {
-        localStorage.setItem(this.#storageKey(group), "true");
+        localStorage.setItem(this.#storageKey(element), "true");
       } else {
-        localStorage.removeItem(this.#storageKey(group));
+        localStorage.removeItem(this.#storageKey(element));
       }
     } catch {
       // Not remembered; the fold still applies to this page.

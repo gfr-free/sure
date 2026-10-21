@@ -93,6 +93,7 @@ en:
       filters:
         no_matches: No rules match the search or filters.
         drag_disabled: Sorting is off while a search or filter is active. Reset them to change the order.
+      fold_rule: "Fold or unfold rule %{name}"
       reorder_rule: "Move rule %{name}. Press Enter or Space to grab it, then use the arrow keys to move it."
       no_rules_title: No rules yet
       no_rules_description: Set up rules to perform actions to your transactions and other data on every account sync.

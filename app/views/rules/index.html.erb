@@ -85,7 +85,7 @@
               <% if item.group? %>
                 <%= render "rules/group", item: item, list_filter: @list_filter %>
               <% else %>
-                <%= render "rules/list_rule", rule: item.rule, sortable_id: item.key, list_filter: @list_filter %>
+                <%= render "rules/list_rule", rule: item.rule, sortable_id: item.key, list_filter: @list_filter, foldable: true %>
               <% end %>
             <% end %>
           </div>

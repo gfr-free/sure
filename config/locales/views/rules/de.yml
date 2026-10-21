@@ -100,6 +100,7 @@ de:
         no_matches: Keine Regel passt zur Suche oder zu den Filtern.
         drag_disabled: Während einer Suche oder eines Filters ist das Sortieren aus. Setze sie zurück, um die Reihenfolge zu ändern.
       page_title: Regeln
+      fold_rule: "Regel %{name} ein- oder ausklappen"
       reorder_rule: "Regel %{name} verschieben. Mit Enter oder Leertaste greifen, dann mit den Pfeiltasten verschieben."
       rules_heading: Regeln
     filters:

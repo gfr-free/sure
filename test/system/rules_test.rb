@@ -164,6 +164,24 @@ class RulesTest < ApplicationSystemTestCase
     assert_no_selector "[data-sortable-list-id='#{rule.id}']"
   end
 
+  test "folds a rule outside a group to its title and keeps it folded after a reload" do
+    rule = create_exclude_rule("Loose rule")
+
+    visit rules_path
+    within("[data-sortable-list-id='rule:#{rule.id}']") do
+      assert_text "THEN"
+      find("button[aria-controls='#{ActionView::RecordIdentifier.dom_id(rule, :details)}']").click
+      assert_text "Loose rule"
+      assert_no_text "THEN"
+    end
+
+    visit rules_path
+    within("[data-sortable-list-id='rule:#{rule.id}']") do
+      assert_selector "button[aria-expanded='false']"
+      assert_no_text "THEN"
+    end
+  end
+
   private
     def create_exclude_rule(name, group: nil, active: true)
       @user.family.rules.create!(name: name, resource_type: "transaction", rule_group: group, active: active,

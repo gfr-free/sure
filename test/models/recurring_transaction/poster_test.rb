@@ -177,6 +177,17 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     end
   end
 
+  test "deleting a posted entry that lost its key, as after an import, still reopens the date" do
+    post!
+    entry = @occurrence.allocations.sole.entry
+    entry.update_columns(idempotency_key: nil)
+
+    entry.destroy!
+
+    assert @occurrence.reload.scheduled?
+    assert_empty @occurrence.allocations
+  end
+
   test "deleting an entry the user attached keeps the payment" do
     entry = @account.entries.create!(date: @today, name: "Rent", amount: 800, currency: "USD",
                                      entryable: Transaction.new)
@@ -253,6 +264,14 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     end
 
     assert_not @rent.reload.auto_post?
+    assert_equal :linked, @rent.auto_post_stop_reason
+  end
+
+  test "switching auto-posting off by hand reports no stop" do
+    @rent.update!(auto_post: false)
+
+    assert_nil @rent.reload.auto_post_from
+    assert_nil @rent.auto_post_stop_reason
   end
 
   test "posts a transfer between two manual accounts" do
@@ -372,6 +391,39 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_no_difference -> { Entry.count } do
       post!
     end
+  end
+
+  test "pausing and resuming keeps a posted date whose entry was deleted from posting again" do
+    @occurrence.destroy!
+    future = occurrence_on(@rent, @today + 31)
+    post_now!(future).destroy!
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      @rent.mark_inactive!
+      @rent.mark_active!
+    end
+
+    row = @rent.recurring_occurrences.find_by!(original_due_on: @today + 31)
+    assert row.auto_posted_at.present?
+    post!(today: @today + 31)
+    assert_empty row.reload.allocations, "the deleted post must not come back"
+  end
+
+  test "a weekend shift keeps the stamp of a posted date and moves it" do
+    @occurrence.destroy!
+    sunday = Date.new(2026, 11, 1)
+    future = occurrence_on(@rent, sunday)
+    post_now!(future).destroy!
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      @rent.update!(weekend_adjust: "after")
+    end
+
+    row = @rent.recurring_occurrences.find_by(original_due_on: sunday)
+    assert row.auto_posted_at.present?
+    assert_equal Date.new(2026, 11, 2), row.due_on
+    post!(today: Date.new(2026, 11, 2))
+    assert_empty row.reload.allocations, "the deleted post must not come back"
   end
 
   test "a failing series is logged and does not stop the others" do

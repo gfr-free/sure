@@ -63,10 +63,8 @@
       <%= icon "repeat", size: "xs" %>
       <%= t("bills.show.auto_posting_since", date: l(series.auto_post_from, format: :long)) %>
     </p>
-  <% elsif series.auto_post_from.present? && !series.auto_post_accounts_manual? %>
-    <p class="text-xs text-warning"><%= t("bills.show.auto_posting_stopped_linked") %></p>
-  <% elsif series.auto_post_from.present? && series.account.present? && series.currency != series.account.currency %>
-    <p class="text-xs text-warning"><%= t("bills.show.auto_posting_stopped_currency") %></p>
+  <% elsif (stop_reason = series.auto_post_stop_reason) %>
+    <p class="text-xs text-warning"><%= stop_reason == :linked ? t("bills.show.auto_posting_stopped_linked") : t("bills.show.auto_posting_stopped_currency") %></p>
   <% end %>
 
   <%# Subscription state is state, not depth, so it stays here. %>

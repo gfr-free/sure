@@ -64,6 +64,9 @@ class RecurringTransaction < ApplicationRecord
 
   before_validation :derive_transfer_bill_type
   before_save :start_auto_posting_today, if: -> { auto_post? && will_save_change_to_auto_post? }
+  # Switching it off by hand forgets the start, so a stop is only reported
+  # (auto_post_stop_reason) when Sure made it.
+  before_save :forget_auto_post_start, if: -> { !auto_post? && will_save_change_to_auto_post? && !@stopping_auto_post }
 
   # Columns whose change reshapes the occurrence stream. Amount is absent on
   # purpose: open occurrences inherit it at read time.
@@ -279,6 +282,23 @@ class RecurringTransaction < ApplicationRecord
   # Auto-posting writes real entries, so it is limited to accounts no bank
   # feeds: on a linked account the posted entry would sit beside the bank's
   # own copy of the same payment. A transfer needs both ends manual.
+  # Why Sure stopped auto-posting this bill on its own, or nil.
+  def auto_post_stop_reason
+    return if auto_post? || auto_post_from.blank?
+    return :linked unless auto_post_accounts_manual?
+
+    :currency if account.present? && currency != account.currency
+  end
+
+  # The bill no longer meets the requirements; keeps auto_post_from as the
+  # marker for auto_post_stop_reason.
+  def stop_auto_posting_automatically!
+    @stopping_auto_post = true
+    update!(auto_post: false)
+  ensure
+    @stopping_auto_post = false
+  end
+
   def auto_post_accounts_manual?
     account.present? && account.manual? && (!transfer? || destination_account&.manual?)
   end
@@ -347,10 +367,13 @@ class RecurringTransaction < ApplicationRecord
 
   # Switching auto-posting on never backfills the past: only dates from today
   # on post. Re-enabling restarts from the new day.
+  def forget_auto_post_start
+    self.auto_post_from = nil
+  end
+
   def start_auto_posting_today
     # The family's calendar day, the same one the poster uses.
-    zone = ActiveSupport::TimeZone[family.timezone.to_s] || Time.zone
-    self.auto_post_from = Time.current.in_time_zone(zone).to_date
+    self.auto_post_from = family.today_in_timezone
   end
 
   scope :for_family, ->(family) { where(family: family) }

@@ -1,5 +1,6 @@
 class AccountsController < ApplicationController
   include StreamExtensions
+  include AutoPostedMarkers
 
   before_action :set_account, only: %i[show sparkline sync set_default remove_default]
   before_action :set_manageable_account, only: %i[toggle_active toggle_exclude_from_reports destroy unlink confirm_unlink select_provider]
@@ -157,10 +158,7 @@ class AccountsController < ApplicationController
       Set.new
     end
 
-    # Bills are a preview feature, and so is the marker for what they posted.
-    @auto_posted_allocations = RecurringAllocation.auto_posted_by_entry(entry_ids) if preview_features_enabled?
-    # The review buttons only for accounts this user may change.
-    @auto_post_writable_account_ids = Account.writable_by(Current.user).pluck(:id).to_set if @auto_posted_allocations&.values&.any?(&:pending_review?)
+    load_auto_posted_markers(entry_ids)
 
     # Load split parent entries for grouped display (only when grouping is enabled)
     @split_parents = if Current.user.show_split_grouped?

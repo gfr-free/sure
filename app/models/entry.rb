@@ -43,8 +43,9 @@ class Entry < ApplicationRecord
   validate :split_child_date_matches_parent
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
-  # Only the Poster writes these keys (RecurringTransaction::Poster#idempotency_key).
-  before_destroy :release_auto_posted_allocations, if: -> { idempotency_key&.start_with?("recurring-") }
+  # By the allocation's source, not the Poster's idempotency key: an export
+  # and re-import keeps the allocation but drops the key.
+  before_destroy :release_auto_posted_allocations
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   scope :visible, -> {

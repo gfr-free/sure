@@ -16,7 +16,7 @@ class RecurringTransaction
 
     def initialize(family, today: nil)
       @family = family
-      @today = today || family_today
+      @today = today || family.today_in_timezone
     end
 
     # Returns how many occurrences were posted.
@@ -179,7 +179,7 @@ class RecurringTransaction
       # it would record every payment twice; or the account's currency no
       # longer matches the bill's, so the entry would book the wrong money.
       def stop_auto_posting!(series)
-        series.update!(auto_post: false)
+        series.stop_auto_posting_automatically!
 
         DebugLogEntry.capture(
           category: "recurring_auto_post",
@@ -208,13 +208,6 @@ class RecurringTransaction
           account: series.account,
           metadata: { recurring_transaction_id: series.id }
         )
-      end
-
-      # The family's calendar day, not the server's: a series due on the 1st
-      # posts on the 1st where the family lives.
-      def family_today
-        zone = ActiveSupport::TimeZone[family.timezone.to_s] || Time.zone
-        Time.current.in_time_zone(zone).to_date
       end
   end
 end

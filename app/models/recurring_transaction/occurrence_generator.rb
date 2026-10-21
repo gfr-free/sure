@@ -40,15 +40,13 @@ class RecurringTransaction
                           .open_status
                           .where("due_on >= ?", Date.current)
                           .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
-      # A date that already posted (its entry since deleted) must not post
-      # again if the new schedule keeps it, so its stamp carries over.
-      posted = regenerable.where.not(auto_posted_at: nil).pluck(:due_on, :auto_posted_at)
-      regenerable.delete_all
+      # A date that already posted (its entry since deleted) must never post
+      # again, so its row is never deleted and rebuilt without the stamp.
+      posted = regenerable.where.not(auto_posted_at: nil).to_a
+      regenerable.where(auto_posted_at: nil).delete_all
 
       created = generate!(through: through)
-      posted.each do |due_on, posted_at|
-        series.recurring_occurrences.where(due_on: due_on, auto_posted_at: nil).update_all(auto_posted_at: posted_at)
-      end
+      keep_posted_dates!(posted)
       created
     end
 
@@ -61,6 +59,28 @@ class RecurringTransaction
     end
 
     private
+      # A posted date the new schedule still has follows its weekend-adjusted
+      # day; one it dropped is closed as skipped rather than left as an extra
+      # obligation. A paused series keeps them as they are until it resumes.
+      def keep_posted_dates!(posted)
+        return if posted.empty? || !series.active?
+
+        dates = posted.flat_map { |occurrence| [ occurrence.original_due_on, occurrence.due_on ] }
+        # Weekend adjustment moves a date by a few days at most.
+        pairs = series.schedule.occurrence_pairs_between(dates.min - 7, dates.max + 7).index_by(&:original_due_on)
+
+        posted.each do |occurrence|
+          if (pair = pairs[occurrence.original_due_on])
+            occurrence.update!(due_on: pair.due_on) if occurrence.due_on != pair.due_on
+          else
+            # A new raw date landing on the same day is the same payment.
+            series.recurring_occurrences.where(due_on: occurrence.due_on, auto_posted_at: nil)
+                  .update_all(auto_posted_at: occurrence.auto_posted_at)
+            occurrence.skip!(source: "auto")
+          end
+        end
+      end
+
       def default_horizon(schedule)
         horizon = Date.current + HORIZON_DAYS
         next_due = schedule.first_occurrence_after(Date.current)

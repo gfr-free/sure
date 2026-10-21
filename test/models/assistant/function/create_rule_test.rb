@@ -38,6 +38,19 @@ class Assistant::Function::CreateRuleTest < ActiveSupport::TestCase
     assert_equal 1, result[:preview][:match_count]
   end
 
+  test "accepts a provider merchant on the user's transactions for the set merchant action" do
+    provider_merchant = ProviderMerchant.create!(name: "ZXQ Synced Merchant", source: "plaid")
+    create_transaction(name: "ZXQ Synced", merchant: provider_merchant)
+
+    result = @fn.call(
+      "conditions" => [ { "condition_type" => "transaction_name", "operator" => "like", "value" => "zxq" } ],
+      "actions" => [ { "action_type" => "set_transaction_merchant", "value" => provider_merchant.id } ]
+    )
+
+    assert result[:success], result.inspect
+    assert_equal provider_merchant.id, @family.rules.find(result[:rule][:id]).actions.first.value
+  end
+
   test "ignores an attempt to create an active rule" do
     result = @fn.call(
       "active" => true,

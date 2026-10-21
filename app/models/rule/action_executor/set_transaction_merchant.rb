@@ -4,7 +4,12 @@ class Rule::ActionExecutor::SetTransactionMerchant < Rule::ActionExecutor
   end
 
   def options
-    family.merchants.alphabetically.pluck(:name, :id)
+    family.assignable_merchants_for(Current.user).alphabetically.pluck(:name, :id)
+  end
+
+  def option_for(value)
+    merchant = assignable_merchant(value)
+    [ merchant.name, merchant.id ] if merchant
   end
 
   def claimed_attributes
@@ -12,11 +17,11 @@ class Rule::ActionExecutor::SetTransactionMerchant < Rule::ActionExecutor
   end
 
   def actionable?(value)
-    family.merchants.exists?(id: value)
+    assignable_merchant(value).present?
   end
 
   def execute(transaction_scope, value: nil, ignore_attribute_locks: false, rule_run: nil)
-    merchant = family.merchants.find_by_id(value)
+    merchant = assignable_merchant(value)
     return 0 unless merchant
 
     scope = transaction_scope
@@ -34,4 +39,15 @@ class Rule::ActionExecutor::SetTransactionMerchant < Rule::ActionExecutor
       )
     end
   end
+
+  private
+    # Rules run in the background without a user, so this checks the whole
+    # family: one of its own merchants, or a provider merchant that is still on
+    # one of its transactions.
+    def assignable_merchant(value)
+      return if value.blank?
+
+      family.merchants.find_by(id: value) ||
+        (ProviderMerchant.find_by(id: value) if family.transactions.exists?(merchant_id: value))
+    end
 end

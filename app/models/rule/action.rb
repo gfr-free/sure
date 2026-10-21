@@ -61,7 +61,12 @@ class Rule::Action < ApplicationRecord
   end
 
   def options
-    executor.options
+    executor_options = executor.options
+    return executor_options if executor_options.nil? || value.blank?
+    return executor_options if executor_options.any? { |_label, id| id.to_s == value.to_s }
+
+    saved_option = executor.option_for(value)
+    saved_option ? executor_options + [ saved_option ] : executor_options
   end
 
   def claimed_attributes

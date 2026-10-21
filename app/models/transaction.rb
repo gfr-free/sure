@@ -15,6 +15,9 @@ class Transaction < ApplicationRecord
     attachable.variant :thumbnail, resize_to_limit: [ 150, 150 ]
   end
 
+  # Documents linked from Paperless-ngx; the files stay in Paperless
+  has_many :paperless_links, as: :linkable, dependent: :destroy
+
   # Attachment validation constants
   MAX_ATTACHMENTS_PER_TRANSACTION = 10
   MAX_ATTACHMENT_SIZE = 10.megabytes

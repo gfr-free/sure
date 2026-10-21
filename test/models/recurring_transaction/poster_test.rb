@@ -181,11 +181,16 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     post!
     entry = @occurrence.allocations.sole.entry
     entry.update_columns(idempotency_key: nil)
+    # An import carries neither the key nor the stamp.
+    @occurrence.update_columns(auto_posted_at: nil)
 
     entry.destroy!
 
     assert @occurrence.reload.scheduled?
     assert_empty @occurrence.allocations
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
   end
 
   test "deleting an entry the user attached keeps the payment" do
@@ -335,6 +340,43 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_equal @today + 1, entry.date
     assert_not late.reload.allocations.sole.pending_review?
     assert_not_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 3), late
+  end
+
+  test "moving the day inside a month that already posted asks instead of posting again" do
+    post!
+    moved = occurrence_on(@rent, @today + 19)
+
+    assert_no_difference -> { Entry.count } do
+      post!(today: @today + 19)
+    end
+    assert_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 19), moved
+
+    next_month = occurrence_on(@rent, @today + 50)
+    assert_not @rent.reload.auto_post_needs_decision?(next_month), "a full cycle later posts as usual"
+  end
+
+  test "the late list leaves out a date that cannot be posted" do
+    late = occurrence_on(@rent, @today + 1, created_at: @today + 3)
+    late.update!(expected_amount: 0)
+
+    assert_not_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 3), late
+  end
+
+  test "a kept posted date follows the bill's new currency and an ended bill skips it" do
+    future = occurrence_on(@rent, @today + 31)
+    post_now!(future).destroy!
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      @rent.update_columns(currency: "EUR")
+      RecurringTransaction::OccurrenceGenerator.new(@rent).regenerate_future!
+    end
+    assert_equal "EUR", future.reload.currency
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      @rent.update_columns(status: "ended")
+      RecurringTransaction::OccurrenceGenerator.new(@rent).regenerate_future!
+    end
+    assert future.reload.skipped?
   end
 
   test "the late list leaves out bills the user cannot write" do

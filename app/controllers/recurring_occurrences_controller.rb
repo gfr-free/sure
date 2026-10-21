@@ -30,7 +30,7 @@ class RecurringOccurrencesController < ApplicationController
   end
 
   def post_now
-    entry = RecurringTransaction::Poster.new(Current.family).post_now!(@occurrence, on_due_date: params[:on_due_date].present?)
+    entry = RecurringTransaction::Poster.new(Current.family).post_now!(@occurrence, on_due_date: ActiveModel::Type::Boolean.new.cast(params[:on_due_date]) == true)
 
     if entry
       redirect_after_action t(".success", date: l(entry.date, format: :long))

@@ -157,6 +157,16 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert_not allocation.pending_review?
   end
 
+  test "post now with on_due_date=0 books today" do
+    @series.update!(auto_post: true)
+    occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 2,
+                                                       due_on: Date.current - 2, currency: "USD")
+
+    post post_now_recurring_occurrence_url(occurrence, on_due_date: 0)
+
+    assert_equal Date.current, occurrence.reload.allocations.sole.entry.date
+  end
+
   test "confirming a provisional post clears its review" do
     occurrence = post_provisionally!
 

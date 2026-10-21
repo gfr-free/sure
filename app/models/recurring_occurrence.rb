@@ -33,11 +33,6 @@ class RecurringOccurrence < ApplicationRecord
   scope :open_status, -> { where(status: :scheduled) }
   scope :closed, -> { where.not(status: :scheduled) }
   scope :due_between, ->(from, to) { where(due_on: from..to) }
-  # A row that existed by its due day, as the generator's look-ahead creates
-  # them. One created later (a schedule edit, a resume, a backfill) was never
-  # announced as coming up, so auto-posting leaves it to the user.
-  scope :created_by_due, -> { where("recurring_occurrences.created_at::date <= recurring_occurrences.due_on") }
-  scope :created_after_due, -> { where("recurring_occurrences.created_at::date > recurring_occurrences.due_on") }
 
   # The amount this occurrence expects, resolving NULL through the series'
   # amount strategy, which is what lets a price edit update every open

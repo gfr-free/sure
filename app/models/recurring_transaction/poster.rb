@@ -30,7 +30,8 @@ class RecurringTransaction
         end
         next unless series.auto_post_accounts_active?
 
-        occurrences = series.auto_postable_occurrences(today).to_a
+        # A date the user has to decide on waits in the Bills review queue.
+        occurrences = series.auto_postable_occurrences(today).reject { |occurrence| series.auto_post_needs_decision?(occurrence) }
         [ series, occurrences ] if occurrences.any?
       rescue => e
         capture_failure(series, e)

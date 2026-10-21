@@ -60,18 +60,19 @@ class RecurringTransaction
 
     private
       # A posted date the new schedule still has follows its weekend-adjusted
-      # day; one it dropped is closed as skipped rather than left as an extra
-      # obligation. A paused series keeps them as they are until it resumes.
+      # day and the bill's currency; one it dropped is closed as skipped rather
+      # than left as an extra obligation. A paused series keeps them as they
+      # are until it resumes; an ended one skips them all.
       def keep_posted_dates!(posted)
-        return if posted.empty? || !series.active?
+        return if posted.empty? || series.paused? || series.inactive?
 
         dates = posted.flat_map { |occurrence| [ occurrence.original_due_on, occurrence.due_on ] }
         # Weekend adjustment moves a date by a few days at most.
-        pairs = series.schedule.occurrence_pairs_between(dates.min - 7, dates.max + 7).index_by(&:original_due_on)
+        pairs = series.active? ? series.schedule.occurrence_pairs_between(dates.min - 7, dates.max + 7).index_by(&:original_due_on) : {}
 
         posted.each do |occurrence|
           if (pair = pairs[occurrence.original_due_on])
-            occurrence.update!(due_on: pair.due_on) if occurrence.due_on != pair.due_on
+            occurrence.update!(due_on: pair.due_on, currency: series.currency)
           else
             # A new raw date landing on the same day is the same payment.
             series.recurring_occurrences.where(due_on: occurrence.due_on, auto_posted_at: nil)

@@ -279,9 +279,6 @@ class RecurringTransaction < ApplicationRecord
     destination_account_id.present?
   end
 
-  # Auto-posting writes real entries, so it is limited to accounts no bank
-  # feeds: on a linked account the posted entry would sit beside the bank's
-  # own copy of the same payment. A transfer needs both ends manual.
   # Why Sure stopped auto-posting this bill on its own, or nil.
   def auto_post_stop_reason
     return if auto_post? || auto_post_from.blank?
@@ -299,6 +296,9 @@ class RecurringTransaction < ApplicationRecord
     @stopping_auto_post = false
   end
 
+  # Auto-posting writes real entries, so it is limited to accounts no bank
+  # feeds: on a linked account the posted entry would sit beside the bank's
+  # own copy of the same payment. A transfer needs both ends manual.
   def auto_post_accounts_manual?
     account.present? && account.manual? && (!transfer? || destination_account&.manual?)
   end
@@ -311,16 +311,28 @@ class RecurringTransaction < ApplicationRecord
 
     recurring_occurrences
       .open_status
-      .created_by_due
       .where(auto_posted_at: nil)
       .where("recurring_occurrences.due_on >= ?", auto_post_from)
       .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
       .order(:due_on)
   end
 
-  # Open dates of the given user's writable auto-posting bills that appeared
-  # only after they fell due. The nightly run skips them; the Bills review
-  # queue asks whether to post or skip each one.
+  # A date the user decides on instead of the nightly run: one that appeared
+  # only after it was due (a resume, a backfill), or that sits less than most
+  # of a cycle away from a date already settled, as when a schedule edit
+  # moves the day inside a period that already posted. Compared on the raw
+  # schedule dates, so weekend adjustment does not shorten a cycle.
+  def auto_post_needs_decision?(occurrence)
+    return true if occurrence.created_at.in_time_zone(family.local_time_zone).to_date > occurrence.due_on
+
+    min_gap = (365.25 / schedule.occurrences_per_year * 0.75).floor
+    settled_original_due_dates.any? do |date|
+      date != occurrence.original_due_on && (occurrence.original_due_on - date).abs < min_gap
+    end
+  end
+
+  # Due dates of the given user's writable auto-posting bills that wait for
+  # that decision. The Bills review queue asks whether to post or skip each.
   def self.late_auto_post_occurrences(family, user, today)
     writable_ids = Account.writable_by(user).select(:id)
     series = family.recurring_transactions.auto_posting
@@ -332,15 +344,20 @@ class RecurringTransaction < ApplicationRecord
 
     family.recurring_occurrences
           .open_status
-          .created_after_due
           .where(auto_posted_at: nil)
           .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
           .where("recurring_occurrences.due_on >= recurring_transactions.auto_post_from")
-          .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
+          .where.missing(:allocations)
           .joins(:recurring_transaction)
           .merge(series)
-          .includes(:recurring_transaction)
+          .includes(recurring_transaction: %i[merchant account destination_account])
           .order(:due_on)
+          .select do |occurrence|
+            # Only what "Post on due date" can actually post, as in the drawer.
+            occurrence.recurring_transaction.postable_now? &&
+              occurrence.resolved_expected_amount.positive? &&
+              occurrence.recurring_transaction.auto_post_needs_decision?(occurrence)
+          end
   end
 
   # The account an auto-posting transfer writes into besides its own. Edits
@@ -391,12 +408,12 @@ class RecurringTransaction < ApplicationRecord
     end
   end
 
-  # Switching auto-posting on never backfills the past: only dates from today
-  # on post. Re-enabling restarts from the new day.
   def forget_auto_post_start
     self.auto_post_from = nil
   end
 
+  # Switching auto-posting on never backfills the past: only dates from today
+  # on post. Re-enabling restarts from the new day.
   def start_auto_posting_today
     # The family's calendar day, the same one the poster uses.
     self.auto_post_from = family.today_in_timezone
@@ -889,6 +906,13 @@ class RecurringTransaction < ApplicationRecord
   end
 
   private
+    # Raw dates of this bill's settled occurrences: closed, or posted once.
+    def settled_original_due_dates
+      @settled_original_due_dates ||= recurring_occurrences
+                                        .where.not(status: :scheduled).or(recurring_occurrences.where.not(auto_posted_at: nil))
+                                        .pluck(:original_due_on)
+    end
+
     # Issue #1590: a recurring transfer's future occurrences rarely share the
     # seed's name (user free-text, importer wording, the auto-matcher's
     # "Transfer to ..."), so name-based matching returns [] and the Cleaner

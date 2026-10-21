@@ -44,8 +44,9 @@ class Entry < ApplicationRecord
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
   # By the allocation's source, not the Poster's idempotency key: an export
-  # and re-import keeps the allocation but drops the key.
-  before_destroy :release_auto_posted_allocations
+  # and re-import keeps the allocation but drops the key. Only transactions
+  # are ever posted.
+  before_destroy :release_auto_posted_allocations, if: -> { entryable_type == "Transaction" }
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   scope :visible, -> {
@@ -611,7 +612,11 @@ class Entry < ApplicationRecord
     # skip. It never posts again: `auto_posted_at` stays set.
     def release_auto_posted_allocations
       recurring_allocations.from_auto_posted.includes(:recurring_occurrence).find_each do |allocation|
-        RecurringTransaction::Allocator.new(allocation.recurring_occurrence).unallocate!(allocation)
+        occurrence = allocation.recurring_occurrence
+        RecurringTransaction::Allocator.new(occurrence).unallocate!(allocation)
+        # An import carries the allocation but not the stamp; without it the
+        # reopened date would post again.
+        occurrence.update_columns(auto_posted_at: Time.current) if occurrence.auto_posted_at.nil?
       end
     end
 

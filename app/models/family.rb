@@ -116,8 +116,11 @@ class Family < ApplicationRecord
   # The family's calendar day, not the server's: a bill due on the 1st posts
   # on the 1st where the family lives.
   def today_in_timezone
-    zone = ActiveSupport::TimeZone[timezone.to_s] || Time.zone
-    Time.current.in_time_zone(zone).to_date
+    Time.current.in_time_zone(local_time_zone).to_date
+  end
+
+  def local_time_zone
+    ActiveSupport::TimeZone[timezone.to_s] || Time.zone
   end
 
   private

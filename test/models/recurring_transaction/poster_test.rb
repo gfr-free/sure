@@ -318,6 +318,32 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert_nil @occurrence.auto_posted_at
   end
 
+  test "does not post a date that appeared only after it was due" do
+    late = occurrence_on(@rent, @today + 1, created_at: @today + 3)
+    @occurrence.destroy!
+
+    assert_equal 0, post!(today: @today + 3)
+    assert_nil late.reload.auto_posted_at
+    assert_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 3), late
+  end
+
+  test "posting a late date books its due date and needs no review" do
+    late = occurrence_on(@rent, @today + 1, created_at: @today + 3)
+
+    entry = post_now!(late, today: @today + 3, on_due_date: true)
+
+    assert_equal @today + 1, entry.date
+    assert_not late.reload.allocations.sole.pending_review?
+    assert_not_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 3), late
+  end
+
+  test "the late list leaves out bills the user cannot write" do
+    late = occurrence_on(@rent, @today + 1, created_at: @today + 3)
+    @rent.update_columns(account_id: accounts(:credit_card).id)
+
+    assert_not_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_member), @today + 3), late
+  end
+
   test "skips the matching pass when nothing is due" do
     @occurrence.update!(due_on: @today + 5, original_due_on: @today + 5)
     RecurringTransaction::Matcher.any_instance.expects(:run!).never
@@ -581,8 +607,8 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
   end
 
   private
-    def post_now!(occurrence, today: @today)
-      travel_to(today.in_time_zone.change(hour: 6)) { Poster.new(@family, today: today).post_now!(occurrence) }
+    def post_now!(occurrence, today: @today, on_due_date: false)
+      travel_to(today.in_time_zone.change(hour: 6)) { Poster.new(@family, today: today).post_now!(occurrence, on_due_date: on_due_date) }
     end
 
     def post!(today: @today)
@@ -609,7 +635,10 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
       series
     end
 
-    def occurrence_on(series, date)
-      series.recurring_occurrences.create!(family: @family, original_due_on: date, due_on: date, currency: "USD")
+    # Created ahead of the date, as the generator's look-ahead does; a row
+    # created after its due day is left to the user (see the late tests).
+    def occurrence_on(series, date, created_at: date - 30)
+      series.recurring_occurrences.create!(family: @family, original_due_on: date, due_on: date, currency: "USD",
+                                           created_at: created_at)
     end
 end

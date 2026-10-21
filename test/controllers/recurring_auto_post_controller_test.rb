@@ -140,6 +140,23 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("bills.index.auto_posted_discard"), response.body
   end
 
+  test "the bills review queue asks about a date added after it was due and posts it on that date" do
+    @series.update!(auto_post: true)
+    @series.update_columns(auto_post_from: Date.current - 10)
+    occurrence = @series.recurring_occurrences.create!(family: @family, original_due_on: Date.current - 2,
+                                                       due_on: Date.current - 2, currency: "USD")
+
+    get bills_url
+    assert_response :success
+    assert_match I18n.t("bills.index.late_post"), response.body
+    assert_match I18n.t("bills.index.late_skip"), response.body
+
+    post post_now_recurring_occurrence_url(occurrence, on_due_date: 1)
+    allocation = occurrence.reload.allocations.sole
+    assert_equal Date.current - 2, allocation.entry.date
+    assert_not allocation.pending_review?
+  end
+
   test "confirming a provisional post clears its review" do
     occurrence = post_provisionally!
 

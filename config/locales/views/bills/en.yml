@@ -292,6 +292,9 @@ en:
       auto_posted_line: "Sure posted %{entry} for %{bill}. Keep it?"
       auto_posted_confirm: Confirm
       auto_posted_discard: Discard and skip
+      late_line: "%{bill} was added after its due date, so it was not posted automatically. Post it?"
+      late_post: Post on due date
+      late_skip: Skip
       suggestion_unknown_entry: A transaction
       confidence: "%{percent}% match"
       accept: Apply

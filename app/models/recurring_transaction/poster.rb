@@ -68,26 +68,31 @@ class RecurringTransaction
     # auto-post switch. Stamps `auto_posted_at` like a nightly post, so the
     # job never posts the date again, even after the entry is deleted.
     #
+    # `on_due_date` books the due date instead: the review queue's answer for
+    # a date that appeared only after it was due, which the nightly run skips.
+    #
     # Returns the posted entry, or nil when the date cannot be posted (any
     # allocation already recorded, not open, zero amount, or the series is not
     # postable).
-    def post_now!(occurrence)
+    def post_now!(occurrence, on_due_date: false)
       series = occurrence.recurring_transaction
       return unless series.postable_now?
+
+      date = on_due_date ? occurrence.effective_due_on : today
 
       # A key of its own: the nightly key may still sit on an entry the user
       # unlinked from this date, and reusing that entry would book nothing new.
       key = "#{idempotency_key(occurrence)}-now-#{SecureRandom.hex(6)}"
       entry = begin
-        post_occurrence!(series, occurrence, date: today, key: key, repost: true)
+        post_occurrence!(series, occurrence, date: date, key: key, repost: true)
       rescue Money::ConversionError => e
-        # A transfer into an account in another currency, with no rate for today.
+        # A transfer into an account in another currency, with no rate for that day.
         capture_failure(series, e)
         nil
       end
       return unless entry
 
-      series.account.sync_later(window_start_date: today) unless series.transfer?
+      series.account.sync_later(window_start_date: date) unless series.transfer?
       entry
     end
 

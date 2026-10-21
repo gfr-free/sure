@@ -311,10 +311,36 @@ class RecurringTransaction < ApplicationRecord
 
     recurring_occurrences
       .open_status
+      .created_by_due
       .where(auto_posted_at: nil)
       .where("recurring_occurrences.due_on >= ?", auto_post_from)
       .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
       .order(:due_on)
+  end
+
+  # Open dates of the given user's writable auto-posting bills that appeared
+  # only after they fell due. The nightly run skips them; the Bills review
+  # queue asks whether to post or skip each one.
+  def self.late_auto_post_occurrences(family, user, today)
+    writable_ids = Account.writable_by(user).select(:id)
+    series = family.recurring_transactions.auto_posting
+                   .where(account_id: writable_ids)
+                   .where(destination_account_id: nil).or(
+                     family.recurring_transactions.auto_posting
+                           .where(account_id: writable_ids, destination_account_id: writable_ids)
+                   )
+
+    family.recurring_occurrences
+          .open_status
+          .created_after_due
+          .where(auto_posted_at: nil)
+          .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
+          .where("recurring_occurrences.due_on >= recurring_transactions.auto_post_from")
+          .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
+          .joins(:recurring_transaction)
+          .merge(series)
+          .includes(:recurring_transaction)
+          .order(:due_on)
   end
 
   # The account an auto-posting transfer writes into besides its own. Edits

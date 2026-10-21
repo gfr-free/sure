@@ -101,6 +101,8 @@ class BillsController < ApplicationController
     @suggestions_by_occurrence = @suggested_allocations.select(&:allocation_suggested?).index_by(&:recurring_occurrence_id)
     # Discarding a post needs write access to each account it touched.
     @auto_post_writable_account_ids = Account.writable_by(Current.user).pluck(:id).to_set if @suggested_allocations.any?(&:pending_review?)
+    # Dates that appeared only after they were due: post them or skip them.
+    @late_auto_post_occurrences = RecurringTransaction.late_auto_post_occurrences(Current.family, Current.user, Current.family.today_in_timezone).to_a
     @notices = collect_notices
 
     # The month as one chronological list, paid rows in place under a check.

@@ -41,4 +41,11 @@ class Rule::ListFilterTest < ActiveSupport::TestCase
     assert_not_includes @filter.condition_type_options.map(&:last), "transaction_amount"
     assert_equal [ [ "Checking", @account.id ] ], @filter.account_options
   end
+
+  test "search text includes the text of a free-text action" do
+    rule = @family.rules.create!(name: "Rename", resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "set_transaction_name", value: "Weekly groceries") ])
+
+    assert_includes Rule::ListFilter.new([ rule ]).search_text(rule), "Weekly groceries"
+  end
 end

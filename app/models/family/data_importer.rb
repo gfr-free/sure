@@ -1414,7 +1414,7 @@ class Family::DataImporter
       name = name.to_s.strip
       return if name.empty?
 
-      @family.rule_groups.find_or_create_by!(name: name)
+      @family.rule_groups.find_or_create_named!(name)
     end
 
     def build_rule_condition(rule, condition_data, parent: nil)

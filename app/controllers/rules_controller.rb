@@ -46,7 +46,7 @@ class RulesController < ApplicationController
   def create
     @rule = Current.family.rules.build(rule_params)
 
-    if @rule.save
+    if save_rule
       redirect_to confirm_rule_path(@rule, reload_on_close: true)
     else
       render_invalid_rule :new
@@ -78,7 +78,9 @@ class RulesController < ApplicationController
   end
 
   def update
-    if @rule.update(rule_params)
+    @rule.assign_attributes(rule_params)
+
+    if save_rule
       flash_message = if @rule.notification_baseline_timed_out?
         { alert: t("rules.notification_baseline_timed_out") }
       else
@@ -108,8 +110,12 @@ class RulesController < ApplicationController
     head :unprocessable_entity
   end
 
+  # Groups go too: without their rules they would be empty folders.
   def destroy_all
-    Current.family.rules.destroy_all
+    Rule.transaction do
+      Current.family.rules.destroy_all
+      Current.family.rule_groups.destroy_all
+    end
     redirect_to rules_path, notice: t(".success")
   end
 
@@ -137,6 +143,16 @@ class RulesController < ApplicationController
   end
 
   private
+    # A group typed into the form may be created by another request at the
+    # same moment; the save then rolls back, and saving again finds it.
+    def save_rule
+      @rule.save
+    rescue ActiveRecord::RecordNotUnique
+      raise unless @rule.rule_group&.new_record?
+
+      @rule.save
+    end
+
     def render_invalid_rule(template)
       # A native select cannot preserve an invalid option on resubmission. An
       # action marked for destruction is not validated, but is still rendered.

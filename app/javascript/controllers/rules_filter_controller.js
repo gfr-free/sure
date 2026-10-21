@@ -12,14 +12,15 @@ export default class extends Controller {
     "select",
     "rule",
     "group",
+    "disclosure",
     "handle",
     "dragHint",
     "empty",
     "reset",
   ];
 
+  // The server renders the fields from the URL, so a reload keeps them.
   connect() {
-    this.#hydrateFromUrl();
     this.filter();
   }
 
@@ -57,25 +58,16 @@ export default class extends Controller {
     this.#scheduleUrlSync();
   }
 
-  reset() {
-    this.inputTarget.value = "";
-    this.selectTargets.forEach((select) => {
-      select.value = "";
-    });
-    this.filter();
-  }
-
   // Folding is remembered per device. While filtering, groups are shown open
-  // for their matches, so a toggle then only changes the view.
-  toggleGroup(event) {
-    const group = this.groupTargets.find((target) =>
-      target.contains(event.currentTarget),
-    );
-    if (!group) return;
+  // for their matches, so a toggle then only changes the view. Opening a
+  // group from this script fires the event too; outside a filter it then
+  // stores the state it was set from.
+  groupToggled(event) {
+    if (this.filtering) return;
 
-    const open = event.currentTarget.getAttribute("aria-expanded") !== "true";
-    if (!this.filtering) this.#storeCollapsed(group, !open);
-    this.#setGroupOpen(group, open);
+    const details = event.currentTarget;
+    const group = this.groupTargets.find((target) => target.contains(details));
+    if (group) this.#storeCollapsed(group, !details.open);
   }
 
   #matches(rule, rawQuery, query, filters) {
@@ -96,8 +88,8 @@ export default class extends Controller {
     }
 
     return (
-      this.#listIncludes(rule.dataset.ruleActions, filters.action) &&
-      this.#listIncludes(rule.dataset.ruleConditions, filters.condition) &&
+      this.#listIncludes(rule.dataset.ruleActions, filters.action_type) &&
+      this.#listIncludes(rule.dataset.ruleConditions, filters.condition_type) &&
       this.#listIncludes(rule.dataset.ruleAccounts, filters.account) &&
       (!filters.group || rule.dataset.ruleGroup === filters.group)
     );
@@ -118,21 +110,16 @@ export default class extends Controller {
   }
 
   #setGroupOpen(group, open) {
-    const toggle = group.querySelector("[data-rules-filter-group-toggle]");
-    const body = group.querySelector("[data-rules-filter-group-body]");
-    const chevron = group.querySelector("[data-rules-filter-group-chevron]");
-
-    toggle?.setAttribute("aria-expanded", String(open));
-    body?.classList.toggle("hidden", !open);
-    chevron?.classList.toggle("-rotate-90", !open);
+    const details = this.disclosureTargets.find((target) =>
+      group.contains(target),
+    );
+    if (details) details.open = open;
   }
 
   #setDraggable(enabled) {
-    this.element
-      .querySelectorAll("[draggable]")
-      .forEach((item) => {
-        item.setAttribute("draggable", String(enabled));
-      });
+    this.element.querySelectorAll("[draggable]").forEach((item) => {
+      item.setAttribute("draggable", String(enabled));
+    });
     this.handleTargets.forEach((handle) => {
       handle.classList.toggle("invisible", !enabled);
       handle.disabled = !enabled;
@@ -175,22 +162,6 @@ export default class extends Controller {
 
   #fields() {
     return [this.inputTarget, ...this.selectTargets];
-  }
-
-  #hydrateFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-
-    this.#fields().forEach((field) => {
-      const value = params.get(field.dataset.filterParam);
-      if (value === null) return;
-      if (
-        field.tagName === "SELECT" &&
-        ![...field.options].some((option) => option.value === value)
-      ) {
-        return;
-      }
-      field.value = value;
-    });
   }
 
   // Debounced so a typing burst updates the URL once.

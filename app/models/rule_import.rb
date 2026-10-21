@@ -91,9 +91,10 @@ class RuleImport < Import
       fields = row.fields.dup
       headers = row.headers
       group_index = headers.index { |header| header.to_s.strip.delete_suffix("*") == "group" }
-      # Counted from the end, so a row whose JSON was split into extra fields
-      # still gives up the right one. A short row has no group.
-      group = fields.delete_at(group_index - headers.size) if group_index && fields.size >= headers.size
+      # Counted from the end of the named columns, so a row whose JSON was
+      # split into extra fields (CSV pads headers with nil for those) still
+      # gives up the right one.
+      group = fields.delete_at(group_index - headers.compact.size) if group_index
       name, resource_type, active, effective_date = fields[0..3]
       conditions, actions = extract_conditions_and_actions(fields[4..])
 
@@ -200,7 +201,7 @@ class RuleImport < Import
       name = name.strip
       return if name.empty?
 
-      family.rule_groups.find_or_create_by!(name: name)
+      family.rule_groups.find_or_create_named!(name)
     end
 
     def build_condition(rule, condition_data, parent: nil)

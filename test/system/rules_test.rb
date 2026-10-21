@@ -112,7 +112,7 @@ class RulesTest < ApplicationSystemTestCase
 
     visit rules_path
 
-    group_grip = find("[data-sortable-list-id='group:#{group.id}'] [data-rules-group-header] button[data-action*='handleKeyDown']")
+    group_grip = find("[data-sortable-list-id='group:#{group.id}'] summary button[data-action*='handleKeyDown']")
     group_grip.send_keys(:enter)
     group_grip.send_keys(:arrow_up)
     group_grip.send_keys(:enter)
@@ -142,7 +142,9 @@ class RulesTest < ApplicationSystemTestCase
     assert_current_path(/q=rent/)
 
     click_on "Reset"
-    select "Inactive", from: "status"
+    assert_no_current_path(/q=rent/)
+    find("#status_trigger").click
+    find("[role='option']", text: "Inactive").click
 
     assert_selector "[data-sortable-list-id='rule:#{groceries.id}']"
     assert_no_selector "[data-sortable-list-id='group:#{group.id}']"
@@ -154,11 +156,11 @@ class RulesTest < ApplicationSystemTestCase
     rule = create_exclude_rule("Folded rule", group: group)
 
     visit rules_path
-    find("[data-sortable-list-id='group:#{group.id}'] [data-rules-filter-group-toggle]").click
+    find("[data-sortable-list-id='group:#{group.id}'] [data-rules-group-header]").click
 
     assert_no_selector "[data-sortable-list-id='#{rule.id}']"
     visit rules_path
-    assert_selector "[data-sortable-list-id='group:#{group.id}'] [data-rules-filter-group-toggle][aria-expanded='false']"
+    assert_selector "[data-sortable-list-id='group:#{group.id}'] details:not([open])"
     assert_no_selector "[data-sortable-list-id='#{rule.id}']"
   end
 

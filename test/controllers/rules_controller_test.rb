@@ -371,7 +371,20 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-sortable-list-id='group:#{group.id}']" do
       assert_select "[data-sortable-list-id='#{grouped.id}'][data-rule-group='#{group.id}']"
     end
-    assert_select "select[name='group'] option[value='#{group.id}']", text: "Groceries"
+    assert_select "[role='option'][data-value='#{group.id}']", text: "Groceries"
+  end
+
+  test "index keeps the filters of the URL and ignores values it does not offer" do
+    get rules_url(q: "rent", status: "inactive")
+
+    assert_response :success
+    assert_select "input[name='q'][value='rent']"
+    assert_select "input[type='hidden'][name='status'][value='inactive']"
+    assert_select "#status_trigger", text: "Inactive"
+
+    get rules_url(status: "bogus")
+
+    assert_select "input[type='hidden'][name='status'][value='']"
   end
 
   test "index renders search and filter data for each rule" do
@@ -387,7 +400,8 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "[data-rule-search*='#{category.name}']", minimum: 3
-    assert_select "select[name='action_type'] option[value='set_transaction_category']"
+    assert_select "input[type='hidden'][name='action_type'][data-filter-param='action_type']"
+    assert_select "[role='option'][data-value='set_transaction_category']"
   end
 
   test "reorder saves the new order" do
@@ -427,6 +441,62 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal "Subscriptions", Rule.order(:created_at).last.rule_group.name
+  end
+
+  test "saves the rule when its new group is created by another request at the same moment" do
+    family = @user.family
+    conflicted = false
+    # Inserts the same group right before the rule's own insert of it, as a
+    # parallel request would.
+    RuleGroup.any_instance.stubs(:assign_next_position).with do
+      unless conflicted
+        conflicted = true
+        RuleGroup.insert!({ family_id: family.id, name: "Bills", position: 0 })
+      end
+      true
+    end
+
+    assert_difference "Rule.count", 1 do
+      post rules_url, params: { rule: {
+        resource_type: "transaction",
+        new_rule_group_name: "Bills",
+        conditions_attributes: { "0" => { condition_type: "transaction_name", operator: "like", value: "power" } },
+        actions_attributes: { "0" => { action_type: "exclude_transaction" } }
+      } }
+    end
+
+    assert conflicted
+    assert_equal "Bills", Rule.order(:created_at).last.rule_group.name
+  end
+
+  test "shows the error of an invalid new group name" do
+    rule = rules(:one)
+
+    patch rule_url(rule), params: { rule: { new_rule_group_name: "x" * 101 } }
+
+    assert_response :unprocessable_entity
+    assert_nil rule.reload.rule_group_id
+    assert_match "New group", response.body
+  end
+
+  test "rejects a group id that does not exist" do
+    rule = rules(:one)
+
+    patch rule_url(rule), params: { rule: { rule_group_id: SecureRandom.uuid } }
+
+    assert_response :unprocessable_entity
+    assert_nil rule.reload.rule_group_id
+  end
+
+  test "deleting all rules deletes their groups too" do
+    family = @user.family
+    family.rule_groups.create!(name: "Bills")
+
+    delete destroy_all_rules_url
+
+    assert_redirected_to rules_url
+    assert_empty family.rules.reload
+    assert_empty family.rule_groups.reload
   end
 
   test "rejects a group of another family" do

@@ -80,8 +80,11 @@ class Rule::ListFilter
     def action_value(action)
       return if action.value.blank?
 
+      # A free-text action (e.g. set the name) has no options: its value is
+      # the text itself.
       options = action_options_for(action)
-      return if options.blank?
+      return action.value if options.nil?
+      return if options.empty?
 
       values = action.executor.type == "multi_select" ? action.value.to_s.split(",") : [ action.value.to_s ]
       labels_by_id = options.to_h { |label, id| [ id.to_s, label ] }

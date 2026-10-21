@@ -39,6 +39,17 @@ class Rule::LayoutTest < ActiveSupport::TestCase
     assert_equal [ staying, leaving, loose ], @family.rules.ordered.to_a
   end
 
+  test "placing a rule in a group leaves the items above it alone" do
+    above = create_rule("Above")
+    group = @family.rule_groups.create!(name: "Food")
+    joining = create_rule("Joining")
+
+    assert_no_changes -> { above.reload.position } do
+      joining.update!(rule_group: group)
+    end
+    assert_equal [ "rule:#{above.id}", "group:#{group.id}" ], layout.items.map(&:key)
+  end
+
   test "reorder! moves a group together with its rules" do
     loose = create_rule("Loose")
     group = @family.rule_groups.create!(name: "Food")

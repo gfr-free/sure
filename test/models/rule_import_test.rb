@@ -508,6 +508,17 @@ class RuleImportTest < ActiveSupport::TestCase
       @family.rules.find_by!(name: "Rent rule").conditions.map { |condition| condition.slice(:condition_type, :operator, :value) }
   end
 
+  test "reads the group of a row whose JSON was split into extra fields" do
+    headers = %w[name resource_type active effective_date conditions actions group]
+    # CSV pads the headers with nil for fields beyond the named columns.
+    row = CSV::Row.new(headers + [ nil ], [ "Split rule", "transaction", "true", nil, '[{"a":1}', '{"b":2}]', "[]", "Food" ])
+
+    normalized = RuleImport.new.send(:normalize_rule_row, row)
+
+    assert_equal "Food", normalized[:rule_group]
+    assert_equal "Split rule", normalized[:name]
+  end
+
   test "a file without the group column keeps the group of an updated rule" do
     group = @family.rule_groups.create!(name: "Food")
     @family.rules.create!(name: "Categorize groceries", resource_type: "transaction", rule_group: group,

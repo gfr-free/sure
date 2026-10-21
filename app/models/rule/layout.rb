@@ -5,8 +5,7 @@
 # Rules and groups share one position sequence. A group's position marks its
 # place among the top-level items, and its rules follow it directly, so
 # Rule.ordered (by position) is the same order the page shows. Every change
-# that moves a rule into or out of a group rewrites the positions to keep it
-# that way.
+# that moves a rule into or out of a group places it to keep it that way.
 class Rule::Layout
   Item = Data.define(:rule, :group, :rules) do
     def group? = group.present?
@@ -37,9 +36,20 @@ class Rule::Layout
     items.select(&:group?).map(&:group)
   end
 
-  # Writes positions that follow the current layout.
-  def normalize!
-    with_lock { write_positions!(Rule::Layout.new(family).items) }
+  # Moves a rule to right after the group's last other rule: the end of the
+  # group it joined, or right below the group it left. Only the items after
+  # that spot shift, so an import that groups many rules stays linear.
+  def place_after_group!(rule, group)
+    with_lock do
+      anchor = [
+        family.rule_groups.where(id: group.id).pick(:position).to_i,
+        family.rules.where(rule_group_id: group.id).where.not(id: rule.id).maximum(:position).to_i
+      ].max
+
+      family.rules.where.not(id: rule.id).where("position > ?", anchor).update_all("position = position + 1")
+      family.rule_groups.where("position > ?", anchor).update_all("position = position + 1")
+      rule.update_column(:position, anchor + 1)
+    end
   end
 
   # Sets the order of the top-level items. keys lists every group and every

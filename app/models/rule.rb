@@ -34,6 +34,7 @@ class Rule < ApplicationRecord
   validates_with DatabaseTextValidator, attributes: %i[name resource_type]
   validate :no_nested_compound_conditions
   validate :rule_group_of_same_family
+  validate :new_rule_group_valid
 
   # Every rule must have at least 1 action
   validate :min_actions
@@ -54,8 +55,8 @@ class Rule < ApplicationRecord
   after_update :seed_notification_baseline, if: :switched_on?
 
   # Joining a group puts the rule at the end of that group; leaving one keeps
-  # it right below the group. Either way the positions are rewritten so the
-  # rules still run in the order the list shows (see Rule::Layout).
+  # it right below the group. Either way the rules still run in the order the
+  # list shows (see Rule::Layout).
   after_save :place_in_rule_group, if: :saved_change_to_rule_group_id?
 
   # Set when this save's after_update took the baseline, or tried to and timed
@@ -317,17 +318,28 @@ class Rule < ApplicationRecord
       self.rule_group = family.rule_groups.find_or_initialize_by(name: name)
     end
 
+    # An id that names no group would otherwise fail on the foreign key.
     def rule_group_of_same_family
-      return if rule_group.nil? || rule_group.family_id == family_id
+      if rule_group.nil?
+        errors.add(:rule_group, :invalid) if rule_group_id.present?
+      elsif rule_group.family_id != family_id
+        errors.add(:rule_group, :invalid)
+      end
+    end
 
-      errors.add(:rule_group, :invalid)
+    # A group built from the form's name is saved with the rule; its errors are
+    # shown on the name field instead of being dropped.
+    def new_rule_group_valid
+      return unless rule_group&.new_record? && rule_group.invalid?
+
+      rule_group.errors.each do |error|
+        errors.add(:new_rule_group_name, error.message)
+      end
     end
 
     def place_in_rule_group
-      Rule.transaction do
-        update_column(:position, Rule.next_position_for(family)) if rule_group_id.present?
-        Rule::Layout.new(family).normalize!
-      end
+      group = rule_group || RuleGroup.find_by(id: rule_group_id_before_last_save)
+      Rule::Layout.new(family).place_after_group!(self, group) if group
     end
 
     def min_actions

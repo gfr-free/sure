@@ -101,4 +101,24 @@ class RulesTest < ApplicationSystemTestCase
     assert_equal "set_transaction_category", rule.actions.first.action_type
     assert rule.actions.first.value.present?
   end
+
+  test "a new condition group joins its conditions with or until it is switched to all" do
+    visit new_rule_path(resource_type: "transaction")
+
+    within "dialog" do
+      click_on "Add condition group (OR)"
+      group = find("[data-rule--conditions-target='subConditionsList']").ancestor("li")
+      within(group) do
+        2.times { click_on "Add condition" }
+
+        prefixes = all("[data-rule--conditions-target='subConditionsList'] [data-condition-prefix]", visible: :all)
+        assert_equal 2, prefixes.size
+        assert_not prefixes.first.visible?
+        assert_equal "OR", prefixes.last.text
+
+        find("select[name$='[operator]']", match: :first).select("all")
+        assert_equal "AND", prefixes.last.text
+      end
+    end
+  end
 end

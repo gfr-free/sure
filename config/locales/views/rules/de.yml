@@ -73,7 +73,7 @@ de:
     form:
       add_action: Aktion hinzufügen
       add_condition: Bedingung hinzufügen
-      add_condition_group: Bedingungsgruppe hinzufügen
+      add_condition_group: Bedingungsgruppe (ODER) hinzufügen
       all_past_and_future: Alle bisherigen und künftigen %{resource}
       rule_name_label: Regelname (optional)
       rule_name_placeholder: Gib dieser Regel einen Namen
@@ -100,9 +100,15 @@ de:
       and_more_conditions:
         one: und 1 weitere Bedingung
         other: und %{count} weitere Bedingungen
+      and_more_conditions_with_or:
+        one: und 1 weitere Bedingung, teils mit ODER verknüpft
+        other: und %{count} weitere Bedingungen, teils mit ODER verknüpft
       delete: Löschen
       edit: Bearbeiten
       on_or_after: "%{resource} ab dem %{date}"
+      or_more_conditions:
+        one: oder 1 weitere Bedingung
+        other: oder %{count} weitere Bedingungen
       re_apply_rule: Regel erneut anwenden
       stop_processing: Stopp
       stop_processing_hint: Weiter unten stehende Regeln ändern die Transaktionen nicht mehr, die diese Regel trifft.
@@ -112,11 +118,13 @@ de:
   rule:
     conditions:
       condition:
+        and_prefix: und
         value_placeholder: Wert eingeben
       condition_group:
         add_condition: Bedingung hinzufügen
-        all: alle
+        all: allen
         and_prefix: und
-        any: beliebige
-        match: erfüllen
+        any: mindestens einer
+        match: trifft zu bei
         of_the_following_conditions: der folgenden Bedingungen
+        or_prefix: oder

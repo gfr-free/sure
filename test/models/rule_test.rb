@@ -320,6 +320,47 @@ class RuleTest < ActiveSupport::TestCase
     assert_equal 1, rule.additional_displayable_conditions_count
   end
 
+  test "additional_displayable_conditions_count counts every condition inside a group" do
+    rule = build_rule_with_conditions(
+      or_group("shell", "aral"),
+      Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 100)
+    )
+
+    assert_equal "shell", rule.displayed_condition.value
+    assert_equal 2, rule.additional_displayable_conditions_count
+  end
+
+  test "additional_conditions_connector is or for a rule that is a single any group" do
+    assert_equal :or, build_rule_with_conditions(or_group("shell", "aral", "esso")).additional_conditions_connector
+  end
+
+  test "additional_conditions_connector is and without an any group joining two conditions" do
+    and_group = Rule::Condition.new(condition_type: "compound", operator: "and", sub_conditions: [
+      Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "shell"),
+      Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "station")
+    ])
+
+    assert_equal :and, build_rule_with_conditions(
+      Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "shell"),
+      Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 100)
+    ).additional_conditions_connector
+    assert_equal :and, build_rule_with_conditions(and_group).additional_conditions_connector
+    assert_equal :and, build_rule_with_conditions(
+      or_group("shell"),
+      Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 100)
+    ).additional_conditions_connector
+  end
+
+  test "additional_conditions_connector is mixed when an any group sits next to other conditions" do
+    rule = build_rule_with_conditions(
+      or_group("shell", "aral"),
+      Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 100),
+      Rule::Condition.new(condition_type: "compound", operator: "or")
+    )
+
+    assert_equal :mixed, rule.additional_conditions_connector
+  end
+
   test "rule matching on transaction details" do
     # Create PayPal transaction with underlying merchant in details
     paypal_entry = create_transaction(
@@ -529,5 +570,22 @@ class RuleTest < ActiveSupport::TestCase
   private
     def create_exclude_rule
       @family.rules.create!(resource_type: "transaction", actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+    end
+
+    def build_rule_with_conditions(*conditions)
+      Rule.new(
+        family: @family,
+        resource_type: "transaction",
+        actions: [ Rule::Action.new(action_type: "exclude_transaction") ],
+        conditions: conditions
+      )
+    end
+
+    def or_group(*names)
+      Rule::Condition.new(
+        condition_type: "compound",
+        operator: "or",
+        sub_conditions: names.map { |name| Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: name) }
+      )
     end
 end

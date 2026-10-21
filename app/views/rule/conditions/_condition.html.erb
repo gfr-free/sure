@@ -1,4 +1,4 @@
-<%# locals: (form:, show_prefix: true) %>
+<%# locals: (form:, prefix: t(".and_prefix")) %>
 
 <% condition = form.object %>
 <% rule = condition.rule %>
@@ -8,13 +8,10 @@
     data-rule--conditions-valueless-operators-value="<%= Rule::ConditionFilter::VALUELESS_OPERATORS.to_json %>"
     class="flex items-center gap-3">
 
-  <%# Conditionally render the prefix %>
-  <%# Condition groups pass in show_prefix: false for subconditions since the ANY/ALL selector makes that clear %>
-  <% if show_prefix %>
-    <div class="pl-2" data-condition-prefix>
-      <span class="font-medium uppercase text-xs">and</span>
-    </div>
-  <% end %>
+  <%# Sub-conditions get "or" or "and" from their group; the Stimulus controllers hide the prefix on the first condition of each list %>
+  <div class="pl-2" data-condition-prefix>
+    <span class="font-medium uppercase text-xs" data-condition-prefix-label><%= prefix %></span>
+  </div>
 
   <div class="grid grid-cols-2 gap-2 items-center h-full">
     <%= form.hidden_field :_destroy, value: false, data: { rule__conditions_target: "destroyField" } %>

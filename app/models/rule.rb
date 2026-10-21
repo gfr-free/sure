@@ -253,9 +253,21 @@ class Rule < ApplicationRecord
   end
 
   def displayable_conditions
-    conditions.filter_map do |condition|
-      condition.compound? ? condition.sub_conditions.first : condition
+    conditions.flat_map do |condition|
+      condition.compound? ? condition.sub_conditions.to_a : [ condition ]
     end
+  end
+
+  # How the conditions after the displayed one join it in the rules list:
+  # :or when the rule is a single "any" group, :and when no "any" group joins
+  # two or more conditions, and :mixed when both kinds of joins are present.
+  def additional_conditions_connector
+    filled = conditions.reject { |condition| condition.compound? && condition.sub_conditions.empty? }
+    or_groups = filled.select { |condition| condition.compound? && condition.operator == "or" && condition.sub_conditions.size > 1 }
+
+    return :and if or_groups.empty?
+
+    filled.one? ? :or : :mixed
   end
 
   # `only_id` narrows the match to one resource inside the query itself, so a

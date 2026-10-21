@@ -3,19 +3,24 @@
 <% condition = form.object %>
 <% rule = condition.rule %>
 
-<li data-controller="rule--conditions" class="border border-secondary rounded-md p-4 space-y-3">
+<% sub_condition_prefix = condition.operator == "or" ? t(".or_prefix") : t(".and_prefix") %>
+
+<li data-controller="rule--conditions"
+    data-rule--conditions-and-label-value="<%= t(".and_prefix") %>"
+    data-rule--conditions-or-label-value="<%= t(".or_prefix") %>"
+    class="border border-secondary rounded-md p-4 space-y-3">
 
   <%= form.hidden_field :condition_type, value: "compound" %>
 
   <div class="flex items-center justify-between gap-2">
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <%# Show prefix on condition groups, except the first one %>
       <div class="pl-2" data-condition-prefix>
         <span class="font-medium uppercase text-xs"><%= t(".and_prefix") %></span>
       </div>
-      <p class="text-sm text-secondary"><%= t(".match") %></p>
-      <%= form.select :operator, [[t(".all"), "and"], [t(".any"), "or"]], { container_class: "w-fit" }, data: { rules_target: "operatorField" } %>
-      <p class="text-sm text-secondary"><%= t(".of_the_following_conditions") %></p>
+      <p class="text-sm text-secondary whitespace-nowrap"><%= t(".match") %></p>
+      <%= form.select :operator, [[t(".all"), "and"], [t(".any"), "or"]], { container_class: "w-fit shrink-0" }, data: { rules_target: "operatorField", rule__conditions_target: "groupOperatorSelect", action: "rule--conditions#updateSubConditionPrefixes" } %>
+      <p class="text-sm text-secondary whitespace-nowrap"><%= t(".of_the_following_conditions") %></p>
     </div>
 
     <%= icon(
@@ -29,13 +34,13 @@
   <%# Sub-condition template, used by Stimulus controller to add new sub-conditions dynamically %>
   <template data-rule--conditions-target="subConditionTemplate">
     <%= form.fields_for :sub_conditions, Rule::Condition.new(parent: condition, condition_type: rule.condition_filters.first.key), child_index: "IDX_CHILD_PLACEHOLDER" do |scf| %>
-      <%= render "rule/conditions/condition", form: scf, show_prefix: false %>
+      <%= render "rule/conditions/condition", form: scf, prefix: sub_condition_prefix %>
     <% end %>
   </template>
 
   <ul data-rule--conditions-target="subConditionsList" class="space-y-3">
     <%= form.fields_for :sub_conditions, condition.sub_conditions.select(&:persisted?) do |scf| %>
-      <%= render "rule/conditions/condition", form: scf, show_prefix: false %>
+      <%= render "rule/conditions/condition", form: scf, prefix: sub_condition_prefix %>
     <% end %>
   </ul>
 

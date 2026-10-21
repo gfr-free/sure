@@ -28,7 +28,14 @@
             <% end %>
           </span>
           <% if additional_condition_count.positive? %>
-            <%= t(".and_more_conditions", count: additional_condition_count) %>
+            <% case rule.additional_conditions_connector %>
+            <% when :or %>
+              <%= t(".or_more_conditions", count: additional_condition_count) %>
+            <% when :mixed %>
+              <%= t(".and_more_conditions_with_or", count: additional_condition_count) %>
+            <% else %>
+              <%= t(".and_more_conditions", count: additional_condition_count) %>
+            <% end %>
           <% end %>
         </p>
       </div>

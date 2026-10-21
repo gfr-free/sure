@@ -20,6 +20,12 @@ en:
       and_more_conditions:
         one: and 1 more condition
         other: and %{count} more conditions
+      and_more_conditions_with_or:
+        one: and 1 more condition, partly joined with OR
+        other: and %{count} more conditions, partly joined with OR
+      or_more_conditions:
+        one: or 1 more condition
+        other: or %{count} more conditions
       and_more_actions:
         one: and 1 more action
         other: and %{count} more actions
@@ -32,7 +38,7 @@ en:
       rule_name_label: Rule name (optional)
       rule_name_placeholder: Enter a name for this rule
       add_condition: Add condition
-      add_condition_group: Add condition group
+      add_condition_group: Add condition group (OR)
       add_action: Add action
       all_past_and_future: All past and future %{resource}
       starting_from: Starting from
@@ -138,10 +144,12 @@ en:
     conditions:
       condition_group:
         and_prefix: and
+        or_prefix: or
         match: match
         all: all
-        any: any
+        any: at least one
         of_the_following_conditions: of the following conditions
         add_condition: Add condition
       condition:
+        and_prefix: and
         value_placeholder: Enter a value

@@ -2,16 +2,28 @@ import { Controller } from "@hotwired/stimulus";
 
 // Connects to data-controller="rule--conditions"
 export default class extends Controller {
-  static values = { conditionFilters: Array, valuelessOperators: Array };
+  static values = {
+    conditionFilters: Array,
+    valuelessOperators: Array,
+    andLabel: String,
+    orLabel: String,
+  };
   static targets = [
     "destroyField",
     "filterValue",
+    "groupOperatorSelect",
     "operatorSelect",
     "subConditionTemplate",
     "subConditionsList",
   ];
 
   connect() {
+    // A condition group has no operator/value fields of its own, only sub-conditions
+    if (this.hasSubConditionsListTarget) {
+      this.updateSubConditionPrefixes();
+      return;
+    }
+
     // Hide value field on initial load for valueless operators (e.g. "is_null")
     this.#toggleValueFieldVisibility();
   }
@@ -23,14 +35,40 @@ export default class extends Controller {
     );
 
     this.subConditionsListTarget.insertAdjacentHTML("beforeend", html);
+    this.updateSubConditionPrefixes();
+  }
+
+  // Shows "or"/"and" between the sub-conditions of a group, matching the group's operator
+  updateSubConditionPrefixes() {
+    if (!this.hasSubConditionsListTarget) return;
+
+    const label =
+      this.groupOperatorSelectTarget.value === "or"
+        ? this.orLabelValue
+        : this.andLabelValue;
+    const subConditions = Array.from(
+      this.subConditionsListTarget.children,
+    ).filter((el) => !el.classList.contains("hidden"));
+
+    subConditions.forEach((subCondition, index) => {
+      const prefixEl = subCondition.querySelector("[data-condition-prefix]");
+      if (!prefixEl) return;
+
+      prefixEl.classList.toggle("hidden", index === 0);
+      const labelEl = prefixEl.querySelector("[data-condition-prefix-label]");
+      if (labelEl) labelEl.textContent = label;
+    });
   }
 
   remove(e) {
     e.preventDefault();
     e.stopPropagation();
     
-    // Find the parent rules controller before removing the condition
+    // Find the parent rules controller and condition group (if any) before removing the condition
     const rulesEl = this.element.closest('[data-controller~="rules"]');
+    const groupEl = this.element.parentElement?.closest(
+      '[data-controller~="rule--conditions"]',
+    );
 
     if (e.params.destroy) {
       this.destroyFieldTarget.value = true;
@@ -45,6 +83,15 @@ export default class extends Controller {
       if (rulesController && typeof rulesController.updateConditionPrefixes === "function") {
         rulesController.updateConditionPrefixes();
       }
+    }
+
+    if (groupEl) {
+      const groupController =
+        this.application.getControllerForElementAndIdentifier(
+          groupEl,
+          "rule--conditions",
+        );
+      groupController?.updateSubConditionPrefixes();
     }
   }
 

@@ -359,6 +359,51 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal ordered_ids, css_select("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
   end
 
+  test "index joins the conditions of an any group with or" do
+    @user.family.rules.destroy_all
+    @user.family.rules.create!(
+      resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "exclude_transaction") ],
+      conditions: [
+        Rule::Condition.new(condition_type: "compound", operator: "or", sub_conditions: [
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "shell"),
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "aral"),
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "esso")
+        ])
+      ]
+    )
+
+    get rules_url
+
+    assert_response :success
+    assert_includes response.body, "or 2 more conditions"
+  end
+
+  test "edit shows or between the conditions of an any group" do
+    rule = @user.family.rules.create!(
+      resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "exclude_transaction") ],
+      conditions: [
+        Rule::Condition.new(condition_type: "compound", operator: "or", sub_conditions: [
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "shell"),
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "aral")
+        ])
+      ]
+    )
+
+    get edit_rule_url(rule)
+
+    assert_response :success
+    assert_select "[data-rule--conditions-target='subConditionsList'] [data-condition-prefix-label]", text: "or", count: 2
+  end
+
+  test "new condition groups start on at least one" do
+    get new_rule_url(resource_type: "transaction")
+
+    assert_response :success
+    assert_select "template[data-rules-target='conditionGroupTemplate'] option[value='or'][selected]"
+  end
+
   test "reorder saves the new order" do
     family = @user.family
     second = family.rules.create!(resource_type: "transaction",

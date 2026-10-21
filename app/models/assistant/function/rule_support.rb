@@ -218,6 +218,7 @@ module Assistant::Function::RuleSupport
         return [ "#{path}: value is required for #{type}." ] if value.blank?
 
         allowed = allowed_values(type)
+        allowed += saved_merchant_values(rule) if type == "set_transaction_merchant"
         return [ "#{path}: '#{value}' is not a valid value for #{type}. #{value_hint(type)}" ] if allowed && !allowed.include?(value)
       end
 
@@ -236,6 +237,14 @@ module Assistant::Function::RuleSupport
       []
     rescue Rule::ConditionFilter::UnsupportedOperatorError => e
       [ e.message ]
+    end
+
+    # A merchant another member saved on the rule may be on accounts this user
+    # can't see. Re-submitting the rule keeps it, as the rule form does (see
+    # Rule::Action#options), without letting the user pick it anew elsewhere.
+    def saved_merchant_values(rule)
+      rule.actions.select { |action| action.persisted? && action.action_type == "set_transaction_merchant" }
+        .map { |action| action.value_was.to_s }
     end
 
     # nil means free text (no fixed list of values).

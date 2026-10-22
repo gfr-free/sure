@@ -636,6 +636,22 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert occurrence.reload.scheduled?
   end
 
+  test "post now fetches a transfer's exchange rate before it locks the date" do
+    card = accounts(:credit_card)
+    card.update_columns(currency: "EUR")
+    transfer_series = travel_to(@today) do
+      create_series(name: "Card payment", amount: 200, destination_account: card)
+    end
+    occurrence = occurrence_on(transfer_series, @today + 5)
+    baseline = ActiveRecord::Base.connection.open_transactions
+    depths = []
+    ExchangeRate.stubs(:find_or_fetch_rate).with { |*| depths << ActiveRecord::Base.connection.open_transactions; true }
+                .returns(ExchangeRate.new(from_currency: "USD", to_currency: "EUR", date: @today, rate: 0.9))
+
+    assert post_now!(occurrence)
+    assert_equal baseline, depths.first
+  end
+
   test "moving the bill's day drops a reopened posted date instead of keeping it as an extra" do
     future = occurrence_on(@rent, @today + 31)
     post_now!(future).destroy!

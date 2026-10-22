@@ -101,6 +101,10 @@ class RecurringTransaction
       # `repost` lets the user post a date again whose posted entry they
       # deleted; the nightly run never does.
       def post_occurrence!(series, occurrence, date: nil, key: idempotency_key(occurrence), repost: false, pending_review: false)
+        # A rate that is not cached yet is a provider call, which must not run
+        # while the occurrence row is locked.
+        warm_transfer_rate!(series, date || occurrence.effective_due_on)
+
         RecurringOccurrence.transaction do
           occurrence.lock!
           # A pause, snooze or switch-off saved while the nightly run was under
@@ -123,6 +127,15 @@ class RecurringTransaction
           occurrence.update!(auto_posted_at: Time.current)
           entry
         end
+      end
+
+      # Fetches and stores the rate a cross-currency transfer converts with, so
+      # Transfer::Creator finds it cached inside the transaction. Raises
+      # Money::ConversionError before any lock is taken when there is none.
+      def warm_transfer_rate!(series, date)
+        return unless series.transfer?
+
+        Money.new(1, series.account.currency).exchange_to(series.destination_account.currency, date: date)
       end
 
       def post_entry!(series, occurrence, date, key)

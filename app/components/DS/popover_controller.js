@@ -15,13 +15,15 @@ import { Controller } from "@hotwired/stimulus";
  * "collapsed" as the panel opens / closes.
  */
 export default class extends Controller {
-  static targets = ["button", "content"];
+  static targets = ["button", "content", "frame"];
 
   static values = {
     show: Boolean,
     placement: { type: String, default: "bottom-end" },
     offset: { type: Number, default: 6 },
     mobileFullwidth: { type: Boolean, default: true },
+    frameId: String,
+    frameSrc: String,
   };
 
   connect() {
@@ -80,10 +82,27 @@ export default class extends Controller {
     this.contentTarget.classList.toggle("hidden", !nextShow);
     this.buttonTarget.setAttribute("aria-expanded", nextShow.toString());
     if (nextShow) {
+      this.mountFrame();
       this.update();
       this.focusFirstElement();
     }
   };
+
+  // Lazy panels (frameSrc value) get their <turbo-frame> on first open only;
+  // connecting it with a src makes Turbo fetch it. Until then the panel is an
+  // empty slot, so a page with hundreds of popovers ships no frame markup
+  // for the ones never opened. Turbo marks the frame aria-busy while loading.
+  mountFrame() {
+    if (!this.hasFrameTarget || !this.frameSrcValue) return;
+    if (this.frameTarget.childElementCount > 0) return;
+
+    const frame = document.createElement("turbo-frame");
+    frame.id = this.frameIdValue;
+    frame.setAttribute("src", this.frameSrcValue);
+    frame.innerHTML =
+      '<div class="p-6 flex items-center justify-center"><div class="h-4 w-24 rounded-md bg-container-inset animate-pulse"></div></div>';
+    this.frameTarget.replaceChildren(frame);
+  }
 
   close() {
     this.contentTarget.classList.add("hidden");

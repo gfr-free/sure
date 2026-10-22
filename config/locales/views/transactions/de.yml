@@ -265,6 +265,7 @@ de:
         toggle_selection_checkboxes: Alle Kontrollkästchen umschalten
         filter: Filtern
         search_placeholder: Transaktionen suchen …
+        loading: Filter werden geladen …
     attachments:
       attachment_deleted: Anhang gelöscht
       browse_to_add: Dateien auswählen

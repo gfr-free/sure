@@ -102,6 +102,14 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a client sending only If-Modified-Since still gets the current series" do
+    stub_builder
+
+    get group_sparkline_url(group_key), headers: frame_header("asset_sparkline").merge("If-Modified-Since" => 1.day.from_now.httpdate)
+
+    assert_response :success
+  end
+
   private
     def group_sidebar_by(primary, then_by: nil, user: @user)
       user.update!(preferences: user.preferences.merge(

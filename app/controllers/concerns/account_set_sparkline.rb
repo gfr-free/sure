@@ -13,8 +13,10 @@ module AccountSetSparkline
     def render_account_set_sparkline
       etag_key = sparkline_cache_key
 
-      # Use HTTP conditional GET so the client receives 304 Not Modified when possible.
-      if stale?(etag: etag_key, last_modified: Current.family.latest_sync_completed_at)
+      # Use HTTP conditional GET so the client receives 304 Not Modified when
+      # possible. ETag only: the family sync time misses access changes, so a
+      # client sending just If-Modified-Since could keep another account set.
+      if stale?(etag: etag_key)
         @series = Rails.cache.fetch(etag_key, expires_in: 24.hours) do
           build_sparkline_series
         end

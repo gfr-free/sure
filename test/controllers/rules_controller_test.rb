@@ -404,6 +404,29 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[role='option'][data-value='set_transaction_category']"
   end
 
+  test "index runs the same number of queries for more rules" do
+    family = @user.family
+    category = family.categories.first
+    add_rule = lambda do |index|
+      family.rules.create!(resource_type: "transaction", name: "Rule #{index}",
+        conditions: [ Rule::Condition.new(condition_type: "transaction_category", operator: "=", value: category.id) ],
+        actions: [ Rule::Action.new(action_type: "set_transaction_category", value: category.id), Rule::Action.new(action_type: "exclude_transaction") ])
+    end
+    count_queries = lambda do
+      count = 0
+      counter = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:sql].match?(/SAVEPOINT|BEGIN|COMMIT/) }
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get rules_url }
+      count
+    end
+
+    add_rule.call(1)
+    get rules_url
+    few = count_queries.call
+    3.times { |index| add_rule.call(index + 2) }
+
+    assert_equal few, count_queries.call
+  end
+
   test "reorder saves the new order" do
     family = @user.family
     second = family.rules.create!(resource_type: "transaction",

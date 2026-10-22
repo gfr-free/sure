@@ -1,0 +1,10 @@
+<%# locals: (frame_id:, account_group:, subgroup: nil) %>
+
+<%# The frame id carries tab and sidebar (desktop/mobile), so every copy of a
+    group on the page loads into its own frame. %>
+<%= turbo_frame_tag frame_id,
+      src: account_group_sparkline_path(classification: account_group.classification, group: account_group.key, subgroup: subgroup&.token),
+      loading: "lazy",
+      data: sparkline_frame_data do %>
+  <%= render "accounts/sparkline_loader" %>
+<% end %>

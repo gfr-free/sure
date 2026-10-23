@@ -134,6 +134,7 @@ class RulesTest < ApplicationSystemTestCase
     name = row.find("h3").native.rect
     menu = row.find("button[aria-haspopup]").native.rect
     assert_operator menu.y, :<, name.y + name.height
+    assert_operator menu.x, :>=, name.x + name.width
 
     new_rule = find("a", text: I18n.t("rules.index.new_rule"))
     assert_operator new_rule.native.rect.x + new_rule.native.rect.width, :<=, viewport_width

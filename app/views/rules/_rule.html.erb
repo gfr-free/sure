@@ -11,7 +11,7 @@
       <% end %>
     </div>
   <% end %>
-  <div class="col-span-2 row-start-2 min-w-0 space-y-1.5 sm:col-span-1 sm:col-start-1">
+  <div class="col-span-2 row-start-2 min-w-0 space-y-1.5 sm:col-span-1 sm:col-start-1 <%= "sm:row-start-1" unless has_title %>">
     <% if rule.conditions.any? %>
       <% displayed_condition = rule.displayed_condition %>
       <% additional_condition_count = rule.additional_displayable_conditions_count %>
@@ -69,7 +69,7 @@
       </p>
     </div>
   </div>
-  <div class="col-start-2 row-start-1 flex items-center gap-4 self-start sm:row-span-2 sm:self-center">
+  <div class="col-start-2 row-start-1 flex items-center gap-4 self-start sm:self-center <%= "sm:row-span-2" if has_title %>">
     <%= styled_form_with model: rule, namespace: "rule_#{rule.id}", data: { controller: "auto-submit-form" } do |f| %>
       <%= f.toggle :active, { disabled: Current.user&.guest?, data: { auto_submit_form_target: "auto" } } %>
     <% end %>

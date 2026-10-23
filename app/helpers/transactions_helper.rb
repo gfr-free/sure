@@ -44,8 +44,6 @@ module TransactionsHelper
     entry.split_child? && Current.user.show_split_grouped? && params_grouped == "true"
   end
 
-  # Whether the current user may annotate (e.g. re-tag) entries on this
-  # account. Memoized per request so list rows don't query per row.
   # Fragment cache key for one row of the transactions list. Rendering a row
   # costs about 14 ms on a small self-hosted CPU (some 30 partials and
   # components), and a page of 100 rows re-rendered on every visit, filter
@@ -100,6 +98,8 @@ module TransactionsHelper
     ]
   end
 
+  # Whether the current user may annotate (e.g. re-tag) entries on this
+  # account. Memoized per request so list rows don't query per row.
   def can_annotate_account?(account)
     return false unless Current.user
 

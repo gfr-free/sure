@@ -210,8 +210,28 @@ class AccountsController < ApplicationController
   end
 
   # Saves the drag-and-drop order of one account group for the current user.
+  # Accounts of one group or subgroup. The account type grouping saves the
+  # order per account type, the other groupings per dimension.
   def reorder
-    if Current.user.update_manual_account_order(params[:group], params[:account_ids])
+    dimension = params[:dimension].presence || AccountGrouping::DEFAULT_PRIMARY
+    saved = if dimension == AccountGrouping::DEFAULT_PRIMARY
+      Current.user.update_manual_account_order(params[:group], params[:account_ids])
+    else
+      Current.user.update_manual_list_order("accounts", dimension, params[:account_ids])
+    end
+
+    head(saved ? :ok : :unprocessable_entity)
+  end
+
+  # First-level groups (level "groups") saved per grouping dimension, or the
+  # second-level subgroups (level "subgroups") of one group, saved per
+  # dimension and group.
+  def reorder_groups
+    level = params[:level].to_s
+    scope = params[:group].presence if level == "subgroups"
+    return head(:unprocessable_entity) if level == "subgroups" && scope.nil?
+
+    if %w[groups subgroups].include?(level) && Current.user.update_manual_list_order(level, params[:dimension], params[:keys], scope: scope)
       head :ok
     else
       head :unprocessable_entity

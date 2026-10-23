@@ -1395,6 +1395,44 @@ class UserTest < ActiveSupport::TestCase
     assert_not_includes @user.reload.manual_account_order["depository"], accounts(:credit_card).id
   end
 
+  test "update_manual_list_order moves the given entries among their positions per dimension" do
+    assert @user.update_manual_list_order("groups", "institution", %w[a_one a_two a_three])
+    assert @user.update_manual_list_order("groups", "institution", %w[a_three new_one a_one])
+    assert @user.update_manual_list_order("groups", "owner", %w[b_one])
+
+    assert_equal %w[a_three a_two new_one a_one], @user.reload.manual_list_order("groups", "institution"),
+      "a list of one tab keeps the positions of the other tab's entries"
+    assert_equal %w[b_one], @user.manual_list_order("groups", "owner")
+  end
+
+  test "update_manual_list_order keeps a list per scope" do
+    one, two = "a" * 12, "b" * 12
+    assert @user.update_manual_list_order("subgroups", "currency", [ one, two ], scope: "depository")
+    assert @user.update_manual_list_order("subgroups", "currency", [ two, one ], scope: "investment")
+
+    assert_equal [ one, two ], @user.reload.manual_list_order("subgroups", "currency", scope: "depository")
+    assert_equal [ two, one ], @user.manual_list_order("subgroups", "currency", scope: "investment")
+    assert_not @user.update_manual_list_order("subgroups", "currency", [ one ], scope: "Not A Key")
+  end
+
+  test "update_manual_list_order keeps only accessible accounts" do
+    foreign = families(:empty).accounts.create!(name: "Foreign", currency: "USD", balance: 0, accountable: Depository.new, owner: users(:empty))
+
+    assert @user.update_manual_list_order("accounts", "institution", [ foreign.id, accounts(:depository).id ])
+
+    assert_equal [ accounts(:depository).id ], @user.reload.manual_list_order("accounts", "institution")
+  end
+
+  test "update_manual_list_order rejects unknown kinds, dimensions and malformed ids" do
+    assert_not @user.update_manual_list_order("rules", "institution", %w[a])
+    assert_not @user.update_manual_list_order("groups", "nope", %w[a])
+    assert_not @user.update_manual_list_order("groups", "institution", [ "A B" ])
+    assert_not @user.update_manual_list_order("subgroups", "institution", %w[not_hex])
+    assert_not @user.update_manual_list_order("groups", "institution", "a")
+
+    assert_nil @user.reload.preferences["manual_list_order"]
+  end
+
   test "update_manual_account_order moves only the given accounts among their positions" do
     group = families(:dylan_family).accounts
     first = group.create!(name: "A first", currency: "USD", balance: 0, accountable: Depository.new, owner: @user)

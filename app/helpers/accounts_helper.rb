@@ -56,7 +56,7 @@ module AccountsHelper
       end
 
     [
-      family.build_cache_key("account_sidebar_tabs_v5", invalidate_on_data_updates: true),
+      family.build_cache_key("account_sidebar_tabs_v6", invalidate_on_data_updates: true),
       Current.user&.id,
       shares_version,
       active_tab,
@@ -72,7 +72,7 @@ module AccountsHelper
       # order, must re-render the sidebar right away rather than after the
       # 12h expiry.
       Current.user&.default_account_order,
-      Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest(Current.user.manual_account_order.to_json) : nil,
+      Current.user&.account_order&.manual? ? Digest::SHA256.hexdigest([ Current.user.manual_account_order, Current.user.preferences&.dig("manual_list_order") ].to_json) : nil,
       account_grouping_primary(:sidebar),
       account_grouping_dimension(:sidebar)
     ]
@@ -92,20 +92,23 @@ module AccountsHelper
     source.account_groups(by: account_grouping_primary(view), user: Current.user)
   end
 
-  # Sections of the sidebar's "All" tab as [classification group or nil,
-  # account groups]. Grouped by account type, every group belongs to one side,
-  # so the tab stays one flat list. Grouped by another field, the same value
+  # Sections of the sidebar's "All" tab as [classification group, account
+  # groups], one per side, so each side's groups can be reordered on their
+  # own. Grouped by another field than the account type, the same value
   # (e.g. "Not set" or one owner) forms a group among assets and among debts,
-  # so each side gets its own section instead of two rows with one name.
+  # so the sections get headings (see account_group_section_headings?)
+  # instead of showing two rows with one name.
   def account_group_sections_for(balance_sheet, view:)
-    if account_grouping_primary(view) == AccountGrouping::DEFAULT_PRIMARY
-      return [ [ nil, account_groups_for(balance_sheet, view: view) ] ]
-    end
-
     balance_sheet.classification_groups.filter_map do |classification_group|
       groups = account_groups_for(classification_group, view: view)
       [ classification_group, groups ] if groups.any?
     end
+  end
+
+  # Grouped by account type, every group belongs to one side, so the "All"
+  # tab reads as one flat list.
+  def account_group_section_headings?(view)
+    account_grouping_primary(view) != AccountGrouping::DEFAULT_PRIMARY
   end
 
   # The second grouping dimension for an account list view, or nil when the
@@ -117,13 +120,38 @@ module AccountsHelper
     Current.user&.account_grouping_for(view)
   end
 
-  # Accounts can be dragged into a manual order only where every group is
-  # one account type, because the order is stored per type; with a second
-  # level, each subgroup is reordered within its type. Other first levels
-  # still show that order but offer no sort mode.
+  # With the manual order, accounts, groups and subgroups can be dragged in
+  # every grouping; each dimension keeps its own order.
   def account_sidebar_sortable?
-    Current.user&.account_order&.manual? &&
-      account_grouping_primary(:sidebar) == AccountGrouping::DEFAULT_PRIMARY
+    Current.user&.account_order&.manual? || false
+  end
+
+  # Data attributes of one of the sidebar's sortable lists. list is the name
+  # the shared sortable-list controller runs under; each nesting level
+  # (groups, subgroups, accounts) needs its own (see
+  # sortable_list_controller.js). Copies of a list in other tabs share the
+  # url and mirror each move.
+  def sidebar_sortable_list_data(list, url:, param:)
+    prefix = list.underscore
+    {
+      controller: list,
+      "#{prefix}_url_value": url,
+      "#{prefix}_param_value": param,
+      "#{prefix}_hold_delay_value": 400,
+      "#{prefix}_save_timeout_value": 10_000,
+      "#{prefix}_mirror_lists_value": true,
+      action: "dragover->#{list}#dragOver drop->#{list}#drop account-sort-mode:stop@window->#{list}#releaseKeyboardGrab turbo:before-visit@window->#{list}#saveBeforeVisit"
+    }
+  end
+
+  # Data attributes of a row in one of those lists. Rows of every level
+  # carry their id in data-sortable-list-id.
+  def sidebar_sortable_item_data(list, id)
+    {
+      "#{list.underscore}_target": "item",
+      sortable_list_id: id,
+      action: "dragstart->#{list}#dragStart dragend->#{list}#dragEnd"
+    }
   end
 
   # Subgroups to render inside a first-level group for the given view, or

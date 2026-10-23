@@ -224,6 +224,37 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal %w[Card], balance_sheet.liabilities.account_groups.first.accounts.map(&:name)
   end
 
+  test "orders groups, other groupings' accounts and subgroups by the lists saved per dimension" do
+    user = users(:empty)
+    user.update!(default_account_order: "manual")
+    ing = create_account(name: "B ING", balance: 0, accountable: Depository.new, owner: user, institution_name: "ING", currency: "USD")
+    bank = create_account(name: "A Bank", balance: 0, accountable: Investment.new, owner: user, institution_name: "ING", currency: "EUR")
+    spk = create_account(name: "C Sparkasse", balance: 0, accountable: Depository.new, owner: user, institution_name: "Sparkasse", currency: "USD")
+
+    sparkasse_key = "asset_#{AccountGrouping.group_key("institution", "sparkasse")}"
+    user.update_manual_list_order("groups", "institution", [ sparkasse_key ])
+    user.update_manual_list_order("groups", "account_type", %w[investment depository])
+    user.update_manual_list_order("accounts", "institution", [ ing.id, bank.id ])
+    ing_key = "asset_#{AccountGrouping.group_key("institution", "ing")}"
+    usd_token = Digest::SHA256.hexdigest("USD").first(12)
+    user.update_manual_list_order("subgroups", "currency", [ usd_token ], scope: ing_key)
+
+    assets = BalanceSheet.new(@family, user: user).assets
+
+    by_institution = assets.account_groups(by: "institution", user: user)
+    assert_equal %w[Sparkasse ING], by_institution.map(&:name), "saved groups first, the rest after them"
+    assert_equal [ ing.id, bank.id ], by_institution.last.accounts.map(&:id), "the institution order, not the type order"
+    assert_equal [ spk.id ], by_institution.first.accounts.map(&:id)
+
+    assert_equal %w[investment depository], assets.account_groups(by: "account_type", user: user).map(&:key)
+    assert_equal %w[USD EUR], by_institution.last.subgroups("currency", user: user).map(&:name)
+
+    user.update!(default_account_order: "name_asc")
+    assets = BalanceSheet.new(@family, user: user).assets
+    assert_equal %w[ING Sparkasse], assets.account_groups(by: "institution", user: user).map(&:name), "only with the manual order"
+    assert_equal %w[depository investment], assets.account_groups(by: "account_type", user: user).map(&:key)
+  end
+
   test "splits an account group into subgroups whose totals add up" do
     create_account(balance: 1000, accountable: Depository.new, institution_name: "ING")
     create_account(balance: 2000, accountable: Depository.new, institution_name: " ing ")

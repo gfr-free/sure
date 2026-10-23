@@ -90,12 +90,13 @@ class BalanceSheet::ClassificationGroup
 
     # The manual order is saved per account type for the account type
     # grouping (already applied to the accounts) and per dimension for the
-    # others; accounts not placed yet follow by name.
+    # others; accounts not placed in a dimension yet keep the type order.
     def accounts_in_order_of(dimension, user:)
       return accounts unless user&.account_order&.manual?
 
-      by_name = accounts.sort_by { |account| [ account.name.to_s.downcase, account.id.to_s ] }
-      BalanceSheet::ManualOrder.sort(by_name, user.manual_list_positions("accounts", dimension), &:id)
+      @accounts_in_order ||= {}
+      @accounts_in_order[[ dimension, user.id ]] ||=
+        BalanceSheet::ManualOrder.sort(accounts, user.manual_list_positions("accounts", dimension), &:id)
     end
 
     def normalize_classification!(classification)

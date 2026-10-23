@@ -86,8 +86,8 @@ class BalanceSheet::AccountGroup
     return subgroups unless user&.account_order&.manual?
 
     # With the manual order, subgroups follow the order the user saved for
-    # this dimension, which applies in every group.
-    BalanceSheet::ManualOrder.sort(subgroups, user.manual_list_positions("subgroups", dimension), &:token)
+    # this group's subgroups by this dimension.
+    BalanceSheet::ManualOrder.sort(subgroups, user.manual_list_positions("subgroups", dimension, scope: key), &:token)
   end
 
   # "asset" or "liability"

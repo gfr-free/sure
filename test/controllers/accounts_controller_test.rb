@@ -1313,9 +1313,9 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal %w[investment depository], @user.reload.manual_list_order("groups", "account_type")
 
     tokens = [ "a" * 12, "b" * 12 ]
-    patch reorder_groups_accounts_url(level: "subgroups", dimension: "institution"), params: { keys: tokens }, as: :json
+    patch reorder_groups_accounts_url(level: "subgroups", dimension: "institution", group: "depository"), params: { keys: tokens }, as: :json
     assert_response :success
-    assert_equal tokens, @user.reload.manual_list_order("subgroups", "institution")
+    assert_equal tokens, @user.reload.manual_list_order("subgroups", "institution", scope: "depository")
   end
 
   test "reorder_groups rejects unknown levels, dimensions and malformed keys" do
@@ -1327,6 +1327,9 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
     patch reorder_groups_accounts_url(level: "groups", dimension: "account_type"), params: { keys: [ "<script>" ] }, as: :json
     assert_response :unprocessable_entity
+
+    patch reorder_groups_accounts_url(level: "subgroups", dimension: "institution"), params: { keys: [ "a" * 12 ] }, as: :json
+    assert_response :unprocessable_entity, "subgroups belong to a group"
 
     assert_nil @user.reload.preferences["manual_list_order"]
   end

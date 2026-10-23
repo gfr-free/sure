@@ -85,6 +85,10 @@ export default class extends Controller {
   }
 
   dragEnd(event) {
+    // The end of a nested list's drag also bubbles up to this list's item
+    // around it, which may be held with the keyboard.
+    if (event.currentTarget !== this.draggedElement) return;
+
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();

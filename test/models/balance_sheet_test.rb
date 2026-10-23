@@ -235,8 +235,9 @@ class BalanceSheetTest < ActiveSupport::TestCase
     user.update_manual_list_order("groups", "institution", [ sparkasse_key ])
     user.update_manual_list_order("groups", "account_type", %w[investment depository])
     user.update_manual_list_order("accounts", "institution", [ ing.id, bank.id ])
-    eur_token = Digest::SHA256.hexdigest("EUR").first(12)
-    user.update_manual_list_order("subgroups", "currency", [ eur_token ])
+    ing_key = "asset_#{AccountGrouping.group_key("institution", "ing")}"
+    usd_token = Digest::SHA256.hexdigest("USD").first(12)
+    user.update_manual_list_order("subgroups", "currency", [ usd_token ], scope: ing_key)
 
     assets = BalanceSheet.new(@family, user: user).assets
 
@@ -246,7 +247,7 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal [ spk.id ], by_institution.first.accounts.map(&:id)
 
     assert_equal %w[investment depository], assets.account_groups(by: "account_type", user: user).map(&:key)
-    assert_equal %w[EUR USD], by_institution.last.subgroups("currency", user: user).map(&:name)
+    assert_equal %w[USD EUR], by_institution.last.subgroups("currency", user: user).map(&:name)
 
     user.update!(default_account_order: "name_asc")
     assets = BalanceSheet.new(@family, user: user).assets

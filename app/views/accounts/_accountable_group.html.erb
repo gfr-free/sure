@@ -4,12 +4,7 @@
     (accounts/sidebar_group_list), dragged by the grip next to it. %>
 <%= tag.div id: account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile),
       class: ("flex items-start gap-1 rounded-lg" if sortable),
-      data: {
-        group_key: account_group.key,
-        sortable_group_list_target: ("item" if sortable),
-        sortable_list_id: (account_group.key if sortable),
-        action: ("dragstart->sortable-group-list#dragStart dragend->sortable-group-list#dragEnd" if sortable)
-      } do %>
+      data: { group_key: account_group.key, **(sortable ? sidebar_sortable_item_data("sortable-group-list", account_group.key) : {}) } do %>
   <% if sortable %>
     <%= render "accounts/sort_handle", list: "sortable-group-list", label: t("accounts.sidebar.reorder_group", group: account_group.name), class_name: "mt-1.5" %>
   <% end %>
@@ -38,27 +33,16 @@
 
       <% subgroups = account_subgroups(account_group, view: :sidebar) %>
       <% if subgroups.any? %>
-        <%# Subgroups follow one order per second-level dimension, shared by
-            every group; each group saves the order of its own subgroups. %>
+        <%# Each group saves the order of its own subgroups, per second-level
+            dimension. %>
         <%= tag.div class: "space-y-1",
-              data: sortable ? {
-                controller: "sortable-subgroup-list",
-                sortable_subgroup_list_url_value: reorder_groups_accounts_path(level: "subgroups", dimension: account_grouping_dimension(:sidebar), group: account_group.key),
-                sortable_subgroup_list_param_value: "keys",
-                sortable_subgroup_list_hold_delay_value: 400,
-                sortable_subgroup_list_save_timeout_value: 10_000,
-                sortable_subgroup_list_mirror_lists_value: true,
-                action: "dragover->sortable-subgroup-list#dragOver drop->sortable-subgroup-list#drop account-sort-mode:stop@window->sortable-subgroup-list#releaseKeyboardGrab turbo:before-visit@window->sortable-subgroup-list#saveBeforeVisit"
-              } : {} do %>
+            data: sortable ? sidebar_sortable_list_data("sortable-subgroup-list",
+              url: reorder_groups_accounts_path(level: "subgroups", dimension: account_grouping_dimension(:sidebar), group: account_group.key),
+              param: "keys") : {} do %>
           <% subgroups.each do |subgroup| %>
             <%= tag.div id: subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile),
                   class: "space-y-1 rounded-lg",
-                  data: {
-                    subgroup_key: subgroup.key,
-                    sortable_subgroup_list_target: ("item" if sortable),
-                    sortable_list_id: (subgroup.token if sortable),
-                    action: ("dragstart->sortable-subgroup-list#dragStart dragend->sortable-subgroup-list#dragEnd" if sortable)
-                  } do %>
+                  data: { subgroup_key: subgroup.key.to_s, **(sortable ? sidebar_sortable_item_data("sortable-subgroup-list", subgroup.token) : {}) } do %>
               <div class="flex items-center justify-between gap-2 px-3 pt-2">
                 <% if sortable %>
                   <%= render "accounts/sort_handle", list: "sortable-subgroup-list", label: t("accounts.sidebar.reorder_group", group: subgroup.name) %>

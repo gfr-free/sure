@@ -278,6 +278,30 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     end
   end
 
+  test "a group dragged with the mouse lands over another group's accounts" do
+    visit account_path(accounts(:depository))
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+    end
+
+    # Dropped at the top of the cash group's account list, which sits inside
+    # the outer group list: the drop has to reach that list.
+    page.execute_script(<<~JS)
+      const groups = [...document.querySelectorAll("[data-sortable-group-list-target='item'][data-sortable-list-id='investment']")].find((item) => item.offsetParent);
+      const list = groups.closest("[data-controller~='sortable-group-list']");
+      const target = list.querySelector(":scope > [data-sortable-list-id='depository'] [data-controller~='sortable-list']");
+      const top = list.querySelector(":scope > [data-sortable-list-id='depository']").getBoundingClientRect().top;
+      const dataTransfer = new DataTransfer();
+      groups.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+      target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer, clientY: top }));
+      target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer, clientY: top }));
+      groups.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+    JS
+
+    assert_eventually { @user.reload.manual_list_order("groups", "account_type").first(2) == %w[investment depository] }
+    assert_empty @user.manual_account_order, "no account moved"
+  end
+
   test "dragging an account leaves the group around it in place" do
     checking = accounts(:depository)
     plaid = accounts(:connected)
@@ -334,7 +358,8 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     end
 
     assert_eventually { @user.reload.manual_list_order("accounts", "currency").first(2) == [ plaid.id, checking.id ] }
-    assert_eventually { @user.reload.manual_list_order("subgroups", "account_type").first == Digest::SHA256.hexdigest("Investment").first(12) }
+    group_key = "asset_#{AccountGrouping.group_key("currency", "USD")}"
+    assert_eventually { @user.reload.manual_list_order("subgroups", "account_type", scope: group_key).first == Digest::SHA256.hexdigest("Investment").first(12) }
     assert_empty @user.manual_account_order, "the account type order stays as it was"
   end
 

@@ -126,6 +126,34 @@ module AccountsHelper
     Current.user&.account_order&.manual? || false
   end
 
+  # Data attributes of one of the sidebar's sortable lists. list is the name
+  # the shared sortable-list controller runs under; each nesting level
+  # (groups, subgroups, accounts) needs its own (see
+  # sortable_list_controller.js). Copies of a list in other tabs share the
+  # url and mirror each move.
+  def sidebar_sortable_list_data(list, url:, param:)
+    prefix = list.underscore
+    {
+      controller: list,
+      "#{prefix}_url_value": url,
+      "#{prefix}_param_value": param,
+      "#{prefix}_hold_delay_value": 400,
+      "#{prefix}_save_timeout_value": 10_000,
+      "#{prefix}_mirror_lists_value": true,
+      action: "dragover->#{list}#dragOver drop->#{list}#drop account-sort-mode:stop@window->#{list}#releaseKeyboardGrab turbo:before-visit@window->#{list}#saveBeforeVisit"
+    }
+  end
+
+  # Data attributes of a row in one of those lists. Rows of every level
+  # carry their id in data-sortable-list-id.
+  def sidebar_sortable_item_data(list, id)
+    {
+      "#{list.underscore}_target": "item",
+      sortable_list_id: id,
+      action: "dragstart->#{list}#dragStart dragend->#{list}#dragEnd"
+    }
+  end
+
   # Subgroups to render inside a first-level group for the given view, or
   # an empty array when the view has no second level (see AccountGrouping).
   def account_subgroups(account_group, view:)

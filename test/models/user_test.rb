@@ -1405,6 +1405,16 @@ class UserTest < ActiveSupport::TestCase
     assert_equal %w[b_one], @user.manual_list_order("groups", "owner")
   end
 
+  test "update_manual_list_order keeps a list per scope" do
+    one, two = "a" * 12, "b" * 12
+    assert @user.update_manual_list_order("subgroups", "currency", [ one, two ], scope: "depository")
+    assert @user.update_manual_list_order("subgroups", "currency", [ two, one ], scope: "investment")
+
+    assert_equal [ one, two ], @user.reload.manual_list_order("subgroups", "currency", scope: "depository")
+    assert_equal [ two, one ], @user.manual_list_order("subgroups", "currency", scope: "investment")
+    assert_not @user.update_manual_list_order("subgroups", "currency", [ one ], scope: "Not A Key")
+  end
+
   test "update_manual_list_order keeps only accessible accounts" do
     foreign = families(:empty).accounts.create!(name: "Foreign", currency: "USD", balance: 0, accountable: Depository.new, owner: users(:empty))
 

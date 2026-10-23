@@ -223,11 +223,15 @@ class AccountsController < ApplicationController
     head(saved ? :ok : :unprocessable_entity)
   end
 
-  # First-level groups (level "groups") or second-level subgroups (level
-  # "subgroups") of one list, saved per grouping dimension.
+  # First-level groups (level "groups") saved per grouping dimension, or the
+  # second-level subgroups (level "subgroups") of one group, saved per
+  # dimension and group.
   def reorder_groups
     level = params[:level].to_s
-    if %w[groups subgroups].include?(level) && Current.user.update_manual_list_order(level, params[:dimension], params[:keys])
+    scope = params[:group].presence if level == "subgroups"
+    return head(:unprocessable_entity) if level == "subgroups" && scope.nil?
+
+    if %w[groups subgroups].include?(level) && Current.user.update_manual_list_order(level, params[:dimension], params[:keys], scope: scope)
       head :ok
     else
       head :unprocessable_entity

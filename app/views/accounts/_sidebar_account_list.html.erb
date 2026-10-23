@@ -7,23 +7,12 @@
       group and subgroup keys keep each a separate list, with its own save
       queue, while its copies in other tabs still mirror each other. %>
   <%= tag.div class: "space-y-1",
-        data: {
-          controller: "sortable-list",
-          sortable_list_url_value: reorder_accounts_path(dimension: account_grouping_primary(:sidebar), group: account_group.key, subgroup: subgroup&.token),
-          sortable_list_param_value: "account_ids",
-          sortable_list_hold_delay_value: 400,
-          sortable_list_save_timeout_value: 10_000,
-          sortable_list_mirror_lists_value: true,
-          action: "dragover->sortable-list#dragOver drop->sortable-list#drop account-sort-mode:stop@window->sortable-list#releaseKeyboardGrab turbo:before-visit@window->sortable-list#saveBeforeVisit"
-        } do %>
+        data: sidebar_sortable_list_data("sortable-list",
+          url: reorder_accounts_path(dimension: account_grouping_primary(:sidebar), group: account_group.key, subgroup: subgroup&.token),
+          param: "account_ids") do %>
     <% accounts.each do |account| %>
       <%# Rows become draggable only in sort mode (account-sort-mode). %>
-      <%= tag.div class: "flex items-center gap-1 rounded-lg",
-            data: {
-              sortable_list_target: "item",
-              sortable_list_id: account.id,
-              action: "dragstart->sortable-list#dragStart dragend->sortable-list#dragEnd"
-            } do %>
+      <%= tag.div class: "flex items-center gap-1 rounded-lg", data: sidebar_sortable_item_data("sortable-list", account.id) do %>
         <%= render "accounts/sort_handle", list: "sortable-list", label: t("accounts.sidebar.reorder_account", account: account.name) %>
         <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), link_class: "min-w-0 grow" %>
       <% end %>

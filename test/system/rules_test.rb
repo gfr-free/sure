@@ -124,11 +124,16 @@ class RulesTest < ApplicationSystemTestCase
     row_right = row.native.rect.x + row.native.rect.width
     assert_operator row_right, :<=, viewport_width
 
-    [ "h3", "span.rounded-2xl", "button[aria-haspopup]", "label" ].each do |selector|
+    [ "h3", "span.truncate", "button[aria-haspopup]", "label" ].each do |selector|
       element = row.find(selector, match: :first, visible: :all)
       assert_operator element.native.rect.x + element.native.rect.width, :<=, row_right, "#{selector} runs past the rule row"
-      assert_operator element.evaluate_script("this.scrollWidth - this.clientWidth"), :<=, 0, "#{selector} text overflows"
     end
+    assert_operator row.find("h3").evaluate_script("this.scrollWidth - this.clientWidth"), :<=, 0, "rule name overflows"
+
+    # On a phone the toggle and menu sit next to the rule name.
+    name = row.find("h3").native.rect
+    menu = row.find("button[aria-haspopup]").native.rect
+    assert_operator menu.y, :<, name.y + name.height
 
     new_rule = find("a", text: I18n.t("rules.index.new_rule"))
     assert_operator new_rule.native.rect.x + new_rule.native.rect.width, :<=, viewport_width

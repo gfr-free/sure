@@ -1,0 +1,24 @@
+<%# locals: (groups:, classification:, mobile: false, all_tab: false, sortable: false) %>
+
+<% if sortable %>
+  <%# First-level groups of one side, saved per grouping dimension. Its own
+      controller name, as a sortable list ignores events from a nested list
+      of the same name (the account lists inside the groups). %>
+  <%= tag.div data: {
+        controller: "sortable-group-list",
+        sortable_group_list_url_value: reorder_groups_accounts_path(level: "groups", dimension: account_grouping_primary(:sidebar), classification: classification),
+        sortable_group_list_param_value: "keys",
+        sortable_group_list_hold_delay_value: 400,
+        sortable_group_list_save_timeout_value: 10_000,
+        sortable_group_list_mirror_lists_value: true,
+        action: "dragover->sortable-group-list#dragOver drop->sortable-group-list#drop account-sort-mode:stop@window->sortable-group-list#releaseKeyboardGrab turbo:before-visit@window->sortable-group-list#saveBeforeVisit"
+      } do %>
+    <% groups.each do |group| %>
+      <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab, sortable: true %>
+    <% end %>
+  <% end %>
+<% else %>
+  <% groups.each do |group| %>
+    <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab %>
+  <% end %>
+<% end %>

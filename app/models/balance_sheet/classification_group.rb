@@ -37,19 +37,14 @@ class BalanceSheet::ClassificationGroup
 
   # Groups by account type unless another dimension is given (see
   # AccountGrouping). The split into assets and debts always stays above.
+  # With the manual account order, the user's saved order of this
+  # dimension's groups comes first; the rest keep their usual order.
   def account_groups(by: nil, user: nil)
-    return dimension_groups(by, user: user) if by.present? && by.to_s != AccountGrouping::DEFAULT_PRIMARY
+    dimension = by.presence&.to_s || AccountGrouping::DEFAULT_PRIMARY
+    groups = dimension == AccountGrouping::DEFAULT_PRIMARY ? type_groups : dimension_groups(dimension, user: user)
+    return groups unless user&.account_order&.manual?
 
-    groups = accounts.group_by(&:accountable_type)
-                     .map { |accountable_type, account_rows| type_group(accountable_type, account_rows) }
-
-    # Sort the groups using the manual order defined by Accountable::TYPES so that
-    # the UI displays account groups in a predictable, domain-specific sequence.
-    groups.sort_by do |group|
-      manual_order = Accountable::TYPES
-      type_name    = group.key.camelize
-      manual_order.index(type_name) || Float::INFINITY
-    end
+    BalanceSheet::ManualOrder.sort(groups, user.manual_list_positions("groups", dimension), &:key)
   end
 
   private
@@ -67,8 +62,16 @@ class BalanceSheet::ClassificationGroup
       )
     end
 
+    # Sorted by the manual order defined by Accountable::TYPES so that the UI
+    # displays account groups in a predictable, domain-specific sequence.
+    def type_groups
+      accounts.group_by(&:accountable_type)
+              .map { |accountable_type, account_rows| type_group(accountable_type, account_rows) }
+              .sort_by { |group| Accountable::TYPES.index(group.key.camelize) || Float::INFINITY }
+    end
+
     def dimension_groups(dimension, user:)
-      AccountGrouping.new(dimension, user: user).group(accounts).map do |group|
+      AccountGrouping.new(dimension, user: user).group(accounts_in_order_of(dimension, user: user)).map do |group|
         next type_group(group.key.accountable_type, group.accounts) if group.key.is_a?(AccountGrouping::TypeFallback)
 
         # Prefixed so an asset and a debt group with the same value stay apart.
@@ -83,6 +86,16 @@ class BalanceSheet::ClassificationGroup
           classification_group: self
         )
       end
+    end
+
+    # The manual order is saved per account type for the account type
+    # grouping (already applied to the accounts) and per dimension for the
+    # others; accounts not placed yet follow by name.
+    def accounts_in_order_of(dimension, user:)
+      return accounts unless user&.account_order&.manual?
+
+      by_name = accounts.sort_by { |account| [ account.name.to_s.downcase, account.id.to_s ] }
+      BalanceSheet::ManualOrder.sort(by_name, user.manual_list_positions("accounts", dimension), &:id)
     end
 
     def normalize_classification!(classification)

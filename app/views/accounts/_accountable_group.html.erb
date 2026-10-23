@@ -1,57 +1,92 @@
 <%# locals: (account_group:, mobile: false, all_tab: false, open: nil, sortable: false, **args) %>
 
-<div id="<%= account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" data-group-key="<%= account_group.key %>">
+<%# In sort mode the group is a row of its side's group list
+    (accounts/sidebar_group_list), dragged by the grip next to it. %>
+<%= tag.div id: account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile),
+      class: ("flex items-start gap-1 rounded-lg" if sortable),
+      data: {
+        group_key: account_group.key,
+        sortable_group_list_target: ("item" if sortable),
+        sortable_list_id: (account_group.key if sortable),
+        action: ("dragstart->sortable-group-list#dragStart dragend->sortable-group-list#dragEnd" if sortable)
+      } do %>
+  <% if sortable %>
+    <%= render "accounts/sort_handle", list: "sortable-group-list", label: t("accounts.sidebar.reorder_group", group: account_group.name), class_name: "mt-1.5" %>
+  <% end %>
   <% is_open = open.nil? ? (account_group.accounts.any? { |account| page_active?(account_path(account)) } || Current.user.always_expanded_account_group?(account_group.key)) : open %>
-  <%= render DS::Disclosure.new(align: :left, open: is_open) do |disclosure| %>
-    <% disclosure.with_summary_content do %>
-      <div class="flex items-center gap-3">
-        <%= icon "chevron-right", class: "group-open:transform group-open:rotate-90" %>
-        <%= tag.span class: class_names("text-sm text-primary font-medium", "animate-pulse" => account_group.syncing?) do %>
-          <%= account_group.name %>
-        <% end %>
-      </div>
+  <%= tag.div class: ("min-w-0 grow" if sortable) do %>
+    <%= render DS::Disclosure.new(align: :left, open: is_open) do |disclosure| %>
+      <% disclosure.with_summary_content do %>
+        <div class="flex items-center gap-3">
+          <%= icon "chevron-right", class: "group-open:transform group-open:rotate-90" %>
+          <%= tag.span class: class_names("text-sm text-primary font-medium", "animate-pulse" => account_group.syncing?) do %>
+            <%= account_group.name %>
+          <% end %>
+        </div>
 
-      <div class="ml-auto text-right grow">
-        <%= tag.p format_money(account_group.total_money), class: "text-sm font-medium text-primary privacy-sensitive" %>
-        <% if account_group.type_group? %>
-          <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key), loading: "lazy", data: sparkline_frame_data do %>
-            <div class="flex items-center w-8 h-4 ml-auto">
-              <div class="w-6 h-px bg-loader"></div>
-            </div>
+        <div class="ml-auto text-right grow">
+          <%= tag.p format_money(account_group.total_money), class: "text-sm font-medium text-primary privacy-sensitive" %>
+          <% if account_group.type_group? %>
+            <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key), loading: "lazy", data: sparkline_frame_data do %>
+              <div class="flex items-center w-8 h-4 ml-auto">
+                <div class="w-6 h-px bg-loader"></div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% subgroups = account_subgroups(account_group, view: :sidebar) %>
+      <% if subgroups.any? %>
+        <%# Subgroups follow one order per second-level dimension, shared by
+            every group; each group saves the order of its own subgroups. %>
+        <%= tag.div class: "space-y-1",
+              data: sortable ? {
+                controller: "sortable-subgroup-list",
+                sortable_subgroup_list_url_value: reorder_groups_accounts_path(level: "subgroups", dimension: account_grouping_dimension(:sidebar), group: account_group.key),
+                sortable_subgroup_list_param_value: "keys",
+                sortable_subgroup_list_hold_delay_value: 400,
+                sortable_subgroup_list_save_timeout_value: 10_000,
+                sortable_subgroup_list_mirror_lists_value: true,
+                action: "dragover->sortable-subgroup-list#dragOver drop->sortable-subgroup-list#drop account-sort-mode:stop@window->sortable-subgroup-list#releaseKeyboardGrab turbo:before-visit@window->sortable-subgroup-list#saveBeforeVisit"
+              } : {} do %>
+          <% subgroups.each do |subgroup| %>
+            <%= tag.div id: subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile),
+                  class: "space-y-1 rounded-lg",
+                  data: {
+                    subgroup_key: subgroup.key,
+                    sortable_subgroup_list_target: ("item" if sortable),
+                    sortable_list_id: (subgroup.token if sortable),
+                    action: ("dragstart->sortable-subgroup-list#dragStart dragend->sortable-subgroup-list#dragEnd" if sortable)
+                  } do %>
+              <div class="flex items-center justify-between gap-2 px-3 pt-2">
+                <% if sortable %>
+                  <%= render "accounts/sort_handle", list: "sortable-subgroup-list", label: t("accounts.sidebar.reorder_group", group: subgroup.name) %>
+                <% end %>
+                <%= tag.p subgroup.name, class: class_names("text-xs font-medium text-secondary truncate grow", "animate-pulse" => subgroup.syncing?) %>
+                <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
+              </div>
+              <%= render "accounts/sidebar_account_list", accounts: subgroup.accounts, account_group: account_group, sortable: sortable, subgroup: subgroup %>
+            <% end %>
           <% end %>
         <% end %>
-      </div>
-    <% end %>
+      <% else %>
+        <%= render "accounts/sidebar_account_list", accounts: account_group.accounts, account_group: account_group, sortable: sortable %>
+      <% end %>
 
-    <% subgroups = account_subgroups(account_group, view: :sidebar) %>
-    <% if subgroups.any? %>
-      <div class="space-y-1">
-        <% subgroups.each do |subgroup| %>
-          <div id="<%= subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" class="space-y-1" data-subgroup-key="<%= subgroup.key %>">
-            <div class="flex items-center justify-between gap-2 px-3 pt-2">
-              <%= tag.p subgroup.name, class: class_names("text-xs font-medium text-secondary truncate", "animate-pulse" => subgroup.syncing?) %>
-              <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
-            </div>
-            <%= render "accounts/sidebar_account_list", accounts: subgroup.accounts, account_group: account_group, sortable: sortable, subgroup: subgroup %>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <%= render "accounts/sidebar_account_list", accounts: account_group.accounts, account_group: account_group, sortable: sortable %>
-    <% end %>
-
-    <% if account_group.type_group? %>
-      <div class="my-2">
-        <%= render DS::Link.new(
-        href: new_polymorphic_path(account_group.key, step: "method_select"),
-        text: t("accounts.sidebar.new_account_group", account_group: account_group.accountable_type.singular_display_name.downcase),
-        icon: "plus",
-        full_width: true,
-        variant: "ghost",
-        frame: :modal,
-        class: "justify-start"
-      ) %>
-      </div>
+      <% if account_group.type_group? %>
+        <div class="my-2">
+          <%= render DS::Link.new(
+          href: new_polymorphic_path(account_group.key, step: "method_select"),
+          text: t("accounts.sidebar.new_account_group", account_group: account_group.accountable_type.singular_display_name.downcase),
+          icon: "plus",
+          full_width: true,
+          variant: "ghost",
+          frame: :modal,
+          class: "justify-start"
+        ) %>
+        </div>
+      <% end %>
     <% end %>
   <% end %>
-</div>
+<% end %>

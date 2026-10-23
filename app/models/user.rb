@@ -629,6 +629,62 @@ class User < ApplicationRecord
     end
   end
 
+  # What else the manual order covers, per grouping dimension (see
+  # AccountGrouping), so every grouping keeps its own order: accounts (for
+  # first levels other than the account type, which use
+  # manual_account_order), first-level groups and second-level subgroups.
+  # Each list holds the ids of one dimension in display order; a group or
+  # subgroup shows its entries in that order.
+  MANUAL_LIST_ORDER_KINDS = {
+    "accounts" => /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/,
+    "groups" => /\A[a-z0-9_]{1,100}\z/,
+    "subgroups" => /\A\h{12}\z/
+  }.freeze
+
+  def manual_list_order(kind, dimension)
+    order = preferences&.dig("manual_list_order", kind.to_s, dimension.to_s)
+    order.is_a?(Array) ? order : []
+  end
+
+  # Positions by id of one list, for sorting.
+  def manual_list_positions(kind, dimension)
+    manual_list_order(kind, dimension).each_with_index.to_h
+  end
+
+  # Stores a new order for the entries of one displayed list (e.g. the
+  # groups of one tab, or the accounts of one group). They take the
+  # positions they already hold in the dimension's list, entries not yet in
+  # it go to its end, so the other lists of the same dimension keep their
+  # order. Account ids the user cannot access are dropped.
+  def update_manual_list_order(kind, dimension, ids)
+    kind = kind.to_s
+    dimension = dimension.to_s
+    format = MANUAL_LIST_ORDER_KINDS[kind]
+    return false unless format && AccountGrouping.valid_dimension?(dimension)
+    return false unless ids.is_a?(Array)
+
+    requested_ids = ids.map(&:to_s).uniq.first(MANUAL_ACCOUNT_ORDER_LIMIT)
+    return false unless requested_ids.all? { |id| id.match?(format) }
+
+    with_locked_preferences do |prefs|
+      saved_ids = manual_list_order(kind, dimension)
+      if kind == "accounts"
+        accessible_ids = accessible_accounts.where(id: saved_ids + requested_ids).pluck(:id).to_set
+        saved_ids = saved_ids.select { |id| accessible_ids.include?(id) }
+        requested_ids = requested_ids.select { |id| accessible_ids.include?(id) }
+      end
+
+      current_ids = saved_ids + (requested_ids - saved_ids)
+      moved_set = requested_ids.to_set
+      remaining = requested_ids.each
+      ordered_ids = current_ids.map { |id| moved_set.include?(id) ? remaining.next : id }
+
+      lists = prefs["manual_list_order"].is_a?(Hash) ? prefs["manual_list_order"] : {}
+      kind_lists = lists[kind].is_a?(Hash) ? lists[kind] : {}
+      prefs["manual_list_order"] = lists.merge(kind => kind_lists.merge(dimension => ordered_ids.first(MANUAL_ACCOUNT_ORDER_LIMIT)))
+    end
+  end
+
   # Locked read-modify-write of the preferences JSONB: yields a copy of the
   # current preferences (re-read under a row lock) to change in place, then
   # saves it, so concurrent updates of other keys are not lost. Attributes set

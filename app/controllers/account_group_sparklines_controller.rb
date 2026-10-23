@@ -65,4 +65,10 @@ class AccountGroupSparklinesController < ApplicationController
     def sparkline_cache_name
       "account_group_sparkline"
     end
+
+    # The body is addressed to the requesting frame, and desktop, mobile and
+    # each tab load the same URL into frames with different ids.
+    def sparkline_response_variant
+      @frame_id
+    end
 end

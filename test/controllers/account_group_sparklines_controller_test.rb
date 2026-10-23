@@ -110,6 +110,21 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a conditional request from another frame is not answered with a 304" do
+    stub_builder
+    url = group_sparkline_url(group_key)
+
+    get url, headers: frame_header("all_asset_usd_sparkline")
+    etag = response.headers["ETag"]
+
+    get url, headers: frame_header("mobile_asset_usd_sparkline").merge("If-None-Match" => etag)
+    assert_response :success
+    assert_select "turbo-frame#mobile_asset_usd_sparkline"
+
+    get url, headers: frame_header("mobile_asset_usd_sparkline").merge("If-None-Match" => response.headers["ETag"])
+    assert_response :not_modified
+  end
+
   private
     def group_sidebar_by(primary, then_by: nil, user: @user)
       user.update!(preferences: user.preferences.merge(

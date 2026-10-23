@@ -2,7 +2,7 @@
 # shared by the account type groups (AccountableSparklinesController) and all
 # other groups and subgroups (AccountGroupSparklinesController). Including
 # controllers define #account_scope, #sparkline_favorable_direction and
-# #sparkline_cache_name.
+# #sparkline_cache_name; #sparkline_response_variant is optional.
 module AccountSetSparkline
   extend ActiveSupport::Concern
 
@@ -16,13 +16,20 @@ module AccountSetSparkline
       # Use HTTP conditional GET so the client receives 304 Not Modified when
       # possible. ETag only: the family sync time misses access changes, so a
       # client sending just If-Modified-Since could keep another account set.
-      if stale?(etag: etag_key)
+      if stale?(etag: [ etag_key, sparkline_response_variant ])
         @series = Rails.cache.fetch(etag_key, expires_in: 24.hours) do
           build_sparkline_series
         end
 
         render layout: false
       end
+    end
+
+    # What else the response body depends on besides the series. The browser
+    # cache keys responses by URL, so a 304 for a request from another frame
+    # would replay a body addressed to the first frame.
+    def sparkline_response_variant
+      nil
     end
 
     def sparkline_account_rows

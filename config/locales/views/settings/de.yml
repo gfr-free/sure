@@ -54,6 +54,12 @@ de:
         theme_system: System
         theme_title: Design
         timezone: Zeitzone
+        planning_features_title: Budgets und Plan
+        planning_features_subtitle: Schalte Planungsfunktionen für alle in deiner %{moniker} ein oder aus
+        budgets_enabled: Budgets
+        budgets_enabled_hint: Zeigt Budgets in der Navigation, in Berichten, Hinweisen, im Assistenten und in der API. Beim Ausschalten bleiben deine Budgetdaten erhalten.
+        plan_enabled: Plan
+        plan_enabled_hint: Zeigt den Plan-Bereich und die Ziele. Beim Ausschalten bleiben deine Ziele erhalten.
         month_start_day: Budgetmonat beginnt am
         month_start_day_hint: Lege fest, wann dein Budgetmonat beginnt (z. B. Gehaltstag)
         month_start_day_warning: Deine Budgets und MTD-Berechnungen verwenden diesen benutzerdefinierten Starttag anstelle des 1. jedes Monats.

@@ -16,6 +16,10 @@ en:
       search_label: Search rules
       search_placeholder: Search name, conditions and actions
       reset: Reset
+      button: Filter
+      done: Done
+      active_label: Active filters
+      remove: "Remove filter %{filter}"
       status:
         label: Status
         all: All statuses

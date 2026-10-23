@@ -141,13 +141,27 @@ class RulesTest < ApplicationSystemTestCase
     assert_selector "[data-sortable-list-id='#{rent.id}'][draggable='false'] button[data-action*='handleKeyDown']:disabled", visible: :all
     assert_current_path(/q=rent/)
 
+    click_on "Filter"
     click_on "Reset"
     assert_no_current_path(/q=rent/)
-    find("#status_trigger").click
-    find("[role='option']", text: "Inactive").click
+    click_on "Filter"
+    within("#rule-filters-menu") do
+      click_on "Status"
+      choose "Inactive"
+      click_on "Done"
+    end
 
     assert_selector "[data-sortable-list-id='rule:#{groceries.id}']"
     assert_no_selector "[data-sortable-list-id='group:#{group.id}']"
+    assert_current_path(/status=inactive/)
+
+    within("[data-rules-filter-target='badge'][data-filter-param='status']") do
+      assert_text(/Status:\s+Inactive/)
+      find("button[aria-label='Remove filter Status']").click
+    end
+
+    assert_selector "[data-sortable-list-id='group:#{group.id}']"
+    assert_no_current_path(/status=/)
   end
 
   test "folds a group and keeps it folded after a reload" do

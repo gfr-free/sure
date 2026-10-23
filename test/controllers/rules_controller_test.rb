@@ -371,7 +371,7 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-sortable-list-id='group:#{group.id}']" do
       assert_select "[data-sortable-list-id='#{grouped.id}'][data-rule-group='#{group.id}']"
     end
-    assert_select "[role='option'][data-value='#{group.id}']", text: "Groceries"
+    assert_select "input[type='radio'][name='group'][value='#{group.id}'][data-filter-label='Groceries']"
   end
 
   test "index keeps the filters of the URL and ignores values it does not offer" do
@@ -379,12 +379,15 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "input[name='q'][value='rent']"
-    assert_select "input[type='hidden'][name='status'][value='inactive']"
-    assert_select "#status_trigger", text: "Inactive"
+    assert_select "input[type='radio'][name='status'][value='inactive'][checked]"
+    assert_select "label[for='rule_filter_status_inactive']", text: "Inactive"
+    assert_select "[data-rules-filter-target='badge'][data-filter-param='status']:not(.hidden) [data-badge-value]", text: "Inactive"
 
     get rules_url(status: "bogus")
 
-    assert_select "input[type='hidden'][name='status'][value='']"
+    assert_select "input[type='radio'][name='status'][value=''][checked]"
+    assert_select "input[type='radio'][name='status'][checked]", count: 1
+    assert_select "[data-rules-filter-target='badges'].hidden"
   end
 
   test "index renders search and filter data for each rule" do
@@ -400,8 +403,8 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "[data-rule-search*='#{category.name}']", minimum: 3
-    assert_select "input[type='hidden'][name='action_type'][data-filter-param='action_type']"
-    assert_select "[role='option'][data-value='set_transaction_category']"
+    assert_select "input[type='radio'][name='action_type'][value='set_transaction_category'][data-filter-param='action_type']"
+    assert_select "[data-rules-filter-target='badge'][data-filter-param='action_type']"
   end
 
   test "index runs the same number of queries for more rules" do

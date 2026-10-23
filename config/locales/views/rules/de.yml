@@ -107,6 +107,10 @@ de:
       search_label: Regeln durchsuchen
       search_placeholder: Name, Bedingungen und Aktionen durchsuchen
       reset: Zurücksetzen
+      button: Filter
+      done: Fertig
+      active_label: Aktive Filter
+      remove: "Filter %{filter} entfernen"
       status:
         label: Status
         all: Alle Status

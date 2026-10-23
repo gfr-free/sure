@@ -9,7 +9,10 @@ import replaceUrl from "utils/replace_url";
 export default class extends Controller {
   static targets = [
     "input",
-    "select",
+    "option",
+    "filterButton",
+    "badges",
+    "badge",
     "rule",
     "group",
     "disclosure",
@@ -60,6 +63,7 @@ export default class extends Controller {
     this.emptyTarget.classList.toggle("hidden", !filtering || visibleCount > 0);
     this.dragHintTarget.classList.toggle("hidden", !filtering);
     this.resetTarget.classList.toggle("hidden", !filtering);
+    this.#updateBadges();
     this.#setDraggable(!filtering);
     this.#scheduleUrlSync();
   }
@@ -106,13 +110,62 @@ export default class extends Controller {
     return (list || "").split(" ").includes(value);
   }
 
+  // Each filter is a radio group whose "all" option has an empty value.
   #selectedFilters() {
     return Object.fromEntries(
-      this.selectTargets.map((select) => [
-        select.dataset.filterParam,
-        select.value,
+      this.#checkedOptions().map((option) => [
+        option.dataset.filterParam,
+        option.value,
       ]),
     );
+  }
+
+  #checkedOptions() {
+    return this.optionTargets.filter((option) => option.checked);
+  }
+
+  // The badge of a filter names its chosen option; "all" hides it.
+  #updateBadges() {
+    const chosen = Object.fromEntries(
+      this.#checkedOptions()
+        .filter((option) => option.value)
+        .map((option) => [option.dataset.filterParam, option]),
+    );
+
+    this.badgeTargets.forEach((badge) => {
+      const option = chosen[badge.dataset.filterParam];
+      badge.classList.toggle("hidden", !option);
+      badge.querySelector("[data-badge-value]").textContent = option
+        ? option.dataset.filterLabel
+        : "";
+    });
+    this.badgesTarget.classList.toggle(
+      "hidden",
+      Object.keys(chosen).length === 0,
+    );
+  }
+
+  // The badge's remove button picks the filter's "all" option again. Its
+  // badge then hides, so focus moves to the filter button instead of being
+  // lost.
+  clearFilter(event) {
+    const all = this.optionTargets.find(
+      (option) =>
+        option.dataset.filterParam === event.params.name && !option.value,
+    );
+    if (all) all.checked = true;
+    this.filter();
+    this.focusFilterButton();
+  }
+
+  // After the popover closes, focus returns to the button that opened it.
+  focusFilterButton() {
+    this.filterButtonTarget.focus();
+  }
+
+  // Enter on a radio would submit the search form and reload the page.
+  ignoreEnter(event) {
+    event.preventDefault();
   }
 
   // A rule outside a group folds to its title line; remembered like a group.
@@ -194,10 +247,6 @@ export default class extends Controller {
       .toLowerCase();
   }
 
-  #fields() {
-    return [this.inputTarget, ...this.selectTargets];
-  }
-
   // Debounced so a typing burst updates the URL once.
   #scheduleUrlSync() {
     clearTimeout(this.urlSyncTimer);
@@ -207,12 +256,16 @@ export default class extends Controller {
   #syncUrl() {
     const params = new URLSearchParams(window.location.search);
 
-    this.#fields().forEach((field) => {
-      const value = field.value.trim();
+    const values = {
+      ...this.#selectedFilters(),
+      q: this.inputTarget.value.trim(),
+    };
+
+    Object.entries(values).forEach(([param, value]) => {
       if (value) {
-        params.set(field.dataset.filterParam, value);
+        params.set(param, value);
       } else {
-        params.delete(field.dataset.filterParam);
+        params.delete(param);
       }
     });
 

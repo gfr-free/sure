@@ -1,5 +1,7 @@
 module RulesHelper
-  # The filters above the rules list, each as { name:, items:, selected: }.
+  FILTER_ICONS = { status: "toggle-right", action_type: "zap", condition_type: "filter", account: "layers", group: "folder" }.freeze
+
+  # The tabs of the rules filter popover, each as { name:, label:, icon:, items:, selected: }.
   # Each name is also the URL parameter that keeps the filter on a reload.
   # Filters with nothing to choose from are left out, and a value from the
   # URL that is not offered selects "all".
@@ -19,7 +21,7 @@ module RulesHelper
       selected = params[name].to_s
       selected = "" unless items.any? { |item| item[:value] == selected }
 
-      { name: name, items: items, selected: selected }
+      { name: name, label: t("rules.filters.#{name}.label"), icon: FILTER_ICONS.fetch(name), items: items, selected: selected }
     end
   end
 end

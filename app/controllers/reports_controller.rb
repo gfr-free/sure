@@ -299,7 +299,8 @@ class ReportsController < ApplicationController
         current_expenses: current_expenses,
         expense_change: expense_change,
         net_savings: net_savings,
-        budget_percent: budget_percent
+        budget_percent: budget_percent,
+        show_budget: Current.family.budgets_enabled?
       }
     end
 
@@ -310,6 +311,8 @@ class ReportsController < ApplicationController
     end
 
     def calculate_budget_performance
+      return nil unless Current.family.budgets_enabled?
+
       # Only calculate if we're looking at current month
       return nil unless @period_type == :monthly && @start_date.beginning_of_month.to_date == Date.current.beginning_of_month.to_date
 

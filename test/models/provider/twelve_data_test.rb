@@ -120,6 +120,23 @@ class Provider::TwelveDataTest < ActiveSupport::TestCase
   #     Crypto Filter Tests
   # ================================
 
+  test "fetch_security_prices takes a pair's quote currency when meta has none" do
+    body = {
+      "meta" => { "symbol" => "XAU/USD", "interval" => "1day", "currency_base" => "Gold Spot", "currency_quote" => "US Dollar" },
+      "values" => [ { "datetime" => "2026-10-12", "close" => "4150.5" } ],
+      "status" => "ok"
+    }.to_json
+
+    @provider.stubs(:throttle_request)
+    @provider.stubs(:client).returns(mock_client = mock)
+    mock_client.stubs(:get).returns(stub(body: body))
+
+    result = @provider.fetch_security_prices(symbol: "XAU/USD", start_date: Date.new(2026, 10, 12), end_date: Date.new(2026, 10, 12))
+
+    assert result.success?
+    assert_equal [ "USD" ], result.data.map(&:currency)
+  end
+
   test "search_securities excludes Digital Currency rows" do
     body = {
       "data" => [

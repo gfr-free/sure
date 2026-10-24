@@ -211,6 +211,24 @@ class Holding < ApplicationRecord
     end
   end
 
+  # Moves a coin or bar picked by mistake, with all its trades, to the right
+  # piece. Trade names name the piece, so they follow.
+  def remap_bullion!(new_security)
+    return if new_security.id == security_id
+
+    moved_trade_ids = account.trades.where(security_id: security_id).pluck(:id)
+
+    transaction do
+      remap_security!(new_security)
+
+      Trade.where(id: moved_trade_ids).includes(:entry).find_each do |trade|
+        label = trade.investment_activity_label.presence || (trade.qty.negative? ? "Sell" : "Buy")
+        type = Trade::CreateForm::SECURITY_TRADE_LABELS.key(label)
+        trade.entry.update!(name: Trade::CreateForm.bullion_trade_name(type, label, trade.qty.abs, new_security.name))
+      end
+    end
+  end
+
   # Reset security (and all related holdings) back to what the provider originally sent
   # Note: This moves ALL trades for current_security back to original_security. If the user
   # had legitimate trades for the target security before remapping, those would also be moved.

@@ -93,6 +93,7 @@ class Investment < ApplicationRecord
     "retirement" => { short: "Retirement", long: "Retirement Account", region: nil, tax_treatment: :tax_deferred },
     "mutual_fund" => { short: "Mutual Fund", long: "Mutual Fund", region: nil, tax_treatment: :taxable },
     "gold" => { short: "Gold", long: "Gold (physical or digital)", region: nil, tax_treatment: :taxable },
+    "precious_metals" => { short: "Precious Metals", long: "Precious Metals (coins and bars)", region: nil, tax_treatment: :taxable },
     "angel" => { short: "Angel", long: "Angel Investment", region: nil, tax_treatment: :taxable },
     "trust" => { short: "Trust", long: "Trust", region: nil, tax_treatment: :taxable },
     "other" => { short: "Other", long: "Other Investment", region: nil, tax_treatment: :taxable }

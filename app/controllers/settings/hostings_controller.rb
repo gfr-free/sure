@@ -18,6 +18,7 @@ class Settings::HostingsController < ApplicationController
 
   before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant ]
   before_action :ensure_super_admin_for_onboarding, only: :update
+  before_action :ensure_super_admin, only: :reset_market_data
 
   def show
     @breadcrumbs = [
@@ -317,6 +318,11 @@ class Settings::HostingsController < ApplicationController
     redirect_to settings_hosting_path, notice: t(".cache_cleared")
   end
 
+  def reset_market_data
+    MarketDataResetJob.perform_later
+    redirect_to settings_hosting_path, notice: t(".market_data_reset")
+  end
+
   def disconnect_external_assistant
     Setting.external_assistant_url = nil
     Setting.external_assistant_token = nil
@@ -485,6 +491,10 @@ class Settings::HostingsController < ApplicationController
 
     def ensure_admin
       redirect_to settings_hosting_path, alert: t(".not_authorized") unless Current.user.admin?
+    end
+
+    def ensure_super_admin
+      redirect_to settings_hosting_path, alert: t("settings.hostings.not_authorized") unless Current.user.super_admin?
     end
 
     def ensure_super_admin_for_onboarding

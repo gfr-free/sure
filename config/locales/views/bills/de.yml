@@ -1,6 +1,17 @@
 ---
 de:
   bills:
+    auto_post_pill:
+      label: Automatisch
+      title: Sure bucht diese Buchung an jedem Fälligkeitstag selbst
+    detail:
+      auto_posted: Automatisch gebucht
+    show:
+      auto_post_on: Automatisch buchen
+      auto_post_off: Automatisches Buchen beenden
+      auto_posting_since: "Bucht automatisch seit %{date}"
+      auto_posting_stopped_linked: Automatisches Buchen wurde beendet, weil ein Konto dieser Rechnung jetzt mit einer Bank verknüpft ist.
+      auto_posting_stopped_currency: Automatisches Buchen wurde beendet, weil die Währung des Kontos nicht mehr zu dieser Rechnung passt.
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}
@@ -19,6 +30,12 @@ de:
       paycheck: Einkommensplan
       all: Alle Rechnungen
     index:
+      auto_posted_line: "Sure hat %{entry} für %{bill} gebucht. Behalten?"
+      auto_posted_confirm: Bestätigen
+      auto_posted_discard: Verwerfen und überspringen
+      late_line: "%{bill}: Der Plan wurde geändert oder pausiert, deshalb wurde dieser Termin nicht automatisch gebucht. Buchen?"
+      late_post: Zum Fälligkeitstag buchen
+      late_skip: Überspringen
       title: Rechnungen
       add_bill: Neue Rechnung
       add_income: Neues Einkommen

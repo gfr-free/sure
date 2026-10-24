@@ -1,5 +1,6 @@
 class TransactionsController < ApplicationController
   include EntryableResource
+  include AutoPostedMarkers
 
   before_action :set_entry_for_unlock, only: :unlock
   before_action :set_entry_for_tags, only: :update_tags
@@ -75,6 +76,8 @@ class TransactionsController < ApplicationController
     else
       Set.new
     end
+
+    load_auto_posted_markers(entry_ids)
 
     # Counts what the categorize wizard can act on, so read-only shares don't
     # keep the "Categorize" menu item visible.

@@ -112,6 +112,17 @@ class Family < ApplicationRecord
     }
   end
 
+
+  # The family's calendar day, not the server's: a bill due on the 1st posts
+  # on the 1st where the family lives.
+  def today_in_timezone
+    Time.current.in_time_zone(local_time_zone).to_date
+  end
+
+  def local_time_zone
+    ActiveSupport::TimeZone[timezone.to_s] || Time.zone
+  end
+
   private
 
     # Depository accounts linked to this family's goals, restricted to the

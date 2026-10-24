@@ -36,13 +36,18 @@ class RecurringTransaction
     # After a schedule edit: drop the re-generatable future and rebuild it under
     # the new rules. Rows with payments or closed state are kept as they were.
     def regenerate_future!(through: nil)
-      series.recurring_occurrences
-            .open_status
-            .where("due_on >= ?", Date.current)
-            .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
-            .delete_all
+      regenerable = series.recurring_occurrences
+                          .open_status
+                          .where("due_on >= ?", Date.current)
+                          .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
+      # A date that already posted (its entry since deleted) must never post
+      # again, so its row is never deleted and rebuilt without the stamp.
+      posted = regenerable.where.not(auto_posted_at: nil).to_a
+      regenerable.where(auto_posted_at: nil).delete_all
 
-      generate!(through: through)
+      created = generate!(through: through)
+      keep_posted_dates!(posted)
+      created
     end
 
     # Materializes a past window (catch-up/backfill). The caller decides what
@@ -54,6 +59,29 @@ class RecurringTransaction
     end
 
     private
+      # A posted date the new schedule still has follows its weekend-adjusted
+      # day and the bill's currency; one it dropped is closed as skipped rather
+      # than left as an extra obligation. A paused series keeps them as they
+      # are until it resumes; an ended one skips them all.
+      def keep_posted_dates!(posted)
+        return if posted.empty? || series.paused? || series.inactive?
+
+        dates = posted.flat_map { |occurrence| [ occurrence.original_due_on, occurrence.due_on ] }
+        # Weekend adjustment moves a date by a few days at most.
+        pairs = series.active? ? series.schedule.occurrence_pairs_between(dates.min - 7, dates.max + 7).index_by(&:original_due_on) : {}
+
+        posted.each do |occurrence|
+          if (pair = pairs[occurrence.original_due_on])
+            occurrence.update!(due_on: pair.due_on, currency: series.currency)
+          else
+            # A new raw date landing on the same day is the same payment.
+            series.recurring_occurrences.where(due_on: occurrence.due_on, auto_posted_at: nil)
+                  .update_all(auto_posted_at: occurrence.auto_posted_at)
+            occurrence.skip!(source: "auto")
+          end
+        end
+      end
+
       def default_horizon(schedule)
         horizon = Date.current + HORIZON_DAYS
         next_due = schedule.first_occurrence_after(Date.current)

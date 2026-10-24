@@ -308,6 +308,66 @@ class FamilyMerchantsControllerTest < ActionDispatch::IntegrationTest
     assert_nil provider_merchant.reload.iban, "the shared ProviderMerchant must still be untouched"
   end
 
+  test "index restores the list state remembered for this session" do
+    get family_merchants_path(per_page: 100, family_page: 2, family_search: "net")
+    assert_response :success
+
+    get family_merchants_path
+    assert_redirected_to family_merchants_path(per_page: 100, family_page: 2, family_search: "net")
+  end
+
+  test "editing a merchant returns to the list with the chosen page size" do
+    get family_merchants_path(per_page: 100)
+
+    patch family_merchant_url(@merchant), params: { family_merchant: { name: "new name", color: "#000000" } }
+    follow_redirect!
+
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
+  test "deleting a merchant returns to the list with the chosen page size" do
+    get family_merchants_path(per_page: 100)
+
+    delete family_merchant_url(@merchant)
+    follow_redirect!
+
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
+  test "clearing the search forgets it for the session" do
+    get family_merchants_path(per_page: 100, family_search: "net")
+    get family_merchants_path(per_page: 100, family_search: "")
+
+    get family_merchants_path
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
+  test "index ignores unknown and non-scalar params when remembering the list state" do
+    get family_merchants_path(per_page: 100, family_search: [ "net" ], other: "x")
+
+    get family_merchants_path
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
+  test "index does not remember page values pagination would reject" do
+    get family_merchants_path(per_page: 100)
+    # The request itself still fails once; it just must not be replayed.
+    assert_raises(Pagy::VariableError) do
+      get family_merchants_path(per_page: 100, family_page: "0", provider_page: "abc")
+    end
+
+    get family_merchants_path
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
+  test "index does not remember the list state of a hover prefetch" do
+    get family_merchants_path(per_page: 100)
+    get family_merchants_path(per_page: 100, family_page: 2), headers: { "X-Sec-Purpose" => "prefetch" }
+
+    get family_merchants_path
+    assert_redirected_to family_merchants_path(per_page: 100)
+  end
+
   test "should destroy merchant" do
     assert_difference("FamilyMerchant.count", -1) do
       delete family_merchant_url(@merchant)

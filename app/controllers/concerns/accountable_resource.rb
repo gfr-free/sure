@@ -200,7 +200,7 @@ module AccountableResource
       params.require(:account).permit(
         :name, :balance, :subtype, :currency, :accountable_type, :return_to,
         :opening_balance_date,
-        :institution_name, :institution_domain, :iban, :remove_iban, :notes, :exclude_from_reports,
+        :institution_name, :institution_domain, :iban, :remove_iban, :custom_group, :notes, :exclude_from_reports,
         :enable_category_matcher,
         :liquidity_choice, :available_on, :auto_renew, :renewal_term_months,
         accountable_attributes: self.class.permitted_accountable_attributes

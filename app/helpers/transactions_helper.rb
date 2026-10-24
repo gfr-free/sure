@@ -84,6 +84,60 @@ module TransactionsHelper
     entry.split_child? && Current.user.show_split_grouped? && params_grouped == "true"
   end
 
+  # Fragment cache key for one row of the transactions list. Rendering a row
+  # costs about 14 ms on a small self-hosted CPU (some 30 partials and
+  # components), and a page of 100 rows re-rendered on every visit, filter
+  # change or return from the drawer although rows rarely change. Everything
+  # the row shows or branches on is part of the key, so any change renders
+  # the row fresh:
+  #
+  # - the records it reads (entry, transaction, account, category, merchant,
+  #   tags, transfer and its counterpart, the outflow's category an inflow
+  #   row shows, the security a brokerage activity shows a logo for)
+  # - per-user or per-request state (locale, user, family display settings,
+  #   whether the user may annotate the account or see the counterpart,
+  #   whether the entry is a split parent, grouped rendering, view context)
+  # - the image build, so a deploy with new markup never serves old rows;
+  #   skip_digest is on because the row renders DS::* components, which the
+  #   ERB dependency tracker cannot digest (see account_sidebar_tabs)
+  # - the Brandfetch settings that shape logo URLs
+  #
+  # Bump the version suffix when changing the row template or its partials.
+  def transaction_row_cache_key(entry, view_ctx:, in_split_group:)
+    transaction = entry.entryable
+    transfer = transaction.transfer
+    outflow_leg = transaction.transfer_as_outflow.present?
+    counterpart = transfer && (outflow_leg ? transfer.to_account : transfer.from_account)
+    outflow_category = transfer && (outflow_leg ? transaction.category : transfer.outflow_transaction&.category)
+    split_parent = @split_parent_entry_ids ? @split_parent_entry_ids.include?(entry.id) : entry.split_parent?
+
+    [
+      "transaction_row_v1",
+      ENV["BUILD_COMMIT_SHA"].presence,
+      I18n.locale,
+      Current.user&.id,
+      Current.family&.currency,
+      Current.family&.locale,
+      view_ctx,
+      in_split_group,
+      split_parent,
+      can_annotate_account?(entry.account),
+      counterpart.present? && @accessible_account_ids&.include?(counterpart.id),
+      Setting.brand_fetch_logo_size,
+      Setting.brand_fetch_client_id.present?,
+      entry.cache_key_with_version,
+      transaction.cache_key_with_version,
+      entry.account.cache_key_with_version,
+      transaction.category&.cache_key_with_version,
+      transaction.merchant&.cache_key_with_version,
+      transaction.tags.map(&:cache_key_with_version).sort,
+      transfer&.cache_key_with_version,
+      counterpart&.cache_key_with_version,
+      outflow_category&.cache_key_with_version,
+      transaction.activity_security&.cache_key_with_version
+    ]
+  end
+
   # Whether the current user may annotate (e.g. re-tag) entries on this
   # account. Memoized per request so list rows don't query per row.
   def can_annotate_account?(account)

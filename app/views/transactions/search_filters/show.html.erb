@@ -1,0 +1,9 @@
+<%# Loaded into the filter popover of the transactions index. The frame sits
+    inside form#transactions-search, so fields_for gives the controls the same
+    q[...] names the form submits, without a second <form>. The filters are not
+    methods of @q, hence the same allowance form_with grants its builder. %>
+<%= turbo_frame_tag "transaction-filters" do %>
+  <%= fields_for :q, nil, allow_method_names_outside_object: true do |form| %>
+    <%= render "transactions/searches/menu", form: form %>
+  <% end %>
+<% end %>

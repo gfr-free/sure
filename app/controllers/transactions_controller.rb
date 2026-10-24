@@ -1,5 +1,6 @@
 class TransactionsController < ApplicationController
   include EntryableResource, UnreadEntriesTrackable
+  include TransactionSearchParams
 
   before_action :set_entry_for_unlock, only: :unlock
   before_action :note_unread_as_of, only: :index
@@ -820,12 +821,6 @@ class TransactionsController < ApplicationController
       end
 
       permitted
-    end
-
-    # Permitted search filters from the q param, with blank values and
-    # unsupported ai_status / attachment_status values dropped.
-    def search_params
-      Transaction::Search.clean_filters(params.fetch(:q, {}))
     end
 
     def store_params!

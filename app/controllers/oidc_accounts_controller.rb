@@ -68,12 +68,7 @@ class OidcAccountsController < ApplicationController
         session[:mfa_user_id] = user.id
         redirect_to verify_mfa_path
       else
-        notice = if accept_pending_invitation_for(user)
-          t("invitations.accept_choice.joined_household")
-        else
-          t("sessions.openid_connect.account_linked", provider: @pending_auth["provider"])
-        end
-        redirect_to root_path, notice: notice
+        redirect_to root_path, notice: t("sessions.openid_connect.account_linked", provider: @pending_auth["provider"])
       end
     else
       @email = params[:email]
@@ -202,13 +197,7 @@ class OidcAccountsController < ApplicationController
       # Clear pending auth from session
       session.delete(:pending_oidc_auth)
 
-      notice = if invitation.present?
-        t("invitations.accept_choice.joined_household")
-      elsif accept_pending_invitation_for(@user)
-        t("invitations.accept_choice.joined_household")
-      else
-        t(".account_created")
-      end
+      notice = invitation.present? ? t("invitations.accept_choice.joined_household") : t(".account_created")
       redirect_to root_path, notice: notice
     else
       render :new_user, status: :unprocessable_entity

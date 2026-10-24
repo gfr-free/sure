@@ -109,9 +109,10 @@ class Balance::BaseCalculator
       income_inflow_sum = income_trades.select { |e| e.amount < 0 }.sum(&:amount)
       income_outflow_sum = income_trades.select { |e| e.amount >= 0 }.sum(&:amount)
 
-      if account.balance_type == :non_cash && account.accountable_type == "Loan"
-        non_cash_inflows = txn_inflow_sum.abs
-        non_cash_outflows = txn_outflow_sum
+      if account.balance_type == :non_cash
+        non_cash_txns = non_cash_balance_transactions(entries)
+        non_cash_inflows = non_cash_txns.select { |e| e.amount < 0 }.sum(&:amount).abs
+        non_cash_outflows = non_cash_txns.select { |e| e.amount >= 0 }.sum(&:amount)
       elsif account.balance_type != :non_cash
         cash_inflows = txn_inflow_sum.abs + trade_cash_inflow_sum.abs + income_inflow_sum.abs
         cash_outflows = txn_outflow_sum + trade_cash_outflow_sum + income_outflow_sum
@@ -141,15 +142,29 @@ class Balance::BaseCalculator
 
     def derive_non_cash_balance(non_cash_balance, date, direction: :forward)
       entries = sync_cache.get_entries(date)
-      # Loans are a special case (loan payment reducing principal, which is non-cash)
-      if account.balance_type == :non_cash && account.accountable_type == "Loan"
-        non_cash_balance + signed_entry_flows(entries)
+      if account.balance_type == :non_cash
+        non_cash_balance + signed_entry_flows(non_cash_balance_transactions(entries))
       elsif account.balance_type == :investment
         # For reverse calculations, we need the previous day's holdings
         target_date = direction == :forward ? date : date.prev_day
         holdings_value_for_date(target_date)
       else
         non_cash_balance
+      end
+    end
+
+    # Non-cash accounts are valued, so their transactions normally leave the balance alone.
+    # Loans are the exception (a payment reduces the principal). Other assets and other
+    # liabilities keep their transfer legs: money moved in or out of them would otherwise
+    # leave the source account and vanish from net worth.
+    def non_cash_balance_transactions(entries)
+      case account.accountable_type
+      when "Loan"
+        entries.select(&:transaction?)
+      when "OtherAsset", "OtherLiability"
+        entries.select { |e| e.transaction? && e.entryable.transfer? }
+      else
+        []
       end
     end
 

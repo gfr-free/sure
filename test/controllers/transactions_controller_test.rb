@@ -597,9 +597,8 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal original_tag_ids, read_only_entry.reload.entryable.tag_ids
   end
 
-  # The category and tag dropdowns are fetched when their popover opens. A
-  # row used to ship two eager <turbo-frame>s per menu (mobile and desktop
-  # variants) plus a loading placeholder each; none of that is rendered now.
+  # The category and tag dropdowns are fetched when their popover opens, so
+  # rows carry no <turbo-frame> markup for them.
   test "transaction rows defer the category and tag dropdown frames until opened" do
     get transactions_url
 

@@ -63,6 +63,53 @@ class Transactions::TransactionRowCacheTest < ActionView::TestCase
     assert_not_equal base, row_key
   end
 
+  test "renaming the merchant renders the row fresh, a balance sync does not" do
+    merchant = merchants(:netflix)
+    @transaction.update!(merchant: merchant)
+    render_row
+
+    merchant.update!(name: "Renamed merchant")
+    assert_includes render_row, "Renamed merchant"
+
+    # A sync rewrites the account balance; the row doesn't show it, so it
+    # stays cached (update_all keeps the entry's own version unchanged).
+    Entry.where(id: @entry.id).update_all(name: "Renamed behind the cache")
+    @entry.account.update!(balance: @entry.account.balance + 1)
+    assert_not_includes render_row, "Renamed behind the cache"
+  end
+
+  test "an inflow row's key follows the outflow leg and the counterpart account" do
+    transfer = transfers(:one)
+    inflow_entry = transfer.inflow_transaction.entry
+    base = row_key(entry: inflow_entry)
+
+    transfer.outflow_transaction.update!(kind: "loan_payment")
+    assert_not_equal base, (base = row_key(entry: inflow_entry))
+
+    transfer.outflow_transaction.update!(category: @category)
+    assert_not_equal base, (base = row_key(entry: inflow_entry))
+
+    @category.update!(name: "Renamed category")
+    assert_not_equal base, (base = row_key(entry: inflow_entry))
+
+    transfer.from_account.update!(name: "Renamed counterpart")
+    assert_not_equal base, row_key(entry: inflow_entry)
+  end
+
+  # The confirm and reject forms of a pending transfer match embed the
+  # session's CSRF token, so such a row must not be served to another
+  # browser session. Rows without those forms are shared across sessions.
+  test "only rows with a pending transfer match depend on the browser session" do
+    pending_entry = transfers(:one).tap { |t| t.update!(status: "pending") }.inflow_transaction.entry
+    pending_key = row_key(entry: pending_entry)
+    plain_key = row_key
+
+    controller.request.session = ActionController::TestSession.new
+
+    assert_not_equal pending_key, row_key(entry: pending_entry)
+    assert_equal plain_key, row_key
+  end
+
   test "the key changes with the BUILD_COMMIT_SHA of the deployed image" do
     base = row_key
 
@@ -72,8 +119,8 @@ class Transactions::TransactionRowCacheTest < ActionView::TestCase
   end
 
   private
-    def row_key(view_ctx: "global", in_split_group: false)
-      transaction_row_cache_key(@entry.reload, view_ctx: view_ctx, in_split_group: in_split_group)
+    def row_key(entry: @entry, view_ctx: "global", in_split_group: false)
+      transaction_row_cache_key(entry.reload, view_ctx: view_ctx, in_split_group: in_split_group)
     end
 
     def render_row

@@ -51,15 +51,21 @@ module TransactionsHelper
   # the row shows or branches on is part of the key, so any change renders
   # the row fresh:
   #
-  # - the records it reads (entry, transaction, account, category, merchant,
-  #   tags, transfer and its counterpart, the outflow's category an inflow
-  #   row shows, the security a brokerage activity shows a logo for)
+  # - the records it reads (entry, transaction, tags, merchant, transfer and
+  #   its other leg, whose kind and category an inflow row depends on, the
+  #   security a brokerage activity shows a logo for)
+  # - the displayed attributes of the accounts and categories it shows; their
+  #   record versions would change on every balance sync or category pick
   # - per-user or per-request state (locale, user, family display settings,
   #   whether the user may annotate the account or see the counterpart,
   #   whether the entry is a split parent, grouped rendering, view context)
-  # - the image build, so a deploy with new markup never serves old rows;
-  #   skip_digest is on because the row renders DS::* components, which the
-  #   ERB dependency tracker cannot digest (see account_sidebar_tabs)
+  # - the image build (or the app version when no build SHA is set), so a
+  #   deploy with new markup never serves old rows; skip_digest is on because
+  #   the row renders DS::* components, which the ERB dependency tracker
+  #   cannot digest (see account_sidebar_tabs)
+  # - for a pending transfer match, the browser session: its confirm and
+  #   reject forms embed the session's CSRF token, and the reject form
+  #   submits without Turbo, so it can't fall back to the X-CSRF-Token header
   # - the Brandfetch settings that shape logo URLs
   #
   # Bump the version suffix when changing the row template or its partials.
@@ -68,12 +74,15 @@ module TransactionsHelper
     transfer = transaction.transfer
     outflow_leg = transaction.transfer_as_outflow.present?
     counterpart = transfer && (outflow_leg ? transfer.to_account : transfer.from_account)
-    outflow_category = transfer && (outflow_leg ? transaction.category : transfer.outflow_transaction&.category)
+    other_leg = transfer && (outflow_leg ? transfer.inflow_transaction : transfer.outflow_transaction)
     split_parent = @split_parent_entry_ids ? @split_parent_entry_ids.include?(entry.id) : entry.split_parent?
+    account_key = ->(account) { account && [ account.id, account.name, account.accountable_type ] }
+    category_key = ->(category) { category && [ category.id, category.name, category.color, category.lucide_icon ] }
 
     [
       "transaction_row_v1",
-      ENV["BUILD_COMMIT_SHA"].presence,
+      ENV["BUILD_COMMIT_SHA"].presence || (@app_version ||= Sure.version.to_s),
+      (Digest::SHA256.hexdigest(session.id.to_s) if transfer&.pending? && session.id),
       I18n.locale,
       Current.user&.id,
       Current.family&.currency,
@@ -84,16 +93,17 @@ module TransactionsHelper
       can_annotate_account?(entry.account),
       counterpart.present? && @accessible_account_ids&.include?(counterpart.id),
       Setting.brand_fetch_logo_size,
-      Setting.brand_fetch_client_id.present?,
+      Setting.brand_fetch_client_id.presence&.then { |id| Digest::SHA256.hexdigest(id) },
       entry.cache_key_with_version,
       transaction.cache_key_with_version,
-      entry.account.cache_key_with_version,
-      transaction.category&.cache_key_with_version,
+      account_key.(entry.account),
+      category_key.(transaction.category),
       transaction.merchant&.cache_key_with_version,
       transaction.tags.map(&:cache_key_with_version).sort,
       transfer&.cache_key_with_version,
-      counterpart&.cache_key_with_version,
-      outflow_category&.cache_key_with_version,
+      other_leg&.cache_key_with_version,
+      account_key.(counterpart),
+      (category_key.(other_leg.category) if transfer && !outflow_leg),
       transaction.activity_security&.cache_key_with_version
     ]
   end

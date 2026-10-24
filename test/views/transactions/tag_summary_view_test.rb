@@ -160,7 +160,7 @@ class Transactions::TagSummaryViewTest < ActionView::TestCase
     html = Nokogiri::HTML.fragment(render(partial: "transactions/transaction", locals: { entry: outflow_entry, balance_trend: nil, view_ctx: "global" }))
 
     assert html.at_css("##{dom_id(outflow_tx, "tag_summary_desktop")}")
-    assert_nil html.at_css("turbo-frame#tag_dropdown")
+    assert_nil html.at_css("[data-ds--popover-frame-id-value='tag_dropdown']")
     assert_empty html.at_css("##{dom_id(outflow_tx, "tag_summary_desktop")}").text.strip
   end
 

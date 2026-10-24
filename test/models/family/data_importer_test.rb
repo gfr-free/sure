@@ -99,6 +99,31 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal 1, result[:summary].dig("account_ibans", "skipped")
   end
 
+  test "clears a kept account iban that a re-import's currency change makes taken" do
+    session = @family.import_sessions.create!(expected_chunks: 1)
+    account_data = {
+      balance: "100.00",
+      accountable_type: "Depository",
+      accountable: { subtype: "checking" },
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    }
+
+    Family::DataImporter.new(@family, build_ndjson([
+      { type: "Account", data: account_data.merge(id: "old-account-1", name: "Dollar", currency: "USD") },
+      { type: "Account", data: account_data.merge(id: "old-account-2", name: "Euro", currency: "EUR") }
+    ]), import_session: session).import!
+
+    result = Family::DataImporter.new(@family, build_ndjson([
+      { type: "Account", data: account_data.except(:iban).merge(id: "old-account-2", name: "Euro", currency: "USD") }
+    ]), import_session: session).import!
+
+    accounts = @family.accounts.index_by(&:name)
+    assert_equal "USD", accounts["Euro"].currency
+    assert_nil accounts["Euro"].iban
+    assert_equal "DE89370400440532013000", accounts["Dollar"].iban # pipelock:ignore IBAN
+    assert_equal 1, result[:summary].dig("account_ibans", "skipped")
+  end
+
   test "ignores an iban on an account type without one, even when it is taken" do
     account_data = {
       balance: "100.00",
@@ -2605,6 +2630,124 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     weekly_tag = @family.tags.find_by!(name: "Weekly")
 
     assert_equal weekly_tag.id, rule.actions.first.value
+  end
+
+  test "rejects a split rule action with invalid text before creating related records" do
+    counts = [ @family.rules.count, @family.categories.count, @family.merchants.count, @family.tags.count ]
+
+    [ { name: "Bad\0Name" }, { category: "Bad\0Category" }, { merchant: "Bad\0Merchant" }, { tags: [ "Safe", "Bad\0Tag" ] } ].each do |bad|
+      ndjson = build_ndjson([ {
+        type: "Rule", version: 1,
+        data: {
+          name: "Invalid split", resource_type: "transaction",
+          conditions: [ { condition_type: "transaction_name", operator: "like", value: "rent" } ],
+          actions: [ {
+            action_type: "split_transaction",
+            value: { splits: [
+              { type: "percentage", name: "A", share: "50" }.merge(bad),
+              { type: "percentage", name: "B", share: "50" }
+            ] }.to_json
+          } ]
+        }
+      } ])
+
+      error = assert_raises(Family::DataImporter::InvalidRecordError, bad.inspect) do
+        Family::DataImporter.new(@family, ndjson).import!
+      end
+
+      assert_equal "value", error.details[:field]
+      assert_equal counts, [ @family.rules.count, @family.categories.count, @family.merchants.count, @family.tags.count ]
+    end
+  end
+
+  test "imports a split rule action whose rows carry foreign ids by dropping them" do
+    foreign_category = categories(:food_and_drink)
+    own_tag = @family.tags.create!(name: "Shared")
+
+    ndjson = build_ndjson([
+      {
+        type: "Rule",
+        version: 1,
+        data: {
+          name: "Split With Foreign Ids",
+          resource_type: "transaction",
+          active: true,
+          conditions: [ { condition_type: "transaction_name", operator: "like", value: "rent" } ],
+          actions: [
+            {
+              action_type: "split_transaction",
+              value: {
+                splits: [
+                  { type: "percentage", name: "A", share: "50", category_id: foreign_category.id, tag_ids: [ own_tag.id, SecureRandom.uuid ] },
+                  { type: "percentage", name: "B", share: "50", category: "Housing" }
+                ]
+              }.to_json
+            }
+          ]
+        }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    first, second = JSON.parse(@family.rules.find_by!(name: "Split With Foreign Ids").actions.sole.value)["splits"]
+    assert_nil first["category_id"]
+    assert_equal [ own_tag.id ], first["tag_ids"]
+    assert_equal @family.categories.find_by!(name: "Housing").id, second["category_id"]
+  end
+
+  test "remaps raw split ids from an older export through the imported records" do
+    ndjson = build_ndjson([
+      { type: "Category", data: { id: "source-category", name: "Groceries", color: "#407706" } },
+      { type: "Tag", data: { id: "source-tag", name: "Shared", color: "#00FF00" } },
+      {
+        type: "Rule",
+        version: 1,
+        data: {
+          name: "Raw Id Split",
+          resource_type: "transaction",
+          active: true,
+          conditions: [ { condition_type: "transaction_name", operator: "like", value: "market" } ],
+          actions: [
+            {
+              action_type: "split_transaction",
+              value: {
+                splits: [
+                  { type: "percentage", name: "A", share: "50", category_id: "source-category", tag_ids: [ "source-tag" ] },
+                  { type: "percentage", name: "B", share: "50" }
+                ]
+              }.to_json
+            }
+          ]
+        }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    first = JSON.parse(@family.rules.find_by!(name: "Raw Id Split").actions.sole.value)["splits"].first
+    assert_equal @family.categories.find_by!(name: "Groceries").id, first["category_id"]
+    assert_equal [ @family.tags.find_by!(name: "Shared").id ], first["tag_ids"]
+  end
+
+  test "rejects a non-string split value with a validation error" do
+    ndjson = build_ndjson([
+      {
+        type: "Rule",
+        version: 1,
+        data: {
+          name: "Scalar Split",
+          resource_type: "transaction",
+          active: true,
+          conditions: [ { condition_type: "transaction_name", operator: "like", value: "x" } ],
+          actions: [ { action_type: "split_transaction", value: 5 } ]
+        }
+      }
+    ])
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      Family::DataImporter.new(@family, ndjson).import!
+    end
   end
 
   test "preserves explicit false rule operand values" do

@@ -1,12 +1,16 @@
 class ProviderMerchant < Merchant
   enum :source, { plaid: "plaid", simplefin: "simplefin", lunchflow: "lunchflow", akahu: "akahu", up: "up", monobank: "monobank", synth: "synth", ai: "ai", enable_banking: "enable_banking", coinstats: "coinstats", mercury: "mercury", brex: "brex", indexa_capital: "indexa_capital", sophtron: "sophtron", questrade: "questrade", redbark: "redbark", fio: "fio" }
 
+  # Unlike FamilyMerchant, only fill a blank logo: providers such as Plaid or
+  # CoinStats supply their own logo_url, which must not be replaced (issue #2925).
+  before_save :generate_logo_url_from_website, if: :should_generate_logo?
+
   validates :name, uniqueness: { scope: [ :source ] }
   validates :source, presence: true
   # Mirrors the DB-level partial unique index (source, iban) added alongside
-  # merchants.iban — without this, a duplicate submitted via the manual edit
-  # form raises ActiveRecord::RecordNotUnique (a 500) instead of a normal
-  # validation error the controller already knows how to render.
+  # merchants.iban, so a duplicate saved directly on a ProviderMerchant
+  # fails validation rather than raising ActiveRecord::RecordNotUnique. The
+  # manual edit form never saves one: it converts to a FamilyMerchant.
   validates :iban, uniqueness: { scope: :source }, allow_nil: true
 
   def self.find_by_import_data(data, source)
@@ -45,6 +49,32 @@ class ProviderMerchant < Merchant
   # ProviderMerchant does not support color: states the contract. It can't fail today,
   # because the accessors and the hook above have already discarded any value.
   validates :color, absence: true
+
+  # Merchants that have a website but no logo, e.g. because the website arrived
+  # from a provider or the LLM before Brandfetch was configured.
+  scope :missing_logo, -> { where.not(website_url: [ nil, "" ]).where(logo_url: [ nil, "" ]) }
+
+  # Generates Brandfetch logos for merchants in the current scope that have a
+  # website but no logo. Needs no LLM. Returns the number of logos generated.
+  def self.backfill_logos
+    return 0 if Setting.brand_fetch_client_id.blank?
+
+    missing_logo.find_each.count do |merchant|
+      generated = false
+
+      merchant.with_lock do
+        if merchant.logo_url.blank?
+          merchant.save!
+          generated = merchant.logo_url.present?
+        end
+      end
+
+      generated
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn("Failed to backfill logo for merchant #{merchant.id}: #{e.message}")
+      false
+    end
+  end
 
   # Convert this ProviderMerchant to a FamilyMerchant for a specific family.
   # Only affects transactions belonging to that family.
@@ -91,11 +121,14 @@ class ProviderMerchant < Merchant
   end
 
   # Generate logo URL from website_url using BrandFetch, if configured.
+  # Only refreshes or clears a logo generated here: a provider-supplied logo
+  # (Plaid, CoinStats) must not be replaced (issue #2925), while a Brandfetch
+  # logo must follow the website it was derived from.
   def generate_logo_url_from_website!
+    return unless logo_url.blank? || brandfetch_logo?
+
     if website_url.present? && Setting.brand_fetch_client_id.present?
-      domain = extract_domain(website_url)
-      size = Setting.brand_fetch_logo_size
-      update!(logo_url: "https://cdn.brandfetch.io/#{domain}/icon/fallback/lettermark/w/#{size}/h/#{size}?c=#{Setting.brand_fetch_client_id}")
+      update!(logo_url: brandfetch_logo_url)
     elsif website_url.blank?
       update!(logo_url: nil)
     end
@@ -119,6 +152,40 @@ class ProviderMerchant < Merchant
   end
 
   private
+    # The family's IBAN-unique index would reject an inherited IBAN that one of
+    # its merchants already holds, failing a name- or website-only edit on a
+    # field the user never touched; leave it off the converted merchant then.
+    def inheritable_iban_for(family)
+      return nil if iban.blank?
+
+      family.merchants.exists?(iban: iban) ? nil : iban
+    end
+
+    def should_generate_logo?
+      website_url.present? && logo_url.blank?
+    end
+
+    def generate_logo_url_from_website
+      self.logo_url = brandfetch_logo_url
+    end
+
+    # Ties ownership to our own Brandfetch account id, not just the CDN host,
+    # so a provider-supplied logo that merely happens to be hosted on
+    # cdn.brandfetch.io (e.g. under the provider's own account) is never
+    # mistaken for one this app generated.
+    def brandfetch_logo?
+      client_id = Setting.brand_fetch_client_id
+      return false if client_id.blank?
+
+      logo_url.to_s.start_with?("https://cdn.brandfetch.io/") && logo_url.include?("?c=#{client_id}")
+    end
+
+    def brandfetch_logo_url
+      return nil if website_url.blank?
+
+      Setting.brand_fetch_icon_url(extract_domain(website_url))
+    end
+
     def extract_domain(url)
       normalized_url = url.start_with?("http://", "https://") ? url : "https://#{url}"
       URI.parse(normalized_url).host&.sub(/\Awww\./, "")

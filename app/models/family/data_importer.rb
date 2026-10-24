@@ -61,7 +61,8 @@ class Family::DataImporter
     "Tag" => "tags",
     "Merchant" => "merchants",
     # An imported IBAN another account (same currency) or merchant of the
-    # family already holds is dropped; the record itself is still imported.
+    # family already holds is dropped, as is a kept account IBAN that a
+    # currency change makes taken; the record itself is still imported.
     "AccountIban" => "account_ibans",
     "MerchantIban" => "merchant_ibans",
     "ProviderMerchant" => "provider_merchants",
@@ -336,9 +337,10 @@ class Family::DataImporter
         )
         # Older or hand-built files omit iban; don't clear an existing one.
         # Types without an IBAN (vehicle, property, ...) ignore it, like
-        # Account#clear_unsupported_iban does on every save.
-        if data.key?("iban") && account.supports_iban?
-          assign_imported_iban(account, data["iban"], @family.accounts.where(currency: account.currency), "AccountIban")
+        # Account#clear_unsupported_iban does on every save. A currency change
+        # re-checks the kept IBAN, which may be taken in the new currency.
+        if account.supports_iban? && (data.key?("iban") || account.currency_changed?)
+          assign_imported_iban(account, data.fetch("iban", account.iban), @family.accounts.where(currency: account.currency), "AccountIban")
         end
 
         account.save!
@@ -363,16 +365,19 @@ class Family::DataImporter
 
     # Leaves the record's IBAN unchanged when another record in +taken_scope+
     # already holds the imported one, so the uniqueness validation cannot
-    # abort the whole import.
+    # abort the whole import. The kept IBAN is cleared if it is taken there
+    # too, as after a currency change.
     def assign_imported_iban(record, raw_iban, taken_scope, record_type)
       iban = IbanNormalizable.normalize(raw_iban)
+      taken = ->(value) { value.present? && taken_scope.where.not(id: record.id).exists?(iban: value) }
 
-      if iban && taken_scope.where.not(id: record.id).exists?(iban: iban)
-        increment_summary(record_type, :skipped)
+      unless taken.call(iban)
+        record.iban = iban
         return
       end
 
-      record.iban = iban
+      increment_summary(record_type, :skipped)
+      record.iban = nil if taken.call(record.iban)
     end
 
     def importable_account_status(status)
@@ -1393,6 +1398,7 @@ class Family::DataImporter
         position = Integer(record.dig("data", "position"), exception: false)
         [ position || Float::INFINITY, index ]
       end.map(&:first)
+      with_stored_email_action = Rule.ids_with_stored_email_notification_action(@family.rules)
 
       records.each do |record|
         data = record["data"]
@@ -1412,7 +1418,14 @@ class Family::DataImporter
           stop_processing: data["stop_processing"] || false
         )
 
-        rule.conditions.destroy_all unless created
+        # An email action replacing the rule's own keeps the baseline it recorded
+        # (see Rule::Action#keep_notification_baseline), as stored before this
+        # import: not one an earlier record of it wrote.
+        had_email_action = rule.persisted? && with_stored_email_action.include?(rule.id)
+
+        # Marked rather than destroyed now, so the rule's save removes them and
+        # sees its conditions change (Rule re-seeds an email rule's baseline then).
+        rule.conditions.each(&:mark_for_destruction) unless created
         rule.actions.destroy_all unless created
 
         # Build conditions
@@ -1422,7 +1435,7 @@ class Family::DataImporter
 
         # Build actions
         (data["actions"] || []).each do |action_data|
-          build_rule_action(rule, action_data)
+          build_rule_action(rule, action_data).keep_notification_baseline = had_email_action
         end
 
         rule.save!
@@ -1497,6 +1510,7 @@ class Family::DataImporter
       # resolution path rather than the generic scalar one below (which
       # assumes value_ref is nil or a single hash).
       return resolve_multi_tag_action_value(action_data) if action_type == "set_transaction_tags"
+      return resolve_split_action_value(action_data["value"]) if action_type == "split_transaction"
 
       value = rule_operand_value(action_data)
 
@@ -1534,6 +1548,32 @@ class Family::DataImporter
       end
 
       tag_ids.join(",")
+    end
+
+    # Names resolve like the other rule actions. A raw id (older exports, hand-built files) is
+    # remapped through this import's source mappings, kept if it already belongs to the family,
+    # and otherwise dropped.
+    def resolve_split_action_value(value)
+      # Checked like every other rule text, before find_or_create can hit the database with a name.
+      unless Rule::ActionExecutor::SplitTransaction.acceptable_text?(value)
+        raise InvalidRecordError.new(record_type: "Rule", field: "value", value: "(invalid text)")
+      end
+
+      Rule::ActionExecutor::SplitTransaction.localize_value(value) do |kind, name: nil, id: nil|
+        relation = kind.to_s.pluralize.to_sym
+        next mapped_id(relation, id, record_type: kind.to_s.classify, required: false) || (id if family_record_ids(relation).include?(id)) unless name
+
+        case kind
+        when :category then find_or_create_rule_category(name).id
+        when :merchant then find_or_create_rule_merchant(name).id
+        when :tag then find_or_create_rule_tag(name).id
+        end
+      end
+    end
+
+    def family_record_ids(relation)
+      @family_record_ids ||= {}
+      @family_record_ids[relation] ||= @family.public_send(relation).pluck(:id).to_set
     end
 
     # Preloaded once per import and extended in place on cache-miss, so a

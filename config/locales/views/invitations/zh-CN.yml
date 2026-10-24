@@ -8,7 +8,7 @@ zh-CN:
       message: "%{inviter} 邀请您以 %{role} 身份加入。"
       title: 加入 %{family}
     create:
-      already_registered: "该电子邮件地址已属于一个账户。邀请只能发送给尚未拥有账户的人。"
+      already_registered: "该邮箱已有账户。只能邀请尚无账户的人。"
       failure: 无法发送邀请
       success: 邀请已成功发送
     destroy:

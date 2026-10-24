@@ -8,7 +8,7 @@ hu:
       message: "%{inviter} meghívott, hogy csatlakozz %{role} szerepkörben."
       title: "Csatlakozz a következőhöz: %{family}"
     create:
-      already_registered: "Ez az e-mail-cím már egy fiókhoz tartozik. Meghívót csak olyanoknak lehet küldeni, akiknek még nincs fiókjuk."
+      already_registered: "Ehhez az e-mailhez már tartozik fiók. Csak fiók nélküli személyek hívhatók meg."
       failure: Nem sikerült elküldeni a meghívót.
       success: A meghívó sikeresen elküldve.
     destroy:

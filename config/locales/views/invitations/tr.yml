@@ -8,7 +8,7 @@ tr:
       message: "%{inviter} sizi %{role} olarak katılmaya davet etti."
       title: "%{family} hanesine katıl"
     create:
-      already_registered: "Bu e-posta adresi zaten bir hesaba ait. Davetiyeler yalnızca henüz hesabı olmayan kişilere gönderilebilir."
+      already_registered: "Bu e-postanın zaten bir hesabı var. Yalnızca hesabı olmayan kişiler davet edilebilir."
       failure: Davetiye gönderilemedi
       success: Davetiye başarıyla gönderildi
     destroy:

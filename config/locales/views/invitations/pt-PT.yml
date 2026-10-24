@@ -8,7 +8,7 @@ pt-PT:
       message: "%{inviter} convidou-o a juntar-se como %{role}."
       title: Juntar-se a %{family}
     create:
-      already_registered: "Este endereço de email já pertence a uma conta. Os convites só podem ser enviados a pessoas que ainda não têm conta."
+      already_registered: "Este email já tem uma conta. Só é possível convidar pessoas sem conta."
       failure: Não foi possível enviar o convite
       success: Convite enviado com sucesso
     destroy:

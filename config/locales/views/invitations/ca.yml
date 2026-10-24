@@ -8,7 +8,7 @@ ca:
       message: "%{inviter} t'ha convidat a unir-te com a %{role}."
       title: Uneix-te a %{family}
     create:
-      already_registered: "Aquesta adreça electrònica ja pertany a un compte. Les invitacions només es poden enviar a persones que encara no tenen compte."
+      already_registered: "Aquest correu ja té un compte. Només es pot convidar persones sense compte."
       failure: No s'ha pogut enviar la invitació
       success: Invitació enviada correctament
     destroy:

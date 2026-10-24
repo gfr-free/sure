@@ -8,7 +8,7 @@ zh-TW:
       message: '%{inviter} 邀請您以%{role}的身分加入。'
       title: 加入 %{family}
     create:
-      already_registered: "此電子郵件地址已屬於一個帳戶。邀請只能寄給尚未擁有帳戶的人。"
+      already_registered: "此電子郵件已有帳戶。只能邀請尚無帳戶的人。"
       failure: 傳送邀請失敗
       success: 邀請傳送成功
     destroy:

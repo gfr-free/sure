@@ -8,7 +8,7 @@ de:
       message: "%{inviter} hat dich eingeladen, als %{role} beizutreten."
       title: "%{family} beitreten"
     create:
-      already_registered: Zu dieser E-Mail-Adresse gibt es bereits ein Konto. Einladungen können nur an Personen ohne Konto gesendet werden.
+      already_registered: "Zu dieser E-Mail gibt es bereits ein Konto. Einladen kann man nur Personen ohne Konto."
       failure: Einladung konnte nicht gesendet werden.
       success: Einladung erfolgreich gesendet.
     destroy:

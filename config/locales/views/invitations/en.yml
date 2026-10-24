@@ -8,7 +8,7 @@ en:
       message: "%{inviter} has invited you to join as %{role}."
       title: Join %{family}
     create:
-      already_registered: This email address already belongs to an account. Invitations can only be sent to people who don't have an account yet.
+      already_registered: This email already has an account. Only people without an account can be invited.
       failure: Could not send invitation
       success: Invitation sent successfully
     destroy:

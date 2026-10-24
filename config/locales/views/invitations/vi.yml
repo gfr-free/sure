@@ -8,7 +8,7 @@ vi:
       message: "%{inviter} đã mời bạn tham gia với tư cách %{role}."
       title: Tham gia %{family}
     create:
-      already_registered: "Địa chỉ email này đã thuộc về một tài khoản. Chỉ có thể gửi lời mời cho người chưa có tài khoản."
+      already_registered: "Email này đã có tài khoản. Chỉ có thể mời người chưa có tài khoản."
       failure: Không thể gửi lời mời
       success: Lời mời đã được gửi thành công
     destroy:

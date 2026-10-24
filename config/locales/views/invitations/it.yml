@@ -8,7 +8,7 @@ it:
       message: "%{inviter} ti ha invitato a unirti come %{role}."
       title: Unisciti a %{family}
     create:
-      already_registered: "Questo indirizzo email appartiene già a un account. Gli inviti possono essere inviati solo a chi non ha ancora un account."
+      already_registered: "Questa email ha già un account. Si possono invitare solo persone senza account."
       failure: Impossibile inviare l'invito
       success: Invito inviato con successo
     destroy:

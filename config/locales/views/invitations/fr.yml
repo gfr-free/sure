@@ -8,7 +8,7 @@ fr:
       message: "%{inviter} vous a invité(e) à rejoindre en tant que %{role}."
       title: Rejoindre %{family}
     create:
-      already_registered: "Cette adresse e-mail appartient déjà à un compte. Les invitations ne peuvent être envoyées qu'aux personnes qui n'ont pas encore de compte."
+      already_registered: "Cette adresse a déjà un compte. Seules les personnes sans compte peuvent être invitées."
       failure: Impossible d'envoyer l'invitation
       success: Invitation envoyée avec succès
     destroy:

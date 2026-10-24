@@ -8,7 +8,7 @@ pl:
       message: "%{inviter} zaprosił(a) Cię jako %{role}."
       title: Dołącz do %{family}
     create:
-      already_registered: "Ten adres e-mail należy już do konta. Zaproszenia można wysyłać tylko osobom, które nie mają jeszcze konta."
+      already_registered: "Ten e-mail ma już konto. Zaprosić można tylko osoby bez konta."
       failure: Nie udało się wysłać zaproszenia
       success: Zaproszenie zostało wysłane
     destroy:

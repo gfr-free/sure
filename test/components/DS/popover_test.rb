@@ -24,7 +24,9 @@ class DS::PopoverTest < ViewComponent::TestCase
   end
 
   test "frame id and src must come together" do
-    assert_raises(ArgumentError) { DS::Popover.new(frame_id: "tag_dropdown") }
-    assert_raises(ArgumentError) { DS::Popover.new(frame_src: "/tag/dropdown") }
+    error = assert_raises(ArgumentError) { DS::Popover.new(frame_id: "tag_dropdown") }
+    assert_match(/frame_id and frame_src/, error.message)
+    error = assert_raises(ArgumentError) { DS::Popover.new(frame_src: "/tag/dropdown") }
+    assert_match(/frame_id and frame_src/, error.message)
   end
 end

@@ -99,8 +99,12 @@ export default class extends Controller {
     const frame = document.createElement("turbo-frame");
     frame.id = this.frameIdValue;
     frame.setAttribute("src", this.frameSrcValue);
-    frame.innerHTML =
-      '<div class="p-6 flex items-center justify-center"><div class="h-4 w-24 rounded-md bg-container-inset animate-pulse"></div></div>';
+    const placeholder = document.createElement("div");
+    placeholder.className = "p-6 flex items-center justify-center";
+    const skeleton = document.createElement("div");
+    skeleton.className = "h-4 w-24 rounded-md bg-container-inset animate-pulse";
+    placeholder.append(skeleton);
+    frame.append(placeholder);
     this.frameTarget.replaceChildren(frame);
   }
 

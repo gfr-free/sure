@@ -40,6 +40,7 @@ de:
       unknown: "--"
       set_cost_basis_header: "Einstandspreis für %{ticker} setzen"
       total_cost_basis_label: Gesamter Einstandspreis
+      per_piece_label: "Pro Stück"
       per_share_label: "Pro Anteil"
       cancel: Abbrechen
       save: Speichern

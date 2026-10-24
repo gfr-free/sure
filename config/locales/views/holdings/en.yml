@@ -45,6 +45,7 @@ en:
       set: Set
       set_cost_basis_header: "Set cost basis for %{ticker}"
       total_cost_basis_label: Total cost basis
+      per_piece_label: "Per piece"
       per_share_label: "Per share"
       cancel: Cancel
       save: Save

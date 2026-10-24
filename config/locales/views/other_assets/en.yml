@@ -3,7 +3,7 @@ en:
   other_assets:
     edit:
       edit: Edit %{account}
-      balance_tracking_info: "Other Assets are tracked via manual valuations using 'New Balance', not transactions. Transfers from your other accounts change the balance; other transactions do not."
+      balance_tracking_info: "Other Assets are tracked via manual valuations using 'New Balance', not transactions. Transfers to or from your other accounts still change the balance."
     new:
       title: Enter asset details
-      balance_tracking_info: "Other Assets are tracked via manual valuations using 'New Balance', not transactions. Transfers from your other accounts change the balance; other transactions do not."
+      balance_tracking_info: "Other Assets are tracked via manual valuations using 'New Balance', not transactions. Transfers to or from your other accounts still change the balance."

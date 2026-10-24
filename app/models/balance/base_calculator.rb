@@ -113,7 +113,7 @@ class Balance::BaseCalculator
         non_cash_txns = non_cash_balance_transactions(entries)
         non_cash_inflows = non_cash_txns.select { |e| e.amount < 0 }.sum(&:amount).abs
         non_cash_outflows = non_cash_txns.select { |e| e.amount >= 0 }.sum(&:amount)
-      elsif account.balance_type != :non_cash
+      else
         cash_inflows = txn_inflow_sum.abs + trade_cash_inflow_sum.abs + income_inflow_sum.abs
         cash_outflows = txn_outflow_sum + trade_cash_outflow_sum + income_outflow_sum
 
@@ -154,15 +154,14 @@ class Balance::BaseCalculator
     end
 
     # Non-cash accounts are valued, so their transactions normally leave the balance alone.
-    # Loans are the exception (a payment reduces the principal). Other assets and other
-    # liabilities keep their transfer legs: money moved in or out of them would otherwise
+    # Loans are the exception (a payment reduces the principal). Accounts that count transfers
+    # keep their transfer legs and transfer fees: money moved in or out of them would otherwise
     # leave the source account and vanish from net worth.
     def non_cash_balance_transactions(entries)
-      case account.accountable_type
-      when "Loan"
+      if account.accountable_type == "Loan"
         entries.select(&:transaction?)
-      when "OtherAsset", "OtherLiability"
-        entries.select { |e| e.transaction? && e.entryable.transfer? }
+      elsif account.balance_counts_transfers?
+        entries.select { |e| e.transaction? && (e.entryable.transfer? || e.entryable.transfer_id.present?) }
       else
         []
       end

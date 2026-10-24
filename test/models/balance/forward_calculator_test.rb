@@ -530,7 +530,44 @@ class Balance::ForwardCalculatorTest < ActiveSupport::TestCase
     assert_equal 0, calculated.find { |b| b.date == 1.day.ago.to_date }.balance
   end
 
-  test "non cash accounts can only use valuations and transactions will be recorded but ignored for balance calculation" do
+  test "a destination fee on a transfer into an other asset lowers its balance" do
+    account = create_account_with_ledger(
+      account: { type: OtherAsset, currency: "USD" },
+      entries: [ { type: "opening_anchor", date: 2.days.ago.to_date, balance: 2500 } ]
+    )
+    source = families(:empty).accounts.create!(name: "Checking", balance: 5000, currency: "USD", accountable: Depository.new)
+
+    Transfer::Creator.new(
+      family: families(:empty),
+      source_account_id: source.id,
+      destination_account_id: account.id,
+      date: 1.day.ago.to_date,
+      amount: 500,
+      destination_fee_amount: 10
+    ).create
+
+    calculated = Balance::ForwardCalculator.new(account.reload).calculate
+
+    assert_equal 2990, calculated.find { |b| b.date == 1.day.ago.to_date }.balance
+  end
+
+  test "property and vehicle accounts ignore transfers for balance calculation" do
+    [ Property, Vehicle ].each do |account_type|
+      account = create_account_with_ledger(
+        account: { type: account_type, currency: "USD" },
+        entries: [
+          { type: "opening_anchor", date: 2.days.ago.to_date, balance: 500000 },
+          { type: "transaction", date: 1.day.ago.to_date, amount: -10000, kind: "funds_movement" }
+        ]
+      )
+
+      calculated = Balance::ForwardCalculator.new(account).calculate
+
+      assert_equal 500000, calculated.find { |b| b.date == 1.day.ago.to_date }.balance, account_type.name
+    end
+  end
+
+  test "non cash accounts ignore standard transactions for balance calculation" do
     [ Property, Vehicle, OtherAsset, OtherLiability ].each do |account_type|
       account = create_account_with_ledger(
         account: { type: account_type, currency: "USD" },

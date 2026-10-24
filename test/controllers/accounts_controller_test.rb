@@ -1374,8 +1374,64 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
     @user.update!(default_account_order: "manual")
     get account_url(@account)
-    assert_select "[data-controller~='sortable-list'][data-sortable-list-url-value=?]", reorder_accounts_path(group: "depository")
+    assert_select "[data-controller~='sortable-list'][data-sortable-list-url-value=?]", reorder_accounts_path(dimension: "account_type", group: "depository")
     assert_select "[data-sortable-list-target='item'][data-sortable-list-id=?]", @account.id
+    assert_select "[data-controller~='sortable-group-list'][data-sortable-group-list-url-value=?]",
+      reorder_groups_accounts_path(level: "groups", dimension: "account_type", classification: "asset")
+    assert_select "[data-sortable-group-list-target='item'][data-sortable-list-id='depository']"
+  end
+
+  test "sidebar offers sorting in another grouping, saved per dimension" do
+    @user.update!(default_account_order: "manual", preferences: @user.preferences.merge(
+      "preview_features_enabled" => true,
+      "account_grouping_primary" => { "sidebar" => "currency" },
+      "account_grouping" => { "sidebar" => "account_type" }
+    ))
+
+    get account_url(@account)
+
+    group_key = "asset_#{AccountGrouping.group_key("currency", @account.currency)}"
+    assert_select "[data-sortable-group-list-target='item'][data-sortable-list-id=?]", group_key
+    assert_select "[data-controller~='sortable-list'][data-sortable-list-url-value^=?]",
+      reorder_accounts_path(dimension: "currency", group: group_key)
+    assert_select "[data-controller~='sortable-subgroup-list'][data-sortable-subgroup-list-url-value=?]",
+      reorder_groups_accounts_path(level: "subgroups", dimension: "account_type", group: group_key)
+  end
+
+  test "reorder saves the account order of another grouping per dimension" do
+    ids = [ accounts(:connected).id, @account.id ]
+    patch reorder_accounts_url(dimension: "institution", group: "asset_institution_abc"), params: { account_ids: ids }, as: :json
+
+    assert_response :success
+    assert_equal ids, @user.reload.manual_list_order("accounts", "institution")
+    assert_empty @user.manual_account_order
+  end
+
+  test "reorder_groups saves group and subgroup orders per dimension" do
+    patch reorder_groups_accounts_url(level: "groups", dimension: "account_type"), params: { keys: %w[investment depository] }, as: :json
+    assert_response :success
+    assert_equal %w[investment depository], @user.reload.manual_list_order("groups", "account_type")
+
+    tokens = [ "a" * 12, "b" * 12 ]
+    patch reorder_groups_accounts_url(level: "subgroups", dimension: "institution", group: "depository"), params: { keys: tokens }, as: :json
+    assert_response :success
+    assert_equal tokens, @user.reload.manual_list_order("subgroups", "institution", scope: "depository")
+  end
+
+  test "reorder_groups rejects unknown levels, dimensions and malformed keys" do
+    patch reorder_groups_accounts_url(level: "accounts", dimension: "account_type"), params: { keys: [ @account.id ] }, as: :json
+    assert_response :unprocessable_entity
+
+    patch reorder_groups_accounts_url(level: "groups", dimension: "not_a_dimension"), params: { keys: %w[depository] }, as: :json
+    assert_response :unprocessable_entity
+
+    patch reorder_groups_accounts_url(level: "groups", dimension: "account_type"), params: { keys: [ "<script>" ] }, as: :json
+    assert_response :unprocessable_entity
+
+    patch reorder_groups_accounts_url(level: "subgroups", dimension: "institution"), params: { keys: [ "a" * 12 ] }, as: :json
+    assert_response :unprocessable_entity, "subgroups belong to a group"
+
+    assert_nil @user.reload.preferences["manual_list_order"]
   end
 
   private

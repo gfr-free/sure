@@ -6,11 +6,14 @@ import { Controller } from "@hotwired/stimulus";
 // the ids are sent as JSON to urlValue, nested under paramValue
 // ("a.b" sends { a: { b: [...] } }).
 //
-// A list can hold another list (rule groups inside the rules list). The inner
-// one uses this controller as "sortable-sublist": Stimulus does not pass a
-// controller events from inside a nested controller of the same name, and
-// the outer list needs the dragover and drop events over the inner one to
-// move a whole group. Each list handles only drags of its own items.
+// A list can hold another list (rule groups inside the rules list, the account
+// sidebar's groups holding account lists). Each nesting level uses this
+// controller under its own name (sortable-sublist, sortable-group-list,
+// sortable-subgroup-list): Stimulus does not pass a controller events from
+// inside a nested controller of the same name, and the outer list needs the
+// dragover and drop events over the inner one to move a whole group. Items of
+// every level carry their id in data-sortable-list-id. Each list handles only
+// drags of its own items.
 export default class extends Controller {
   static targets = ["item"];
 
@@ -84,6 +87,10 @@ export default class extends Controller {
   }
 
   dragEnd(event) {
+    // The end of a nested list's drag also bubbles up to this list's item
+    // around it, which may be held with the keyboard.
+    if (event.currentTarget !== this.draggedElement) return;
+
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();
@@ -350,6 +357,19 @@ export default class extends Controller {
     }
   }
 
+  get itemSelector() {
+    return `[data-${this.identifier}-target='item']`;
+  }
+
+  // Whether the drag started on `item` itself rather than on a draggable item
+  // of a list nested in it. A text drag starts on a text node, so look from
+  // its parent element.
+  ownsItem(target, item) {
+    const element =
+      target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+    return element?.closest("[draggable='true']") === item;
+  }
+
   // ===== Drop Position =====
   // Measures the items before touching any classes, so a drag event does
   // not force an extra layout pass.
@@ -487,8 +507,10 @@ export default class extends Controller {
       ...document.querySelectorAll(`[data-controller~='${this.identifier}']`),
     ].filter(
       (list) =>
-        list.dataset.sortableListUrlValue === this.urlValue &&
-        list.dataset.sortableListParamValue === this.paramValue,
+        list.getAttribute(`data-${this.identifier}-url-value`) ===
+          this.urlValue &&
+        list.getAttribute(`data-${this.identifier}-param-value`) ===
+          this.paramValue,
     );
 
     lists.forEach((list) => {

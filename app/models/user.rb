@@ -296,7 +296,6 @@ class User < ApplicationRecord
   end
 
   private
-
     def losing_super_admin_privileges?
       (role_changed? && role_was == "super_admin" && role != "super_admin") ||
         (active_changed? && active_was == true && !active && role == "super_admin")
@@ -658,12 +657,68 @@ class User < ApplicationRecord
       saved_ids = Array(manual_account_order[group_key]) & group_ids
       current_ids = saved_ids + (group_ids - saved_ids)
 
-      moved_ids = requested_ids & current_ids
-      moved_set = moved_ids.to_set
-      remaining = moved_ids.each
-      ordered_ids = current_ids.map { |id| moved_set.include?(id) ? remaining.next : id }
+      ordered_ids = reorder_among_positions(current_ids, requested_ids & current_ids)
 
       prefs["manual_account_order"] = manual_account_order.merge(group_key => ordered_ids.first(MANUAL_ACCOUNT_ORDER_LIMIT))
+    end
+  end
+
+  # What else the manual order covers, per grouping dimension (see
+  # AccountGrouping), so every grouping keeps its own order: accounts (for
+  # first levels other than the account type, which use
+  # manual_account_order), first-level groups, and the second-level
+  # subgroups of each group (scoped by the group's key). Each list holds ids
+  # in display order; a group or subgroup shows its entries in that order.
+  MANUAL_LIST_ORDER_KINDS = {
+    "accounts" => /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/,
+    "groups" => /\A[a-z0-9_]{1,100}\z/,
+    "subgroups" => /\A\h{12}\z/
+  }.freeze
+  MANUAL_LIST_ORDER_SCOPE = MANUAL_LIST_ORDER_KINDS["groups"]
+  MANUAL_LIST_ORDER_LISTS_LIMIT = 500
+
+  def manual_list_order(kind, dimension, scope: nil)
+    order = preferences&.dig("manual_list_order", kind.to_s, manual_list_key(dimension, scope))
+    order.is_a?(Array) ? order : []
+  end
+
+  # Positions by id of one list, for sorting.
+  def manual_list_positions(kind, dimension, scope: nil)
+    manual_list_order(kind, dimension, scope: scope).each_with_index.to_h
+  end
+
+  # Stores a new order for the entries of one displayed list (e.g. the
+  # groups of one tab, or the accounts of one group). They take the
+  # positions they already hold in the stored list, entries not yet in it
+  # go to its end, so the other lists sharing it (the same group in another
+  # tab, other groups of the same dimension) keep their order. Account ids
+  # the user cannot access are dropped.
+  def update_manual_list_order(kind, dimension, ids, scope: nil)
+    kind = kind.to_s
+    format = MANUAL_LIST_ORDER_KINDS[kind]
+    return false unless format && AccountGrouping.valid_dimension?(dimension)
+    return false unless scope.nil? || scope.to_s.match?(MANUAL_LIST_ORDER_SCOPE)
+    return false unless ids.is_a?(Array)
+
+    requested_ids = ids.map(&:to_s).uniq.first(MANUAL_ACCOUNT_ORDER_LIMIT)
+    return false unless requested_ids.all? { |id| id.match?(format) }
+
+    key = manual_list_key(dimension, scope)
+    with_locked_preferences do |prefs|
+      lists = prefs["manual_list_order"].is_a?(Hash) ? prefs["manual_list_order"] : {}
+      kind_lists = lists[kind].is_a?(Hash) ? lists[kind] : {}
+      # Each scope (group key) gets its own list; keep their number bounded.
+      return false if !kind_lists.key?(key) && kind_lists.size >= MANUAL_LIST_ORDER_LISTS_LIMIT
+
+      saved_ids = manual_list_order(kind, dimension, scope: scope).uniq
+      if kind == "accounts"
+        accessible_ids = accessible_accounts.where(id: saved_ids + requested_ids).pluck(:id).to_set
+        saved_ids = saved_ids.select { |id| accessible_ids.include?(id) }
+        requested_ids = requested_ids.select { |id| accessible_ids.include?(id) }
+      end
+
+      ordered_ids = reorder_among_positions(saved_ids + (requested_ids - saved_ids), requested_ids)
+      prefs["manual_list_order"] = lists.merge(kind => kind_lists.merge(key => ordered_ids.first(MANUAL_ACCOUNT_ORDER_LIMIT)))
     end
   end
 
@@ -910,6 +965,18 @@ class User < ApplicationRecord
   end
 
   private
+    # The ids of current_ids in order, with the moved ids (all present once
+    # in current_ids, in their new order) filling the positions they held.
+    def reorder_among_positions(current_ids, moved_ids)
+      moved_set = moved_ids.to_set
+      remaining = moved_ids.each
+      current_ids.map { |id| moved_set.include?(id) ? remaining.next : id }
+    end
+
+    def manual_list_key(dimension, scope)
+      scope.present? ? "#{dimension}:#{scope}" : dimension.to_s
+    end
+
     def apply_ui_layout_defaults
       self.ui_layout = (ui_layout.presence || self.class.default_ui_layout)
     end

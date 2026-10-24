@@ -334,6 +334,14 @@ class Api::V1::BaseController < ApplicationController
       Current.session.active_impersonator_session = nil
     end
 
+    # Budgets can be switched off per family in Settings -> Preferences; the
+    # API follows the web app so a client cannot read what the family hid.
+    def require_budgets_enabled
+      return if current_resource_owner&.family&.budgets_enabled?
+
+      render_json({ error: "feature_disabled", message: "Budgets are disabled for this family" }, status: :forbidden)
+    end
+
     # Check if AI features are enabled for the current user
     def require_ai_enabled
       unless current_resource_owner&.ai_enabled?

@@ -258,11 +258,27 @@ class Family < ApplicationRecord
   validates :household_budget_enabled, inclusion: { in: [ true, false ] }
   validates :auto_generate_transaction_names, inclusion: { in: [ true, false ] }
   validates :investment_contributions_as_spending, inclusion: { in: [ true, false ] }
+  validates :budgets_enabled, :plan_enabled, inclusion: { in: [ true, false ] }
   validates :categories_locked, inclusion: { in: [ true, false ] }
   validate :timezone_must_be_a_known_zone, if: :timezone_changed?
 
   before_validation :normalize_enabled_currencies!
   after_create_commit :add_classifier_rules
+  after_update :expire_insights_of_disabled_planning_features,
+               if: -> { saved_change_to_budgets_enabled?(to: false) || saved_change_to_plan_enabled?(to: false) }
+
+  # The nightly insights run stops producing budget and goal signals once the
+  # feature is off, but until then the feed would keep showing cards that link
+  # into pages which now send the user home. Expire them the moment it flips.
+  def expire_insights_of_disabled_planning_features
+    types = []
+    types += Insight::Generators::BudgetInsightGenerator.produced_types unless budgets_enabled?
+    types += Insight::Generators::MaintainedGoalDepletedGenerator.produced_types unless plan_enabled?
+
+    insights.where(insight_type: types, status: %w[active read])
+            .update_all(status: "expired", updated_at: Time.current)
+  end
+  private :expire_insights_of_disabled_planning_features
 
   def primary_currency_code
     self.class.normalize_currency_code(currency) || "USD"

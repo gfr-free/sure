@@ -27,6 +27,39 @@
     <% end %>
   </div>
 <% end %>
+<% if Current.user.admin? %>
+  <%= settings_section title: t(".planning_features_title"), subtitle: t(".planning_features_subtitle", moniker: family_moniker_downcase) do %>
+    <div>
+      <%= styled_form_with model: @user, class: "space-y-4", data: { controller: "auto-submit-form" } do |form| %>
+        <%= form.hidden_field :redirect_to, value: "preferences" %>
+        <%= form.fields_for :family do |family_form| %>
+          <div class="flex items-center justify-between">
+            <div class="space-y-1">
+              <p class="text-sm"><%= t(".budgets_enabled") %></p>
+              <p class="text-secondary text-sm"><%= t(".budgets_enabled_hint") %></p>
+            </div>
+            <%= family_form.toggle :budgets_enabled,
+                data: { auto_submit_form_target: "auto" } %>
+          </div>
+
+          <% if preview_features_enabled? %>
+            <div class="flex items-center justify-between">
+              <div class="space-y-1">
+                <p class="text-sm flex items-center gap-1.5">
+                  <%= t(".plan_enabled") %>
+                  <%= render DS::Pill.new(label: t("shared.preview"), size: :sm) %>
+                </p>
+                <p class="text-secondary text-sm"><%= t(".plan_enabled_hint") %></p>
+              </div>
+              <%= family_form.toggle :plan_enabled,
+                  data: { auto_submit_form_target: "auto" } %>
+            </div>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
 <%= settings_section title: t(".budget_title"), subtitle: t(".budget_subtitle") do %>
   <div>
     <%= styled_form_with model: @user, class: "space-y-4", data: { controller: "auto-submit-form" } do |form| %>
@@ -50,7 +83,7 @@
                 data: { auto_submit_form_target: "auto" } %>
           </div>
         <% end %>
-        <% if Current.user.admin? && preview_features_enabled? %>
+        <% if Current.user.admin? && preview_features_enabled? && @user.family.budgets_enabled? %>
           <div class="flex items-center justify-between">
             <div class="space-y-1">
               <p class="text-sm flex items-center gap-1.5">
@@ -78,7 +111,7 @@
     <% end %>
   </div>
 <% end %>
-<% if @user.family.personal_budgets? && preview_features_enabled? %>
+<% if @user.family.budgets_enabled? && @user.family.personal_budgets? && preview_features_enabled? %>
   <%= settings_section title: t(".budget_sharing_title"), subtitle: t(".budget_sharing_subtitle") do %>
     <% if @family_members.any? %>
       <%= styled_form_with url: settings_budget_shares_path, method: :patch, class: "space-y-4", data: { controller: "auto-submit-form" } do |form| %>

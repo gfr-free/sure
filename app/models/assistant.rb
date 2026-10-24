@@ -35,6 +35,19 @@ module Assistant
     Function::RecordBillPayment
   ].freeze
 
+  # Tools that operate on a family feature an admin can switch off in
+  # Settings -> Preferences. They leave the registry with the feature, so
+  # neither the chat nor an MCP client can reach budgets or goals the family
+  # has hidden.
+  BUDGET_FUNCTION_CLASSES = [
+    Function::GetBudget,
+    Function::UpdateBudget
+  ].freeze
+
+  PLAN_FUNCTION_CLASSES = [
+    Function::CreateGoal
+  ].freeze
+
   # Guests may view family configuration but not change it, so these tools are
   # left out of a guest's registry (chat and MCP alike).
   FAMILY_CONFIG_FUNCTION_CLASSES = [
@@ -98,6 +111,8 @@ module Assistant
 
       classes += PREVIEW_FUNCTION_CLASSES if user&.preview_features_enabled?
       classes -= FAMILY_CONFIG_FUNCTION_CLASSES if user&.guest?
+      classes -= BUDGET_FUNCTION_CLASSES if user&.family&.budgets_enabled? == false
+      classes -= PLAN_FUNCTION_CLASSES if user&.family&.plan_enabled? == false
       classes
     end
 

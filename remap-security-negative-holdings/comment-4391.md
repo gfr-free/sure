@@ -1,4 +1,4 @@
-Thanks for this fix. We hit the same bug and arrived at a very similar change. One gap we found while testing it: the weighted cost basis in the collision merge can still go negative.
+Thanks for this fix. I hit the same bug and arrived at a very similar change. One gap I found while testing it: the weighted cost basis in the collision merge can still go negative.
 
 `merged_cost_basis` is only guarded by `merged_qty.positive?`, so merging a negative derived row into a positive one still averages them:
 
@@ -8,7 +8,7 @@ Thanks for this fix. We hit the same bug and arrived at a very similar change. O
 
 Before this PR, `update!` rejected that row, so the remap aborted. With `update_columns` it is now stored. A provider-owned target row is not rebuilt by the materializer, so the value stays. (The price in the same case is already handled by your `merged_price` guard; the test below passes the price assertion and fails only on `cost_basis` against this branch.)
 
-What worked for us: only compute the weighted average when both rows hold shares, and otherwise keep the target's cost basis:
+What worked for me: only compute the weighted average when both rows hold shares, and otherwise keep the target's cost basis:
 
 ```ruby
 both_positive = existing.qty.positive? && holding.qty.positive?
@@ -19,7 +19,7 @@ else
 end
 ```
 
-Test we used:
+Test I used:
 
 ```ruby
 test "remap_security! never stores a negative cost basis when merging a negative holding" do

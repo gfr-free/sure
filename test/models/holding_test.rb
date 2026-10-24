@@ -452,6 +452,89 @@ class HoldingTest < ActiveSupport::TestCase
     assert_equal 0, @account.holdings.where(security: amzn_security).count
   end
 
+  test "remap_security! moves historical holdings with negative qty from a reverse sync" do
+    old_security = @amzn.security
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    negative = insert_negative_holding(old_security, date: 10.days.ago.to_date)
+
+    @amzn.remap_security!(new_security)
+
+    assert_equal 0, @account.holdings.where(security: old_security).count
+    negative_row = @account.holdings.find(negative)
+    assert_equal new_security.id, negative_row.security_id
+    assert_equal(-2, negative_row.qty)
+    assert negative_row.security_locked?
+    assert_equal old_security.id, negative_row.provider_security_id
+  end
+
+  test "remap_security! keeps an existing provider_security_id on moved holdings" do
+    original_security = create_security("META", prices: [ { date: Date.current, price: 100.00 } ])
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    @account.holdings.where(security: @amzn.security).update_all(provider_security_id: original_security.id)
+
+    @amzn.remap_security!(new_security)
+
+    assert_equal [ original_security.id ], @account.holdings.where(security: new_security).distinct.pluck(:provider_security_id)
+  end
+
+  test "remap_security! merges a negative holding into a colliding holding" do
+    old_security = @amzn.security
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    date = 10.days.ago.to_date
+    insert_negative_holding(old_security, date: date)
+    existing_goog = @account.holdings.create!(date: date, security: new_security, qty: 1, price: 100, amount: 100, currency: "USD")
+
+    @amzn.remap_security!(new_security)
+
+    existing_goog.reload
+    assert_equal(-1, existing_goog.qty)
+    assert_equal 100, existing_goog.price, "a negative merged quantity keeps the target's price"
+    assert existing_goog.security_locked?
+    assert_equal 0, @account.holdings.where(security: old_security).count
+  end
+
+  test "remap_security! never stores a negative price or cost basis when merging a negative holding" do
+    old_security = @amzn.security
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    date = 10.days.ago.to_date
+    @account.holdings.insert_all!([ {
+      security_id: old_security.id, date: date, qty: -2, price: 3000, amount: -6000, cost_basis: 3000, currency: "USD"
+    } ])
+    existing_goog = @account.holdings.create!(date: date, security: new_security, qty: 5, price: 100, amount: 500, cost_basis: 100, currency: "USD")
+
+    @amzn.remap_security!(new_security)
+
+    existing_goog.reload
+    assert_equal 3, existing_goog.qty
+    assert_equal 100, existing_goog.price
+    assert_equal 100, existing_goog.cost_basis
+  end
+
+  test "remap_security! carries the provider external_id over when merging a colliding holding" do
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    @amzn.update!(external_id: "provider-amzn-1")
+    existing_goog = @account.holdings.create!(date: @amzn.date, security: new_security, qty: 5, price: 100, amount: 500, currency: "USD")
+
+    @amzn.remap_security!(new_security)
+
+    assert_equal "provider-amzn-1", existing_goog.reload.external_id
+    assert_equal 0, @account.holdings.where(security: @amzn.security_id).count
+  end
+
+  test "reset_security_to_provider! restores holdings with negative qty" do
+    old_security = @amzn.security
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    negative = insert_negative_holding(old_security, date: 10.days.ago.to_date)
+
+    @amzn.remap_security!(new_security)
+    @amzn.reset_security_to_provider!
+
+    negative_row = @account.holdings.find(negative)
+    assert_equal old_security.id, negative_row.security_id
+    assert_not negative_row.security_locked?
+    assert_nil negative_row.provider_security_id
+  end
+
   test "reset_security_to_provider! restores original security" do
     old_security = @amzn.security
     new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
@@ -521,6 +604,20 @@ class HoldingTest < ActiveSupport::TestCase
         price: price,
         amount: qty * price,
         currency: "USD"
+    end
+
+    # Holding::Materializer writes via upsert_all, so a reverse sync whose trades
+    # exceed the provider snapshot persists negative quantities the model would
+    # reject. Insert the same way to reproduce that state.
+    def insert_negative_holding(security, date:)
+      @account.holdings.insert_all!([ {
+        security_id: security.id,
+        date: date,
+        qty: -2,
+        price: 100,
+        amount: -200,
+        currency: "USD"
+      } ], returning: :id).first["id"]
     end
 
     # A coin bought elsewhere at one price and moved in at another was never

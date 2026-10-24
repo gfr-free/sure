@@ -85,9 +85,17 @@ class HoldingsController < ApplicationController
     new_security.failed_fetch_count = 0
     new_security.failed_fetch_at = nil
 
-    new_security.save!
-
-    @holding.remap_security!(new_security)
+    # Securities are shared across families, so only persist the provider
+    # choice if the remap itself succeeds.
+    begin
+      Security.transaction do
+        new_security.save!
+        @holding.remap_security!(new_security)
+      end
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+      redirect_after_security_change_failure("Security remap failed", e)
+      return
+    end
 
     # Re-materialize holdings with the new security's prices.
     # Reload account to avoid stale associations from remap_security!.
@@ -144,7 +152,13 @@ class HoldingsController < ApplicationController
   end
 
   def reset_security
-    @holding.reset_security_to_provider!
+    begin
+      @holding.reset_security_to_provider!
+    rescue ActiveRecord::RecordNotUnique => e
+      redirect_after_security_change_failure("Security reset failed", e)
+      return
+    end
+
     flash[:notice] = t(".success")
 
     respond_to do |format|
@@ -154,6 +168,24 @@ class HoldingsController < ApplicationController
   end
 
   private
+
+    def redirect_after_security_change_failure(message, error)
+      DebugLogEntry.capture(
+        category: "holdings",
+        level: "warn",
+        message: message,
+        source: "#{self.class.name}##{action_name}",
+        account: @holding.account,
+        user: Current.user,
+        metadata: { holding_id: @holding.id, error_class: error.class.name, error_message: error.message }
+      )
+
+      path = account_path(@holding.account, tab: "holdings")
+      respond_to do |format|
+        format.html { redirect_to path, alert: t(".error") }
+        format.turbo_stream { stream_redirect_to(path, alert: t(".error")) }
+      end
+    end
 
     def trade_republic_categories_for(account)
       provider = account.account_providers.includes(:provider).map(&:provider).find do |candidate|

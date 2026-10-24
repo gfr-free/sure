@@ -13,9 +13,11 @@ en:
       success: Cost basis unlocked. It may be updated on next sync.
     remap_security:
       success: Security updated successfully.
+      error: Could not update the security. Please try again or contact support if the problem persists.
       security_not_found: Could not find the selected security.
     reset_security:
       success: Security reset to provider value.
+      error: Could not reset the security. Please try again or contact support if the problem persists.
     sync_prices:
       success: Market data synced successfully.
       unavailable: Market data sync is not available for offline securities.

@@ -247,6 +247,36 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, msft.failed_fetch_count
   end
 
+  test "remap_security shows an alert and leaves the shared security untouched when the remap fails" do
+    msft = securities(:msft)
+    msft.update!(offline: true, failed_fetch_count: 3)
+    original_security_id = @holding.security_id
+    Holding.any_instance.stubs(:remap_security!).raises(ActiveRecord::RecordInvalid.new(@holding))
+
+    assert_difference -> { DebugLogEntry.where(category: "holdings").count }, 1 do
+      patch remap_security_holding_path(@holding), params: { security_id: "MSFT|XNAS" }
+    end
+
+    assert_redirected_to account_path(@holding.account, tab: "holdings")
+    assert_equal I18n.t("holdings.remap_security.error"), flash[:alert]
+    assert_equal @holding.account, DebugLogEntry.where(category: "holdings").last.account
+    assert_equal original_security_id, @holding.reload.security_id
+    msft.reload
+    assert msft.offline?, "failed remap must not bring the shared security online"
+    assert_equal 3, msft.failed_fetch_count
+  end
+
+  test "reset_security shows an alert when the reset fails" do
+    Holding.any_instance.stubs(:reset_security_to_provider!).raises(ActiveRecord::RecordNotUnique.new("duplicate"))
+
+    assert_difference -> { DebugLogEntry.where(category: "holdings").count }, 1 do
+      post reset_security_holding_path(@holding)
+    end
+
+    assert_redirected_to account_path(@holding.account, tab: "holdings")
+    assert_equal I18n.t("holdings.reset_security.error"), flash[:alert]
+  end
+
   test "sync_prices redirects with alert for offline security" do
     @holding.security.update!(offline: true)
 

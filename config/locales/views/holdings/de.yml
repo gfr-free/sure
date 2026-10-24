@@ -13,9 +13,11 @@ de:
       success: Einstandspreis freigegeben. Er kann beim nächsten Sync aktualisiert werden.
     remap_security:
       success: Wertpapier erfolgreich aktualisiert.
+      error: Das Wertpapier konnte nicht aktualisiert werden. Bitte versuche es erneut oder wende dich an den Support, falls das Problem bestehen bleibt.
       security_not_found: Das ausgewählte Wertpapier konnte nicht gefunden werden.
     reset_security:
       success: Wertpapier auf Provider-Wert zurückgesetzt.
+      error: Das Wertpapier konnte nicht zurückgesetzt werden. Bitte versuche es erneut oder wende dich an den Support, falls das Problem bestehen bleibt.
     errors:
       security_collision: 'Umbildung nicht möglich: Du hast bereits eine Position für %{ticker} am %{date}.'
     cost_basis_sources:

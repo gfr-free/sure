@@ -160,44 +160,57 @@ class Holding < ApplicationRecord
         .pluck(:date, :currency)
         .to_set
 
-      # Process each holding for the old security
-      account.holdings.where(security: old_security).find_each do |holding|
-        if collision_keys.include?([ holding.date, holding.currency ])
-          # Collision: merge into existing holding for new_security (same date AND currency)
-          existing = account.holdings.find_by!(security: new_security, date: holding.date, currency: holding.currency)
-          merged_qty = existing.qty + holding.qty
-          merged_amount = existing.amount + holding.amount
+      # Holdings are written by Holding::Materializer via upsert_all, which skips
+      # validations. A reverse-synced account whose trades exceed the provider
+      # snapshot reconstructs negative historical quantities, so re-validating
+      # these rows here would abort the whole remap. Persist without validations,
+      # matching how the rows were written and how trades are moved below.
+      colliding_targets = account.holdings
+        .where(security: new_security, date: collision_keys.map(&:first))
+        .index_by { |existing| [ existing.date, existing.currency ] }
 
-          # Calculate weighted average cost basis if both holdings have cost_basis
-          merged_cost_basis = if existing.cost_basis.present? && holding.cost_basis.present? && merged_qty.positive?
-            ((existing.cost_basis * existing.qty) + (holding.cost_basis * holding.qty)) / merged_qty
-          else
-            existing.cost_basis # Keep existing if we can't calculate weighted average
-          end
+      account.holdings.where(security: old_security, date: collision_keys.map(&:first)).find_each do |holding|
+        # Collision: merge into existing holding for new_security (same date AND currency)
+        existing = colliding_targets[[ holding.date, holding.currency ]]
+        next unless existing
 
-          # Preserve provider tracking from the holding being destroyed
-          # so subsequent syncs can find the merged holding
-          merge_attrs = {
-            qty: merged_qty,
-            amount: merged_amount,
-            price: merged_qty.positive? ? merged_amount / merged_qty : 0,
-            cost_basis: merged_cost_basis
-          }
-          merge_attrs[:external_id] ||= holding.external_id if existing.external_id.blank? && holding.external_id.present?
-          merge_attrs[:provider_security_id] ||= holding.provider_security_id || old_security.id if existing.provider_security_id.blank?
-          merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
-          merge_attrs[:security_locked] = true # Lock merged holding to prevent provider overwrites
+        merged_qty = existing.qty + holding.qty
+        merged_amount = existing.amount + holding.amount
+        both_positive = existing.qty.positive? && holding.qty.positive?
 
-          existing.update!(merge_attrs)
-          holding.destroy!
+        # Weighted average cost basis only when both rows hold shares; a negative
+        # reconstructed row would otherwise produce a negative cost basis
+        merged_cost_basis = if existing.cost_basis.present? && holding.cost_basis.present? && both_positive
+          ((existing.cost_basis * existing.qty) + (holding.cost_basis * holding.qty)) / merged_qty
         else
-          # No collision: update to new security
-          holding.provider_security_id ||= old_security.id
-          holding.security = new_security
-          holding.security_locked = true
-          holding.save!
+          existing.cost_basis # Keep existing if we can't calculate weighted average
         end
+
+        # Preserve provider tracking from the holding being destroyed
+        # so subsequent syncs can find the merged holding
+        merge_attrs = {
+          qty: merged_qty,
+          amount: merged_amount,
+          # Keep the target's own price unless the merged row still has a
+          # meaningful positive average, so a merge never stores a negative price
+          price: merged_qty.positive? && merged_amount.positive? ? merged_amount / merged_qty : existing.price,
+          cost_basis: merged_cost_basis
+        }
+        merge_attrs[:external_id] ||= holding.external_id if existing.external_id.blank? && holding.external_id.present?
+        merge_attrs[:provider_security_id] ||= holding.provider_security_id || old_security.id if existing.provider_security_id.blank?
+        merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
+        merge_attrs[:security_locked] = true # Lock merged holding to prevent provider overwrites
+
+        # Destroy first: merge_attrs may carry over holding's external_id, which is unique per account
+        holding.destroy!
+        existing.update_columns(merge_attrs.merge(updated_at: Time.current))
       end
+
+      # No collision: move the remaining holdings to the new security
+      account.holdings.where(security: old_security).update_all([
+        "provider_security_id = COALESCE(provider_security_id, ?), security_id = ?, security_locked = TRUE, updated_at = ?",
+        old_security.id, new_security.id, Time.current
+      ])
 
       # Move all trades for old security to new security
       account.trades.where(security: old_security).update_all(security_id: new_security.id)
@@ -230,14 +243,14 @@ class Holding < ApplicationRecord
       # Move trades back (see note above about limitation)
       account.trades.where(security: current_security).update_all(security_id: original_security.id)
 
-      # Reset ALL holdings that were remapped from this provider_security
-      account.holdings.where(security: current_security, provider_security: original_security).find_each do |holding|
-        holding.update!(
-          security: original_security,
-          security_locked: false,
-          provider_security_id: nil
-        )
-      end
+      # Reset ALL holdings that were remapped from this provider_security.
+      # Skips validations for the same reason as remap_security!.
+      account.holdings.where(security: current_security, provider_security: original_security).update_all(
+        security_id: original_security.id,
+        security_locked: false,
+        provider_security_id: nil,
+        updated_at: Time.current
+      )
     end
 
     # Reload self to reflect changes

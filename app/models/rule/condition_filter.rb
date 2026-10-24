@@ -68,6 +68,16 @@ class Rule::ConditionFilter
     nil
   end
 
+  # Options for a condition or action that already holds +value+.
+  def options_for(value)
+    options
+  end
+
+  # Whether the current user may newly choose +value+.
+  def selectable_value?(value)
+    true
+  end
+
   def operators
     OPERATORS_MAP.dig(type).map { |label_key, operator| [ operator_label(label_key), operator ] }
   end

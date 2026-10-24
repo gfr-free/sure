@@ -25,6 +25,16 @@ class Rule::ActionExecutor
     nil
   end
 
+  # Options for a condition or action that already holds +value+.
+  def options_for(value)
+    options
+  end
+
+  # Whether the current user may newly choose +value+.
+  def selectable_value?(value)
+    true
+  end
+
   # Attributes this action sets. When several rules set the same attribute on
   # a transaction, the rule highest in the list wins (see Rule::Runner), so the
   # action skips transactions a rule above already claimed. Additive actions

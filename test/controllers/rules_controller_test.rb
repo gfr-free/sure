@@ -615,6 +615,41 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to confirm_rule_path(Rule.order(:created_at).last, reload_on_close: true)
   end
 
+  test "member does not see the name of a transfer target that isn't shared with them" do
+    hidden = accounts(:investment)
+    rule = @user.family.rules.create!(
+      name: "Move to brokerage",
+      resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "set_as_transfer_or_payment", value: hidden.id) ]
+    )
+    sign_in users(:family_member)
+
+    get rules_url
+    assert_response :success
+    assert_includes response.body, I18n.t("rule.account_not_shared")
+    assert_not_includes response.body, hidden.name
+
+    get edit_rule_url(rule)
+    assert_response :success
+    assert_not_includes response.body, hidden.name
+    assert_select "select[name*='[value]'] option[selected][value=?]", hidden.id, text: I18n.t("rule.account_not_shared")
+  end
+
+  test "member can't create a rule that moves transactions into an account not shared with them" do
+    sign_in users(:family_member)
+
+    assert_no_difference "Rule.count" do
+      post rules_url, params: {
+        rule: {
+          name: "Sneaky transfer",
+          resource_type: "transaction",
+          actions_attributes: {
+            "0" => { action_type: "set_as_transfer_or_payment", value: accounts(:investment).id } } } }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
   test "clear_ai_cache enqueues job and records the request in the debug log" do
     assert_enqueued_with(job: ClearAiCacheJob, args: [ @user.family ]) do
       post clear_ai_cache_rules_url

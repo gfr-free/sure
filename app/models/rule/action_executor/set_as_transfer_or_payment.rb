@@ -1,10 +1,8 @@
 class Rule::ActionExecutor::SetAsTransferOrPayment < Rule::ActionExecutor
+  include Rule::AccountValue
+
   def type
     "select"
-  end
-
-  def options
-    family.accounts.alphabetically.pluck(:name, :id)
   end
 
   def claimed_attributes

@@ -32,6 +32,7 @@ class Rule::Action < ApplicationRecord
   validates_with DatabaseTextValidator, attributes: %i[action_type value]
   before_validation :build_split_value, if: -> { action_type == "split_transaction" && split_rows.present? }
   validate :split_config_valid, if: -> { action_type == "split_transaction" }
+  validate :value_selectable, if: :value_choice_changing?
 
   # Pre-seed (watermark): when an EMAIL_NOTIFICATION action is created — on a
   # new rule OR added to an existing one — record all currently-matching
@@ -93,8 +94,10 @@ class Rule::Action < ApplicationRecord
     executor.execute(resource_scope, value: execution_value, ignore_attribute_locks: ignore_attribute_locks, rule_run: rule_run) || 0
   end
 
+  # Only a stored value brings along an account the viewer can't access, so a
+  # rejected new choice renders the same as an account that doesn't exist.
   def options
-    executor.options
+    executor.options_for(will_save_change_to_value? ? nil : value)
   end
 
   def claimed_attributes
@@ -127,6 +130,20 @@ class Rule::Action < ApplicationRecord
   end
 
   private
+    # The edit form resubmits stored values unchanged; only a new choice is
+    # checked. Text the other validations reject is not probed.
+    def value_choice_changing?
+      return false unless DatabaseTextValidator.acceptable?(value) && value.present?
+
+      new_record? || will_save_change_to_value? || will_save_change_to_action_type?
+    end
+
+    def value_selectable
+      return unless action_type.in?(SUPPORTED_ACTION_TYPES) && rule&.resource_type.in?(Rule::SUPPORTED_RESOURCE_TYPES)
+
+      errors.add(:value, :not_selectable) unless executor.selectable_value?(value)
+    end
+
     def execution_value
       executor.type == "multi_select" ? value.to_s.split(",") : value
     end

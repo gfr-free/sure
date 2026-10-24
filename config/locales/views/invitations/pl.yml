@@ -3,10 +3,12 @@ pl:
   invitations:
     accept_choice:
       create_account: Utwórz nowe konto
+      existing_account_hint: "Masz już konto? Istniejące konta nie mogą dołączyć do innego gospodarstwa domowego przez zaproszenie."
       joined_household: Dołączono do gospodarstwa domowego.
       message: "%{inviter} zaprosił(a) Cię jako %{role}."
       title: Dołącz do %{family}
     create:
+      already_registered: "Ten adres e-mail należy już do konta. Zaproszenia można wysyłać tylko osobom, które nie mają jeszcze konta."
       failure: Nie udało się wysłać zaproszenia
       success: Zaproszenie zostało wysłane
     destroy:

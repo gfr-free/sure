@@ -162,7 +162,7 @@ class OidcAccountsController < ApplicationController
         invitation&.update!(accepted_at: Time.current)
 
         # Joining an existing family via invitation must honor the family's
-        # default sharing policy, matching Invitation#accept_for. Without this a
+        # default sharing policy, matching token registration. Without this a
         # JIT SSO invitee lands in the family but sees none of its accounts.
         @user.family.auto_share_existing_accounts_with(@user) if invitation.present?
 

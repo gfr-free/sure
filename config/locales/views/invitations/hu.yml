@@ -3,10 +3,12 @@ hu:
   invitations:
     accept_choice:
       create_account: Új fiók létrehozása
+      existing_account_hint: "Már van fiókod? Meglévő fiók meghívással nem csatlakozhat másik háztartáshoz."
       joined_household: Csatlakoztál a háztartáshoz.
       message: "%{inviter} meghívott, hogy csatlakozz %{role} szerepkörben."
       title: "Csatlakozz a következőhöz: %{family}"
     create:
+      already_registered: "Ez az e-mail-cím már egy fiókhoz tartozik. Meghívót csak olyanoknak lehet küldeni, akiknek még nincs fiókjuk."
       failure: Nem sikerült elküldeni a meghívót.
       success: A meghívó sikeresen elküldve.
     destroy:

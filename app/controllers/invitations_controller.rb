@@ -30,6 +30,7 @@ class InvitationsController < ApplicationController
     @invitation = Invitation.find_by!(token: params[:id])
 
     if @invitation.pending?
+      @account_exists = User.exists?(email: @invitation.email)
       render :accept_choice, layout: "auth"
     else
       raise ActiveRecord::RecordNotFound
@@ -63,8 +64,6 @@ class InvitationsController < ApplicationController
     # Persist the invitation, treating a raced partial-unique-index violation as
     # an ordinary save failure. A concurrent double-submit can still slip between
     # the `no_duplicate_pending_invitation_in_family` validation and the INSERT.
-    # Scoping the rescue to the save alone keeps later writes in #create (e.g.
-    # accept_for) from silently swallowing a genuine RecordNotUnique.
     def save_invitation
       @invitation.save
     rescue ActiveRecord::RecordNotUnique

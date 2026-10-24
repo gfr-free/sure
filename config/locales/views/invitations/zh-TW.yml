@@ -3,10 +3,12 @@ zh-TW:
   invitations:
     accept_choice:
       create_account: 建立新帳號
+      existing_account_hint: "已有帳戶？現有帳戶無法透過邀請加入其他家庭。"
       joined_household: 您已加入這個家庭。
       message: '%{inviter} 邀請您以%{role}的身分加入。'
       title: 加入 %{family}
     create:
+      already_registered: "此電子郵件地址已屬於一個帳戶。邀請只能寄給尚未擁有帳戶的人。"
       failure: 傳送邀請失敗
       success: 邀請傳送成功
     destroy:

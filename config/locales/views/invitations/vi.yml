@@ -3,10 +3,12 @@ vi:
   invitations:
     accept_choice:
       create_account: Tạo tài khoản mới
+      existing_account_hint: "Bạn đã có tài khoản? Tài khoản hiện có không thể tham gia hộ gia đình khác qua lời mời."
       joined_household: Bạn đã tham gia hộ gia đình.
       message: "%{inviter} đã mời bạn tham gia với tư cách %{role}."
       title: Tham gia %{family}
     create:
+      already_registered: "Địa chỉ email này đã thuộc về một tài khoản. Chỉ có thể gửi lời mời cho người chưa có tài khoản."
       failure: Không thể gửi lời mời
       success: Lời mời đã được gửi thành công
     destroy:

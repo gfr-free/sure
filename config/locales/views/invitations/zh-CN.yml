@@ -3,10 +3,12 @@ zh-CN:
   invitations:
     accept_choice:
       create_account: 创建新账户
+      existing_account_hint: "已有账户？现有账户无法通过邀请加入其他家庭。"
       joined_household: 您已加入该家庭。
       message: "%{inviter} 邀请您以 %{role} 身份加入。"
       title: 加入 %{family}
     create:
+      already_registered: "该电子邮件地址已属于一个账户。邀请只能发送给尚未拥有账户的人。"
       failure: 无法发送邀请
       success: 邀请已成功发送
     destroy:

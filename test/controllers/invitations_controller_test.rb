@@ -189,6 +189,16 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: I18n.t("invitations.accept_choice.existing_account_hint")
   end
 
+  test "accept page offers no account creation when the invited email already has an account" do
+    @invitation.update_columns(email: users(:family_member).email)
+
+    get accept_invitation_url(@invitation.token)
+
+    assert_response :success
+    assert_select "a[href=?]", new_registration_path(invitation: @invitation.token), count: 0
+    assert_select "p", text: I18n.t("invitations.accept_choice.existing_account_hint")
+  end
+
   test "should not accept invalid invitation token" do
     get accept_invitation_url("invalid-token")
     assert_response :not_found

@@ -1,0 +1,51 @@
+#!/bin/bash -e
+# Production build only (branch prod-local of the fork, never upstream).
+#
+# Wraps bin/docker-entrypoint: before the web container runs db:prepare, it
+# checks whether the image brings migrations the database has not run yet. If
+# so, it writes a pg_dump first. Without a successful dump the container stops
+# and migrates nothing, so a failed or unwanted migration can always be undone.
+#
+#   PROD_BACKUP_DIR   where dumps go (default /rails/storage/db-backups, which
+#                     is on the app-storage volume)
+#   PROD_BACKUP_KEEP  how many pre-migration dumps to keep (default 10)
+
+if [ "${1}" == "./bin/rails" ] && [ "${2}" == "server" ]; then
+  backup_dir="${PROD_BACKUP_DIR:-/rails/storage/db-backups}"
+  keep="${PROD_BACKUP_KEEP:-10}"
+  export PGHOST="${DB_HOST:-127.0.0.1}" PGPORT="${DB_PORT:-5432}" PGUSER="${POSTGRES_USER}" PGPASSWORD="${POSTGRES_PASSWORD}"
+  db="${POSTGRES_DB:-sure_production}"
+
+  # The database must be reachable: if it is not, stop here rather than let
+  # db:prepare run without a backup. The restart policy tries again.
+  if ! exists=$(psql -d postgres -Atc "select 1 from pg_database where datname = '$db'"); then
+    echo "prod-entrypoint: database server not reachable, not starting." >&2
+    exit 1
+  fi
+
+  # A database that does not exist yet, or has no schema_migrations table, is
+  # new: db:prepare creates it and there is nothing to back up.
+  has_table=f
+  if [ "$exists" = "1" ]; then
+    has_table=$(psql -d "$db" -Atc "select to_regclass('public.schema_migrations') is not null")
+  fi
+  if [ "$has_table" = "t" ]; then
+    applied=$(psql -d "$db" -Atc "select version from schema_migrations")
+    pending=$(comm -23 <(ls /rails/db/migrate | cut -d_ -f1 | sort) <(sort <<<"$applied"))
+    if [ -n "$pending" ]; then
+      mkdir -p "$backup_dir"
+      file="$backup_dir/pre-migrate-$(date +%Y%m%d-%H%M%S)-${BUILD_COMMIT_SHA:0:10}.dump"
+      echo "prod-entrypoint: $(wc -l <<<"$pending") pending migration(s): $(paste -sd' ' <<<"$pending")"
+      echo "prod-entrypoint: writing backup $file"
+      if ! pg_dump -Fc -d "$db" -f "$file.partial"; then
+        rm -f "$file.partial"
+        echo "prod-entrypoint: backup failed, not migrating. Fix the backup or roll back the image." >&2
+        exit 1
+      fi
+      mv "$file.partial" "$file"
+      ls -1t "$backup_dir"/pre-migrate-*.dump 2>/dev/null | tail -n +"$((keep + 1))" | xargs -r rm -f
+    fi
+  fi
+fi
+
+exec /rails/bin/docker-entrypoint "$@"

@@ -58,6 +58,15 @@
     <% if (autopay = bills_autopay_label(series)) %>&middot; <%= autopay %><% end %>
   </p>
 
+  <% if series.auto_post? %>
+    <p class="text-xs text-secondary flex items-center gap-1">
+      <%= icon "repeat", size: "xs" %>
+      <%= t("bills.show.auto_posting_since", date: l(series.auto_post_from, format: :long)) %>
+    </p>
+  <% elsif (stop_reason = series.auto_post_stop_reason) %>
+    <p class="text-xs text-warning"><%= stop_reason == :linked ? t("bills.show.auto_posting_stopped_linked") : t("bills.show.auto_posting_stopped_currency") %></p>
+  <% end %>
+
   <%# Subscription state is state, not depth, so it stays here. %>
   <%= render "bills/state_chips", series: series %>
 

@@ -1,5 +1,6 @@
 class AccountsController < ApplicationController
   include StreamExtensions, UnreadEntriesTrackable
+  include AutoPostedMarkers
 
   before_action :set_account, only: %i[show sparkline sync set_default remove_default clear_filter]
   before_action :note_unread_as_of, only: :show
@@ -157,6 +158,8 @@ class AccountsController < ApplicationController
     else
       Set.new
     end
+
+    load_auto_posted_markers(entry_ids)
 
     # Load split parent entries for grouped display (only when grouping is enabled)
     @split_parents = if Current.user.show_split_grouped?

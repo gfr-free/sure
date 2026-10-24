@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_160100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -422,6 +422,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.index ["family_id", "start_date", "end_date"], name: "index_budgets_shared_unique", unique: true, where: "(user_id IS NULL)"
     t.index ["family_id"], name: "index_budgets_on_family_id"
     t.index ["user_id"], name: "index_budgets_on_user_id"
+  end
+
+  create_table "bullion_specs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "catalog_key"
+    t.datetime "created_at", null: false
+    t.decimal "face_value", precision: 19, scale: 4
+    t.string "face_value_currency"
+    t.uuid "family_id"
+    t.decimal "fine_weight_grams", precision: 12, scale: 4, null: false
+    t.string "metal", null: false
+    t.uuid "security_id", null: false
+    t.string "size_key"
+    t.datetime "updated_at", null: false
+    t.index ["catalog_key", "size_key"], name: "index_bullion_specs_on_catalog_product", unique: true, where: "(family_id IS NULL)"
+    t.index ["family_id"], name: "index_bullion_specs_on_family_id"
+    t.index ["security_id"], name: "index_bullion_specs_on_security_id", unique: true
+    t.check_constraint "(face_value IS NULL) = (face_value_currency IS NULL)", name: "chk_bullion_specs_face_value_currency"
+    t.check_constraint "face_value IS NULL OR face_value > 0::numeric", name: "chk_bullion_specs_face_value_positive"
+    t.check_constraint "family_id IS NULL AND catalog_key IS NOT NULL AND size_key IS NOT NULL OR family_id IS NOT NULL AND catalog_key IS NULL AND size_key IS NULL", name: "chk_bullion_specs_catalog_or_custom"
+    t.check_constraint "fine_weight_grams > 0::numeric", name: "chk_bullion_specs_fine_weight_positive"
+    t.check_constraint "metal::text = ANY (ARRAY['XAU'::character varying, 'XAG'::character varying, 'XPT'::character varying, 'XPD'::character varying]::text[])", name: "chk_bullion_specs_metal"
   end
 
   create_table "categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -873,10 +894,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
   create_table "families", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "ai_prompt_overrides", default: {}, null: false
     t.string "assistant_type", default: "builtin", null: false
+    t.boolean "auto_generate_transaction_names", default: false, null: false
     t.boolean "auto_match_transfers_disabled", default: false, null: false
     t.boolean "auto_sync_on_login", default: true, null: false
     t.jsonb "bayes_settings", default: {}, null: false
     t.string "bills_feed_token"
+    t.boolean "budgets_enabled", default: true, null: false
     t.boolean "categories_locked", default: false, null: false
     t.decimal "categorization_confidence_threshold", precision: 3, scale: 2, default: "0.7", null: false
     t.string "categorization_provider", default: "llm", null: false
@@ -899,6 +922,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
     t.boolean "personal_budgets", default: false, null: false
+    t.boolean "plan_enabled", default: true, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
     t.string "timezone"
@@ -1333,6 +1357,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.string "price"
     t.string "qty"
     t.string "resource_type"
+    t.string "rule_group"
     t.integer "source_row_number", null: false
     t.string "tags"
     t.string "ticker"
@@ -1630,7 +1655,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.integer "term_months"
     t.datetime "updated_at", null: false
     t.jsonb "variable_rate_schedule", default: {}, null: false
-    t.check_constraint "day_count_convention::text = ANY (ARRAY['thirty_360'::character varying, 'actual_365'::character varying, 'actual_actual'::character varying]::text[])", name: "chk_loans_day_count_convention"
+    t.check_constraint "day_count_convention::text = ANY (ARRAY['thirty_360'::character varying::text, 'actual_365'::character varying::text, 'actual_actual'::character varying::text])", name: "chk_loans_day_count_convention"
     t.check_constraint "down_payment IS NULL OR down_payment >= 0::numeric", name: "chk_loans_down_payment_non_negative"
     t.check_constraint "insurance_rate IS NULL OR insurance_rate >= 0::numeric", name: "chk_loans_insurance_rate_non_negative"
     t.check_constraint "insurance_rate_type IS NULL OR (insurance_rate_type::text = ANY (ARRAY['level_term'::character varying::text, 'decreasing_life'::character varying::text]))", name: "chk_loans_insurance_rate_type"
@@ -2000,7 +2025,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.datetime "updated_at", null: false
     t.integer "year_built"
     t.index ["avm_last_synced_on"], name: "index_properties_on_avm_provider_sync", order: "NULLS FIRST", where: "(avm_provider IS NOT NULL)"
-    t.check_constraint "avm_provider IS NULL OR (avm_provider::text = ANY (ARRAY['rentcast'::character varying, 'realie'::character varying, 'chimnie'::character varying]::text[]))", name: "properties_avm_provider_check"
+    t.check_constraint "avm_provider IS NULL OR (avm_provider::text = ANY (ARRAY['rentcast'::character varying::text, 'realie'::character varying::text, 'chimnie'::character varying::text]))", name: "properties_avm_provider_check"
   end
 
   create_table "provider_request_counts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2107,6 +2132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.decimal "match_confidence", precision: 5, scale: 4
     t.jsonb "match_signals", default: {}, null: false
     t.date "paid_on"
+    t.boolean "pending_review", default: false, null: false
     t.uuid "recurring_occurrence_id", null: false
     t.string "source", null: false
     t.decimal "source_amount", precision: 19, scale: 4
@@ -2117,7 +2143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.index ["recurring_occurrence_id", "entry_id"], name: "idx_recurring_allocations_entry_once", unique: true, where: "(entry_id IS NOT NULL)"
     t.index ["recurring_occurrence_id"], name: "index_recurring_allocations_on_recurring_occurrence_id"
     t.check_constraint "allocated_amount > 0::numeric", name: "chk_recurring_allocations_amount_positive"
-    t.check_constraint "source::text = ANY (ARRAY['auto_matched'::character varying::text, 'user_confirmed'::character varying::text, 'user_created'::character varying::text])", name: "chk_recurring_allocations_source"
+    t.check_constraint "source::text = ANY (ARRAY['auto_matched'::character varying, 'user_confirmed'::character varying, 'user_created'::character varying, 'auto_posted'::character varying]::text[])", name: "chk_recurring_allocations_source"
     t.check_constraint "state::text = ANY (ARRAY['suggested'::character varying::text, 'confirmed'::character varying::text])", name: "chk_recurring_allocations_state"
   end
 
@@ -2131,6 +2157,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
   end
 
   create_table "recurring_occurrences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "auto_posted_at"
     t.datetime "closed_at"
     t.string "closed_source"
     t.datetime "created_at", null: false
@@ -2173,6 +2200,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.string "amount_strategy", default: "fixed", null: false
     t.decimal "amount_tolerance_pct", precision: 5, scale: 2, default: "7.5", null: false
     t.date "anchor_date"
+    t.boolean "auto_post", default: false, null: false
+    t.date "auto_post_from"
     t.boolean "autopay", default: false, null: false
     t.string "bill_type", default: "bill", null: false
     t.date "cancelled_on"
@@ -2300,6 +2329,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.index ["rule_id"], name: "index_rule_conditions_on_rule_id"
   end
 
+  create_table "rule_groups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["family_id", "name"], name: "index_rule_groups_on_family_id_and_name", unique: true
+    t.index ["family_id"], name: "index_rule_groups_on_family_id"
+  end
+
   create_table "rule_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "error_message"
@@ -2326,10 +2365,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.string "name"
     t.integer "position", default: 0, null: false
     t.string "resource_type", null: false
+    t.uuid "rule_group_id"
     t.boolean "stop_processing", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["family_id", "position"], name: "index_rules_on_family_id_and_position"
     t.index ["family_id"], name: "index_rules_on_family_id"
+    t.index ["rule_group_id"], name: "index_rules_on_rule_group_id"
   end
 
   create_table "securities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3023,6 +3064,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
   add_foreign_key "budget_shares", "users", column: "viewer_id"
   add_foreign_key "budgets", "families"
   add_foreign_key "budgets", "users", on_delete: :cascade
+  add_foreign_key "bullion_specs", "families", on_delete: :cascade
+  add_foreign_key "bullion_specs", "securities", on_delete: :cascade
   add_foreign_key "categories", "families"
   add_foreign_key "categorization_comparisons", "families"
   add_foreign_key "categorization_comparisons", "transactions", on_delete: :nullify
@@ -3149,8 +3192,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
   add_foreign_key "rule_actions", "rules"
   add_foreign_key "rule_conditions", "rule_conditions", column: "parent_id"
   add_foreign_key "rule_conditions", "rules"
+  add_foreign_key "rule_groups", "families"
   add_foreign_key "rule_runs", "rules"
   add_foreign_key "rules", "families"
+  add_foreign_key "rules", "rule_groups", on_delete: :nullify
   add_foreign_key "security_prices", "securities"
   add_foreign_key "security_splits", "securities", on_delete: :cascade
   add_foreign_key "sessions", "impersonation_sessions", column: "active_impersonator_session_id", on_delete: :nullify

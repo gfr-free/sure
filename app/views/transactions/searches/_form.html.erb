@@ -27,7 +27,13 @@
       ) %>
 
       <% popover.with_custom_content do %>
-        <%= render "transactions/searches/menu", form: form %>
+        <%# The menu lists every account, category, tag and merchant, so it is
+            fetched when the popover first opens rather than with each page. %>
+        <%= turbo_frame_tag "transaction-filters", src: transactions_search_filters_path(q: @q), loading: :lazy do %>
+          <div class="flex h-80 w-full md:w-[540px] items-center justify-center">
+            <p class="text-sm text-secondary animate-pulse"><%= t(".loading") %></p>
+          </div>
+        <% end %>
       <% end %>
     <% end %>
 

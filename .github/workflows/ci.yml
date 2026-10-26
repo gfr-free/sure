@@ -282,6 +282,9 @@ jobs:
             exit 1
           fi
           printf '%s\n' "${files[@]}"
+          # Unlike test:system, running test files directly skips test:prepare,
+          # which builds the Tailwind CSS the pages need.
+          bin/rails test:prepare
           DISABLE_PARALLELIZATION=true bin/rails test "${files[@]}"
 
       - name: Keep screenshots from failed system tests

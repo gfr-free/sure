@@ -32,17 +32,19 @@ class Tag < ApplicationRecord
       I18n.t(UNTAGGED_NAME_KEY)
     end
 
-    # The given tags that are on at least one transaction, as a hash keyed by
-    # tag id, so a tag list can check each tag without a query per row.
-    def ids_with_transactions(tag_ids)
+    # The given tags that are on at least one of the family's transactions, as
+    # a hash keyed by tag id, so a tag list can check each tag without a query
+    # per row (see Category.ids_with_transactions).
+    def ids_with_transactions(family:, tag_ids:)
       tag_ids = Array(tag_ids).compact
       return {} if tag_ids.empty?
 
-      Transaction.joins(:taggings)
-                 .where(taggings: { tag_id: tag_ids })
-                 .distinct
-                 .pluck("taggings.tag_id")
-                 .index_with(true)
+      family.transactions
+            .joins(:taggings)
+            .where(taggings: { tag_id: tag_ids })
+            .distinct
+            .pluck("taggings.tag_id")
+            .index_with(true)
     end
   end
 

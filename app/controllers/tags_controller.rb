@@ -4,7 +4,7 @@ class TagsController < ApplicationController
 
   def index
     @tags = Current.family.tags.alphabetically.to_a
-    @tag_ids_with_transactions = Tag.ids_with_transactions(@tags.map(&:id))
+    @tag_ids_with_transactions = Tag.ids_with_transactions(family: Current.family, tag_ids: @tags.map(&:id))
 
     render layout: "settings"
   end

@@ -1,0 +1,1 @@
+Fixed in ff066a8. The refreshed rows now call `helpers.in_split_group?(child, "true")`. The parent's drawer has no `grouped` param, but its rows count as grouped whenever the user groups splits, so passing `"true"` keeps the same result while every render path goes through the one helper.

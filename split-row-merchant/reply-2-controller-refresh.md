@@ -1,0 +1,1 @@
+Fixed in ff066a8. `split_rows_changed` now also requires `@entry.may_have_split_rows?`, so the `child_entries` load only runs for split parents. A controller test asserts that a merchant edit on a plain transaction runs no split-row query.

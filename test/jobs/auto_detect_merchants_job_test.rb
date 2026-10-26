@@ -39,4 +39,15 @@ class AutoDetectMerchantsJobTest < ActiveJob::TestCase
     assert_equal @rule_run.id, entry.metadata["rule_run_id"]
     assert_equal [ @transaction.id ], entry.metadata["transaction_ids"]
   end
+
+  test "a sidekiq retry of a failed batch does not count the batch twice" do
+    @rule_run.update!(pending_jobs_count: 2)
+    @family.stubs(:auto_detect_transaction_merchants).raises(StandardError, "Invalid JSON in provider response")
+
+    # Sidekiq retries the same job, so both attempts share one job_id.
+    job = AutoDetectMerchantsJob.new(@family, transaction_ids: [ @transaction.id ], rule_run_id: @rule_run.id)
+    2.times { assert_raises(StandardError) { job.perform_now } }
+
+    assert_equal 1, @rule_run.reload.pending_jobs_count
+  end
 end

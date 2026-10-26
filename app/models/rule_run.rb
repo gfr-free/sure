@@ -32,10 +32,11 @@ class RuleRun < ApplicationRecord
   end
 
   # Thread-safe method to complete a job and update the run
-  def complete_job!(modified_count: 0)
+  def complete_job!(modified_count: 0, job_id: nil)
     with_lock do
-      self.transactions_modified += modified_count
-      self.pending_jobs_count = [ pending_jobs_count - 1, 0 ].max
+      # A redelivered job that already completed must not add its count again.
+      self.transactions_modified += modified_count unless job_completed?(job_id)
+      settle_job(job_id, "completed")
 
       # Preserve a previously recorded failure while still draining pending jobs.
       self.status = "success" if pending_jobs_count <= 0 && !failed?
@@ -44,14 +45,17 @@ class RuleRun < ApplicationRecord
     end
   end
 
-  def fail_job!(error:, source:, transaction_ids: [])
+  def fail_job!(error:, source:, transaction_ids: [], job_id: nil)
     should_log = false
     current_error_message = "#{error.class}: #{error.message}"
 
     with_lock do
+      # A redelivery of a job that already completed has nothing left to fail.
+      next if job_completed?(job_id)
+
       should_log = !failed?
 
-      self.pending_jobs_count = [ pending_jobs_count - 1, 0 ].max
+      settle_job(job_id, "failed")
       self.status = "failed"
       existing_error_messages = error_message.to_s.split("\n").reject(&:blank?)
       self.error_message = (existing_error_messages + [ current_error_message ]).uniq.join("\n")
@@ -63,6 +67,19 @@ class RuleRun < ApplicationRecord
   end
 
   private
+    # Sidekiq retries a failed job under the same job_id, so a job leaves the
+    # pending count only on its first attempt that reports back.
+    def settle_job(job_id, outcome)
+      previous_outcome = settled_jobs[job_id] if job_id.present?
+
+      self.pending_jobs_count = [ pending_jobs_count - 1, 0 ].max if previous_outcome.nil?
+      self.settled_jobs = settled_jobs.merge(job_id => outcome) if job_id.present?
+    end
+
+    def job_completed?(job_id)
+      job_id.present? && settled_jobs[job_id] == "completed"
+    end
+
     def capture_failure_debug_log(error:, source:, transaction_ids:)
       DebugLogEntry.capture(
         category: "rule_run",

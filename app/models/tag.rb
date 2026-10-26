@@ -31,6 +31,19 @@ class Tag < ApplicationRecord
     def untagged_name
       I18n.t(UNTAGGED_NAME_KEY)
     end
+
+    # The given tags that are on at least one transaction, as a hash keyed by
+    # tag id, so a tag list can check each tag without a query per row.
+    def ids_with_transactions(tag_ids)
+      tag_ids = Array(tag_ids).compact
+      return {} if tag_ids.empty?
+
+      Transaction.joins(:taggings)
+                 .where(taggings: { tag_id: tag_ids })
+                 .distinct
+                 .pluck("taggings.tag_id")
+                 .index_with(true)
+    end
   end
 
   # The value the transactions-filter checkbox submits for this tag: the

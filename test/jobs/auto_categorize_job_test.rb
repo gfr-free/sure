@@ -108,4 +108,21 @@ class AutoCategorizeJobTest < ActiveJob::TestCase
     assert_equal [ transaction.id ], categorization_entry.metadata["requested_transaction_ids"]
     assert_equal "No categories available for auto-categorization", rule_run_entry.metadata["error_message"]
   end
+
+  test "a sidekiq retry of a failed batch does not count the batch twice" do
+    @rule_run.update!(pending_jobs_count: 2)
+    transaction_ids = [ SecureRandom.uuid ]
+    @family.stubs(:auto_categorize_transactions).with(transaction_ids)
+      .raises(RuntimeError.new("LLM provider returned HTTP 503")).then.returns(5)
+
+    # Sidekiq retries the same job, so both attempts share one job_id.
+    job = AutoCategorizeJob.new(@family, transaction_ids: transaction_ids, rule_run_id: @rule_run.id)
+    assert_raises(RuntimeError) { job.perform_now }
+    job.perform_now
+
+    @rule_run.reload
+    assert_equal "failed", @rule_run.status
+    assert_equal 1, @rule_run.pending_jobs_count
+    assert_equal 5, @rule_run.transactions_modified
+  end
 end

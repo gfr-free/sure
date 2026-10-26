@@ -95,6 +95,44 @@ class RuleRunTest < ActiveSupport::TestCase
     assert_equal 1, rule_run.transactions_modified
   end
 
+  test "a retried job leaves the pending count only once" do
+    rule_run = create_rule_run(pending_jobs_count: 2)
+    error = RuntimeError.new("LLM provider returned HTTP 503")
+
+    rule_run.fail_job!(error: error, source: "AutoCategorizeJob", job_id: "job-1")
+    rule_run.fail_job!(error: error, source: "AutoCategorizeJob", job_id: "job-1")
+    rule_run.complete_job!(modified_count: 4, job_id: "job-1")
+
+    rule_run.reload
+    assert_equal 1, rule_run.pending_jobs_count
+    assert_equal({ "job-1" => "completed" }, rule_run.settled_jobs)
+    assert_equal 4, rule_run.transactions_modified
+
+    rule_run.complete_job!(modified_count: 2, job_id: "job-2")
+
+    rule_run.reload
+    assert_equal 0, rule_run.pending_jobs_count
+    assert_equal "failed", rule_run.status
+    assert_equal 6, rule_run.transactions_modified
+  end
+
+  test "a redelivered job that already completed counts once" do
+    rule_run = create_rule_run(pending_jobs_count: 2)
+
+    rule_run.complete_job!(modified_count: 3, job_id: "job-1")
+    rule_run.complete_job!(modified_count: 3, job_id: "job-1")
+    assert_no_difference "DebugLogEntry.count" do
+      rule_run.fail_job!(error: RuntimeError.new("late failure"), source: "AutoCategorizeJob", job_id: "job-1")
+    end
+
+    rule_run.reload
+    assert_equal "pending", rule_run.status
+    assert_nil rule_run.error_message
+    assert_equal 1, rule_run.pending_jobs_count
+    assert_equal 3, rule_run.transactions_modified
+    assert_equal({ "job-1" => "completed" }, rule_run.settled_jobs)
+  end
+
   private
     def create_rule_run(status: "pending", pending_jobs_count: 1)
       @rule.rule_runs.create!(

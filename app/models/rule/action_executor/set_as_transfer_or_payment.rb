@@ -1,10 +1,8 @@
 class Rule::ActionExecutor::SetAsTransferOrPayment < Rule::ActionExecutor
+  include Rule::AccountValue
+
   def type
     "select"
-  end
-
-  def options
-    family.accounts.alphabetically.pluck(:name, :id)
   end
 
   def claimed_attributes
@@ -35,6 +33,11 @@ class Rule::ActionExecutor::SetAsTransferOrPayment < Rule::ActionExecutor
   end
 
   private
+    # The rule books entries into the target, so it must be one the viewer may write to.
+    def choosable_accounts
+      Current.user ? family.accounts.writable_by(Current.user) : family.accounts.none
+    end
+
     def build_transfer(target_account, entry)
       missing_transaction = Transaction.new(
         entry: target_account.entries.build(

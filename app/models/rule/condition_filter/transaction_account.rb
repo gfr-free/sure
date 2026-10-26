@@ -1,10 +1,8 @@
 class Rule::ConditionFilter::TransactionAccount < Rule::ConditionFilter
+  include Rule::AccountValue
+
   def type
     "select"
-  end
-
-  def options
-    family.accounts.accessible_by(Current.user).alphabetically.pluck(:name, :id)
   end
 
   def apply(scope, operator, value)

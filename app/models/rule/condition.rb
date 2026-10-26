@@ -21,6 +21,7 @@ class Rule::Condition < ApplicationRecord
   validates_with DatabaseTextValidator, attributes: %i[condition_type operator value]
 
   validate :regex_value_is_safe, if: :regex_value_changed?
+  validate :value_selectable, if: :value_choice_changing?
 
   accepts_nested_attributes_for :sub_conditions, allow_destroy: true
 
@@ -84,8 +85,8 @@ class Rule::Condition < ApplicationRecord
 
   def value_display
     if value.present?
-      if options
-        options.find { |option| option.last == value }&.first
+      if (choices = options)
+        choices.find { |option| option.last == value }&.first
       else
         value
       end
@@ -94,8 +95,10 @@ class Rule::Condition < ApplicationRecord
     end
   end
 
+  # Only a stored value brings along an account the viewer can't access, so a
+  # rejected new choice renders the same as an account that doesn't exist.
   def options
-    filter.options
+    filter.options_for(will_save_change_to_value? ? nil : value)
   end
 
   def operators
@@ -109,6 +112,20 @@ class Rule::Condition < ApplicationRecord
   end
 
   private
+    # The edit form resubmits stored values unchanged; only a new choice is
+    # checked. Text the other validations reject is not probed.
+    def value_choice_changing?
+      return false unless DatabaseTextValidator.acceptable?(value) && value.present?
+
+      new_record? || will_save_change_to_value? || will_save_change_to_condition_type?
+    end
+
+    def value_selectable
+      return unless condition_type.in?(SUPPORTED_CONDITION_TYPES) && rule&.resource_type.in?(Rule::SUPPORTED_RESOURCE_TYPES)
+
+      errors.add(:value, :not_selectable) unless filter.selectable_value?(value)
+    end
+
     # A blank value is already reported by the presence validation, and one the
     # database will not store (a null byte, malformed UTF-8) by
     # DatabaseTextValidator. Neither can be probed: the driver refuses to send it.

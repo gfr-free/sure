@@ -179,6 +179,93 @@ class EnableBankingItem::ImporterErrorHandlingTest < ActiveSupport::TestCase
     assert_not result[:success]
   end
 
+  # Isybank / Intesa Sanpaolo (via Enable Banking) reject any transactions request that
+  # carries transaction_status with 422 WRONG_REQUEST_PARAMETERS. The importer retries
+  # once without the filter and sorts the rows by their own status. (Issue #2918)
+  test "fetch_and_store_transactions retries without status filter when ASPSP rejects BOOK" do
+    @enable_banking_item.update!(aspsp_name: "Isybank")
+    enable_banking_account = create_enable_banking_account
+    @importer.stubs(:determine_sync_start_date).returns(Date.new(2026, 10, 1))
+    @importer.stubs(:include_pending?).returns(false)
+
+    @importer.expects(:fetch_paginated_transactions)
+      .with(enable_banking_account, has_entries(transaction_status: "BOOK"))
+      .raises(wrong_request_parameters_error)
+    @importer.expects(:fetch_paginated_transactions)
+      .with(enable_banking_account, has_entries(transaction_status: nil))
+      .returns([
+        status_transaction("booked_ref", "BOOK"),
+        status_transaction("pending_ref", "PDNG"),
+        status_transaction("cancelled_ref", "CNCL")
+      ])
+
+    result = nil
+    assert_difference "DebugLogEntry.count", 1 do
+      result = @importer.send(:fetch_and_store_transactions, enable_banking_account)
+    end
+
+    assert result[:success]
+    assert_equal [ "booked_ref" ], stored_entry_references(enable_banking_account)
+
+    debug_log = DebugLogEntry.last
+    assert_equal "warn", debug_log.level
+    assert_equal "Isybank", debug_log.metadata["aspsp_name"]
+    assert_equal "WRONG_REQUEST_PARAMETERS", debug_log.metadata.dig("provider_error", "error")
+  end
+
+  test "fetch_and_store_transactions keeps pending rows from the unfiltered fallback without a PDNG fetch" do
+    enable_banking_account = create_enable_banking_account
+    @importer.stubs(:determine_sync_start_date).returns(Date.new(2026, 10, 1))
+    @importer.stubs(:include_pending?).returns(true)
+
+    @importer.expects(:fetch_paginated_transactions)
+      .with(enable_banking_account, has_entries(transaction_status: "BOOK"))
+      .raises(wrong_request_parameters_error)
+    @importer.expects(:fetch_paginated_transactions)
+      .with(enable_banking_account, has_entries(transaction_status: nil))
+      .returns([ status_transaction("booked_ref", "BOOK"), status_transaction("pending_ref", "PDNG") ])
+    @importer.expects(:fetch_paginated_transactions)
+      .with(enable_banking_account, has_entries(transaction_status: "PDNG"))
+      .never
+
+    result = @importer.send(:fetch_and_store_transactions, enable_banking_account)
+
+    assert result[:success]
+    stored = enable_banking_account.reload.raw_transactions_payload.map(&:with_indifferent_access)
+    assert_equal %w[booked_ref pending_ref], stored.map { |tx| tx[:entry_reference] }.sort
+    assert stored.find { |tx| tx[:entry_reference] == "pending_ref" }[:_pending]
+    assert_not stored.find { |tx| tx[:entry_reference] == "booked_ref" }[:_pending]
+  end
+
+  test "fetch_and_store_transactions fails when the unfiltered fallback is rejected too" do
+    enable_banking_account = create_enable_banking_account
+    @importer.stubs(:determine_sync_start_date).returns(Date.new(2026, 10, 1))
+    @importer.stubs(:include_pending?).returns(false)
+
+    @importer.expects(:fetch_paginated_transactions).twice.raises(wrong_request_parameters_error)
+
+    result = @importer.send(:fetch_and_store_transactions, enable_banking_account)
+
+    assert_not result[:success]
+    assert_empty enable_banking_account.reload.raw_transactions_payload.to_a
+  end
+
+  test "fetch_and_store_transactions does not drop the status filter on WRONG_TRANSACTIONS_PERIOD" do
+    enable_banking_account = create_enable_banking_account
+    @importer.stubs(:determine_sync_start_date).returns(Date.new(2026, 10, 1))
+
+    period_error = Provider::EnableBanking::EnableBankingError.new(
+      "Validation error from Enable Banking API: {\"error\":\"WRONG_TRANSACTIONS_PERIOD\"}",
+      :validation_error,
+      response_data: { error: "WRONG_TRANSACTIONS_PERIOD" }
+    )
+    @importer.expects(:fetch_paginated_transactions).once.raises(period_error)
+
+    result = @importer.send(:fetch_and_store_transactions, enable_banking_account)
+
+    assert_not result[:success]
+  end
+
   # Regression for #392: Trade Republic (via Enable Banking) issues a continuation_key
   # on page 1 that its own API then rejects on page 2 as mismatched with
   # transaction_status (422 WRONG_REQUEST_PARAMETERS). Failing outright would discard
@@ -321,4 +408,40 @@ class EnableBankingItem::ImporterErrorHandlingTest < ActiveSupport::TestCase
     assert_not result
     assert_not @enable_banking_item.reload.requires_update?
   end
+
+  private
+
+    def create_enable_banking_account
+      EnableBankingAccount.create!(
+        enable_banking_item: @enable_banking_item,
+        name: "Conto corrente",
+        uid: "hash_status_filter",
+        account_id: "uuid-status-filter",
+        currency: "EUR"
+      )
+    end
+
+    def wrong_request_parameters_error
+      Provider::EnableBanking::EnableBankingError.new(
+        "Validation error from Enable Banking API: {\"error\":\"WRONG_REQUEST_PARAMETERS\"}",
+        :validation_error,
+        response_data: { error: "WRONG_REQUEST_PARAMETERS" }
+      )
+    end
+
+    def status_transaction(entry_reference, status)
+      {
+        entry_reference: entry_reference,
+        transaction_id: "txn_#{entry_reference}",
+        booking_date: "2026-10-10",
+        transaction_amount: { amount: "12.50", currency: "EUR" },
+        credit_debit_indicator: "DBIT",
+        creditor: { name: "Demo Shop #{entry_reference}" },
+        status: status
+      }
+    end
+
+    def stored_entry_references(enable_banking_account)
+      enable_banking_account.reload.raw_transactions_payload.map { |tx| tx.with_indifferent_access[:entry_reference] }.sort
+    end
 end

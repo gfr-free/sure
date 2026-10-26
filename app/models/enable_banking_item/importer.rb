@@ -4,6 +4,7 @@ class EnableBankingItem::Importer
   # Maximum number of pagination requests to prevent infinite loops
   # Enable Banking typically returns ~100 transactions per page, so 100 pages = ~10,000 transactions
   MAX_PAGINATION_PAGES = 100
+  UNFILTERED_FETCH_KEPT_STATUSES = %w[BOOK PDNG].freeze
 
   # Prefer booked ledger balances for net worth/current_balance. Available balances
   # can include an arranged overdraft facility for some ASPSPs (for example CGD PT),
@@ -762,6 +763,26 @@ class EnableBankingItem::Importer
       )
     end
 
+    def capture_status_filter_fallback_debug_log(enable_banking_account, error:)
+      DebugLogEntry.capture(
+        category: "provider_sync_error",
+        level: "warn",
+        message: "ASPSP rejected the BOOK transaction_status filter; retrying the transactions fetch without a status filter",
+        source: self.class.name,
+        provider_key: "enable_banking",
+        family: enable_banking_item.family,
+        account_provider: enable_banking_account.account_provider,
+        metadata: {
+          enable_banking_item_id: enable_banking_item.id,
+          enable_banking_account_id: enable_banking_account.id,
+          uid: enable_banking_account.uid,
+          aspsp_name: enable_banking_item.aspsp_name,
+          error_type: error.error_type.to_s,
+          provider_error: sanitized_provider_error(error)
+        }
+      )
+    end
+
     def sanitized_error_message(error)
       return error.message unless error.is_a?(Provider::EnableBanking::EnableBankingError)
 
@@ -808,12 +829,7 @@ class EnableBankingItem::Importer
       start_date = determine_sync_start_date(enable_banking_account)
       include_pending = include_pending?
 
-      all_transactions = fetch_paginated_transactions(
-        enable_banking_account,
-        start_date: start_date,
-        transaction_status: "BOOK",
-        psu_headers: enable_banking_item.build_psu_headers
-      )
+      all_transactions, status_filter_supported = fetch_booked_transactions(enable_banking_account, start_date: start_date)
 
       if include_pending
         # Tag any transaction in all_transactions (fetched as BOOK but actually PDNG or an unidentified hold) with _pending: true
@@ -832,7 +848,9 @@ class EnableBankingItem::Importer
       end
 
       pending_transactions = []
-      if include_pending
+      # Without a working status filter the fallback fetch already returned pending
+      # rows (tagged above), and a PDNG request would be rejected the same way.
+      if include_pending && status_filter_supported
         # Also fetch pending transactions (visible for 1-3 days before they become BOOK) if setting is enabled.
         # The BOOK fetch above used the same date_from/date_to and succeeded, so any 422 raised here is
         # necessarily about the transaction_status param. Different ASPSPs reject it with different bodies
@@ -1023,6 +1041,43 @@ class EnableBankingItem::Importer
       direction = tx[:credit_debit_indicator]
 
       [ date, amount, currency, creditor, debtor, remittance_key, tid, direction ].map(&:to_s).join("\x1F")
+    end
+
+    # Some ASPSPs (e.g. Isybank / Intesa Sanpaolo) reject every transactions request
+    # that carries transaction_status with 422 WRONG_REQUEST_PARAMETERS. Retry once
+    # without the filter and keep only the rows a BOOK or PDNG fetch could have
+    # returned (cancelled, rejected or scheduled rows must not become entries); the
+    # caller then separates booked and pending rows by their own status.
+    # Returns [transactions, status_filter_supported].
+    # WRONG_TRANSACTIONS_PERIOD is about the date range, not the filter, so it is
+    # left to the provider's date retry ladder and propagates unchanged.
+    def fetch_booked_transactions(enable_banking_account, start_date:)
+      psu_headers = enable_banking_item.build_psu_headers
+
+      transactions = fetch_paginated_transactions(
+        enable_banking_account,
+        start_date: start_date,
+        transaction_status: "BOOK",
+        psu_headers: psu_headers
+      )
+      [ transactions, true ]
+    rescue Provider::EnableBanking::EnableBankingError => e
+      raise unless e.error_type == :validation_error && !e.wrong_transactions_period?
+
+      Rails.logger.warn "EnableBankingItem::Importer - ASPSP rejected BOOK transaction_status for account #{enable_banking_account.uid}, retrying without status filter. #{e.message}"
+      capture_status_filter_fallback_debug_log(enable_banking_account, error: e)
+
+      transactions = fetch_paginated_transactions(
+        enable_banking_account,
+        start_date: start_date,
+        transaction_status: nil,
+        psu_headers: psu_headers
+      )
+      transactions = transactions.select do |tx|
+        status = tx.with_indifferent_access[:status]
+        status.blank? || UNFILTERED_FETCH_KEPT_STATUSES.include?(status)
+      end
+      [ transactions, false ]
     end
 
     class PaginationTruncatedError < StandardError; end

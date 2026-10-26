@@ -85,8 +85,8 @@ class Rule::Condition < ApplicationRecord
 
   def value_display
     if value.present?
-      if options
-        options.find { |option| option.last == value }&.first
+      if (choices = options)
+        choices.find { |option| option.last == value }&.first
       else
         value
       end

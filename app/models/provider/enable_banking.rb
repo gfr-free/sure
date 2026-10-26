@@ -293,11 +293,13 @@ class Provider::EnableBanking
     end
 
     def extract_private_key(certificate_pem)
-      # Extract private key from PEM certificate
-      OpenSSL::PKey::RSA.new(certificate_pem)
-    rescue OpenSSL::PKey::RSAError => e
+      key = Provider::PrivateKeyPem.parse(certificate_pem)
+      raise EnableBankingError.new("Invalid private key in certificate: RS256 signing needs an RSA key", :invalid_certificate) unless key.is_a?(OpenSSL::PKey::RSA)
+
+      key
+    rescue Provider::PrivateKeyPem::Error => e
       Rails.logger.error "Enable Banking: Failed to parse private key: #{e.message}"
-      raise EnableBankingError.new("Invalid private key in certificate: #{e.message}", :invalid_certificate)
+      raise EnableBankingError.new("Invalid private key in certificate: #{e.message}. Paste the private key file (BEGIN PRIVATE KEY) from Enable Banking.", :invalid_certificate)
     end
 
     def generate_jwt

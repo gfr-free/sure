@@ -131,18 +131,23 @@ class Provider::Coinbase
       results.first(limit)
     end
 
-    # Parses a PEM EC private key, normalizing literal \n sequences to real
-    # newlines. Coinbase CDP keys are often stored or pasted as a single-line
-    # string with escaped newlines (e.g. copied directly from the JSON download
-    # file). Both forms are accepted.
+    # Parses the PEM EC private key of a CDP key, however it was pasted (see
+    # Provider::PrivateKeyPem). ES256 signing needs a P-256 key; CDP's default
+    # Ed25519 secrets are a bare base64 string and cannot be used here.
     def parse_ec_private_key(pem)
-      OpenSSL::PKey::EC.new(pem.to_s.gsub('\n', "\n"))
+      key = Provider::PrivateKeyPem.parse(pem)
+      unless key.is_a?(OpenSSL::PKey::EC) && key.group.curve_name == "prime256v1"
+        raise AuthenticationError, "Coinbase API secret must be an ECDSA (P-256) private key. Create the API key with the ECDSA signature algorithm."
+      end
+
+      key
+    rescue Provider::PrivateKeyPem::Error => e
+      raise AuthenticationError, "Coinbase API secret is not a valid ECDSA private key (#{e.message}). Paste the full key including the BEGIN and END lines, and create the API key with the ECDSA signature algorithm."
     end
 
     # Generate JWT token for CDP API authentication.
     # Uses ES256 (ECDSA P-256) signing — matches the key format Coinbase CDP
-    # issues. api_secret must be a PEM EC private key
-    # (-----BEGIN EC PRIVATE KEY-----) either with real newlines or literal \n.
+    # issues for ECDSA keys. api_secret must be a PEM EC private key.
     def generate_jwt(method, path)
       private_key = parse_ec_private_key(api_secret)
 

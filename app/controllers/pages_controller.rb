@@ -206,7 +206,7 @@ class PagesController < ApplicationController
             partial: "pages/dashboard/outflows_donut",
             layout: section_layout("outflows_donut"),
             locals: { outflows_data: outflows_data, period: @period },
-            visible: @accounts.any? && outflows_data[:categories].present?,
+            visible: @accounts.any? && (outflows_data[:categories].present? || outflows_data[:offset_categories].present?),
             collapsible: true
           }
         },
@@ -551,11 +551,24 @@ class PagesController < ApplicationController
             percentage: ct.weight.round(1),
             color: ct.category.color.presence || Category::UNCATEGORIZED_COLOR,
             icon: ct.category.lucide_icon,
-            clickable: !ct.category.other_investments?
+            clickable: !ct.category.other_investments?,
+            transactions_path: outflows_category_transactions_path(ct.category)
           }
         end
 
-      { categories: categories, total: total.to_f.round(2), currency: net_totals.currency, currency_symbol: currency_symbol }
+      offset_categories = net_totals.offset_expense_categories.sort_by(&:name).map do |category|
+        {
+          name: category.name,
+          clickable: !category.other_investments?,
+          transactions_path: outflows_category_transactions_path(category)
+        }
+      end
+
+      { categories: categories, offset_categories: offset_categories, total: total.to_f.round(2), currency: net_totals.currency, currency_symbol: currency_symbol }
+    end
+
+    def outflows_category_transactions_path(category)
+      transactions_path(q: { categories: [ category.filter_value ], start_date: @period.date_range.first, end_date: @period.date_range.last })
     end
 
     def money_flow_month_param

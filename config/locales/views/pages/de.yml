@@ -59,6 +59,9 @@ de:
         categories: "Kategorien"
         value: "Wert"
         weight: "Gewicht"
+        offset_categories_html:
+          one: "%{categories} wird nicht angezeigt: Erstattungen oder Einnahmen in dieser Kategorie decken die Ausgaben."
+          other: "%{categories} werden nicht angezeigt: Erstattungen oder Einnahmen in diesen Kategorien decken die Ausgaben."
       investment_summary:
         title: Investments
         total_return: "Gesamtrendite"

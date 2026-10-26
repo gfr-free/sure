@@ -84,6 +84,9 @@ class IncomeStatement
     all_keys = (expense_by_cat.keys + income_by_cat.keys).uniq
     raw_expense_categories = []
     raw_income_categories = []
+    # Categories with spending that refunds/income cancel out. They drop off the
+    # expense side, so callers can explain why they are missing.
+    offset_expense_categories = []
 
     all_keys.each do |cat|
       exp_ct = expense_by_cat[cat]
@@ -98,6 +101,8 @@ class IncomeStatement
       elsif net < 0
         raw_income_categories << { category: category, total: net.abs }
       end
+
+      offset_expense_categories << category if net <= 0 && exp_total > 0
     end
 
     total_net_expense = raw_expense_categories.sum { |r| r[:total] }
@@ -118,6 +123,7 @@ class IncomeStatement
       net_income_categories: net_income_categories,
       total_net_expense: total_net_expense,
       total_net_income: total_net_income,
+      offset_expense_categories: offset_expense_categories,
       currency: family.currency
     )
   end
@@ -197,7 +203,7 @@ class IncomeStatement
     ScopeTotals = Data.define(:transactions_count, :income_money, :expense_money, :invested_money)
     PeriodTotal = Data.define(:classification, :total, :currency, :category_totals)
     CategoryTotal = Data.define(:category, :total, :currency, :weight)
-    NetCategoryTotals = Data.define(:net_expense_categories, :net_income_categories, :total_net_expense, :total_net_income, :currency)
+    NetCategoryTotals = Data.define(:net_expense_categories, :net_income_categories, :total_net_expense, :total_net_income, :offset_expense_categories, :currency)
 
     def categories
       # Keep Category#subcategory?'s parent-based orphan semantics without lazy loads.

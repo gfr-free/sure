@@ -1,0 +1,9 @@
+---
+en:
+  activerecord:
+    errors:
+      models:
+        invitation:
+          attributes:
+            email:
+              already_registered: already belongs to an account

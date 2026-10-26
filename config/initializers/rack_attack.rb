@@ -143,16 +143,15 @@ class Rack::Attack
     credential_guess_email.call(request) if request.post? && credential_guess_path.call(request, "/api/v1/auth/sso_link")
   end
 
-  # Self-service password change checks the current password
-  # (password_challenge) for a signed-in user, so there's no email param. The
-  # signed session cookie leads to the user whose password is being checked
-  # (the impersonated user while an impersonation is in progress, like
-  # Current.user), so neither rotating IPs nor holding several sessions buys
-  # more guesses. Only PATCH/PUT /password pays for the lookup, and it is
-  # memoized on the request so both throttles share it.
-  password_change_user = ->(request) do
-    request.env.fetch("sure.password_change_user") do
-      request.env["sure.password_change_user"] = begin
+  # The signed-in user behind a request, keyed like Current.user: the signed
+  # session cookie leads to the session's owner, or to the impersonated user
+  # while an impersonation is in progress. Keying a throttle by it means
+  # neither rotating IPs nor holding several sessions buys more attempts.
+  # Only requests on a throttled path pay for the lookup, and it is memoized
+  # on the request so every throttle on that path shares it.
+  session_user = ->(request) do
+    request.env.fetch("sure.session_user") do
+      request.env["sure.session_user"] = begin
         session_id = ActionDispatch::Request.new(request.env).cookie_jar.signed[:session_token]
         # Same check as Authentication#find_session_by_cookie: a session whose
         # owner was deactivated is rejected there, so it isn't counted here.
@@ -168,6 +167,10 @@ class Rack::Attack
     end
   end
 
+  # Self-service password change checks the current password
+  # (password_challenge) for a signed-in user, so there's no email param; the
+  # user whose password is being checked is the discriminator instead.
+
   # Rack::MethodOverride runs earlier in the stack, so the form's
   # `_method=patch` already shows up as PATCH here.
   password_change_request = ->(request) do
@@ -177,11 +180,52 @@ class Rack::Attack
   # Requests without a valid session never reach the password check (they're
   # redirected to sign in), so they don't spend the shared per-IP budget.
   throttle("password_change/ip", limit: 10, period: 1.minute) do |request|
-    request.ip if password_change_request.call(request) && password_change_user.call(request)
+    request.ip if password_change_request.call(request) && session_user.call(request)
   end
 
   throttle("password_change/user", limit: 10, period: 1.minute) do |request|
-    password_change_user.call(request) if password_change_request.call(request)
+    session_user.call(request) if password_change_request.call(request)
+  end
+
+  # Trade Republic web login: the authenticator code submitted to
+  # complete_login is checked against Trade Republic, and every initiate call
+  # sends the stored phone number and PIN there and pushes a confirmation to
+  # the user's phone. Unbounded, a signed-in attacker could guess codes or
+  # flood Trade Republic until it locks the account. The polls carry no
+  # credential, but each one is a Trade Republic round trip; the browser
+  # polls once a second (faster just before a QR code rotates) for up to two
+  # minutes, so they get a looser budget. Requests without a valid session
+  # are redirected before reaching Trade Republic and spend neither budget.
+  trade_republic_login_action = ->(request) do
+    next unless request.post?
+
+    request.path.match(
+      %r{\A/trade_republic_items/[^/.?]+/(initiate_login|complete_login|initiate_qr_login|poll_login|poll_qr_login)(?:\.[^./?]+)?\z}
+    )&.captures&.first
+  end
+
+  trade_republic_login_attempt = ->(request) do
+    trade_republic_login_action.call(request).in?(%w[initiate_login complete_login initiate_qr_login])
+  end
+
+  trade_republic_login_poll = ->(request) do
+    trade_republic_login_action.call(request).in?(%w[poll_login poll_qr_login])
+  end
+
+  throttle("trade_republic_login/ip", limit: 10, period: 1.minute) do |request|
+    request.ip if trade_republic_login_attempt.call(request) && session_user.call(request)
+  end
+
+  throttle("trade_republic_login/user", limit: 10, period: 1.minute) do |request|
+    session_user.call(request) if trade_republic_login_attempt.call(request)
+  end
+
+  throttle("trade_republic_login_poll/ip", limit: 180, period: 1.minute) do |request|
+    request.ip if trade_republic_login_poll.call(request) && session_user.call(request)
+  end
+
+  throttle("trade_republic_login_poll/user", limit: 180, period: 1.minute) do |request|
+    session_user.call(request) if trade_republic_login_poll.call(request)
   end
 
   # FinanceKit publisher endpoints belong to this section: both the upload and

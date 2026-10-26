@@ -40,6 +40,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
       api_login/ip api_login/email
       api_sso_link/ip api_sso_link/email
       password_change/ip password_change/user
+      trade_republic_login/ip trade_republic_login/user
     ].each do |name|
       assert_includes throttles, name, "#{name} should have rate limiting configured"
     end
@@ -243,6 +244,65 @@ class RackAttackTest < ActionDispatch::IntegrationTest
 
       second.patch password_path, params: params, env: { "REMOTE_ADDR" => "198.51.100.250" }
       assert_equal 429, second.response.status
+    end
+  end
+
+  test "trade republic login throttles split login attempts from polls and key them by ip and signed-in user" do
+    attempt_ip_block = Rack::Attack.throttles["trade_republic_login/ip"].block
+    attempt_user_block = Rack::Attack.throttles["trade_republic_login/user"].block
+    poll_ip_block = Rack::Attack.throttles["trade_republic_login_poll/ip"].block
+    poll_user_block = Rack::Attack.throttles["trade_republic_login_poll/user"].block
+
+    admin = users(:family_admin)
+    session = admin.sessions.create!
+    item = trade_republic_items(:configured_item)
+    user_key = "user:#{admin.id}"
+
+    %w[initiate_login complete_login initiate_qr_login].each do |action|
+      request = throttle_request("/trade_republic_items/#{item.id}/#{action}", method: "POST", session_cookie: session.id)
+      assert_equal "203.0.113.5", attempt_ip_block.call(request), "#{action} should count toward the ip throttle"
+      assert_equal user_key, attempt_user_block.call(request), "#{action} should count toward the user throttle"
+      assert_nil poll_user_block.call(request), "#{action} must not spend the poll budget"
+    end
+
+    %w[poll_login poll_qr_login].each do |action|
+      request = throttle_request("/trade_republic_items/#{item.id}/#{action}", method: "POST", session_cookie: session.id)
+      assert_equal "203.0.113.5", poll_ip_block.call(request), "#{action} should count toward the poll ip throttle"
+      assert_equal user_key, poll_user_block.call(request), "#{action} should count toward the poll user throttle"
+      assert_nil attempt_user_block.call(request), "polling must not spend the login attempt budget"
+    end
+
+    format_request = throttle_request("/trade_republic_items/#{item.id}/complete_login.json", method: "POST", session_cookie: session.id)
+    assert_equal user_key, attempt_user_block.call(format_request)
+
+    cancel_request = throttle_request("/trade_republic_items/#{item.id}/cancel_qr_login", method: "POST", session_cookie: session.id)
+    assert_nil attempt_user_block.call(cancel_request)
+    assert_nil poll_user_block.call(cancel_request)
+
+    get_request = throttle_request("/trade_republic_items/#{item.id}/complete_login", method: "GET", session_cookie: session.id)
+    assert_nil attempt_ip_block.call(get_request)
+
+    no_session_request = throttle_request("/trade_republic_items/#{item.id}/complete_login", method: "POST")
+    assert_nil attempt_user_block.call(no_session_request), "a missing session cookie must not produce a throttle key"
+    assert_nil attempt_ip_block.call(no_session_request), "a missing session cookie must not spend the ip budget"
+  end
+
+  test "trade republic login throttle blocks a signed-in session that rotates ips" do
+    sign_in users(:family_admin)
+    item = trade_republic_items(:requires_update_item)
+
+    freeze_time
+
+    with_rack_attack_enabled do
+      10.times do |i|
+        post complete_login_trade_republic_item_path(item), params: { trade_republic_login: { code: "0000" } },
+          env: { "REMOTE_ADDR" => "198.51.100.#{i + 1}" }
+        assert_response :see_other
+      end
+
+      post complete_login_trade_republic_item_path(item), params: { trade_republic_login: { code: "0000" } },
+        env: { "REMOTE_ADDR" => "198.51.100.99" }
+      assert_response :too_many_requests
     end
   end
 

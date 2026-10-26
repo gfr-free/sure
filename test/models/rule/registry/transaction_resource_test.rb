@@ -88,6 +88,13 @@ class Rule::Registry::TransactionResourceTest < ActiveSupport::TestCase
     assert_instance_of Rule::ActionExecutor::ExcludeTransaction, rule.actions.first.executor
   end
 
+  test "an existing auto action is looked up without checking the providers" do
+    rule = build_rule(action_type: "auto_categorize")
+    @family.expects(:resolved_categorization_provider).never
+
+    assert_instance_of Rule::ActionExecutor::AutoCategorize, rule.actions.first.executor
+  end
+
   private
     def build_rule(action_type:)
       @family.rules.create!(

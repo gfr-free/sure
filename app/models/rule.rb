@@ -294,10 +294,10 @@ class Rule < ApplicationRecord
     displayable_conditions.first
   end
 
-  # The action the rule list shows: the one `actions.first` loads (lowest id),
-  # picked from preloaded actions without a query.
+  # The action the rule list shows: the saved one `actions.first` loads (lowest
+  # id), picked from preloaded actions without a query.
   def displayed_action
-    actions.min_by(&:id)
+    actions.select(&:persisted?).min_by(&:id)
   end
 
   # Option lists (categories, merchants, accounts) that conditions and actions
@@ -314,6 +314,11 @@ class Rule < ApplicationRecord
   def self.share_option_lists(rules)
     option_lists = {}
     rules.each { |rule| rule.option_lists = option_lists }
+  end
+
+  def reload(*)
+    @option_lists = nil
+    super
   end
 
   def additional_displayable_conditions_count

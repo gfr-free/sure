@@ -77,9 +77,9 @@ class Rule::Registry::TransactionResource < Rule::Registry
     def offered?(executor_class)
       case executor_class.key
       when "auto_categorize"
-        auto_categorization_enabled? || existing_action?("auto_categorize")
+        existing_action?("auto_categorize") || auto_categorization_enabled?
       when "auto_detect_merchants"
-        auto_merchant_detection_enabled? || existing_action?("auto_detect_merchants")
+        existing_action?("auto_detect_merchants") || auto_merchant_detection_enabled?
       else
         true
       end

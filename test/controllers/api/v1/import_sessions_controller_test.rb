@@ -110,6 +110,8 @@ class Api::V1::ImportSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "API Groceries", transaction.category.name
     assert_equal "API Market", transaction.merchant.name
     assert_equal [ "API Weekly" ], transaction.tags.map(&:name)
+    assert_equal [ @api_key.user ], session.imports.map(&:user).uniq
+    assert_equal @api_key.user, @family.accounts.find_by!(name: "API Session Checking").owner
   end
 
   test "rejects replayed chunk with different content" do

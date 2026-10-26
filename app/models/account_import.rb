@@ -12,7 +12,8 @@ class AccountImport < Import
           balance: row.amount.to_d,
           currency: row.currency,
           accountable: accountable_class.new,
-          import: self
+          import: self,
+          owner: account_owner
         )
 
         account.save!

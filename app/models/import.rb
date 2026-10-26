@@ -82,6 +82,7 @@ class Import < ApplicationRecord
   belongs_to :account, optional: true
   belongs_to :account_statement, optional: true
   belongs_to :import_session, optional: true
+  belongs_to :user, optional: true
 
   before_validation :set_default_number_format
   before_validation :ensure_utf8_encoding
@@ -241,6 +242,13 @@ class Import < ApplicationRecord
       best = viable.max_by { |s| [ s[:parsed], s[:reasonable] ] }
       best[:format]
     end
+  end
+
+  # Accounts this import creates belong to the user who started it. Without a
+  # user (older imports) or once that user has left the family, Account falls
+  # back to its default owner.
+  def account_owner
+    user if user&.family_id == family_id
   end
 
   def publish_later

@@ -281,6 +281,7 @@ class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
 
     created_import = Import.find(json_response["data"]["id"])
     assert_equal csv_content, created_import.raw_file_str
+    assert_equal @user, created_import.user
   end
 
   test "should create import and generate rows when configured" do
@@ -366,6 +367,7 @@ class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
     assert import.ndjson_file.attached?
     assert_equal 1, import.rows_count
     assert_equal "pending", import.status
+    assert_equal @user, import.user
   end
 
   test "should require authentication for Sure import" do

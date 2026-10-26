@@ -70,6 +70,22 @@ class TransactionImportTest < ActiveSupport::TestCase
     assert_equal "complete", @import.status
   end
 
+  test "accounts created from the account mapping belong to the importing user" do
+    @import.update!(
+      user: users(:family_member),
+      raw_file_str: "date,name,amount,account\n01/01/2024,Txn1,100,New Imported Account\n",
+      date_col_label: "date",
+      amount_col_label: "amount",
+      date_format: "%m/%d/%Y"
+    )
+    @import.generate_rows_from_csv
+    mapping = @import.mappings.create! key: "New Imported Account", create_when_empty: true, type: "Import::AccountMapping"
+
+    mapping.create_mappable!
+
+    assert_equal users(:family_member), mapping.reload.mappable.owner
+  end
+
   test "imports transactions with separate type column for signage convention" do
     import = <<~CSV
       date,amount,amount_type

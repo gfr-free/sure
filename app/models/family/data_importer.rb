@@ -316,7 +316,7 @@ class Family::DataImporter
             end
           end
 
-          account = @family.accounts.build(accountable: accountable)
+          account = @family.accounts.build(accountable: accountable, owner: @import&.account_owner)
         end
 
         account.assign_attributes(

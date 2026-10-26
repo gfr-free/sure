@@ -112,6 +112,7 @@ class ImportsController < ApplicationController
     import = Current.family.imports.create!(
       type: type,
       account: account,
+      user: Current.user,
       date_format: Current.family.date_format,
     )
 
@@ -326,7 +327,7 @@ class ImportsController < ApplicationController
         return
       end
 
-      import = Current.family.imports.create!(type: "SureImport")
+      import = Current.family.imports.create!(type: "SureImport", user: Current.user)
       import.ndjson_file.attach(
         io: StringIO.new(content),
         filename: file.original_filename,

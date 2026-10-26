@@ -120,6 +120,21 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to import_upload_url(Import.all.ordered.first)
   end
 
+  test "records the importing user on CSV and Sure imports" do
+    sign_in member = users(:family_member)
+
+    post imports_url, params: { import: { type: "AccountImport" } }
+    assert_equal member, Import.ordered.first.user
+
+    ndjson_file = Rack::Test::UploadedFile.new(
+      StringIO.new({ type: "Account", data: { id: "account_1", name: "Checking" } }.to_json),
+      "application/x-ndjson",
+      original_filename: "all.ndjson"
+    )
+    post imports_url, params: { import: { type: "SureImport", import_file: ndjson_file } }
+    assert_equal member, SureImport.ordered.first.user
+  end
+
   test "create with an empty request body redirects back with an alert" do
     assert_no_difference "Import.count" do
       post imports_url

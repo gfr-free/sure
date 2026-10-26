@@ -52,20 +52,7 @@ class BudgetCategoryTest < ActiveSupport::TestCase
   # A reservation that silently omits an obligation reads as money still free to
   # spend, so one with no rate is counted and reported instead of skipped.
   test "bills_reserved counts an obligation it cannot convert" do
-    foreign = @family.recurring_transactions.create!(
-      name: "Tokyo storage", account: accounts(:depository), amount: 50_000,
-      currency: "JPY", bill_type: "bill", category_id: @parent_category.id,
-      expected_day_of_month: 3, anchor_date: @budget.start_date,
-      last_occurrence_date: @budget.start_date, next_expected_date: @budget.start_date,
-      status: "active", manual: true
-    )
-    # Creating a series generates its own occurrences; clear them so this test
-    # asserts against exactly one known row.
-    foreign.recurring_occurrences.destroy_all
-    foreign.recurring_occurrences.create!(
-      family: @family, original_due_on: @budget.start_date + 3,
-      due_on: @budget.start_date + 3, currency: "JPY", expected_amount: 50_000
-    )
+    create_bill_due_this_budget(category: @parent_category, amount: 50_000, currency: "JPY")
     assert_equal 0, ExchangeRate.where(from_currency: "JPY", to_currency: "USD").count,
       "the scenario depends on there being no rate to find"
 
@@ -80,39 +67,31 @@ class BudgetCategoryTest < ActiveSupport::TestCase
     # total converts.
     ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", rate: 1.1,
                          date: Date.current)
-    eur = @family.recurring_transactions.create!(
-      name: "Berlin storage", account: accounts(:depository), amount: 100,
-      currency: "EUR", bill_type: "bill", category_id: @parent_category.id,
-      expected_day_of_month: 3, anchor_date: @budget.start_date,
-      last_occurrence_date: @budget.start_date, next_expected_date: @budget.start_date,
-      status: "active", manual: true
-    )
-    eur.recurring_occurrences.destroy_all
-    eur.recurring_occurrences.create!(
-      family: @family, original_due_on: @budget.start_date + 3,
-      due_on: @budget.start_date + 3, currency: "EUR", expected_amount: 100
-    )
+    create_bill_due_this_budget(category: @parent_category, amount: 100, currency: "EUR")
 
     assert_equal 110, @parent_budget_category.bills_reserved.amount
     assert_equal 0, @parent_budget_category.bills_reserved_unconvertible_count
   end
 
   test "bills_reserved sums obligations in the budget currency" do
-    bill = @family.recurring_transactions.create!(
-      name: "Groceries plan", account: accounts(:depository), amount: 120,
-      currency: "USD", bill_type: "bill", category_id: @parent_category.id,
-      expected_day_of_month: 3, anchor_date: @budget.start_date,
-      last_occurrence_date: @budget.start_date, next_expected_date: @budget.start_date,
-      status: "active", manual: true
-    )
-    bill.recurring_occurrences.destroy_all
-    bill.recurring_occurrences.create!(
-      family: @family, original_due_on: @budget.start_date + 3,
-      due_on: @budget.start_date + 3, currency: "USD", expected_amount: 120
-    )
+    create_bill_due_this_budget(category: @parent_category, amount: 120)
 
     assert_equal 120, @parent_budget_category.bills_reserved.amount
     assert_equal 0, @parent_budget_category.bills_reserved_unconvertible_count
+  end
+
+  test "bills_reserved reads every category's bills with one pair of queries" do
+    create_bill_due_this_budget(category: @parent_category, amount: 120)
+    create_bill_due_this_budget(category: @subcategory_with_limit, amount: 30)
+    budget_categories = Budget.find(@budget.id).budget_categories.to_a
+
+    reserved = assert_queries_count(2) do
+      budget_categories.to_h { |bc| [ bc.category_id, bc.bills_reserved.amount ] }
+    end
+
+    assert_equal 120, reserved[@parent_category.id]
+    assert_equal 30, reserved[@subcategory_with_limit.id]
+    assert_equal 0, reserved[@subcategory_inheriting.id]
   end
 
   test "subcategory with zero budget inherits from parent" do
@@ -569,6 +548,24 @@ class BudgetCategoryTest < ActiveSupport::TestCase
 
     BudgetCategory.move_allocation!(from: @parent_budget_category, to: destination, amount: 10)
   end
+
+  private
+    # Creating a series generates its own occurrences; they are cleared so each
+    # test asserts against exactly one known occurrence in the budget month.
+    def create_bill_due_this_budget(category:, amount:, currency: "USD")
+      bill = @family.recurring_transactions.create!(
+        name: "Plan #{category.name}", account: accounts(:depository), amount: amount,
+        currency: currency, bill_type: "bill", category_id: category.id,
+        expected_day_of_month: 3, anchor_date: @budget.start_date,
+        last_occurrence_date: @budget.start_date, next_expected_date: @budget.start_date,
+        status: "active", manual: true
+      )
+      bill.recurring_occurrences.destroy_all
+      bill.recurring_occurrences.create!(
+        family: @family, original_due_on: @budget.start_date + 3,
+        due_on: @budget.start_date + 3, currency: currency, expected_amount: amount
+      )
+    end
 end
 
 class BudgetCategoryRolloverTest < ActiveSupport::TestCase

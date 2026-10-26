@@ -100,6 +100,7 @@ class Family::DataImporter
     @pending_replacements = {}
     @created_accounts = []
     @created_entries = []
+    @synthesized_opening_balances = []
     @summary = Hash.new { |hash, key| hash[key] = empty_summary_bucket }
   end
 
@@ -130,6 +131,7 @@ class Family::DataImporter
       import_trades(records["Trade"] || [])
       import_holdings(records["Holding"] || [])
       import_valuations(records["Valuation"] || [])
+      align_synthesized_opening_balances!
       import_budgets(records["Budget"] || [])
       import_budget_categories(records["BudgetCategory"] || [])
       import_rules(records["Rule"] || [])
@@ -342,7 +344,11 @@ class Family::DataImporter
             balance: data["balance"].to_d,
             date: opening_balance_date_for(old_id, data)
           )
-          log_failed_opening_balance_import(account, old_id, result) unless result.success?
+          if result.success?
+            @synthesized_opening_balances << account if derive_opening_balance?(old_id, data)
+          else
+            log_failed_opening_balance_import(account, old_id, result)
+          end
         end
 
         map_source!(:accounts, old_id, account)
@@ -1288,6 +1294,50 @@ class Family::DataImporter
 
       max_allowed_date = @oldest_import_entry_dates_by_account[old_id]&.prev_day
       [ explicit_date, max_allowed_date ].compact.min
+    end
+
+    # The exported balance already includes the account's activity, so it can
+    # only open the account when nothing in this file moves it. A file without
+    # an explicit opening date gets its opening balance derived instead, once
+    # the account's entries are in. Chunked sessions are left alone: a later
+    # chunk can still add activity this run cannot see.
+    def derive_opening_balance?(old_id, data)
+      @import_session.blank? &&
+        @oldest_import_entry_dates_by_account.key?(old_id) &&
+        (data["opening_balance_date"] || data["opening_balance_on"]).blank?
+    end
+
+    def align_synthesized_opening_balances!
+      @synthesized_opening_balances.each do |account|
+        opening_balance = derived_opening_balance(account)
+        next if opening_balance.nil?
+
+        Account::OpeningBalanceManager.new(account).set_opening_balance(balance: opening_balance)
+      end
+    end
+
+    # Walks back from the first balance the file states (its first valuation,
+    # or else the exported balance) over the transactions up to that date.
+    # Only for accounts whose balance moves by transactions alone; investment
+    # balances also depend on holdings, which the first sync rebuilds.
+    def derived_opening_balance(account)
+      return unless account.balance_type == :cash || account.accountable_type == "Loan"
+
+      first_valuation = account.entries.valuations
+        .where.not(entryable_id: account.valuations.opening_anchor.select(:id))
+        .order(:date, :id)
+        .first
+
+      flows = account.entries.excluding_pending.excluding_split_parents.where(entryable_type: "Transaction")
+      flows = flows.where(date: ..first_valuation.date) if first_valuation
+
+      # Converting other currencies needs rates the first sync loads.
+      return if flows.where.not(currency: account.currency).exists?
+
+      known_balance = first_valuation&.amount || account.balance
+      net_outflows = flows.sum(:amount)
+
+      account.asset? ? known_balance + net_outflows : known_balance - net_outflows
     end
 
     def log_failed_opening_balance_import(account, old_id, result)

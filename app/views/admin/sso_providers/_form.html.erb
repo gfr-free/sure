@@ -92,15 +92,18 @@
 
     <div data-oidc-field class="<%= "hidden" unless sso_provider.strategy == "openid_connect" %>">
       <label class="block text-sm font-medium text-primary mb-1"><%= t("admin.sso_providers.form.redirect_uri_label") %></label>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 bg-surface px-3 py-2 rounded text-sm text-secondary overflow-x-auto"
-              data-admin-sso-form-target="callbackUrl"><%= "#{request.base_url}/auth/#{sso_provider.name.presence || 'PROVIDER_NAME'}/callback" %></code>
-        <button type="button"
-                data-action="click->admin-sso-form#copyCallback"
-                class="p-2 text-secondary hover:text-primary shrink-0"
-                title="<%= t("admin.sso_providers.form.copy_button") %>">
-          <%= icon "copy", class: "w-4 h-4" %>
-        </button>
+      <div class="flex items-center gap-2" data-controller="clipboard" data-clipboard-copied-text-value="<%= t("admin.sso_providers.form.copied") %>">
+        <code class="flex-1 min-w-0 break-all bg-surface px-3 py-2 rounded text-sm text-secondary"
+              data-admin-sso-form-target="callbackUrl"
+              data-clipboard-target="source"><%= "#{request.base_url}/auth/#{sso_provider.name.presence || 'PROVIDER_NAME'}/callback" %></code>
+        <%= render DS::Button.new(
+          text: t("admin.sso_providers.form.copy_button"),
+          variant: :ghost,
+          size: :sm,
+          icon: "copy",
+          class: "shrink-0",
+          data: { action: "clipboard#copy" }
+        ) %>
       </div>
       <p class="text-xs text-secondary mt-1"><%= t("admin.sso_providers.form.redirect_uri_help") %></p>
     </div>
@@ -175,15 +178,18 @@
 
     <div>
       <label class="block text-sm font-medium text-primary mb-1"><%= t("admin.sso_providers.form.saml_sp_callback_url_label") %></label>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 bg-surface px-3 py-2 rounded text-sm text-secondary overflow-x-auto"
-              data-admin-sso-form-target="samlCallbackUrl"><%= "#{request.base_url}/auth/#{sso_provider.name.presence || 'PROVIDER_NAME'}/callback" %></code>
-        <button type="button"
-                data-action="click->admin-sso-form#copySamlCallback"
-                class="p-2 text-secondary hover:text-primary shrink-0"
-                title="<%= t("admin.sso_providers.form.copy_button") %>">
-          <%= icon "copy", class: "w-4 h-4" %>
-        </button>
+      <div class="flex items-center gap-2" data-controller="clipboard" data-clipboard-copied-text-value="<%= t("admin.sso_providers.form.copied") %>">
+        <code class="flex-1 min-w-0 break-all bg-surface px-3 py-2 rounded text-sm text-secondary"
+              data-admin-sso-form-target="samlCallbackUrl"
+              data-clipboard-target="source"><%= "#{request.base_url}/auth/#{sso_provider.name.presence || 'PROVIDER_NAME'}/callback" %></code>
+        <%= render DS::Button.new(
+          text: t("admin.sso_providers.form.copy_button"),
+          variant: :ghost,
+          size: :sm,
+          icon: "copy",
+          class: "shrink-0",
+          data: { action: "clipboard#copy" }
+        ) %>
       </div>
       <p class="text-xs text-secondary mt-1"><%= t("admin.sso_providers.form.saml_sp_callback_url_help") %></p>
     </div>

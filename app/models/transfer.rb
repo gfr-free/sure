@@ -20,6 +20,7 @@ class Transfer < ApplicationRecord
   # (or its entry) is deleted, so the surviving leg never keeps a transfer kind
   # without a transfer.
   before_destroy :release_transactions
+  after_destroy_commit :sync_transfer_counting_accounts_later
 
   class << self
     # The outflow leg's kind for a transfer into this account. Transfer::Creator,
@@ -203,6 +204,8 @@ class Transfer < ApplicationRecord
       inflow_transaction.update!(kind: "funds_movement")
       outflow_transaction.update!(outflow_attrs)
     end
+
+    sync_transfer_counting_accounts_later
   end
 
   def date
@@ -213,6 +216,17 @@ class Transfer < ApplicationRecord
     inflow_transaction&.entry&.sync_account_later
     outflow_transaction&.entry&.sync_account_later
     fee_transactions.each { |t| t.entry&.sync_account_later }
+  end
+
+  # Confirming or removing a transfer changes the kind of its legs, which moves the
+  # balance of accounts that count transfers. Other accounts keep their balance.
+  def sync_transfer_counting_accounts_later
+    [ inflow_transaction, outflow_transaction ].each do |transaction|
+      entry = transaction&.entry
+      next unless entry && Entry.exists?(entry.id) && entry.account.balance_counts_transfers?
+
+      entry.sync_account_later
+    end
   end
 
   def to_account

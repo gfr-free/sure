@@ -62,7 +62,7 @@ module LedgerTestingHelper
           date: entry_data[:date],
           amount: entry_data[:amount],
           currency: currency,
-          entryable: Transaction.new
+          entryable: Transaction.new(**entry_data.slice(:kind))
         )
       when "trade"
         # Find or create security

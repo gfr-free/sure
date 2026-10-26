@@ -172,7 +172,7 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
-Android release metadata comes from `pubspec.yaml` (`version: <name>+<code>`). Keep the numeric build code increasing for every release so Android can install upgrades over older APKs.
+Local builds take their version from `pubspec.yaml` (`version: <name>+<code>`). CI builds override it: the version name comes from `.sure-version` (or the mobile release tag) and the build number is the number of minutes since the Unix epoch, so every new build installs over older APKs and Google Play uploads keep an increasing `versionCode`.
 
 ### iOS
 

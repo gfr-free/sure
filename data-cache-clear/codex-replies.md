@@ -8,3 +8,9 @@ Fixed in 8ec76db for prices: the `provider_error` returned by `import_provider_p
 
 ## 3. config/locales/views/settings/hostings/en.yml — "Only your family is affected"
 Agreed, reworded in 8ec76db (all 19 locales): "Only your family's balances and holdings are deleted; exchange rates and security prices are shared with the other families on this instance and are updated for them too."
+
+## 4. jjmata, app/jobs/data_cache_clear_job.rb ~L15 — no provider configured (owner chose a separate text)
+Good catch. Without an exchange rate or security price provider the refresh does nothing, so the settings page now shows a separate warning and confirmation in that case: balances and holdings are recalculated and the stored rates and prices are kept (all 19 locales, dc8630e72). With a provider configured the texts are unchanged.
+
+## 5. coderabbitai, app/controllers/settings/hostings_controller.rb — NoMethodError without exchange rate provider
+Good catch, fixed in e55b9f352: the page only asks `ExchangeRate.provider` when a provider name is set, so an instance without one now gets the provider-less text instead of an error. New controller test for that case (red before the fix).

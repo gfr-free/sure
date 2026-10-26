@@ -466,8 +466,8 @@ class Account::ProviderImportAdapter
 
           # Fallback path 2: match by (security, date, currency) — and when provided,
           # also scope by account_provider_id to avoid cross‑provider claiming.
-          # This keeps behavior symmetric with deletion logic below which filters
-          # by account_provider_id when present.
+          # An unowned row on that key is adopted here rather than left for the
+          # insert to collide with on the unique index.
           unless holding
             find_by_attrs = {
               security: security,
@@ -475,7 +475,7 @@ class Account::ProviderImportAdapter
               currency: currency
             }
             if account_provider_id.present?
-              find_by_attrs[:account_provider_id] = account_provider_id
+              find_by_attrs[:account_provider_id] = [ account_provider_id, nil ]
             end
 
             holding = account.holdings.find_by(find_by_attrs)
@@ -525,8 +525,11 @@ class Account::ProviderImportAdapter
       end
 
       # A new row for a later day starts without the user's corrections, which
-      # live on the earlier day's row. Carry them forward from that row.
-      carried = holding.new_record? ? previous_holding_for(security: security, currency: currency, date: date, account_provider_id: account_provider_id) : nil
+      # live on the earlier day's row. Carry them forward from that row; an
+      # unowned row this provider adopts lacks them too, unless it holds its own.
+      carry_corrections = holding.new_record? ||
+        (account_provider_id.present? && holding.account_provider_id.nil? && !holding.security_locked? && !holding.cost_basis_locked?)
+      carried = previous_holding_for(security: security, currency: currency, date: date, account_provider_id: account_provider_id) if carry_corrections
 
       # Reconcile cost_basis to respect priority hierarchy
       reconciled = Holding::CostBasisReconciler.reconcile(

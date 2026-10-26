@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2403,6 +2403,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.string "currency"
     t.decimal "current_balance", precision: 19, scale: 4
     t.jsonb "extra"
+    t.datetime "history_backfilled_at"
     t.string "name"
     t.jsonb "org_data"
     t.jsonb "raw_holdings_payload"

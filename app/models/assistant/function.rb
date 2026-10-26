@@ -45,6 +45,23 @@ class Assistant::Function
     }
   end
 
+  # Some models send array arguments as a JSON-encoded string ("[\"Food\"]")
+  # or as a bare string, and tools that call #map on them fail. Decode those
+  # against the declared schema so every caller hands #call a real array.
+  def normalize_params(params)
+    return params unless params.is_a?(Hash)
+
+    array_keys = params_schema[:properties].filter_map do |key, spec|
+      key.to_s if spec[:type].to_s == "array"
+    end
+
+    params.to_h do |key, value|
+      next [ key, value ] unless value.is_a?(String) && array_keys.include?(key.to_s)
+
+      [ key, decode_array_string(value) ]
+    end
+  end
+
   private
     attr_reader :user
 
@@ -112,6 +129,15 @@ class Assistant::Function
     def resolved_page(params)
       page = params["page"].to_i
       page.positive? ? page : 1
+    end
+
+    def decode_array_string(value)
+      return [] if value.blank?
+
+      parsed = JSON.parse(value)
+      parsed.is_a?(Array) ? parsed : [ value ]
+    rescue JSON::ParserError
+      [ value ]
     end
 
     def family

@@ -114,6 +114,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432 # pipelock:ignore
       REDIS_URL: redis://localhost:6379
       RAILS_ENV: test
+      APT_PACKAGES: libvips libpq-dev
 
     services:
       postgres:
@@ -134,24 +135,33 @@ jobs:
     steps:
       # Apt mirrors on the runners are sometimes slow (minutes for libvips and
       # its dependencies), so keep the downloaded packages per runner image.
-      - name: Runner image version
-        id: image
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+      # They are saved right after the install, even if the tests fail later.
+      - name: Apt cache key
+        id: apt
+        run: echo "key=apt-${ImageOS}-${ImageVersion}-${APT_PACKAGES// /-}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache apt packages
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - name: Restore apt packages
+        id: apt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/apt-archives
-          key: apt-${{ steps.image.outputs.version }}-libvips
+          key: ${{ steps.apt.outputs.key }}
 
       - name: Install packages
         run: |
           mkdir -p ~/apt-archives
           sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libvips libpq-dev
+          sudo apt-get install --no-install-recommends -y $APT_PACKAGES
           cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
           echo "Cached $(ls ~/apt-archives | wc -l) packages"
+
+      - name: Save apt packages
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt.outputs.key }}
 
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -197,7 +207,7 @@ jobs:
   # System tests run serially (they flake when parallel workers compete for
   # the runner's CPUs), so they are split by file across several runners.
   test_system_shard:
-    name: test_system (${{ matrix.shard }}/3)
+    name: test_system (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -212,6 +222,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432 # pipelock:ignore
       REDIS_URL: redis://localhost:6379
       RAILS_ENV: test
+      APT_PACKAGES: libvips libpq-dev
 
     services:
       postgres:
@@ -232,27 +243,33 @@ jobs:
     steps:
       # Apt mirrors on the runners are sometimes slow (minutes for libvips and
       # its dependencies), so keep the downloaded packages per runner image.
-      - name: Runner image version
-        id: image
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+      # They are saved right after the install, even if the tests fail later.
+      - name: Apt cache key
+        id: apt
+        run: echo "key=apt-${ImageOS}-${ImageVersion}-${APT_PACKAGES// /-}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache apt packages
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - name: Restore apt packages
+        id: apt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/apt-archives
-          key: apt-${{ steps.image.outputs.version }}-libvips
+          key: ${{ steps.apt.outputs.key }}
 
       - name: Install packages
         run: |
           mkdir -p ~/apt-archives
           sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libvips libpq-dev
+          sudo apt-get install --no-install-recommends -y $APT_PACKAGES
           cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
           echo "Cached $(ls ~/apt-archives | wc -l) packages"
-          # Drop the image's chromedriver so Selenium Manager resolves a driver
-          # matching the image's Chrome, even if the two drift apart.
-          sudo rm -f /usr/bin/chromedriver
+
+      - name: Save apt packages
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt.outputs.key }}
 
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -273,10 +290,10 @@ jobs:
 
       - name: System tests
         env:
-          SHARD: ${{ matrix.shard }}
-          SHARDS: 3
+          SHARD: ${{ strategy.job-index }}
+          SHARDS: ${{ strategy.job-total }}
         run: |
-          mapfile -t files < <(find test/system -name '*_test.rb' | sort | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i % n')
+          mapfile -t files < <(find test/system -name '*_test.rb' | LC_ALL=C sort | awk -v n="$SHARDS" -v i="$SHARD" '(NR - 1) % n == i')
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No system tests in shard ${SHARD}/${SHARDS}" >&2
             exit 1
@@ -297,7 +314,7 @@ jobs:
 
   # Keeps a single "test_system" check for branch protection and reviewers.
   test_system:
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     needs: test_system_shard
     runs-on: ubuntu-latest
     timeout-minutes: 5

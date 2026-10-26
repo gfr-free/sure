@@ -293,7 +293,7 @@ class RecurringTransaction
       # zero, which would inflate what the plan says is safe to spend.
       # remaining_amount aggregates confirmed allocations per occurrence, one
       # query each. Same grouped-sum-into-the-cache pattern the bills tools and
-      # BudgetCategory#bills_reservation already use.
+      # Budget#open_bill_occurrences_by_category already use.
       def preload_confirmed_sums(occurrences)
         sums = RecurringAllocation.confirmed
                                   .where(recurring_occurrence_id: occurrences.map(&:id))

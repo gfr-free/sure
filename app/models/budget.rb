@@ -404,6 +404,30 @@ class Budget < ApplicationRecord
     categories
   end
 
+  # Open bill occurrences due in this budget's period, grouped by the bill's
+  # category, with confirmed allocations already summed onto each occurrence.
+  # Every budget category reads its reservation from here, so the occurrences
+  # and their allocation sums are loaded once per budget, not per category.
+  def open_bill_occurrences_by_category
+    @open_bill_occurrences_by_category ||= begin
+      occurrences = RecurringOccurrence.where(family_id: family_id)
+                                       .open_status
+                                       .due_between(start_date, end_date)
+                                       .joins(:recurring_transaction)
+                                       .merge(RecurringTransaction.bills)
+                                       .includes(:recurring_transaction)
+                                       .to_a
+
+      sums = RecurringAllocation.confirmed
+                                .where(recurring_occurrence_id: occurrences.map(&:id))
+                                .group(:recurring_occurrence_id)
+                                .sum(:allocated_amount)
+      occurrences.each { |occurrence| occurrence.cached_confirmed_allocated = sums.fetch(occurrence.id, 0) }
+
+      occurrences.group_by { |occurrence| occurrence.recurring_transaction.category_id }
+    end
+  end
+
   # =============================================================================
   # Actuals: How much user has spent on each budget category
   # =============================================================================

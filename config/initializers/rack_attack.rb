@@ -170,7 +170,6 @@ class Rack::Attack
   # Self-service password change checks the current password
   # (password_challenge) for a signed-in user, so there's no email param; the
   # user whose password is being checked is the discriminator instead.
-
   # Rack::MethodOverride runs earlier in the stack, so the form's
   # `_method=patch` already shows up as PATCH here.
   password_change_request = ->(request) do
@@ -187,29 +186,35 @@ class Rack::Attack
     session_user.call(request) if password_change_request.call(request)
   end
 
-  # Trade Republic web login: the authenticator code submitted to
-  # complete_login is checked against Trade Republic, and every initiate call
-  # sends the stored phone number and PIN there and pushes a confirmation to
-  # the user's phone. Unbounded, a signed-in attacker could guess codes or
-  # flood Trade Republic until it locks the account. The polls carry no
-  # credential, but each one is a Trade Republic round trip; the browser
-  # polls once a second (faster just before a QR code rotates) for up to two
-  # minutes, so they get a looser budget. Requests without a valid session
-  # are redirected before reaching Trade Republic and spend neither budget.
-  trade_republic_login_action = ->(request) do
-    next unless request.post?
-
-    request.path.match(
-      %r{\A/trade_republic_items/[^/.?]+/(initiate_login|complete_login|initiate_qr_login|poll_login|poll_qr_login)(?:\.[^./?]+)?\z}
-    )&.captures&.first
-  end
+  # Trade Republic web login: creating a connection, or updating its phone
+  # number or PIN, sends the submitted PIN to Trade Republic together with the
+  # phone number; the other initiate actions send the stored ones, and the
+  # authenticator code submitted to complete_login is checked there too. Each
+  # attempt also pushes a confirmation to the account holder's phone.
+  # Unbounded, a signed-in attacker could guess PINs or codes, or flood both
+  # Trade Republic and the account holder's phone. The polls carry no credential, but
+  # each one is a Trade Republic round trip; the browser polls once a second
+  # (faster just before a QR code rotates) for up to two minutes, so they get
+  # a looser budget. Requests without a valid session are redirected before
+  # reaching Trade Republic and spend neither budget.
+  trade_republic_path = %r{\A/trade_republic_items(?:/(?<id>[^/.?]+)(?:/(?<action>[a-z_]+))?)?(?:\.[^./?]+)?\z}
 
   trade_republic_login_attempt = ->(request) do
-    trade_republic_login_action.call(request).in?(%w[initiate_login complete_login initiate_qr_login])
+    match = request.path.match(trade_republic_path)
+    next false unless match
+
+    if match[:id].nil?
+      request.post?
+    elsif match[:action].nil?
+      request.patch? || request.put?
+    else
+      request.post? && match[:action].in?(%w[initiate_login complete_login initiate_qr_login])
+    end
   end
 
   trade_republic_login_poll = ->(request) do
-    trade_republic_login_action.call(request).in?(%w[poll_login poll_qr_login])
+    match = request.path.match(trade_republic_path) if request.post?
+    match.present? && match[:action].in?(%w[poll_login poll_qr_login])
   end
 
   throttle("trade_republic_login/ip", limit: 10, period: 1.minute) do |request|

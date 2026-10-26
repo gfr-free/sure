@@ -247,7 +247,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "trade republic login throttles split login attempts from polls and key them by ip and signed-in user" do
+  test "trade republic login throttles split pin and code attempts from polls and key them by ip and signed-in user" do
     attempt_ip_block = Rack::Attack.throttles["trade_republic_login/ip"].block
     attempt_user_block = Rack::Attack.throttles["trade_republic_login/user"].block
     poll_ip_block = Rack::Attack.throttles["trade_republic_login_poll/ip"].block
@@ -271,6 +271,23 @@ class RackAttackTest < ActionDispatch::IntegrationTest
       assert_equal user_key, poll_user_block.call(request), "#{action} should count toward the poll user throttle"
       assert_nil attempt_user_block.call(request), "polling must not spend the login attempt budget"
     end
+
+    # Creating a connection and changing its phone number or PIN send the
+    # submitted PIN to Trade Republic.
+    create_request = throttle_request("/trade_republic_items", method: "POST", session_cookie: session.id)
+    assert_equal user_key, attempt_user_block.call(create_request)
+    %w[PATCH PUT].each do |method|
+      update_request = throttle_request("/trade_republic_items/#{item.id}", method: method, session_cookie: session.id)
+      assert_equal user_key, attempt_user_block.call(update_request), "#{method} should count toward the user throttle"
+    end
+
+    link_request = throttle_request("/trade_republic_items/link_existing_account", method: "POST", session_cookie: session.id)
+    assert_nil attempt_user_block.call(link_request)
+    destroy_request = throttle_request("/trade_republic_items/#{item.id}", method: "DELETE", session_cookie: session.id)
+    assert_nil attempt_user_block.call(destroy_request)
+    sync_request = throttle_request("/trade_republic_items/#{item.id}/sync", method: "POST", session_cookie: session.id)
+    assert_nil attempt_user_block.call(sync_request)
+    assert_nil poll_user_block.call(sync_request)
 
     format_request = throttle_request("/trade_republic_items/#{item.id}/complete_login.json", method: "POST", session_cookie: session.id)
     assert_equal user_key, attempt_user_block.call(format_request)

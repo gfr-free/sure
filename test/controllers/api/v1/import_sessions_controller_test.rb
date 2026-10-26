@@ -110,8 +110,25 @@ class Api::V1::ImportSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "API Groceries", transaction.category.name
     assert_equal "API Market", transaction.merchant.name
     assert_equal [ "API Weekly" ], transaction.tags.map(&:name)
-    assert_equal [ @api_key.user ], session.imports.map(&:user).uniq
-    assert_equal @api_key.user, @family.accounts.find_by!(name: "API Session Checking").owner
+  end
+
+  test "accounts from session chunks belong to the uploading user" do
+    member = users(:family_member)
+    member_key = ApiKey.create!(user: member, name: "Member Key", scopes: [ "read_write" ], display_key: "test_member_#{SecureRandom.hex(8)}", source: "web")
+    session = @family.import_sessions.create!(expected_chunks: 1)
+
+    post chunks_api_v1_import_session_url(session),
+         params: { sequence: 1, client_chunk_id: "entities", raw_file_content: build_ndjson(entity_records) },
+         headers: api_headers(member_key)
+    assert_response :created
+
+    perform_enqueued_jobs do
+      post publish_api_v1_import_session_url(session), headers: api_headers(member_key)
+    end
+
+    assert_response :accepted
+    assert_equal [ member ], session.imports.map(&:user)
+    assert_equal member, @family.accounts.find_by!(name: "API Session Checking").owner
   end
 
   test "rejects replayed chunk with different content" do

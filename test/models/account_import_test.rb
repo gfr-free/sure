@@ -105,6 +105,30 @@ class AccountImportTest < ActiveSupport::TestCase
     assert_includes Account.accessible_by(member), account
   end
 
+  test "import shares created accounts with the family by default" do
+    @import.update!(user: users(:family_member))
+    publish_single_account_import
+
+    account = @import.accounts.sole
+    assert_includes Account.accessible_by(users(:family_admin)), account
+  end
+
+  test "import keeps created accounts private under a private sharing default" do
+    @import.family.update!(default_account_sharing: "private")
+    @import.update!(user: users(:family_member))
+    publish_single_account_import
+
+    assert_empty @import.accounts.sole.account_shares
+  end
+
+  test "import falls back to the default owner when the importing user is deactivated" do
+    @import.update!(user: users(:family_member))
+    users(:family_member).update_column(:active, false)
+    publish_single_account_import
+
+    assert_equal users(:family_admin), @import.accounts.sole.owner
+  end
+
   test "import falls back to the default owner without an importing user" do
     @import.update!(user: nil)
     publish_single_account_import

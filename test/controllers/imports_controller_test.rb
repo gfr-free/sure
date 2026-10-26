@@ -460,7 +460,7 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
   test "publishes import" do
     import = imports(:transaction)
 
-    TransactionImport.any_instance.expects(:publish_later).once
+    TransactionImport.any_instance.expects(:publish_later).with(user: users(:family_admin)).once
 
     post publish_import_url(import)
 

@@ -244,18 +244,24 @@ class Import < ApplicationRecord
     end
   end
 
-  # Accounts this import creates belong to the user who started it. Without a
-  # user (older imports) or once that user has left the family, Account falls
-  # back to its default owner.
+  # Accounts this import creates belong to the user who published it. Without
+  # a user (older imports) or once that user is deactivated or has left the
+  # family, Account falls back to its default owner.
   def account_owner
-    user if user&.family_id == family_id
+    user if user&.active? && user.family_id == family_id
   end
 
-  def publish_later
+  # New accounts follow the family's sharing default, as accounts created in
+  # the UI do (Account.create_and_sync).
+  def share_created_account!(account)
+    account.auto_share_with_family! if family.share_all_by_default?
+  end
+
+  def publish_later(user: self.user)
     raise MaxRowCountExceededError if row_count_exceeded?
     raise "Import is not publishable" unless publishable?
 
-    update! status: :importing
+    update! status: :importing, user: user
 
     ImportJob.perform_later(self)
   end

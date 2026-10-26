@@ -17,6 +17,7 @@ class AccountImport < Import
         )
 
         account.save!
+        share_created_account!(account)
 
         manager = Account::OpeningBalanceManager.new(account)
 

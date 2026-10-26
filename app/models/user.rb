@@ -398,6 +398,13 @@ class User < ApplicationRecord
 
       AccountStatement.where(account: accounts_to_move).update_all(family_id: new_family.id, updated_at: Time.current) if accounts_to_move.any?
 
+      # Imports stay with the old family. Detach the moved accounts and their
+      # entries so reverting or deleting such an import there cannot destroy them.
+      if accounts_to_move.any?
+        Account.where(id: accounts_to_move).where.not(import_id: nil).update_all(import_id: nil, updated_at: Time.current)
+        Entry.where(account_id: accounts_to_move).where.not(import_id: nil).update_all(import_id: nil, updated_at: Time.current)
+      end
+
       provider_items_to_move.each do |provider_item|
         if provider_item.is_a?(FinancekitItem)
           lineage_ids = provider_item.financekit_account_lineages.select(:id)

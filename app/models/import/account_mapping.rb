@@ -42,6 +42,7 @@ class Import::AccountMapping < Import::Mapping
       new_account.currency = import.family.currency
       new_account.accountable = Depository.new
     end
+    import.share_created_account!(account) if account.previously_new_record?
 
     self.mappable = account
     save!

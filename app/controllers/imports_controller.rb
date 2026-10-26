@@ -37,7 +37,7 @@ class ImportsController < ApplicationController
   end
 
   def publish
-    @import.publish_later
+    @import.publish_later(user: Current.user)
 
     redirect_to import_path(@import), notice: t(".started")
   rescue Import::MaxRowCountExceededError

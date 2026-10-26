@@ -332,6 +332,7 @@ class Family::DataImporter
         )
 
         account.save!
+        account.auto_share_with_family! if created && @family.share_all_by_default?
 
         # Set opening balance if we have a historical balance and the import
         # does not provide either an explicit opening-anchor valuation or an

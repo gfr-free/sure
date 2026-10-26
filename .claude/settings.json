@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(*)",
+      "Edit",
+      "Write",
+      "Monitor",
+      "mcp__github__pull_request_read",
+      "mcp__github__list_pull_requests",
+      "mcp__github__get_job_logs",
+      "mcp__github__actions_list",
+      "mcp__github__get_check_run",
+      "mcp__github__issue_read",
+      "mcp__github__list_issues"
+    ]
+  }
+}

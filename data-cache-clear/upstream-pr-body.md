@@ -1,4 +1,4 @@
-Fixes #92
+Addresses #92 (the cache-clear race; the silent lock skip in `import_provider_rates` that the issue also describes is a separate change)
 
 ## Problem
 
@@ -14,7 +14,7 @@ The button is available to any **family admin**, not only the super admin. Becau
 ## What changes
 
 - New `Family::MarketDataRefresher`: downloads again the security prices and exchange rates the family's accounts use, with `clear_cache: true`, so stored values are **overwritten in place** instead of deleted. Each security and each currency pair is fetched **once**, over the widest window any account needs. A failure on one security or pair (raised, or a price error the provider reports) is logged to the family's debug log with the provider, and the others continue.
-- `DataCacheClearJob` now runs: refresh market data → delete the family's balances and holdings and enqueue `family.sync_later` (in one transaction, so a failed enqueue rolls the delete back). The refresh runs first because the holdings decide which prices are needed, and the syncs should start with the refreshed rates. If the refresh raises unexpectedly, nothing has been deleted yet.
+- `DataCacheClearJob` now runs: refresh market data → delete the family's balances and holdings and enqueue `family.sync_later` (in one transaction, so a failed enqueue rolls the delete back). If a family or account sync is running, the job deletes nothing and reschedules itself a minute later: the running sync would write balances the delete removes, and `sync_later` would only join it. The check is repeated under the family lock right before the delete. The refresh runs first because the holdings decide which prices are needed, and the syncs should start with the refreshed rates. If the refresh raises unexpectedly, nothing has been deleted yet.
 - `Account::MarketDataImporter`: `exchange_rate_pair_dates` and `price_windows` are public so the refresher can merge them across accounts. `import_exchange_rates` behaves as before.
 - `Security::Price::ImportWindows::Window#merge`: shared by `MarketDataImporter` and the refresher instead of two copies of the same min/max merge.
 - `clear_cache` in both importers now replaces stored values **only from the provider's first returned date on**:
@@ -30,15 +30,17 @@ The button is available to any **family admin**, not only the super admin. Becau
 
 ## Known limitations (unchanged by this PR)
 
+- Exchange-rate provider errors are reported by `ExchangeRate::Importer` (Sentry and log), not to the family's debug log, because `import_provider_rates` does not return them. The stored rates are kept, so the following sync uses them instead of 1:1.
+
 - Price rows stored under a currency the provider no longer returns are not removed (before, they were deleted instance-wide).
 - If another sync holds the import lock for the same pair and start date, `import_provider_rates` still skips silently. The stored rates are no longer deleted, so the sync falls back to them instead of 1:1. Handling the skip itself is a separate change.
 - Deleting holdings drops a manually entered cost basis; the rebuilt holdings come back as calculated. The old job did the same.
 
 ## Tests
 
-- `test/jobs/data_cache_clear_job_test.rb` (new): rates are reloaded before the sync is enqueued (red on main); other families' rates, prices, balances and holdings are kept (red on main); held securities are refreshed before the holdings are deleted; the family's balances and holdings are deleted; a failed sync enqueue keeps them (red before the review fix).
+- `test/jobs/data_cache_clear_job_test.rb` (new): rates are reloaded before the sync is enqueued (red on main); other families' rates, prices, balances and holdings are kept (red on main); held securities are refreshed before the holdings are deleted; the family's balances and holdings are deleted; a failed sync enqueue keeps them; a running sync (before or during the refresh) makes the job wait instead of deleting.
 - `test/models/family/market_data_refresher_test.rb` (new): one fetch for a pair shared by three accounts, one price import (with `clear_cache`) for a security held in two accounts, a provider-reported price error is logged, a failing pair is logged and the others continue.
 - `test/models/exchange_rate/importer_test.rb`: `clear_cache` carries the provider rate over skipped dates; keeps stored rates before the provider's first rate (red without the fix).
 - `test/models/security/price/importer_test.rb`: `clear_cache` keeps stored prices before the provider's first price (red without the fix).
 - `test/controllers/settings/hostings_controller_test.rb`: updated for kept market data.
-- Full suite: 13,169 runs, 0 failures, 0 errors. RuboCop, Biome and Brakeman clean; ERB lint not applicable (no ERB change). No screenshots: the only UI change is the wording of the existing warning and confirmation dialog.
+- Full suite: 13,171 runs, 0 failures, 0 errors. RuboCop, Biome and Brakeman clean; ERB lint not applicable (no ERB change). No screenshots: the only UI change is the wording of the existing warning and confirmation dialog.

@@ -61,4 +61,17 @@ class GenerateRecurringOccurrencesJobTest < ActiveJob::TestCase
     assert_operator recurrence_rule_queries.size, :<, active_count,
       "Expected recurrence_rules to be batch-loaded (got #{recurrence_rule_queries.size} queries for #{active_count} series)"
   end
+
+  test "posts due entries after generating occurrences" do
+    RecurringTransaction::Poster.any_instance.expects(:post_due!).once
+
+    GenerateRecurringOccurrencesJob.perform_now(@family.id)
+  end
+
+  test "skips a family with recurring transactions disabled" do
+    @family.update!(recurring_transactions_disabled: true)
+    RecurringTransaction::Poster.any_instance.expects(:post_due!).never
+
+    GenerateRecurringOccurrencesJob.perform_now(@family.id)
+  end
 end

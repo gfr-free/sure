@@ -8689,6 +8689,9 @@ paths:
       summary: Update recurring transaction
       tags:
       - Recurring Transactions
+      description: Requires write access to the bill's account. For a transfer that
+        posts automatically, write access to its destination account is required as
+        well; otherwise the bill is reported as not found.
       security:
       - apiKeyAuth: []
       parameters: []

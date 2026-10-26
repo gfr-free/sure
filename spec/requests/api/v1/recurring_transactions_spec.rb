@@ -303,6 +303,7 @@ RSpec.describe 'API V1 Recurring Transactions', type: :request do
 
     patch 'Update recurring transaction' do
       tags 'Recurring Transactions'
+      description 'Requires write access to the bill\'s account. For a transfer that posts automatically, write access to its destination account is required as well; otherwise the bill is reported as not found.'
       security [ { apiKeyAuth: [] } ]
       consumes 'application/json'
       produces 'application/json'

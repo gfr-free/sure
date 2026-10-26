@@ -9,7 +9,10 @@ class BillsController < ApplicationController
   # only by import or the v1 API; `ended` only by dismissing a suggestion.
   LIFECYCLE_STATUSES = { "paused" => %w[inactive paused], "ended" => %w[ended] }.freeze
   LIFECYCLE_FILTERS = LIFECYCLE_STATUSES.keys.freeze
-  STATUS_FILTERS = (PAYMENT_FILTERS + LIFECYCLE_FILTERS).freeze
+  # Not a status, but the question "which of these post by themselves?" is
+  # asked from the same place.
+  AUTO_POST_FILTER = "auto_post"
+  STATUS_FILTERS = (PAYMENT_FILTERS + LIFECYCLE_FILTERS + [ AUTO_POST_FILTER ]).freeze
   # Enough to answer "what happens next" without becoming a second bill list.
   NEXT_UP_LIMIT = 4
   # Six covers a month of weekly paydays with room for a leading bridge.
@@ -93,7 +96,13 @@ class BillsController < ApplicationController
     @suggested_allocations = suggested_allocations(open_occurrences + @paid_this_month)
     # A row waiting on a match decision offers Review rather than Find.
     # Already loaded for the queue above, so indexing is free.
-    @suggestions_by_occurrence = @suggested_allocations.index_by(&:recurring_occurrence_id)
+    # A posted entry under review already pays its row, so only matcher
+    # suggestions change what the row offers.
+    @suggestions_by_occurrence = @suggested_allocations.select(&:allocation_suggested?).index_by(&:recurring_occurrence_id)
+    # Discarding a post needs write access to each account it touched.
+    @auto_post_writable_account_ids = Account.writable_by(Current.user).pluck(:id).to_set if @suggested_allocations.any?(&:pending_review?)
+    # Dates that appeared only after they were due: post them or skip them.
+    @late_auto_post_occurrences = RecurringTransaction.late_auto_post_occurrences(Current.family, Current.user, Current.family.today_in_timezone).to_a
     @notices = collect_notices
 
     # The month as one chronological list, paid rows in place under a check.
@@ -165,6 +174,9 @@ class BillsController < ApplicationController
     if params[:display] == "history"
       @history = @series.recurring_occurrences.closed.order(due_on: :desc).limit(12).includes(allocations: :entry)
       @upcoming = @series.schedule.occurrences_between(Date.current + 1, Date.current + 400).first(3)
+      # The materialized rows behind those dates, so each one opens its drawer to
+      # skip it or change its amount before it posts.
+      @upcoming_occurrences = @series.recurring_occurrences.open_status.where(due_on: @upcoming).index_by(&:due_on)
       @analytics = paid_analytics
       load_deep_extras
       render :history, layout: false
@@ -306,6 +318,8 @@ class BillsController < ApplicationController
       if status.presence_in(LIFECYCLE_FILTERS)
         scope = scope.where(status: LIFECYCLE_STATUSES.fetch(status))
       end
+
+      scope = scope.where(auto_post: true) if status == AUTO_POST_FILTER
 
       if (bill_type = params.dig(:q, :bill_type)).presence_in(RecurringTransaction.bill_types.keys)
         scope = scope.where(bill_type: bill_type)
@@ -602,23 +616,35 @@ class BillsController < ApplicationController
       end
     end
 
-    # Only occurrences the overview lists: open rows and this month's paid ones.
-    # Ending a bill leaves its scheduled occurrences behind and the matcher
-    # still scores them, and skipping closes an occurrence but keeps its
-    # suggestion, so neither may ask about a row the page doesn't show.
+    # Matcher suggestions only for occurrences the overview lists: open rows
+    # and this month's paid ones. Ending a bill leaves its scheduled
+    # occurrences behind and the matcher still scores them, and skipping
+    # closes an occurrence but keeps its suggestion, so neither may ask about
+    # a row the page doesn't show.
+    #
+    # Entries Sure posted overnight wait here wherever their date sits: a
+    # paycheck, a savings transfer or last month's bill is not among the
+    # payable rows, but still needs its confirm-or-discard answer.
     def suggested_allocations(listed)
+      matcher = RecurringAllocation.suggested
+                                   .joins(recurring_occurrence: :recurring_transaction)
+                                   .where(recurring_occurrence_id: listed.map(&:id))
+                                   # Income never reviews here: the matcher no longer suggests it, and
+                                   # this filter also retires any suggestion written before that rule.
+                                   .merge(RecurringTransaction.not_typed_income)
+      posted = RecurringAllocation.from_auto_posted
+                                  .where(pending_review: true)
+                                  .joins(:recurring_occurrence)
+                                  .where(recurring_occurrences: { recurring_transaction_id: Current.family.recurring_transactions.accessible_by(Current.user).select(:id) })
+
       RecurringAllocation
-        .suggested
-        .joins(recurring_occurrence: :recurring_transaction)
-        .where(recurring_occurrence_id: listed.map(&:id))
-        # Income never reviews here: the matcher no longer suggests it, and
-        # this filter also retires any suggestion written before that rule.
-        .merge(RecurringTransaction.not_typed_income)
+        .where(id: matcher.select(:id)).or(RecurringAllocation.where(id: posted.select(:id)))
         .includes(:entry, recurring_occurrence: { recurring_transaction: :merchant })
         # The confidence the matcher scored these with was sitting unused on
         # the row while the queue ordered itself by when the job happened to
         # run. Most-certain question first.
-        .order(match_confidence: :desc, created_at: :asc)
+        # Posted entries carry no confidence and go after the matcher's.
+        .order(Arel.sql("recurring_allocations.match_confidence DESC NULLS LAST"), created_at: :asc, id: :asc)
     end
 
     # Converted into the family currency because the headline answers "how

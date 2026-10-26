@@ -27,7 +27,8 @@ class Entry < ApplicationRecord
 
   has_many :child_entries, class_name: "Entry", foreign_key: :parent_entry_id, dependent: :destroy
   # Read side only, so a transaction can say which bills it paid. The foreign key
-  # already nullifies on delete, so this adds no lifecycle behaviour.
+  # already nullifies on delete, which keeps a payment the user recorded. The
+  # one exception is below: an entry Sure posted by itself.
   has_many :recurring_allocations, dependent: nil, inverse_of: :entry
 
   delegated_type :entryable, types: Entryable::TYPES, dependent: :destroy
@@ -58,6 +59,10 @@ class Entry < ApplicationRecord
   }
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
+  # By the allocation's source, not the Poster's idempotency key: an export
+  # and re-import keeps the allocation but drops the key. Only transactions
+  # are ever posted.
+  before_destroy :release_auto_posted_allocations, if: -> { entryable_type == "Transaction" }
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   scope :visible, -> {
@@ -705,6 +710,19 @@ class Entry < ApplicationRecord
         txn&.lock!
         lock!
         yield txn
+      end
+    end
+
+    # Deleting an entry Sure auto-posted means the payment did not happen as
+    # posted, so its occurrence reopens and waits for another payment or a
+    # skip. It never posts again: `auto_posted_at` stays set.
+    def release_auto_posted_allocations
+      recurring_allocations.from_auto_posted.includes(:recurring_occurrence).find_each do |allocation|
+        occurrence = allocation.recurring_occurrence
+        RecurringTransaction::Allocator.new(occurrence).unallocate!(allocation)
+        # An import carries the allocation but not the stamp; without it the
+        # reopened date would post again.
+        occurrence.update_columns(auto_posted_at: Time.current) if occurrence.auto_posted_at.nil?
       end
     end
 

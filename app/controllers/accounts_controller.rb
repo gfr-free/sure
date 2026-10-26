@@ -1,5 +1,6 @@
 class AccountsController < ApplicationController
   include StreamExtensions
+  include AutoPostedMarkers
 
   before_action :set_account, only: %i[show sparkline sync set_default remove_default clear_filter]
   before_action :set_manageable_account, only: %i[toggle_active toggle_exclude_from_reports destroy unlink confirm_unlink select_provider]
@@ -157,6 +158,8 @@ class AccountsController < ApplicationController
 
     entry_ids = @entries.map(&:id)
     @split_parent_entry_ids = Entry.split_parent_ids_among(entry_ids)
+
+    load_auto_posted_markers(entry_ids)
 
     # Load split parent entries for grouped display (only when grouping is enabled)
     @split_parents = if Current.user.show_split_grouped?

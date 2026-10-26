@@ -40,6 +40,19 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_empty unlocked.locked_attributes
   end
 
+  test "split! locks names and chosen categories, but not merchants, for user edits" do
+    merchant = @entry.account.family.merchants.create!(name: "Lock merchant", type: "FamilyMerchant")
+    categorised, plain = @entry.split!([
+      { name: "Groceries", amount: 70, category_id: categories(:food_and_drink).id, merchant_id: merchant.id },
+      { name: "Household", amount: 30, category_id: nil }
+    ], lock_user_edits: true)
+
+    assert_equal %w[category_id], categorised.transaction.locked_attributes.keys
+    assert_empty plain.transaction.locked_attributes
+    assert_equal %w[name], categorised.locked_attributes.keys
+    assert_equal %w[name], plain.locked_attributes.keys
+  end
+
   test "split! locks nothing by default" do
     children = @entry.split!([
       { name: "Groceries", amount: 70, category_id: categories(:food_and_drink).id },

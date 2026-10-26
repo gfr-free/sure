@@ -40,6 +40,24 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     ] } }
   end
 
+  def assert_split_edits_survive_rules(chosen_category)
+    rule = @family.rules.create!(
+      resource_type: "transaction",
+      conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 0) ],
+      actions: [
+        Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id),
+        Rule::Action.new(action_type: "set_transaction_name", value: "Renamed by rule")
+      ]
+    )
+    rule.apply
+    rule.destroy!
+
+    chosen, open = @entry.reload.child_entries.order(amount: :desc).to_a
+    assert_equal chosen_category, chosen.transaction.reload.category
+    assert_equal categories(:income), open.transaction.reload.category
+    assert_equal %w[Categorised Plain], [ chosen.reload.name, open.reload.name ]
+  end
+
   # CREATE
 
   test "splits a transaction into children that sum to it" do
@@ -137,6 +155,24 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 3, @entry.reload.child_entries.count
     assert_equal @entry.amount, @entry.child_entries.sum(:amount)
+  end
+
+  test "create and update keep split names and chosen categories when rules run" do
+    category = categories(:food_and_drink)
+    split_with_category = ->(chosen, open) do
+      { split: { splits: [
+        { name: "Categorised", amount: chosen.to_s, category_id: category.id },
+        { name: "Plain",       amount: open.to_s }
+      ] } }
+    end
+
+    post api_v1_transaction_split_url(@transaction), params: split_with_category.call(70, 30), headers: api_headers(@api_key), as: :json
+    assert_response :created
+    assert_split_edits_survive_rules(category)
+
+    patch api_v1_transaction_split_url(@transaction), params: split_with_category.call(60, 40), headers: api_headers(@api_key), as: :json
+    assert_response :success
+    assert_split_edits_survive_rules(category)
   end
 
   test "returns 404 updating a transaction that is not split" do

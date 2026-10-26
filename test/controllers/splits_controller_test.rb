@@ -268,6 +268,28 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 3, @entry.child_entries.count
   end
 
+  test "create and update keep split names and chosen categories when rules run" do
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Groceries", amount: "-70", category_id: categories(:food_and_drink).id },
+          { name: "Household", amount: "-30", category_id: "" }
+        ]
+      }
+    }
+    assert_split_edits_survive_rules(%w[Groceries Household])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Food", amount: "-60", category_id: categories(:food_and_drink).id },
+          { name: "Other", amount: "-40", category_id: "" }
+        ]
+      }
+    }
+    assert_split_edits_survive_rules(%w[Food Other])
+  end
+
   test "update with mismatched amounts rejects" do
     @entry.split!([
       { name: "Part 1", amount: 60, category_id: nil },
@@ -346,4 +368,23 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("splits.destroy.success"), flash[:notice]
     refute @entry.reload.excluded?
   end
+
+  private
+    def assert_split_edits_survive_rules(names)
+      rule = @user.family.rules.create!(
+        resource_type: "transaction",
+        conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 0) ],
+        actions: [
+          Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id),
+          Rule::Action.new(action_type: "set_transaction_name", value: "Renamed by rule")
+        ]
+      )
+      rule.apply
+      rule.destroy!
+
+      chosen, open = @entry.reload.child_entries.order(amount: :desc).to_a
+      assert_equal categories(:food_and_drink), chosen.transaction.reload.category
+      assert_equal categories(:income), open.transaction.reload.category
+      assert_equal names, [ chosen.reload.name, open.reload.name ]
+    end
 end

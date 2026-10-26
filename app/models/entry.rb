@@ -513,11 +513,11 @@ class Entry < ApplicationRecord
   # of children would land and the amount would count twice. A provider sync can also mark the
   # transaction pending or a transfer in between, so those are re-checked too. Returns true
   # when it split.
-  def split_once!(splits, lock_attributes: false)
+  def split_once!(splits, lock_attributes: false, lock_user_edits: false)
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes)
+      split!(splits, lock_attributes: lock_attributes, lock_user_edits: lock_user_edits)
       true
     end
   end
@@ -525,12 +525,12 @@ class Entry < ApplicationRecord
   # Replaces the children of a split under the same lock, so a concurrent unsplit can't be undone
   # and two edits can't both insert children. Returns false when the entry is no longer a split
   # parent. Editing an existing split doesn't re-check pending/transfer: it creates no new split.
-  def resplit!(splits)
+  def resplit!(splits, lock_user_edits: false)
     with_split_lock do
       next false unless split_parent?
 
       unsplit!
-      split!(splits)
+      split!(splits, lock_user_edits: lock_user_edits)
       true
     end
   end
@@ -555,8 +555,11 @@ class Entry < ApplicationRecord
   #   merchant_id and tag_ids are optional per split and fall back to the parent's merchant / no tags.
   # @param lock_attributes [Boolean] locks the category and merchant each split sets on its child, so
   #   rules further down (or a later run) don't overwrite them. Tags are only ever added by rules.
+  # @param lock_user_edits [Boolean] locks each split's name and the category it sets. Splits made by
+  #   hand pass this, so what the user typed and picked survives the rules that run after each sync.
+  #   The merchant stays unlocked: a row without one follows the parent's merchant.
   # @return [Array<Entry>] the created child entries
-  def split!(splits, lock_attributes: false)
+  def split!(splits, lock_attributes: false, lock_user_edits: false)
     total = splits.sum { |s| s[:amount].to_d }
     unless total == amount
       raise ActiveRecord::RecordInvalid.new(self), "Split amounts must sum to parent amount (expected #{amount}, got #{total})"
@@ -570,10 +573,13 @@ class Entry < ApplicationRecord
           tag_ids: split_attrs[:tag_ids] || [],
           kind: entryable.try(:kind)
         )
-        if lock_attributes
-          locked_at = Time.current
-          child_transaction.locked_attributes = split_attrs.slice(:category_id, :merchant_id).compact_blank.keys.index_with { locked_at }
+        locked_at = Time.current
+        lockable = if lock_attributes
+          split_attrs.slice(:category_id, :merchant_id)
+        elsif lock_user_edits
+          split_attrs.slice(:category_id)
         end
+        child_transaction.locked_attributes = lockable.compact_blank.keys.index_with { locked_at } if lockable
 
         child_entries.create!(
           account: account,
@@ -585,6 +591,7 @@ class Entry < ApplicationRecord
           import: import,
           import_locked: import_locked,
           excluded: TRUTHY_VALUES.include?(split_attrs[:excluded]),
+          locked_attributes: lock_user_edits ? { "name" => locked_at } : {},
           entryable: child_transaction
         )
       end

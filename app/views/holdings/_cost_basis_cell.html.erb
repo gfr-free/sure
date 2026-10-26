@@ -30,10 +30,10 @@
           panel is fetched once it becomes visible, so the holdings list does not
           render a form per row. %>
       <% popover.with_custom_content do %>
-        <%= turbo_frame_tag dom_id(holding, :cost_basis_editor), src: cost_basis_editor_holding_path(holding), loading: :lazy do %>
-          <div class="p-6 flex items-center justify-center min-w-70">
-            <div class="h-4 w-24 rounded-md bg-container-inset animate-pulse"></div>
-          </div>
+        <%# refresh: :morph, or a morph page refresh would reset the loaded frame
+            to its placeholder without fetching it again. %>
+        <%= turbo_frame_tag dom_id(holding, :cost_basis_editor), src: cost_basis_editor_holding_path(holding), loading: :lazy, refresh: :morph, class: "block min-w-70" do %>
+          <%= render "entries/loading" %>
         <% end %>
       <% end %>
     <% end %>

@@ -221,7 +221,7 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
     get holdings_url(account_id: @account.id)
 
-    assert_select "turbo-frame##{dom_id(holding, :cost_basis_editor)}[loading=lazy][src='#{cost_basis_editor_holding_path(holding)}']", count: 1
+    assert_select "turbo-frame##{dom_id(holding, :cost_basis_editor)}[loading=lazy][refresh=morph][src='#{cost_basis_editor_holding_path(holding)}']", count: 1
     assert_select "form[data-controller=cost-basis-form]", count: 0
   end
 

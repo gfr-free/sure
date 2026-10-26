@@ -624,10 +624,30 @@ class Account::ProviderImportAdapter
             end
 
             begin
-              # Use update_columns to avoid validations and keep this collision handler best-effort.
-              existing.update_columns(updates.compact)
-            rescue => _
-              # Best-effort only; avoid raising in collision handler
+              # Best-effort: skip validations, and isolate a failed write in a
+              # savepoint so the surrounding sync transaction stays usable.
+              Holding.transaction(requires_new: true) do
+                existing.update_columns(updates.compact)
+              end
+            rescue ActiveRecord::ActiveRecordError => update_error
+              existing.reload
+              DebugLogEntry.capture(
+                category: "provider_sync_warning",
+                level: "warn",
+                message: "Could not adopt colliding holding: #{update_error.class}",
+                source: self.class.name,
+                provider_key: source,
+                account: account,
+                account_provider_id: account_provider_id,
+                metadata: {
+                  holding_id: existing.id,
+                  security_id: security.id,
+                  date: date,
+                  currency: currency,
+                  external_id: external_id,
+                  error: update_error.message.truncate(500)
+                }
+              )
             end
 
             holding = existing

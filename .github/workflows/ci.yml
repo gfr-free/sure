@@ -106,7 +106,7 @@ jobs:
 
   test_unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     env:
       PLAID_CLIENT_ID: foo
@@ -132,8 +132,26 @@ jobs:
         options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
+      # Apt mirrors on the runners are sometimes slow (minutes for libvips and
+      # its dependencies), so keep the downloaded packages per runner image.
+      - name: Runner image version
+        id: image
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt packages
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.image.outputs.version }}-libvips
+
       - name: Install packages
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y curl libvips postgresql-client libpq-dev
+        run: |
+          mkdir -p ~/apt-archives
+          sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libvips libpq-dev
+          cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
+          echo "Cached $(ls ~/apt-archives | wc -l) packages"
 
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -176,9 +194,17 @@ jobs:
           printf '%s\n' "${files[@]}"
           bin/rails test "${files[@]}"
 
-  test_system:
+  # System tests run serially (they flake when parallel workers compete for
+  # the runner's CPUs), so they are split by file across several runners.
+  test_system_shard:
+    name: test_system (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3 ]
 
     env:
       PLAID_CLIENT_ID: foo
@@ -204,14 +230,28 @@ jobs:
         options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
+      # Apt mirrors on the runners are sometimes slow (minutes for libvips and
+      # its dependencies), so keep the downloaded packages per runner image.
+      - name: Runner image version
+        id: image
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt packages
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.image.outputs.version }}-libvips
+
       - name: Install packages
         run: |
+          mkdir -p ~/apt-archives
+          sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            google-chrome-stable curl libvips postgresql-client libpq-dev
-          # The runner image ships a chromedriver that lags google-chrome-stable.
-          # Drop it so Selenium Manager resolves a driver matching the Chrome we
-          # just installed, instead of the stale one in PATH.
+          sudo apt-get install --no-install-recommends -y libvips libpq-dev
+          cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
+          echo "Cached $(ls ~/apt-archives | wc -l) packages"
+          # Drop the image's chromedriver so Selenium Manager resolves a driver
+          # matching the image's Chrome, even if the two drift apart.
           sudo rm -f /usr/bin/chromedriver
 
       - name: Checkout code
@@ -232,12 +272,36 @@ jobs:
           bin/rails db:seed
 
       - name: System tests
-        run: DISABLE_PARALLELIZATION=true bin/rails test:system
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: 3
+        run: |
+          mapfile -t files < <(find test/system -name '*_test.rb' | sort | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i % n')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No system tests in shard ${SHARD}/${SHARDS}" >&2
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          DISABLE_PARALLELIZATION=true bin/rails test "${files[@]}"
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: failure()
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.shard }}
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
+
+  # Keeps a single "test_system" check for branch protection and reviewers.
+  test_system:
+    if: ${{ !cancelled() }}
+    needs: test_system_shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check system test shards
+        env:
+          RESULT: ${{ needs.test_system_shard.result }}
+        run: |
+          echo "System test shards: ${RESULT}"
+          [ "$RESULT" = "success" ]

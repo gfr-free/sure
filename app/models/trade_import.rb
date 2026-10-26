@@ -57,9 +57,7 @@ class TradeImport < Import
   def dry_run
     mappings = { transactions: rows_count }
 
-    mappings.merge(
-      accounts: Import::AccountMapping.for_import(self).creational.count
-    ) if account.nil?
+    mappings[:accounts] = Import::AccountMapping.for_import(self).creational.count if account.nil?
 
     mappings
   end

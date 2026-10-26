@@ -2,6 +2,12 @@ name: Flutter Mobile Build
 
 on:
   workflow_call:
+    inputs:
+      build_name:
+        description: "App version name; defaults to the version in .sure-version"
+        required: false
+        type: string
+        default: ""
     outputs:
       has_app_release_aab:
         description: "Whether a signed release AAB artifact was produced"
@@ -12,8 +18,45 @@ permissions:
   contents: read
 
 jobs:
+  app-version:
+    name: Resolve app version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build_name: ${{ steps.version.outputs.build_name }}
+      build_number: ${{ steps.version.outputs.build_number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .sure-version
+          sparse-checkout-cone-mode: false
+
+      - name: Resolve version name and build number
+        id: version
+        env:
+          INPUT_BUILD_NAME: ${{ inputs.build_name }}
+        run: |
+          set -euo pipefail
+          BUILD_NAME="${INPUT_BUILD_NAME:-$(tr -d '[:space:]' < .sure-version)}"
+          BUILD_NAME="${BUILD_NAME#v}"
+          if [[ ! "$BUILD_NAME" =~ ^[0-9][0-9A-Za-z.-]*$ ]]; then
+            echo "::error::Invalid app version name: '$BUILD_NAME'"
+            exit 1
+          fi
+          # Minutes since the epoch: increases across every workflow that builds
+          # the app, stays above the last pubspec code (20260402) and below
+          # Android's versionCode limit of 2100000000.
+          BUILD_NUMBER="$(( $(date -u +%s) / 60 ))"
+          echo "build_name=$BUILD_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "App version: $BUILD_NAME ($BUILD_NUMBER)"
+
   build-android:
     name: Build Android APK
+    needs: app-version
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -85,13 +128,16 @@ jobs:
 
       - name: Build APK (Release)
         working-directory: mobile
+        env:
+          BUILD_NAME: ${{ needs.app-version.outputs.build_name }}
+          BUILD_NUMBER: ${{ needs.app-version.outputs.build_number }}
         run: |
           if [ "${{ steps.check_secrets.outputs.has_keystore }}" == "true" ]; then
             echo "Building signed release APK..."
-            flutter build apk --release
+            flutter build apk --release --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
           else
             echo "Building debug-signed APK..."
-            flutter build apk --debug
+            flutter build apk --debug --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
           fi
 
       - name: Upload APK artifact
@@ -107,7 +153,10 @@ jobs:
       - name: Build App Bundle (Release)
         if: steps.check_secrets.outputs.has_keystore == 'true'
         working-directory: mobile
-        run: flutter build appbundle --release
+        env:
+          BUILD_NAME: ${{ needs.app-version.outputs.build_name }}
+          BUILD_NUMBER: ${{ needs.app-version.outputs.build_number }}
+        run: flutter build appbundle --release --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
 
       - name: Upload AAB artifact
         if: steps.check_secrets.outputs.has_keystore == 'true'
@@ -119,6 +168,7 @@ jobs:
 
   build-ios:
     name: Build iOS IPA
+    needs: app-version
     runs-on: macos-latest
     timeout-minutes: 45
 
@@ -160,7 +210,10 @@ jobs:
 
       - name: Build iOS (No Code Signing)
         working-directory: mobile
-        run: flutter build ios --release --no-codesign
+        env:
+          BUILD_NAME: ${{ needs.app-version.outputs.build_name }}
+          BUILD_NUMBER: ${{ needs.app-version.outputs.build_number }}
+        run: flutter build ios --release --no-codesign --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
 
       - name: Create IPA archive info
         working-directory: mobile

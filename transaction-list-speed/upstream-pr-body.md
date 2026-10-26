@@ -17,11 +17,11 @@ The transactions list is slow on small self-hosted servers, and almost all of th
 - `transactions/_transaction.html.erb` wraps the row in `cache transaction_row_cache_key(...), expires_in: 12.hours, skip_digest: true` (as long as the account sidebar cache: repeat visits on the same day hit the cache, and the Redis footprint stays small).
 - `TransactionsHelper#transaction_row_cache_key` lists everything the row shows or branches on:
   - records: entry, transaction, tags, merchant, transfer and its other leg (an inflow row's category cell depends on the outflow's kind and category), the security a brokerage activity shows a logo for;
-  - accounts and categories by their displayed attributes (id, name, type / color, icon), because their record versions change on every balance sync or category pick, which would empty the cache for no visible change;
+  - accounts and categories by their displayed attributes (id, name, type and trade support / color, icon), because their record versions change on every balance sync or category pick, which would empty the cache for no visible change;
   - per-viewer state: locale, user, family currency and locale, `can_annotate_account?`, counterpart visibility (`@accessible_account_ids`), split parent flag, `in_split_group`, `view_ctx`;
   - a digest of the row's sources (`TransactionsHelper::TRANSACTION_ROW_SOURCES`: the row partials, the category/tag/investment-activity partials, the two helpers and the `DS::*` components), computed once at load, plus `BUILD_COMMIT_SHA` or the app version. A markup change therefore never serves old rows, also for source builds without the build arg, and nobody has to bump a version by hand. `skip_digest` is on because the ERB dependency tracker cannot digest `DS::*` components (same reasoning as `account_sidebar_tabs`);
-  - for a pending transfer match only, a hash of the session id: its confirm/reject `button_to` forms embed the session's CSRF token, and the reject form submits without Turbo, so it cannot fall back to the `X-CSRF-Token` header;
   - the Brandfetch settings that shape logo URLs (logo size, hashed client id).
+- Rows with a pending transfer match are not cached at all (`cache_unless transaction.transfer&.pending?`): their confirm/reject `button_to` forms embed the session's CSRF token, and the reject form submits without Turbo, so it cannot fall back to the `X-CSRF-Token` header. These rows are few and short-lived.
 - No extra queries on a hit: the key only reads associations the index already preloads (plus the same `split_parent?` lookup the account view already did).
 
 ## Measured
@@ -44,7 +44,7 @@ Rows land in the Rails cache store (Redis in production, roughly 2–4 KB per ro
 
 - `test/components/DS/popover_test.rb` (new): eager content vs. lazy frame slot, `frame_id`/`frame_src` must come together.
 - `transactions_controller_test`: no eager dropdown frames in the list, frame id/src per menu, per-variant badges.
-- `test/views/transactions/transaction_row_cache_test.rb` (new, with a memory store): every source pattern matches a file and the digest is part of the key; an unchanged row is served from the cache; edits to entry, category, tags, tag names, account and merchant render it fresh; a balance update does not; an inflow row's key follows the outflow leg's kind and category and the counterpart's name; only pending transfer matches depend on the session; the key differs per viewer, locale, view context, grouping and build. The transfer-leg, merchant/balance and session tests fail without the corresponding key parts.
+- `test/views/transactions/transaction_row_cache_test.rb` (new, with a memory store): every source pattern matches a file and the digest is part of the key; an unchanged row is served from the cache; edits to entry, category, tags, tag names, account and merchant render it fresh; a balance update does not; an inflow row's key follows the outflow leg's kind and category and the counterpart's name; a row with a pending transfer match is never served from the cache; the key changes when an account starts supporting trades; the key differs per viewer, locale, view context, grouping and build. The transfer-leg, merchant/balance, pending-transfer and trade-support tests fail without the corresponding change.
 - Full `bin/rails test`: 13169 runs, 0 failures, 0 errors, 36 skips. Rubocop: no offenses. erb_lint: no errors. Brakeman: no warnings. Biome: the only report in `popover_controller.js` is a pre-existing formatting line also present on main.
 - No visual change, so no screenshots.
 

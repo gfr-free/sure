@@ -40,6 +40,40 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_empty unlocked.locked_attributes
   end
 
+  test "user edits lock typed names and chosen categories, not merchants or the parent's name" do
+    merchant = @entry.account.family.merchants.create!(name: "Lock merchant", type: "FamilyMerchant")
+    assert @entry.split_once!([
+      { name: "Groceries", amount: 70, category_id: categories(:food_and_drink).id, merchant_id: merchant.id },
+      { name: "Grocery Store", amount: 30, category_id: nil }
+    ], lock_user_edits: true)
+
+    typed, prefilled = @entry.child_entries.order(amount: :desc).to_a
+    assert_equal %w[category_id], typed.transaction.locked_attributes.keys
+    assert_equal %w[name], typed.locked_attributes.keys
+    assert_empty prefilled.transaction.locked_attributes
+    assert_empty prefilled.locked_attributes
+  end
+
+  test "editing a split keeps unchanged rows following rules and locks what changed" do
+    @entry.split!([
+      { name: "Groceries", amount: 70, category_id: nil },
+      { name: "Household", amount: 30, category_id: nil }
+    ])
+    # A rule filled in the first row's category; the user never picked it.
+    @entry.child_entries.find_by!(name: "Groceries").transaction.update!(category: categories(:food_and_drink))
+
+    assert @entry.resplit!([
+      { name: "Groceries", amount: 60, category_id: categories(:food_and_drink).id },
+      { name: "Cleaning", amount: 40, category_id: categories(:income).id }
+    ], lock_user_edits: true)
+
+    kept, changed = @entry.child_entries.order(amount: :desc).to_a
+    assert_empty kept.transaction.locked_attributes
+    assert_empty kept.locked_attributes
+    assert_equal %w[category_id], changed.transaction.locked_attributes.keys
+    assert_equal %w[name], changed.locked_attributes.keys
+  end
+
   test "split! locks nothing by default" do
     children = @entry.split!([
       { name: "Groceries", amount: 70, category_id: categories(:food_and_drink).id },

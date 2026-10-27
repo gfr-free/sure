@@ -10,8 +10,12 @@ class Import::AccountMapping < Import::Mapping
     end
   end
 
-  def selectable_values
-    family_accounts = import.family.accounts.manual.alphabetically.map { |account| [ account.name, account.id ] }
+  # Linked accounts are offered too: imported rows are deduplicated against
+  # provider entries. Only accounts the user may write to, as publishing
+  # requires write access to every mapped account.
+  def selectable_values(user: Current.user)
+    accounts = user ? import.family.accounts.writable_by(user).visible.alphabetically : Account.none
+    family_accounts = accounts.map { |account| [ account.name, account.id ] }
 
     unless key.blank?
       family_accounts.unshift [ "Add as new account", CREATE_NEW_KEY ]

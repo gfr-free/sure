@@ -66,7 +66,7 @@ export default class extends Controller {
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const series = ["income", "expense"];
-    const seriesColor = { expense: "var(--color-gray-400)", income: "var(--color-success)" };
+    const seriesColor = { expense: "var(--utility-bg-subdued)", income: "var(--color-success)" };
 
     const x0 = d3
       .scaleBand()
@@ -167,7 +167,7 @@ export default class extends Controller {
   _tooltipTemplate(month, key) {
     const label = key === "income" ? this.incomeLabelValue : this.expenseLabelValue;
     // Match the bar/legend palette — expenses render gray, not destructive red.
-    const color = key === "income" ? "var(--color-success)" : "var(--color-gray-400)";
+    const color = key === "income" ? "var(--color-success)" : "var(--utility-bg-subdued)";
 
     return `
       <div class="text-xs text-secondary mb-1">${month.label}</div>

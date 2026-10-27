@@ -1,4 +1,4 @@
-<%# locals: (transaction:) %>
+<%# locals: (transaction:, read_only: false) %>
 
 <div id="<%= dom_id(transaction, "transfer_match") %>" class="flex flex-wrap items-center justify-end gap-1 min-w-0 max-w-full">
   <% if transaction.transfer.confirmed? %>
@@ -23,23 +23,25 @@
       ) %>
     </span>
 
-    <div class="flex items-center gap-1">
-      <%= render DS::Button.new(
-            variant: :icon, size: :sm, icon: "check",
-            href: transfer_path(transaction.transfer, transfer: { status: "confirmed" }),
-            method: :patch,
-            title: t("transactions.transfer_match.confirm_match"),
-            aria: { label: t("transactions.transfer_match.confirm_match") }
-          ) %>
+    <% unless read_only %>
+      <div class="flex items-center gap-1">
+        <%= render DS::Button.new(
+              variant: :icon, size: :sm, icon: "check",
+              href: transfer_path(transaction.transfer, transfer: { status: "confirmed" }),
+              method: :patch,
+              title: t("transactions.transfer_match.confirm_match"),
+              aria: { label: t("transactions.transfer_match.confirm_match") }
+            ) %>
 
-      <%= render DS::Button.new(
-            variant: :icon, size: :sm, icon: "x",
-            href: transfer_path(transaction.transfer, transfer: { status: "rejected" }),
-            method: :patch,
-            data: { turbo: false },
-            title: t("transactions.transfer_match.reject_match"),
-            aria: { label: t("transactions.transfer_match.reject_match") }
-          ) %>
-    </div>
+        <%= render DS::Button.new(
+              variant: :icon, size: :sm, icon: "x",
+              href: transfer_path(transaction.transfer, transfer: { status: "rejected" }),
+              method: :patch,
+              data: { turbo: false },
+              title: t("transactions.transfer_match.reject_match"),
+              aria: { label: t("transactions.transfer_match.reject_match") }
+            ) %>
+      </div>
+    <% end %>
   <% end %>
 </div>

@@ -128,6 +128,8 @@ de:
       split: Geteilt
       split_child_tooltip: Teil einer geteilten Transaktion
       split_tooltip: Diese Transaktion wurde in mehrere Einträge geteilt
+      disabled_account: Konto deaktiviert
+      disabled_account_tooltip: Dieses Konto ist deaktiviert, seine Buchungen sind hier nur lesbar
     merge_duplicate:
       success: Transaktionen erfolgreich zusammengeführt
       failure: Transaktionen konnten nicht zusammengeführt werden
@@ -228,6 +230,7 @@ de:
           transfer: Überweisung
           confirmed: Bestätigt
           pending: Ausstehend
+          disabled_accounts: Deaktivierte Konten eingeblendet
         type_filter:
           expense: Ausgabe
           income: Einnahme
@@ -237,6 +240,7 @@ de:
           pending: Ausstehend
         account_filter:
           filter_accounts: Konten filtern
+          include_disabled: Buchungen deaktivierter Konten anzeigen
         category_filter:
           filter_category: Kategorie filtern
         date_filter:

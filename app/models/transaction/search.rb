@@ -268,13 +268,11 @@ class Transaction::Search
   private
     Totals = Data.define(:count, :income_money, :expense_money, :transfer_inflow_money, :transfer_outflow_money)
 
-    # Filter query to include only active accounts if requested
+    # Accounts awaiting deletion stay hidden either way; turning the filter off
+    # only adds disabled accounts.
     def apply_active_accounts_filter(query, active_accounts_only_filter)
-      if active_accounts_only_filter
-        query.where(accounts: { status: [ "draft", "active" ] })
-      else
-        query
-      end
+      statuses = active_accounts_only_filter ? Account::VISIBLE_STATUSES : Account::HISTORICAL_STATUSES
+      query.where(accounts: { status: statuses })
     end
 
 

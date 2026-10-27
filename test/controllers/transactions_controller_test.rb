@@ -666,6 +666,51 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert @entry.entryable.locked?(:tag_ids)
   end
 
+  test "index hides disabled accounts unless the filter shows them read-only" do
+    account = accounts(:depository)
+    account.disable!
+    row = "##{dom_id(@entry)}"
+
+    get transactions_url(q: { search: @entry.name })
+    assert_response :success
+    assert_select row, count: 0
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+    assert_response :success
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account")
+      assert_select "input[type=checkbox][disabled]##{dom_id(@entry, "selection")}"
+      assert_select "turbo-frame#category_dropdown", count: 0
+      assert_select "turbo-frame#tag_dropdown", count: 0
+    end
+    assert_select "#transaction-search-filters", text: /#{I18n.t("transactions.searches.filters.badge.disabled_accounts")}/
+    assert_select "input[type=checkbox][name='q[active_accounts_only]'][value=false][checked]"
+  end
+
+  test "index treats any other active_accounts_only value as the default" do
+    accounts(:depository).disable!
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "true" })
+
+    assert_response :success
+    assert_select "##{dom_id(@entry)}", count: 0
+    assert_select "#transaction-search-filters li", count: 1
+  end
+
+  test "showing disabled accounts keeps account share limits" do
+    sign_in users(:family_member)
+    shared_entry = create_transaction(account: accounts(:credit_card), name: "Disabled shared row")
+    unshared_entry = create_transaction(account: accounts(:investment), name: "Disabled unshared row")
+    accounts(:credit_card).disable!
+    accounts(:investment).disable!
+
+    get transactions_url(q: { search: "Disabled", active_accounts_only: "false" })
+
+    assert_response :success
+    assert_select "##{dom_id(shared_entry)}"
+    assert_select "##{dom_id(unshared_entry)}", count: 0
+  end
+
   test "tag-only endpoint returns forbidden json for read-only users" do
     sign_in users(:family_member)
     read_only_entry = entries(:transfer_in)

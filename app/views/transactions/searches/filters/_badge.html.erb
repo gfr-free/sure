@@ -57,6 +57,11 @@
       <%= icon(param_value == "current" ? "sparkles" : "history", size: "sm") %>
       <p><%= t(".ai_#{param_value}") %></p>
     </div>
+  <% elsif param_key == "active_accounts_only" %>
+    <div class="flex items-center gap-2 px-1">
+      <%= icon("archive", size: "sm") %>
+      <p><%= t(".disabled_accounts") %></p>
+    </div>
   <% elsif param_key == "attachment_status" %>
     <div class="flex items-center gap-2 px-1">
       <%= icon("paperclip", size: "sm") %>

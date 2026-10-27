@@ -13,6 +13,45 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     @family.accounts.each { |account| account.entries.delete_all }
   end
 
+  test "hides disabled accounts by default and shows them when active_accounts_only is false" do
+    active_entry = create_transaction(account: @checking_account, amount: 10)
+    disabled_entry = create_transaction(account: @credit_card_account, amount: 20)
+    @credit_card_account.disable!
+
+    default_ids = Transaction::Search.new(@family).transactions_scope.pluck("entries.id")
+    assert_includes default_ids, active_entry.id
+    assert_not_includes default_ids, disabled_entry.id
+
+    search = Transaction::Search.new(@family, filters: { "active_accounts_only" => "false" })
+    assert_equal [ active_entry.id, disabled_entry.id ].sort, search.transactions_scope.pluck("entries.id").sort
+    assert_equal 2, search.totals.count
+  end
+
+  test "never shows accounts pending deletion, even with disabled accounts included" do
+    create_transaction(account: @checking_account, amount: 10)
+    deleting_entry = create_transaction(account: @loan_account, amount: 20)
+    @loan_account.update_column(:status, "pending_deletion")
+
+    search = Transaction::Search.new(@family, filters: { "active_accounts_only" => "false" })
+    assert_not_includes search.transactions_scope.pluck("entries.id"), deleting_entry.id
+  end
+
+  test "showing disabled accounts keeps the accessible account scope" do
+    disabled_entry = create_transaction(account: @credit_card_account, amount: 20)
+    hidden_entry = create_transaction(account: @loan_account, amount: 30)
+    @credit_card_account.disable!
+    @loan_account.disable!
+
+    search = Transaction::Search.new(
+      @family,
+      filters: { "active_accounts_only" => "false" },
+      accessible_account_ids: [ @checking_account.id, @credit_card_account.id ]
+    )
+    ids = search.transactions_scope.pluck("entries.id")
+    assert_includes ids, disabled_entry.id
+    assert_not_includes ids, hidden_entry.id
+  end
+
   test "search filters by transaction types using kind enum" do
     # Create different types of transactions using the helper method
     standard_entry = create_transaction(

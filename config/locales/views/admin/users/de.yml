@@ -12,6 +12,8 @@ de:
         no_users: "Keine Benutzer gefunden."
         filters:
           role: "Rolle"
+          search: "Suche"
+          search_placeholder: "E-Mail, Name oder Familie/Gruppe"
           role_all: "Alle Rollen"
           trial_status: "Teststatus"
           trial_all: "Alle"
@@ -51,6 +53,28 @@ de:
           pending_label: Eingeladen (offen)
         no_subscription: Kein Abo
         unnamed_family: Familie/Gruppe ohne Namen
+      show:
+        title: "Benutzerdetails"
+        back: "Zurück zur Benutzerliste"
+        inactive: "Inaktiv"
+        family: "Familie / Gruppe"
+        members: "Mitglieder"
+        created_at: "Angelegt"
+        last_login: "Letzte Anmeldung"
+        session_count: "Anzahl Sitzungen"
+        subscription: "Abonnement"
+        counters:
+          title: "Nutzung"
+          description: "Zähler für die Familie/Gruppe des Benutzers. Salden, Kontonamen und Buchungen werden nicht angezeigt."
+          accounts: "Konten"
+          entries: "Buchungen"
+          syncs: "Synchronisierungen"
+          failed_syncs: "Fehlgeschlagene Synchronisierungen"
+          last_sync: "Letzte Synchronisierung: %{time}"
+        recent_errors:
+          title: "Letzte Synchronisierungsfehler"
+          empty: "Keine fehlgeschlagenen Synchronisierungen."
+          no_message: "Keine Fehlermeldung gespeichert."
       update:
         success: "Benutzerrolle wurde erfolgreich aktualisiert."
         failure: "Benutzerrolle konnte nicht aktualisiert werden."

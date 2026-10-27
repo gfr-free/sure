@@ -2,39 +2,43 @@
 
 module Admin
   class UsersController < Admin::BaseController
-    before_action :set_user, only: %i[update deletion destroy]
+    PER_PAGE = 25
+
+    before_action :set_user, only: %i[show update deletion destroy]
 
     def index
       authorize User
       scope = policy_scope(User)
         .left_joins(family: :subscription)
-        .includes(:oidc_identities, family: :subscription)
+        .preload(:oidc_identities, family: :subscription)
         .with_attached_profile_image
 
       scope = scope.where(role: params[:role]) if params[:role].present?
       scope = apply_trial_filter(scope) if params[:trial_status].present?
+      scope = apply_search(scope) if params[:q].present?
 
-      users = scope.order(
-        Arel.sql(
-          "CASE " \
-          "WHEN subscriptions.status = 'trialing' THEN 0 " \
-          "WHEN subscriptions.id IS NULL THEN 1 " \
-          "ELSE 2 END, " \
-          "subscriptions.trial_ends_at ASC NULLS LAST, users.email ASC"
+      # Families with the most transactions come first, as before pagination.
+      # Ordering in SQL keeps a family's members together across page breaks.
+      ordered = scope
+        .joins(
+          "LEFT JOIN (" \
+            "SELECT accounts.family_id, COUNT(entries.id) AS entries_count " \
+            "FROM entries INNER JOIN accounts ON accounts.id = entries.account_id " \
+            "GROUP BY accounts.family_id" \
+          ") family_entry_counts ON family_entry_counts.family_id = users.family_id"
         )
-      )
+        .order(Arel.sql("COALESCE(family_entry_counts.entries_count, 0) DESC, users.family_id ASC, users.email ASC"))
+
+      @pagy, users = pagy(ordered, limit: PER_PAGE)
 
       family_ids = users.map(&:family_id).uniq
       @accounts_count_by_family = Account.where(family_id: family_ids).group(:family_id).count
       @entries_count_by_family = Entry.joins(:account).where(accounts: { family_id: family_ids }).group("accounts.family_id").count
+      # Counted over the filtered scope, not the page, so a family split by a
+      # page break still shows its full number of matching members.
+      @members_count_by_family = scope.where(family_id: family_ids).group(:family_id).count
 
-      user_ids = users.map(&:id).uniq
-      @last_login_by_user = User.where(id: user_ids).pluck(:id, :last_login_at).to_h
-      @sessions_count_by_user = User.where(id: user_ids).pluck(:id, :sessions_count).to_h
-
-      @families_with_users = users.group_by(&:family).sort_by do |family, _users|
-        -(@entries_count_by_family[family.id] || 0)
-      end
+      @families_with_users = users.group_by(&:family)
 
       @invitations_by_family = Invitation.pending
         .where(family_id: family_ids)
@@ -48,6 +52,23 @@ module Admin
       # Used by the view to hide the "remove" action for the sole remaining
       # active super admin, computed once here instead of per-row.
       @active_super_admin_count = User.where(role: :super_admin, active: true).count
+    end
+
+    # Counters only: an operator sees how much a user's family stores and
+    # whether its syncs fail, never balances, account names or entries.
+    def show
+      authorize @user
+
+      family = @user.family
+      family_syncs = Sync.for_family(family)
+
+      @members_count = family.users.count
+      @accounts_count = family.accounts.count
+      @entries_count = Entry.joins(:account).where(accounts: { family_id: family.id }).count
+      @syncs_count = family_syncs.count
+      @failed_syncs_count = family_syncs.where(status: "failed").count
+      @last_sync_at = family_syncs.maximum(:created_at)
+      @recent_failed_syncs = family_syncs.where(status: "failed").ordered.limit(5)
     end
 
     def update
@@ -248,6 +269,16 @@ module Admin
           @user.super_admin? &&
           user_params[:role] != "super_admin" &&
           User.where(role: :super_admin).where.not(id: @user.id).none?
+      end
+
+      def apply_search(scope)
+        pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
+
+        scope.where(
+          "users.email ILIKE :pattern OR users.first_name ILIKE :pattern OR users.last_name ILIKE :pattern " \
+          "OR CONCAT_WS(' ', users.first_name, users.last_name) ILIKE :pattern OR families.name ILIKE :pattern",
+          pattern: pattern
+        )
       end
 
       def apply_trial_filter(scope)

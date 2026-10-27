@@ -23,6 +23,7 @@ class TransactionsController < ApplicationController
     @q = search_params
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id)
     @search = Transaction::Search.new(Current.family, filters: @q, accessible_account_ids: @accessible_account_ids)
+    @disabled_accounts_shown = !@search.active_accounts_only
 
     base_scope = @search.transactions_scope
                        .reverse_chronological

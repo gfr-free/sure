@@ -711,6 +711,30 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "##{dom_id(unshared_entry)}", count: 0
   end
 
+  test "a row saved from the drawer keeps its edit controls on a disabled account" do
+    accounts(:depository).disable!
+
+    patch transaction_url(@entry), params: { entry: { name: "Renamed" } }, as: :turbo_stream
+
+    assert_response :success
+    assert_no_match I18n.t("transactions.transaction.disabled_account"), response.body
+    assert_select "turbo-stream[target=?] input[type=checkbox]##{dom_id(@entry, "selection")}:not([disabled])", dom_id(@entry)
+  end
+
+  test "showing disabled accounts lists a transfer by its leg on the active account" do
+    Entry.where(name: "Moved money").destroy_all
+    transfer = create_transfer(from_account: accounts(:depository), to_account: accounts(:credit_card), amount: 75).reload
+    transfer.outflow_transaction.entry.update!(name: "Moved money")
+    transfer.inflow_transaction.entry.update!(name: "Moved money")
+    accounts(:depository).disable!
+
+    get transactions_url(q: { search: "Moved money", active_accounts_only: "false" })
+
+    assert_response :success
+    assert_select "##{dom_id(transfer.inflow_transaction.entry)}"
+    assert_select "##{dom_id(transfer.outflow_transaction.entry)}", count: 0
+  end
+
   test "tag-only endpoint returns forbidden json for read-only users" do
     sign_in users(:family_member)
     read_only_entry = entries(:transfer_in)

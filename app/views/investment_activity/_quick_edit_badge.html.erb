@@ -1,4 +1,4 @@
-<%# locals: (entry:, entryable:) %>
+<%# locals: (entry:, entryable:, read_only: false) %>
 <%
   label = entryable.investment_activity_label
   has_label = label.present?
@@ -36,6 +36,7 @@
   entryable_type = entryable.is_a?(Trade) ? "Trade" : "Transaction"
   convert_url = entryable.is_a?(Transaction) ? convert_to_trade_transaction_path(entryable) : nil
   income_trade = entryable.is_a?(Trade) && %w[Dividend Interest].include?(label)
+  static = income_trade || read_only
 %>
 
 <div class="relative"
@@ -48,17 +49,17 @@
      data-activity-label-quick-edit-convert-url-value="<%= convert_url %>"
      <% end %>>
 
-  <%# Dividend/Interest trades have no dropdown to open (income_trade), so this
+  <%# Dividend/Interest trades and read-only rows have no dropdown to open (static), so this
       renders as a plain <span> rather than a <button> — a real <button> with no
       click handler would still be excluded from the row's whole-row click
       delegation (clickable_row_controller.js excludes "a, button, input, select,
       textarea, label"), creating a dead spot identical to the bug issue #3366
       fixed for the rest of the row. %>
-  <%= content_tag(income_trade ? :span : :button,
-        type: income_trade ? nil : "button",
-        class: "inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 #{income_trade ? "cursor-pointer" : "cursor-pointer hover:opacity-80"} transition-opacity",
+  <%= content_tag(static ? :span : :button,
+        type: static ? nil : "button",
+        class: "inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 #{static ? "cursor-pointer" : "cursor-pointer hover:opacity-80"} transition-opacity",
         style: (has_label ? "background-color: color-mix(in oklab, #{color} 15%, transparent); border: 1px solid color-mix(in oklab, #{color} 25%, transparent); color: #{color};" : "background-color: var(--color-surface-inset); border: 1px solid var(--color-border-secondary); color: var(--color-text-secondary);"),
-        data: (income_trade ? {} : { action: "click->activity-label-quick-edit#toggle", activity_label_quick_edit_target: "badge" }),
+        data: (static ? {} : { action: "click->activity-label-quick-edit#toggle", activity_label_quick_edit_target: "badge" }),
         title: (has_label ? t("transactions.transaction.activity_type_tooltip") : t("transactions.show.activity_type"))) do %>
     <% if has_label %>
       <%= t("transactions.activity_labels.#{label.parameterize(separator: "_")}", default: label) %>
@@ -66,12 +67,12 @@
       <%= icon "tag", size: "xs", color: "current" %>
       <span><%= t("transactions.show.activity_type") %></span>
     <% end %>
-    <% unless income_trade %>
+    <% unless static %>
       <%= icon "chevron-down", size: "xs", color: "current" %>
     <% end %>
   <% end %>
 
-  <% unless income_trade %>
+  <% unless static %>
     <!-- Dropdown menu -->
     <div class="hidden absolute right-0 z-50 mt-1 w-44 rounded-lg border border-primary bg-container shadow-lg"
          data-activity-label-quick-edit-target="dropdown">

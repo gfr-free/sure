@@ -260,6 +260,7 @@ class Transaction::Search
       family.currency,
       Digest::SHA256.hexdigest(attributes.sort.to_h.to_json), # cached by filters
       family.entries_cache_version,
+      family.accounts_status_version, # disabling or deleting an account changes which entries count
       Digest::SHA256.hexdigest(family.tax_advantaged_account_ids.sort.to_json), # stable across processes
       accessible_account_ids ? Digest::SHA256.hexdigest(accessible_account_ids.sort.to_json) : "all"
     ].join("/")

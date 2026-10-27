@@ -187,7 +187,7 @@ en:
       split_tooltip: This transaction has been split into multiple entries
       split_child_tooltip: Part of a split transaction
       disabled_account: Disabled account
-      disabled_account_tooltip: This account is disabled, so its transactions are read-only here
+      disabled_account_tooltip: This account is disabled, so quick edits are off in this list
     merge_duplicate:
       success: Transactions merged successfully
       failure: Could not merge transactions

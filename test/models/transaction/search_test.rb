@@ -27,6 +27,18 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal 2, search.totals.count
   end
 
+  test "totals follow an account being disabled" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    create_transaction(account: @checking_account, amount: 10)
+    create_transaction(account: @credit_card_account, amount: 20)
+    assert_equal 2, Transaction::Search.new(@family).totals.count
+
+    travel 1.second do
+      @credit_card_account.disable!
+      assert_equal 1, Transaction::Search.new(@family.reload).totals.count
+    end
+  end
+
   test "never shows accounts pending deletion, even with disabled accounts included" do
     create_transaction(account: @checking_account, amount: 10)
     deleting_entry = create_transaction(account: @loan_account, amount: 20)

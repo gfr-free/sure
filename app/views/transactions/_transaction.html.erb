@@ -2,8 +2,9 @@
 
 <% transaction = entry.entryable %>
 <% transaction_security_logo_url = transaction.activity_security&.display_logo_url %>
-<%# The global list can include disabled accounts (opt-in filter); their rows are view-only there. %>
-<% read_only = view_ctx == "global" && entry.account.disabled? %>
+<%# Only the transactions list's opt-in filter shows disabled accounts; it drops their inline edit controls.
+    Re-renders from other actions (account page, drawer saves) leave the row as it always was. %>
+<% read_only = @disabled_accounts_shown && entry.account.disabled? %>
 <% open_path = if transaction.transfer?
      transaction.transfer.present? ? transfer_path(transaction.transfer) : entry_path(entry)
    else
@@ -204,13 +205,7 @@
       <div class="hidden md:flex md:shrink-0 min-w-0 items-center gap-1 col-span-3 pr-2">
         <% if entry.account.supports_trades? && !transaction.transfer? %>
           <%# For investment/crypto accounts, show activity label instead of category %>
-          <% if read_only %>
-            <% if transaction.investment_activity_label.present? %>
-              <%= render DS::Pill.new(label: investment_activity_label_name(transaction.investment_activity_label), tone: :neutral, marker: false) %>
-            <% end %>
-          <% else %>
-            <%= render "investment_activity/quick_edit_badge", entry: entry, entryable: transaction %>
-          <% end %>
+          <%= render "investment_activity/quick_edit_badge", entry: entry, entryable: transaction, read_only: read_only %>
         <% else %>
           <%= render "transactions/transaction_category", transaction: transaction, variant: "desktop", in_split_group: in_split_group, read_only: read_only %>
         <% end %>

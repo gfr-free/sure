@@ -68,6 +68,12 @@ class Rule::ConditionFilter
     nil
   end
 
+  # Label lookup for value_display. Override when the select labels carry
+  # cosmetic markup (e.g. indented subcategories) that shouldn't reach summaries.
+  def display_options
+    options
+  end
+
   def operators
     OPERATORS_MAP.dig(type).map { |label_key, operator| [ operator_label(label_key), operator ] }
   end

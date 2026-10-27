@@ -1,10 +1,10 @@
-<%# locals: (transaction:, variant:, in_split_group: false) %>
+<%# locals: (transaction:, variant:, in_split_group: false, read_only: false) %>
 
 <div id="<%= dom_id(transaction, "category_menu_#{variant}") %>" class="min-w-0 overflow-hidden">
-  <% if transaction.category_editable? %>
+  <% if transaction.category_editable? && !read_only %>
     <%= render "categories/menu", transaction: transaction, in_split_group: in_split_group %>
   <% else %>
-    <% category = read_only_category(transaction) %>
+    <% category = displayed_category(transaction) %>
     <% set_on_outflow = transaction.category_set_on_transfer_outflow? %>
     <div class="hidden lg:flex items-center gap-1 min-w-0">
       <div class="<%= "opacity-60 cursor-not-allowed" if set_on_outflow %>">

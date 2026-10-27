@@ -35,10 +35,9 @@ module EntriesHelper
       if transfer_id.nil? || grouped_entries.size == 1
         grouped_entries
       else
-        grouped_entries.reject do |e|
-          e.entryable_type == "Transaction" &&
-          e.entryable.transfer_as_inflow.present?
-        end
+        # Show the outflow leg, unless only the inflow sits on an active account
+        # (the list can include disabled accounts), so the shown leg stays editable.
+        [ grouped_entries.min_by { |e| [ e.account.disabled? ? 1 : 0, e.entryable.transfer_as_inflow.present? ? 1 : 0 ] } ]
       end
     end
 

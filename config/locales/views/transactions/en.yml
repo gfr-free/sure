@@ -186,6 +186,8 @@ en:
       split: Split
       split_tooltip: This transaction has been split into multiple entries
       split_child_tooltip: Part of a split transaction
+      disabled_account: Disabled account
+      disabled_account_tooltip: This account is disabled, so quick edits are off in this list
     merge_duplicate:
       success: Transactions merged successfully
       failure: Could not merge transactions
@@ -323,6 +325,7 @@ en:
       filters:
         account_filter:
           filter_accounts: Filter accounts
+          include_disabled: Show transactions from disabled accounts
         category_filter:
           filter_category: Filter category
         date_filter:
@@ -349,6 +352,7 @@ en:
           ai_history: AI history
           attachment_with: With attachment
           attachment_without: Without attachment
+          disabled_accounts: Disabled accounts shown
         attachment_filter:
           with: With attachment
           without: Without attachment

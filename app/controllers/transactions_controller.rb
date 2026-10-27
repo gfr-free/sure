@@ -23,6 +23,7 @@ class TransactionsController < ApplicationController
     @q = search_params
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id)
     @search = Transaction::Search.new(Current.family, filters: @q, accessible_account_ids: @accessible_account_ids)
+    @disabled_accounts_shown = !@search.active_accounts_only
 
     base_scope = @search.transactions_scope
                        .reverse_chronological
@@ -804,6 +805,8 @@ class TransactionsController < ApplicationController
               .compact_blank
 
       cleaned_params.delete(:amount_operator) unless cleaned_params[:amount].present?
+      # Only the opt-in value is kept, so the default never shows up as a filter badge.
+      cleaned_params.delete(:active_accounts_only) unless cleaned_params[:active_accounts_only] == "false"
 
       if cleaned_params[:ai_status]
         cleaned_params[:ai_status] &= Transaction::Search::AI_STATUSES

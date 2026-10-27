@@ -346,4 +346,65 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("splits.destroy.success"), flash[:notice]
     refute @entry.reload.excluded?
   end
+
+  test "new and edit redirect a member whose share cannot split" do
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+
+    get new_transaction_split_path(@entry)
+    assert_redirected_to transactions_url
+    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    get edit_transaction_split_path(@entry)
+    assert_redirected_to transactions_url
+    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+  end
+
+  test "new answers a refused modal request with a full-page redirect" do
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+
+    get new_transaction_split_path(@entry), headers: { "Turbo-Frame" => "modal" }
+
+    assert_response :success
+    assert_select "turbo-frame#modal turbo-stream[action=redirect][target=?]", transactions_path
+    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+  end
+
+  test "new renders for a member with full control" do
+    sign_in users(:family_member)
+
+    get new_transaction_split_path(@entry)
+    assert_response :success
+  end
+
+  test "create, update and destroy are refused for a member whose share cannot split" do
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+    splits = { split: { splits: [ { name: "A", amount: "-50" }, { name: "B", amount: "-50" } ] } }
+
+    assert_no_difference "Entry.count" do
+      post transaction_split_path(@entry), params: splits
+    end
+    assert_redirected_to transactions_url
+
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    patch transaction_split_path(@entry), params: splits
+    assert_redirected_to transactions_url
+    assert_equal [ "Part 1", "Part 2" ], @entry.reload.child_entries.order(:name).pluck(:name)
+
+    assert_no_difference "Entry.count" do
+      delete transaction_split_path(@entry)
+    end
+    assert @entry.reload.split_parent?
+  end
 end

@@ -91,4 +91,31 @@ class Category::DropdownsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-category-quick-create-target='createAsSubcategory']", count: 0
     assert_select "[data-category-quick-create-target='parentPicker']", count: 0
   end
+
+  test "offers split, transfer match and exclude only to users who can edit the transaction" do
+    entry = create_transaction(account: accounts(:depository), amount: 100)
+    sign_in users(:family_member)
+
+    get category_dropdown_url(transaction_id: entry.entryable_id)
+    assert_select "a[href='#{new_transaction_split_path(entry)}']", count: 1
+    assert_select "a[href='#{new_transaction_transfer_match_path(entry)}']", count: 1
+    assert_select "input[type=checkbox][name='entry[excluded]']", count: 1
+
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+
+    get category_dropdown_url(transaction_id: entry.entryable_id)
+    assert_response :success
+    assert_select "a[href='#{new_transaction_split_path(entry)}']", count: 0
+    assert_select "a[href='#{new_transaction_transfer_match_path(entry)}']", count: 0
+    assert_select "input[type=checkbox][name='entry[excluded]']", count: 0
+  end
+
+  test "does not render for a transaction on an account the user cannot see" do
+    entry = create_transaction(account: accounts(:depository), amount: 100)
+    account_shares(:depository_shared_with_member).destroy!
+    sign_in users(:family_member)
+
+    get category_dropdown_url(transaction_id: entry.entryable_id)
+    assert_response :not_found
+  end
 end

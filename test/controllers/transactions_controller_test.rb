@@ -606,6 +606,39 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_dom "#total-transactions", count: 1, text: "1"
   end
 
+  test "split actions in the drawer are hidden when the user cannot split" do
+    parent = create_transaction(account: accounts(:depository), amount: 100)
+    parent.split!([ { name: "Part 1", amount: 60, category_id: nil }, { name: "Part 2", amount: 40, category_id: nil } ])
+    child = parent.child_entries.first
+
+    get transaction_url(parent)
+    assert_select "a[href='#{edit_transaction_split_path(parent)}']", count: 1
+    assert_select "form[action='#{transaction_split_path(parent)}']", count: 1
+
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+
+    [ parent, child ].each do |entry|
+      get transaction_url(entry)
+      assert_response :success
+      assert_select "a[href='#{edit_transaction_split_path(parent)}']", count: 0
+      assert_select "form[action='#{transaction_split_path(parent)}']", count: 0
+    end
+
+    account_shares(:depository_shared_with_member).update!(permission: "full_control")
+    [ parent, child ].each do |entry|
+      get transaction_url(entry)
+      assert_select "a[href='#{edit_transaction_split_path(parent)}']", count: 1
+      assert_select "form[action='#{transaction_split_path(parent)}']", count: 1
+    end
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+
+    unsplit = create_transaction(account: accounts(:depository), amount: 50)
+    get transaction_url(unsplit)
+    assert_response :success
+    assert_select "a[href='#{new_transaction_split_path(unsplit)}']", count: 0
+  end
+
   test "can update notes on split child transaction" do
     parent = create_transaction(account: accounts(:depository), amount: 100)
     parent.split!([ { name: "Part 1", amount: 60, category_id: nil }, { name: "Part 2", amount: 40, category_id: nil } ])

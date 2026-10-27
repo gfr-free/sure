@@ -796,6 +796,20 @@ class AccountTest < ActiveSupport::TestCase
     assert_equal :read_write, @account.permission_for(@member)
   end
 
+  test "writable_by? allows owners and full control shares only" do
+    assert @account.writable_by?(@admin)
+
+    share = @account.account_shares.find_by(user: @member)
+    share.update!(permission: "full_control")
+    assert @account.writable_by?(@member)
+
+    share.update!(permission: "read_write")
+    assert_not @account.writable_by?(@member)
+
+    share.destroy!
+    assert_not @account.writable_by?(@member)
+  end
+
   test "accessible_by scope returns owned and shared accounts" do
     # Clear existing shares for clean test
     AccountShare.delete_all

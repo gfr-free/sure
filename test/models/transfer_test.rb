@@ -212,6 +212,18 @@ class TransferTest < ActiveSupport::TestCase
     end
   end
 
+  test "destroying a confirmed plain transfer unlocks the category confirm! cleared" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(category: categories(:food_and_drink))
+    transfer.confirm!
+
+    transfer.destroy!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_nil outflow.category
+    assert_not outflow.locked?(:category_id)
+  end
+
   test "confirm! leaves the category of an uncategorized plain transfer leg unlocked" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
 

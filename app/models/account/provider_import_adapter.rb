@@ -272,7 +272,7 @@ class Account::ProviderImportAdapter
           entry.transaction.assign_attributes(kind: transfer ? transfer.kind_for_leg(entry.transaction) : auto_kind)
         end
 
-        if auto_category.present? && entry.transaction.category_id.blank?
+        if auto_category.present? && entry.transaction.category_id.blank? && entry.transaction.enrichable?(:category_id)
           entry.transaction.assign_attributes(category: auto_category)
         end
       end

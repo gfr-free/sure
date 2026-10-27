@@ -266,6 +266,9 @@ class Transfer < ApplicationRecord
             transaction.update!(kind: "standard")
             # A kind locked by update_investment_contribution! belonged to this transfer.
             transaction.unlock_attr!(:kind) if transaction.locked?(:kind)
+            # confirm! cleared and locked the category of a plain transfer; let
+            # rules and syncs categorize the standalone transaction again.
+            transaction.unlock_attr!(:category_id) if transaction.category_id.nil? && transaction.locked?(:category_id)
           end
           # The entry survives this destroy (only the Transfer join row and
           # fee transactions go away), but its idempotency_key must not: a

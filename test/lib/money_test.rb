@@ -111,7 +111,6 @@ class MoneyTest < ActiveSupport::TestCase
 
   test "operator order does not matter" do
     assert_equal Money.new(1000) + 1000, 1000 + Money.new(1000)
-    assert_equal Money.new(1000) - 1000, 1000 - Money.new(1000)
     assert_equal Money.new(1000) * 2, 2 * Money.new(1000)
   end
 

@@ -15,10 +15,9 @@ module Money::Arithmetic
     if other.is_a?(Money)
       ensure_same_currency!(other, :-)
       self.class.new(amount - other.amount, currency)
+    elsif other.is_a?(CoercedNumeric)
+      self.class.new(other.value - amount, currency)
     else
-      # Numeric - Money arrives via #coerce with the operands swapped
-      return self.class.new(other.value - amount, currency) if other.is_a?(CoercedNumeric)
-
       self.class.new(amount - other, currency)
     end
   end
@@ -63,8 +62,9 @@ module Money::Arithmetic
     amount.to_f
   end
 
-  # Override Ruby's coerce method so the order of operands doesn't matter
-  # Wrap in Coerced so we can distinguish between Money and other types
+  # Lets a Numeric appear on the left (e.g. `10 - money`). Ruby then calls the
+  # operator on self with the operands swapped, so a CoercedNumeric argument is
+  # the left-hand operand and non-commutative operators must account for that.
   def coerce(other)
     [ self, CoercedNumeric.new(other) ]
   end

@@ -47,7 +47,7 @@ export default class extends Controller {
       input.name = `connection_fields[${field.key}]`
       input.type = this.inputTypeFor(field.key)
       input.autocomplete = "off"
-      input.className = "block w-full rounded-md border border-primary px-3 py-2 text-sm bg-container-inset text-primary placeholder:text-secondary focus:border-primary focus:ring-0"
+      input.className = "block w-full rounded-md border border-primary px-3 py-2 text-sm bg-container-inset text-primary placeholder:text-secondary focus:border-primary focus:ring-0 focus-ring"
       input.placeholder = field.name
       input.value = this.initialFieldsValue?.[field.key] || ""
 

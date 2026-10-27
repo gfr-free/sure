@@ -14,6 +14,22 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "sidebar shows a sparkline for groups that are not one account type and for subgroups" do
+    @user.update!(preferences: @user.preferences.merge(
+      "preview_features_enabled" => true,
+      "account_grouping_primary" => { "sidebar" => "currency" },
+      "account_grouping" => { "sidebar" => "account_type" }
+    ))
+
+    get root_path
+
+    assert_response :ok
+    assert_select "turbo-frame[src^='#{account_group_sparkline_path}']", minimum: 2
+    assert_select "[data-subgroup-key] turbo-frame[src^='#{account_group_sparkline_path}'][src*='subgroup=']", minimum: 1
+    frame_ids = css_select("turbo-frame[src^='#{account_group_sparkline_path}']").map { |frame| frame["id"] }
+    assert_equal frame_ids.uniq, frame_ids, "every group sparkline frame needs its own id"
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 

@@ -664,6 +664,7 @@ Rails.application.routes.draw do
   end
 
   resources :accountable_sparklines, only: :show, param: :accountable_type
+  resource :account_group_sparkline, only: :show
 
   direct :entry do |entry, options|
     if entry.new_record?

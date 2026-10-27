@@ -182,8 +182,24 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[data-label='Sweep In']", text: "Автоперевод (зачисление)"
   end
 
-  test "index groups subcategories immediately after their parent in the category filter" do
+  test "index loads the filter menu lazily instead of rendering every filter option" do
     get transactions_url
+    assert_response :success
+
+    assert_select "turbo-frame#transaction-filters[loading='lazy'][src=?]", transactions_search_filters_path
+    assert_select "input[name='q[categories][]']", count: 0
+  end
+
+  test "index passes the active filters on to the lazily loaded filter menu" do
+    get transactions_url(q: { categories: [ categories(:food_and_drink).name ] })
+    assert_response :success
+
+    assert_select "turbo-frame#transaction-filters[src=?]",
+      transactions_search_filters_path(q: { categories: [ categories(:food_and_drink).name ] })
+  end
+
+  test "filter menu groups subcategories immediately after their parent in the category filter" do
+    get transactions_search_filters_url
     assert_response :success
 
     doc = Nokogiri::HTML::Document.parse(response.body)
@@ -2324,8 +2340,8 @@ end
     assert_select "#entry_#{@entry.id}", count: 0
   end
 
-  test "index offers the attachment filter in the filter menu" do
-    get transactions_url
+  test "the filter menu offers the attachment filter" do
+    get transactions_search_filters_url
 
     assert_response :success
     assert_select "#transaction-filters-menu input[type=checkbox][name='q[attachment_status][]']", count: 2

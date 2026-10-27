@@ -300,6 +300,30 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "a manual crypto exchange account can open the trade form and record a buy" do
+    account = accounts(:crypto)
+    account.accountable.update!(subtype: "exchange")
+
+    get new_trade_url(account_id: account.id)
+    assert_response :success
+
+    assert_difference [ "Entry.count", "Trade.count" ], 1 do
+      post trades_url(account_id: account.id), params: {
+        model: {
+          type: "buy",
+          date: Date.current,
+          ticker: "NVDA (NASDAQ)",
+          qty: 1,
+          price: 20,
+          currency: "USD"
+        }
+      }
+    end
+
+    assert_equal account, Entry.order(created_at: :desc).first.account
+    assert_redirected_to account_url(account)
+  end
+
   test "creates trade buy entry with fee" do
     assert_difference [ "Entry.count", "Trade.count" ], 1 do
       post trades_url(account_id: @entry.account_id), params: {

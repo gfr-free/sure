@@ -470,6 +470,29 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "show offers new activity on a manual crypto exchange account" do
+    account = accounts(:crypto)
+    account.accountable.update!(subtype: "exchange")
+
+    get account_url(account)
+
+    assert_response :success
+    assert_select "[data-testid='activity-menu'] a[href='#{new_trade_path(account_id: account.id)}']"
+    assert_select "[data-testid='activity-menu'] a[href='#{new_transaction_path(account_id: account.id)}']", count: 0
+  end
+
+  test "show offers neither activity nor transaction on a manual crypto wallet account" do
+    account = accounts(:crypto)
+    account.accountable.update!(subtype: "wallet")
+
+    get account_url(account)
+
+    assert_response :success
+    assert_select "[data-testid='activity-menu'] a[href='#{new_trade_path(account_id: account.id)}']", count: 0
+    assert_select "[data-testid='activity-menu'] a[href='#{new_transaction_path(account_id: account.id)}']", count: 0
+    assert_select "[data-testid='activity-menu'] a[href='#{new_valuation_path(account_id: account.id)}']"
+  end
+
   test "show renders the balance chart as drag-selectable for a custom date range" do
     get account_url(@account)
 

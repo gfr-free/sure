@@ -92,6 +92,19 @@ class Api::V1::AuthControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "signup is refused when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+
+    assert_no_difference("User.count") do
+      post "/api/v1/auth/signup", params: {
+        user: { email: "sso-only@example.com", password: "Password1!", password_confirmation: "Password1!" },
+        device: @device_info
+      }
+    end
+
+    assert_response :forbidden
+  end
+
   test "should not signup without device info" do
     assert_no_difference("User.count") do
       post "/api/v1/auth/signup", params: {

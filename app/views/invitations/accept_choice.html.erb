@@ -11,13 +11,16 @@
 </div>
 
 <div class="space-y-4">
-  <%= link_to new_registration_path(invitation: @invitation.token),
-      class: "block w-full rounded-md border border-secondary bg-container px-4 py-3 text-center text-sm font-medium text-primary hover:bg-secondary transition" do %>
-    <%= t(".create_account") %>
+  <% local_registration_enabled = AuthConfig.local_registration_enabled? %>
+  <% if local_registration_enabled %>
+    <%= link_to new_registration_path(invitation: @invitation.token),
+        class: "block w-full rounded-md border border-secondary bg-container px-4 py-3 text-center text-sm font-medium text-primary hover:bg-secondary transition" do %>
+      <%= t(".create_account") %>
+    <% end %>
   <% end %>
 
   <%= link_to new_session_path(invitation: @invitation.token),
       class: "block w-full rounded-md border border-secondary bg-container px-4 py-3 text-center text-sm font-medium text-primary hover:bg-secondary transition" do %>
-    <%= t(".sign_in_existing") %>
+    <%= local_registration_enabled ? t(".sign_in_existing") : t(".continue_with_sso") %>
   <% end %>
 </div>

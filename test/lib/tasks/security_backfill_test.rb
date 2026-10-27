@@ -49,9 +49,8 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     refute_includes at_rest, "tx-1"
   end
 
-  # Guards the task's field list: dropping :account_number from the
-  # SnaptradeAccount entry would leave the model-level encryption test green
-  # while pre-encryption rows stayed plaintext.
+  # A plaintext column next to already-encrypted payloads on the same row must
+  # still be converted.
   test "backfill encrypts a plaintext SnapTrade account number" do
     account = snaptrade_accounts(:fidelity_401k)
     ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
@@ -86,5 +85,44 @@ class SecurityBackfillTest < ActiveSupport::TestCase
       "an empty payload must decrypt cleanly after the backfill, not remain plaintext")
     assert_match(/"p":/, account.read_attribute_before_type_cast(:raw_payload).to_s,
       "the stored value must be an encryption envelope, not plaintext {}")
+  end
+
+  # The task discovers models from their `encrypts` declarations instead of a
+  # fixed list. A model it skipped would keep plaintext rows that raise on
+  # every read once ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA is off.
+  test "backfill covers every model that declares encrypted attributes" do
+    item = kraken_items(:one)
+    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE kraken_items SET api_secret = ? WHERE id = ?", "plaintext-secret", item.id ]))
+
+    output, = capture_io { Rake::Task["security:backfill_encryption"].invoke("500", "false") }
+
+    assert_equal "plaintext-secret", item.reload.api_secret
+    at_rest = ActiveRecord::Base.connection.select_value(
+      KrakenItem.where(id: item.id).select(:api_secret).to_sql)
+    refute_includes at_rest.to_s, "plaintext-secret"
+
+    results = JSON.parse(output.lines.last)["results"]
+    encrypted_tables = ApplicationRecord.descendants
+      .reject(&:abstract_class?)
+      .select { |model| model.encrypted_attributes.present? }
+      .map(&:table_name)
+    assert_empty encrypted_tables.uniq - results.keys
+  end
+
+  test "backfill leaves already encrypted values untouched on a rerun" do
+    item = kraken_items(:one)
+    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE kraken_items SET api_secret = ? WHERE id = ?", "plaintext-secret", item.id ]))
+    capture_io { Rake::Task["security:backfill_encryption"].invoke("500", "false") }
+    ciphertext = item.reload.read_attribute_before_type_cast(:api_secret)
+
+    Rake::Task["security:backfill_encryption"].reenable
+    output, = capture_io { Rake::Task["security:backfill_encryption"].invoke("500", "false") }
+
+    assert_equal ciphertext, item.reload.read_attribute_before_type_cast(:api_secret)
+    kraken = JSON.parse(output.lines.last)["results"]["kraken_items"]
+    assert_equal 0, kraken["pending"]
+    assert_equal 0, kraken["updated"]
   end
 end

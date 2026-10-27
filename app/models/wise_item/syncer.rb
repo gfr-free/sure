@@ -98,9 +98,7 @@ class WiseItem::Syncer
     end
 
     def import_result_errors(result)
-      return [] if result.is_a?(Hash) && result[:success]
-
-      return [ sync_error(:import_error, :import_failed) ] unless result.is_a?(Hash)
+      return [] if result[:success]
 
       errors = []
       errors << sync_error(:account_import_error, :accounts_failed, count: result[:accounts_failed]) if result[:accounts_failed].to_i.positive?

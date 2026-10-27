@@ -469,7 +469,7 @@ class WiseItem::Importer
         }.compact.merge(metadata)
       )
     rescue => trace_error
-      Rails.logger.warn "WiseItem::Importer - Failed to capture statement trace: #{trace_error.message}"
+      Rails.logger.warn "WiseItem::Importer - Failed to capture fetch trace: #{trace_error.message}"
     end
 
     # Routes an activity to the given WiseAccount.

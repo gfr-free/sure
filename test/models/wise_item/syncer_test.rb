@@ -31,4 +31,15 @@ class WiseItem::SyncerTest < ActiveSupport::TestCase
     assert DebugLogEntry.where(provider_key: "wise", category: "provider_sync_error")
                         .where("metadata ->> 'operation' = ?", "balances").exists?
   end
+
+  test "an unexpected balance fetch error fails the sync" do
+    wise_item = wise_items(:one)
+    Provider::Wise.any_instance.stubs(:get_balances).raises(Faraday::TimeoutError, "execution expired")
+    sync = Sync.create!(syncable: wise_item)
+
+    sync.perform
+
+    assert sync.reload.failed?, "expected the sync to fail, was #{sync.status}"
+    assert_equal I18n.t("wise_items.syncer.import_failed"), sync.error
+  end
 end

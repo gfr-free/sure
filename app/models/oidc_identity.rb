@@ -1,9 +1,35 @@
 class OidcIdentity < ApplicationRecord
+  include Encryptable
+
+  # id_token from an SSO login that is still waiting for MFA, stored as
+  # "nonce:id_token"; it moves to the Session created once MFA succeeds.
+  if encryption_ready?
+    encrypts :pending_id_token_hint
+  end
+
   belongs_to :user
 
   validates :provider, presence: true
   validates :uid, presence: true, uniqueness: { scope: :provider }
   validates :user_id, presence: true
+
+  # Parks the id_token of an SSO login that still needs MFA and returns a nonce
+  # for that browser's session, so only the browser that started the login can
+  # claim the token. A later login on another browser replaces it.
+  def park_id_token_hint!(id_token)
+    nonce = SecureRandom.hex(16)
+    update!(pending_id_token_hint: id_token.present? ? "#{nonce}:#{id_token}" : nil)
+    nonce
+  end
+
+  def claim_pending_id_token_hint!(nonce)
+    stored_nonce, id_token = pending_id_token_hint.to_s.split(":", 2)
+    return if nonce.blank? || id_token.blank?
+    return unless ActiveSupport::SecurityUtils.secure_compare(stored_nonce, nonce)
+
+    update!(pending_id_token_hint: nil)
+    id_token
+  end
 
   # Update the last authenticated timestamp
   def record_authentication!

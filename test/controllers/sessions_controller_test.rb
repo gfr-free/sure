@@ -406,6 +406,64 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_not Session.exists?(user_id: @user.id)
   end
 
+  test "OIDC login with a large id_token keeps it out of the session cookie" do
+    oidc_identity = oidc_identities(:bob_google)
+    @user.sessions.destroy_all
+    id_token = "header.#{"g" * 6_000}.signature"
+    setup_omniauth_mock(provider: oidc_identity.provider, uid: oidc_identity.uid, email: @user.email, name: "Bob Dylan")
+    OmniAuth.config.mock_auth[:openid_connect].credentials = { id_token: id_token }
+
+    get "/auth/openid_connect/callback"
+
+    assert_redirected_to root_path
+    assert_nil session[:id_token_hint]
+    assert_equal id_token, Session.where(user: @user).sole.id_token_hint
+  end
+
+  test "OIDC login with MFA carries the id_token over to the session created after MFA" do
+    @user.setup_mfa!
+    @user.enable_mfa!
+    @user.sessions.destroy_all
+    oidc_identity = oidc_identities(:bob_google)
+    id_token = "header.#{"g" * 6_000}.signature"
+    setup_omniauth_mock(provider: oidc_identity.provider, uid: oidc_identity.uid, email: @user.email, name: "Bob Dylan")
+    OmniAuth.config.mock_auth[:openid_connect].credentials = { id_token: id_token }
+
+    get "/auth/openid_connect/callback"
+
+    assert_redirected_to verify_mfa_path
+    assert_nil session[:id_token_hint]
+    assert oidc_identity.reload.pending_id_token_hint.end_with?(":#{id_token}")
+
+    post verify_mfa_path, params: { code: ROTP::TOTP.new(@user.otp_secret, issuer: "Sure Finances").now }
+
+    assert_redirected_to root_path
+    assert_equal id_token, Session.where(user: @user).sole.id_token_hint
+    assert_nil oidc_identity.reload.pending_id_token_hint
+  end
+
+  test "signing out after OIDC login sends the stored id_token_hint to the IdP" do
+    oidc_identity = oidc_identities(:bob_google)
+    id_token = "header.#{"g" * 6_000}.signature"
+    setup_omniauth_mock(provider: oidc_identity.provider, uid: oidc_identity.uid, email: @user.email, name: "Bob Dylan")
+    OmniAuth.config.mock_auth[:openid_connect].credentials = { id_token: id_token }
+    get "/auth/openid_connect/callback"
+    session_record = @user.sessions.order(:created_at).last
+
+    ProviderLoader.stubs(:load_providers).returns([
+      { name: oidc_identity.provider, strategy: "openid_connect", issuer: "https://idp.example.com" }
+    ])
+    stub_request(:get, "https://idp.example.com/.well-known/openid-configuration")
+      .to_return(status: 200, body: { end_session_endpoint: "https://idp.example.com/logout" }.to_json)
+
+    delete session_url(session_record)
+
+    logout_url = URI.parse(response.location)
+    assert_equal "https://idp.example.com/logout", "#{logout_url.scheme}://#{logout_url.host}#{logout_url.path}"
+    assert_equal id_token, Rack::Utils.parse_query(logout_url.query)["id_token_hint"]
+    assert_nil Session.find_by(id: session_record.id)
+  end
+
   test "redirects to account linking when no OIDC identity exists" do
     # Use an existing user's email who doesn't have OIDC linked yet
     user_without_oidc = users(:new_email)

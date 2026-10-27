@@ -1,9 +1,11 @@
 class Session < ApplicationRecord
   include Encryptable
 
-  # Encrypt user_agent if ActiveRecord encryption is configured
+  # Encrypt user_agent and the OIDC id_token kept for RP-initiated logout if
+  # ActiveRecord encryption is configured
   if encryption_ready?
     encrypts :user_agent
+    encrypts :id_token_hint
   end
 
   # Sessions have no explicit expiry column; a session is considered expired

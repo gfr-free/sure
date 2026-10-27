@@ -218,4 +218,30 @@ class OidcIdentityTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "a parked id_token can only be claimed once with its own nonce" do
+    nonce = @oidc_identity.park_id_token_hint!("token-a")
+
+    assert_nil @oidc_identity.claim_pending_id_token_hint!("wrong")
+    assert_nil @oidc_identity.claim_pending_id_token_hint!(nil)
+    assert_equal "token-a", @oidc_identity.claim_pending_id_token_hint!(nonce)
+    assert_nil @oidc_identity.reload.pending_id_token_hint
+    assert_nil @oidc_identity.claim_pending_id_token_hint!(nonce)
+  end
+
+  test "a login on another browser keeps the first browser from claiming its id_token" do
+    first_nonce = @oidc_identity.park_id_token_hint!("token-a")
+    second_nonce = @oidc_identity.park_id_token_hint!("token-b")
+
+    assert_nil @oidc_identity.claim_pending_id_token_hint!(first_nonce)
+    assert_equal "token-b", @oidc_identity.claim_pending_id_token_hint!(second_nonce)
+  end
+
+  test "parking a login without id_token clears an older parked one" do
+    nonce = @oidc_identity.park_id_token_hint!("token-a")
+    @oidc_identity.park_id_token_hint!(nil)
+
+    assert_nil @oidc_identity.reload.pending_id_token_hint
+    assert_nil @oidc_identity.claim_pending_id_token_hint!(nonce)
+  end
 end

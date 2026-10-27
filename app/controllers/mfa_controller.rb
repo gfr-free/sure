@@ -184,14 +184,9 @@ class MfaController < ApplicationController
     # SessionsController#openid_connect); move it to the new session so logout
     # can still end the IdP session.
     def take_pending_id_token_hint(user)
-      provider = session[:sso_login_provider]
-      return if provider.blank?
+      pending = session.delete(:pending_id_token_hint)
+      return unless pending.is_a?(Hash)
 
-      identity = user.oidc_identities.find_by(provider: provider)
-      id_token = identity&.pending_id_token_hint
-      return if id_token.blank?
-
-      identity.update!(pending_id_token_hint: nil)
-      id_token
+      user.oidc_identities.find_by(id: pending["identity_id"])&.claim_pending_id_token_hint!(pending["nonce"])
     end
 end

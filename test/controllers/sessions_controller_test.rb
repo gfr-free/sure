@@ -433,7 +433,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to verify_mfa_path
     assert_nil session[:id_token_hint]
-    assert_equal id_token, oidc_identity.reload.pending_id_token_hint
+    assert oidc_identity.reload.pending_id_token_hint.end_with?(":#{id_token}")
 
     post verify_mfa_path, params: { code: ROTP::TOTP.new(@user.otp_secret, issuer: "Sure Finances").now }
 

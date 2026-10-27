@@ -313,7 +313,10 @@ class SessionsController < ApplicationController
 
       # MFA check: If user has MFA enabled, require verification
       if user.otp_required?
-        oidc_identity.update!(pending_id_token_hint: id_token)
+        session[:pending_id_token_hint] = {
+          "identity_id" => oidc_identity.id,
+          "nonce" => oidc_identity.park_id_token_hint!(id_token)
+        }
         session[:mfa_user_id] = user.id
         redirect_to verify_mfa_path
       else

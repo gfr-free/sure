@@ -1,9 +1,10 @@
 class Session < ApplicationRecord
   include Encryptable
 
-  # Encrypt user_agent if ActiveRecord encryption is configured
+  # Encrypt user_agent and ip_address if ActiveRecord encryption is configured
   if encryption_ready?
     encrypts :user_agent
+    encrypts :ip_address
   end
 
   # Sessions have no explicit expiry column; a session is considered expired
@@ -97,13 +98,19 @@ class Session < ApplicationRecord
     updated_at < INACTIVITY_TIMEOUT.ago
   end
 
+  # Keyed so the digest cannot be reversed by hashing the whole IPv4 space,
+  # which would defeat encrypting ip_address.
+  def self.ip_address_digest(ip_address)
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.key_generator.generate_key("session_ip_address", 32), ip_address.to_s)
+  end
+
   private
 
     def capture_session_info
       self.user_agent = Current.user_agent
       raw_ip = Current.ip_address
       self.ip_address = raw_ip
-      self.ip_address_digest = Digest::SHA256.hexdigest(raw_ip.to_s) if raw_ip.present?
+      self.ip_address_digest = self.class.ip_address_digest(raw_ip) if raw_ip.present?
     end
 
     def update_user_last_login

@@ -87,4 +87,28 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     assert_match(/"p":/, account.read_attribute_before_type_cast(:raw_payload).to_s,
       "the stored value must be an encryption envelope, not plaintext {}")
   end
+
+  # Rows written by a release without IP encryption (for example during a
+  # rolling deploy) must end up encrypted, and sessions must keep their digest.
+  test "backfill encrypts plaintext IP addresses" do
+    session = Session.create!(user: users(:family_admin))
+    audit_log = SsoAuditLog.create!(event_type: "login", user: users(:family_admin))
+    impersonation_log = impersonation_sessions(:in_progress).logs.create!(path: "/accounts")
+    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE sessions SET ip_address = ?, ip_address_digest = NULL WHERE id = ?", "192.0.2.20", session.id ]))
+    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE sso_audit_logs SET ip_address = ? WHERE id = ?", "192.0.2.21", audit_log.id ]))
+    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE impersonation_session_logs SET ip_address = ? WHERE id = ?", "192.0.2.22", impersonation_log.id ]))
+
+    capture_io { Rake::Task["security:backfill_encryption"].invoke("500", "false") }
+
+    assert_equal "192.0.2.20", session.reload.ip_address
+    assert_equal Session.ip_address_digest("192.0.2.20"), session.ip_address_digest
+    assert_equal "192.0.2.21", audit_log.reload.ip_address
+    assert_equal "192.0.2.22", impersonation_log.reload.ip_address
+    refute_includes session.read_attribute_before_type_cast(:ip_address).to_s, "192.0.2.20"
+    refute_includes audit_log.read_attribute_before_type_cast(:ip_address).to_s, "192.0.2.21"
+    refute_includes impersonation_log.read_attribute_before_type_cast(:ip_address).to_s, "192.0.2.22"
+  end
 end

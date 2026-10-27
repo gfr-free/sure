@@ -48,8 +48,12 @@ namespace :security do
     # InviteCode tokens
     results[:invite_codes] = backfill_model(InviteCode, %i[token], batch_size, dry_run)
 
-    # Session user_agent (encryption) and ip_address_digest (hashing)
+    # Session user_agent and ip_address (encryption) and ip_address_digest (keyed hashing)
     results[:sessions] = backfill_sessions(batch_size, dry_run)
+
+    # Audit log IP addresses
+    results[:sso_audit_logs] = backfill_model(SsoAuditLog, %i[ip_address], batch_size, dry_run)
+    results[:impersonation_session_logs] = backfill_model(ImpersonationSessionLog, %i[ip_address], batch_size, dry_run)
 
     # MobileDevice device_id
     results[:mobile_devices] = backfill_model(MobileDevice, %i[device_id], batch_size, dry_run)
@@ -173,21 +177,12 @@ namespace :security do
         next if dry_run
 
         begin
-          changes = {}
+          # update_columns encrypts these through the attribute types (safe read for plaintext)
+          changes = %i[user_agent ip_address].index_with { |field| safe_read_field(session, field) }.compact
 
-          # Re-save user_agent to trigger encryption (use safe read for plaintext)
-          user_agent_value = safe_read_field(session, :user_agent)
-          unless user_agent_value.nil?
-            # Use temporary instance to encrypt
-            encryptor = Session.new
-            encryptor.user_agent = user_agent_value
-            changes[:user_agent] = encryptor.read_attribute_before_type_cast(:user_agent)
-          end
-
-          # Hash IP address into ip_address_digest if not already done
-          if session.ip_address.present? && session.ip_address_digest.blank?
-            changes[:ip_address_digest] = Digest::SHA256.hexdigest(session.ip_address.to_s)
-          end
+          # Recompute the keyed digest, also replacing unkeyed SHA-256 digests
+          # written by older releases
+          changes[:ip_address_digest] = Session.ip_address_digest(changes[:ip_address]) if changes[:ip_address].present?
 
           if changes.present?
             session.update_columns(changes)

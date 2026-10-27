@@ -41,9 +41,10 @@ class EncryptIpAddresses < ActiveRecord::Migration[8.1]
 
   private
     # Yields each stored value; the block returns [ip_address, session digest]
-    # (a nil digest keeps the current one) or nil to skip the row. Talks to the connection directly so values never reach the
-    # migration log, and commits per batch so session rows are not held locked
-    # while the request path keeps touching them.
+    # (a nil digest keeps the current one) or nil to skip the row. Talks to the
+    # connection directly so values stay out of the migration output, and
+    # commits per batch so session rows are not held locked while the request
+    # path keeps touching them.
     def rewrite_ip_addresses
       TABLES.each do |table|
         rewritten = 0

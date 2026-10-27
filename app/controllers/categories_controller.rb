@@ -1,4 +1,6 @@
 class CategoriesController < ApplicationController
+  include StreamExtensions
+
   before_action :require_non_guest!, except: %i[index]
   before_action :set_category, only: %i[edit update destroy]
   before_action :set_categories, only: %i[update edit]
@@ -133,7 +135,7 @@ class CategoriesController < ApplicationController
     merger = Category::Merger.new(family: Current.family, target_category: target, source_categories: sources)
     return redirect_to merge_categories_path, alert: t(".no_categories_selected") unless merger.merge!
 
-    redirect_to categories_path, notice: t(".success", count: merger.merged_count)
+    frame_redirect_to categories_path, notice: t(".success", count: merger.merged_count)
   rescue Category::Merger::UnauthorizedCategoryError => e
     redirect_to merge_categories_path, alert: e.message
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e

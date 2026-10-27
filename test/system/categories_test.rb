@@ -153,6 +153,23 @@ class CategoriesTest < ApplicationSystemTestCase
     assert_operator page_scroll_width, :<=, viewport_width
   end
 
+  test "merging categories refreshes the list and shows the success message" do
+    source = categories(:one)
+    visit categories_url
+    assert_selector "##{ActionView::RecordIdentifier.dom_id(source)}"
+
+    find("[data-DS--menu-target='button']", match: :first).click
+    click_on I18n.t("categories.index.merge")
+
+    click_on I18n.t("categories.merge.select_target")
+    within("[data-select-target='menu']") { find("[role='option']", text: categories(:food_and_drink).name, exact_text: true).click }
+    find("input[name='source_ids[]'][value='#{source.id}']").check
+    click_on I18n.t("categories.merge.submit")
+
+    assert_selector "#notification-tray", text: I18n.t("categories.perform_merge.success", count: 1)
+    assert_no_selector "##{ActionView::RecordIdentifier.dom_id(source)}"
+  end
+
   private
     def hex_to_rgb(hex)
       "rgb(#{hex.delete_prefix("#").scan(/../).map { |c| c.to_i(16) }.join(", ")})"

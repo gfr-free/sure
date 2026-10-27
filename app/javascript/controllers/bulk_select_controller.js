@@ -39,8 +39,8 @@ export default class extends Controller {
   submitBulkRequest(e) {
     const form = e.target.closest("form");
     const scope = e.params.scope;
-    // Transfer legs only go to the transfer action; every other bulk action
-    // leaves them out, as it did while their checkboxes were disabled.
+    // Transfer legs only go to the transfer action; edit, delete and the
+    // other bulk actions never receive them.
     const ids =
       scope === "bulk_transfer_unlink"
         ? this._transferIds()

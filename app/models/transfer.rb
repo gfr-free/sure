@@ -183,7 +183,7 @@ class Transfer < ApplicationRecord
     endpoint_ids = [ from_account&.id, to_account&.id ].compact
 
     endpoint_ids.any? { |id| writable_account_ids.include?(id) } &&
-      fee_transactions.all? { |fee| writable_account_ids.include?(fee.entry&.account_id) }
+      fee_transactions.all? { |fee| fee.entry.nil? || writable_account_ids.include?(fee.entry.account_id) }
   end
 
   def reject!

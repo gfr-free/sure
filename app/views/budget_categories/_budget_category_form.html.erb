@@ -16,18 +16,21 @@
         submit the amount field on click. Hidden for an envelope with nothing
         to give — an inheriting subcategory, or one left at zero. %>
     <% if budget_category[:budgeted_spending].to_d.positive? %>
-      <button type="button"
-              class="text-subdued hover:text-primary p-1 rounded-md focus-ring"
-              title="<%= t("budget_categories.move.button_title") %>"
-              aria-label="<%= t("budget_categories.move.button_title") %>"
-              data-action="budget-move#open"
-              data-budget-move-from-id-param="<%= budget_category.id %>"
-              data-budget-move-from-name-param="<%= budget_category.category.display_name %>"
-              data-budget-move-category-id-param="<%= budget_category.category_id %>"
-              data-budget-move-parent-id-param="<%= budget_category.category.parent_id %>"
-              data-budget-move-available-param="<%= budget_category.budgeted_spending_money.format %>">
-        <%= icon("arrow-left-right", size: "sm") %>
-      </button>
+      <%= render DS::Button.new(
+            variant: :icon,
+            size: :sm,
+            icon: "arrow-left-right",
+            title: t("budget_categories.move.button_title"),
+            aria_label: t("budget_categories.move.button_title"),
+            data: {
+              action: "budget-move#open",
+              budget_move_from_id_param: budget_category.id,
+              budget_move_from_name_param: budget_category.category.display_name,
+              budget_move_category_id_param: budget_category.category_id,
+              budget_move_parent_id_param: budget_category.category.parent_id.to_s,
+              budget_move_available_param: budget_category.budgeted_spending_money.format
+            }
+          ) %>
     <% end %>
 
     <%= form_with model: [budget_category.budget, budget_category], url: budget_budget_category_path(budget_category.budget, budget_category, **budget_owner_query), data: { controller: "auto-submit-form preserve-focus" } do |f| %>

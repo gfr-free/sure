@@ -64,6 +64,25 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#{uncategorized_form_selector} p.text-secondary.privacy-sensitive", text: /\/m avg/
   end
 
+  test "index renders the move button as a DS icon button wired to the move dialog" do
+    get budget_budget_categories_path(@budget)
+
+    assert_response :success
+    assert_select "##{dom_id(@parent_budget_category, :form)} button[data-action='budget-move#open']", count: 1 do |buttons|
+      button = buttons.first
+      assert_equal "button", button["type"]
+      assert_equal "Move money from this category", button["aria-label"]
+      assert_equal "Move money from this category", button["title"]
+      assert_includes button["class"], "hover:bg-container-inset-hover"
+      assert_equal @parent_budget_category.id, button["data-budget-move-from-id-param"]
+      assert_equal @parent_category.display_name, button["data-budget-move-from-name-param"]
+      assert_equal @parent_category.id, button["data-budget-move-category-id-param"]
+      assert_equal "", button["data-budget-move-parent-id-param"]
+      assert_equal @parent_budget_category.budgeted_spending_money.format, button["data-budget-move-available-param"]
+    end
+    assert_select "##{dom_id(@electric_budget_category, :form)} button[data-action='budget-move#open'][data-budget-move-parent-id-param='#{@parent_category.id}']", count: 1
+  end
+
   test "show localizes the abbreviated budget month and recent transaction dates" do
     ensure_tailwind_build
     users(:family_admin).update!(locale: "de")

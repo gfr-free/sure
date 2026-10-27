@@ -1,6 +1,7 @@
 class TransactionsController < ApplicationController
   include EntryableResource, UnreadEntriesTrackable
   include TransactionSearchParams
+  include AutoPostedMarkers
 
   before_action :set_entry_for_unlock, only: :unlock
   before_action :note_unread_as_of, only: :index
@@ -84,6 +85,8 @@ class TransactionsController < ApplicationController
 
     # Preload which entries on this page are split parents (have children) to avoid N+1
     @split_parent_entry_ids = Entry.split_parent_ids_among(entry_ids)
+
+    load_auto_posted_markers(entry_ids)
 
     # Counts what the categorize wizard can act on, so read-only shares don't
     # keep the "Categorize" menu item visible.

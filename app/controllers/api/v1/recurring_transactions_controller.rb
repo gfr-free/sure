@@ -12,6 +12,7 @@ class Api::V1::RecurringTransactionsController < Api::V1::BaseController
   before_action :ensure_write_scope, only: %i[create update destroy]
   before_action :set_readable_recurring_transaction, only: :show
   before_action :set_writable_recurring_transaction, only: %i[update destroy]
+  before_action :ensure_auto_post_destination_writable_for_update, only: :update
 
   def index
     return render_invalid_account_filter if params[:account_id].present? && !valid_uuid?(params[:account_id])
@@ -147,6 +148,12 @@ class Api::V1::RecurringTransactionsController < Api::V1::BaseController
 
     def set_writable_recurring_transaction
       @recurring_transaction = find_recurring_transaction(write_recurring_transactions_scope)
+    end
+
+    # An auto-posting transfer books into its destination, so changing its
+    # status or dates needs write access there too, as on the web.
+    def ensure_auto_post_destination_writable_for_update
+      raise ActiveRecord::RecordNotFound unless @recurring_transaction.auto_post_destination_writable_by?(current_resource_owner)
     end
 
     def find_recurring_transaction(scope)

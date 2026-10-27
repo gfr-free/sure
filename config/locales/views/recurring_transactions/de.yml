@@ -10,6 +10,14 @@ de:
       other: "Erwartet in %{count} Tagen"
     expected_on: Erwartet am %{date}
     day_of_month: Tag %{day} des Monats
+    toggle_auto_post:
+      enabled: Sure bucht diese Buchung ab heute an jedem Fälligkeitstag selbst
+      disabled: Automatisches Buchen ist aus
+    form:
+      auto_post_label: Automatisch buchen
+      auto_post_hint: Sure legt die Buchung am Fälligkeitstag selbst im Konto an.
+      income_auto_post_hint: Sure legt den Eingang am Zahltag selbst im Konto an.
+      auto_post_manual_only: Nur für manuell geführte Konten. Ein verknüpftes Konto bekommt diese Buchung schon von der Bank.
     identify_patterns: Muster erkennen
     cleanup_stale: Alte Einträge bereinigen
     settings:

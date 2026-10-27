@@ -27,6 +27,15 @@ class Assistant::Function::UpdateRuleTest < ActiveSupport::TestCase
     assert @rule.active
   end
 
+  test "a blank conditions string through execute is rejected and keeps the conditions" do
+    result = @fn.execute("rule_id" => @rule.id, "conditions" => "")
+
+    assert_not result[:success], result.inspect
+    @rule.reload
+    assert @rule.active
+    assert_equal [ "zxq coffee" ], @rule.conditions.map(&:value)
+  end
+
   test "replacing conditions deactivates the rule" do
     create_transaction(name: "ZXQ Tea House")
 

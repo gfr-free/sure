@@ -35,7 +35,7 @@ class Assistant::FunctionToolCaller
       end
 
       fn_args = JSON.parse(function_request.function_args.presence || "{}")
-      fn.call(fn.normalize_params(fn_args))
+      fn.execute(fn_args)
     rescue JSON::ParserError => e
       Rails.logger.warn("Assistant tool #{function_request.function_name} got invalid JSON arguments: #{e.class}: #{e.message}")
 

@@ -45,21 +45,11 @@ class Assistant::Function
     }
   end
 
-  # Some models send array arguments as a JSON-encoded string ("[\"Food\"]")
-  # or as a bare string, and tools that call #map on them fail. Decode those
-  # against the declared schema so every caller hands #call a real array.
-  def normalize_params(params)
-    return params unless params.is_a?(Hash)
-
-    array_keys = params_schema[:properties].filter_map do |key, spec|
-      key.to_s if spec[:type].to_s == "array"
-    end
-
-    params.to_h do |key, value|
-      next [ key, value ] unless value.is_a?(String) && array_keys.include?(key.to_s)
-
-      [ key, decode_array_string(value) ]
-    end
+  # Entry point for tool runners (chat and MCP). Some models send array
+  # arguments as a JSON-encoded string ("[\"Food\"]") or a bare string, and
+  # tools that call #map on them fail, so those are decoded first.
+  def execute(params = {})
+    call(normalize_params(params))
   end
 
   private
@@ -131,11 +121,27 @@ class Assistant::Function
       page.positive? ? page : 1
     end
 
-    def decode_array_string(value)
-      return [] if value.blank?
+    # Only top-level params declared as arrays are decoded. Blank strings and
+    # JSON null are left as sent, so a tool still rejects them instead of
+    # reading them as "replace with an empty list".
+    def normalize_params(params)
+      return params unless params.is_a?(Hash) && params.values.any?(String)
 
+      properties = params_schema[:properties]
+
+      params.to_h do |key, value|
+        spec = properties[key.to_sym] || properties[key.to_s]
+        next [ key, value ] unless value.is_a?(String) && value.present? && spec && Array(spec[:type]).include?("array")
+
+        [ key, decode_array_string(value) ]
+      end
+    end
+
+    def decode_array_string(value)
       parsed = JSON.parse(value)
-      parsed.is_a?(Array) ? parsed : [ value ]
+      return value if parsed.nil?
+
+      Array.wrap(parsed)
     rescue JSON::ParserError
       [ value ]
     end

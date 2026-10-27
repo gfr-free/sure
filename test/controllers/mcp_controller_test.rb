@@ -502,6 +502,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       assert_not result["isError"], "Expected transactions, got: #{result.inspect}"
 
       inner = JSON.parse(result["content"][0]["text"])
+      assert_includes inner["transactions"].map { |t| t["id"] }, transactions(:one).id
       assert inner["transactions"].all? { |t| t["category"] == categories(:food_and_drink).name }
     end
   end

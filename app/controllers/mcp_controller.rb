@@ -107,7 +107,7 @@ class McpController < ApplicationController
       end
 
       fn = fn_class.new(mcp_user)
-      result = fn.call(fn.normalize_params(arguments))
+      result = fn.execute(arguments)
 
       { content: [ { type: "text", text: result.to_json } ] }
     rescue => e

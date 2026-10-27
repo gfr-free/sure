@@ -142,6 +142,33 @@ class Assistant::FunctionToolCallerTest < ActiveSupport::TestCase
     assert_equal [ "Food" ], result.function_result["names"]
   end
 
+  test "a JSON-encoded single value for an array argument is wrapped" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+    request = FunctionRequest.new(
+      id: "call_12", call_id: "call_12", function_name: "array_echo",
+      function_args: { "names" => "\"Food\"" }.to_json
+    )
+
+    result = caller.fulfill_requests([ request ]).first
+
+    assert_equal [ "Food" ], result.function_result["names"]
+  end
+
+  test "blank strings and JSON null for an array argument are passed through unchanged" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+
+    [ "", "  ", "null" ].each_with_index do |raw, i|
+      request = FunctionRequest.new(
+        id: "call_blank_#{i}", call_id: "call_blank_#{i}", function_name: "array_echo",
+        function_args: { "names" => raw }.to_json
+      )
+
+      result = caller.fulfill_requests([ request ]).first
+
+      assert_equal raw, result.function_result["names"], "#{raw.inspect} must not become an empty list"
+    end
+  end
+
   test "get_transactions filters by categories sent as a JSON-encoded string" do
     user = users(:family_admin)
     caller = Assistant::FunctionToolCaller.new([ Assistant::Function::GetTransactions.new(user) ])

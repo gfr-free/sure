@@ -148,6 +148,31 @@ class AiHealthTest < ActiveSupport::TestCase
     assert_equal :pgvector_probe_failed, health.vector_store_failure_kind
   end
 
+  test "cached results expire one cache TTL after the oldest check" do
+    freeze_time do
+      oldest = Time.current - 20.seconds
+      AiHealth::Probe.any_instance.stubs(:llm).returns(result(:passing).with(checked_at: oldest))
+      AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(result(:passing))
+
+      health = ClimateControl.modify(
+        AI_ENVIRONMENT.merge("OPENAI_ACCESS_TOKEN" => "test-token", "AI_HEALTH_PROBE_CACHE_TTL" => "90")
+      ) { AiHealth.new }
+
+      assert_equal 90.seconds, health.probe_cache_ttl
+      assert_equal Time.current, health.last_checked_at
+      assert_equal oldest + 90.seconds, health.cache_expires_at
+    end
+  end
+
+  test "cache expiry is unknown until a live check has run" do
+    health = ClimateControl.modify(AI_ENVIRONMENT) { AiHealth.new(run_probes: false) }
+
+    assert_equal AiHealth::Probe::DEFAULT_CACHE_TTL, health.probe_cache_ttl
+    assert_nil health.cache_expires_at
+  end
+
   private
     def probed_health(llm:, function_calling:)
       AiHealth::Probe.any_instance.stubs(:llm).returns(result(llm))

@@ -254,7 +254,9 @@ de:
           no_queues: Es sind keine Warteschlangen registriert. Möglicherweise läuft der Worker nicht.
         ai:
           loading: "Live-Prüfungen laufen…"
+          last_checked: "Live-Prüfungen vor %{time_ago} abgeschlossen. Die Ergebnisse bleiben bis %{expires_at} Uhr im Cache; danach prüft das Neuladen der Seite erneut."
           labels:
+            probe_cache_ttl: Cache-Dauer der Prüfergebnisse
             failure_reason: Fehlerursache
             function_calling_failure_reason: Fehlerursache beim Funktionsaufruf
             pdf_text_extraction_failure_reason: Fehlerursache bei der Textextraktion

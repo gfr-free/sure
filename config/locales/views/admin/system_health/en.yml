@@ -254,7 +254,7 @@ en:
           no_queues: "No queues are registered. The worker may not be running."
         ai:
           run_checks: Run checks again
-          last_checked: "Live checks completed %{time_ago} ago. Results are cached briefly."
+          last_checked: "Live checks completed %{time_ago} ago. Results are cached until %{expires_at}; later page loads run the checks again."
           not_checked_help: Open the AI status URL directly or run the checks to verify service liveness.
           loading: "Running live checks…"
           alerts:
@@ -325,6 +325,7 @@ en:
             pdf_vision_processing: PDF vision/native path
             llm_request_timeout: LLM request timeout
             probe_request_timeout: Health-check probe timeout
+            probe_cache_ttl: Health-check result cache
             openai_credentials: OpenAI credentials
             openai_compatible_credentials: OpenAI-compatible API credentials
             anthropic_credentials: Anthropic credentials

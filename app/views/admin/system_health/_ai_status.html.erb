@@ -25,7 +25,9 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <p class="text-sm text-secondary">
       <% if ai_health.last_checked_at %>
-        <%= t("admin.system_health.show.ai.last_checked", time_ago: time_ago_in_words(ai_health.last_checked_at)) %>
+        <%= t("admin.system_health.show.ai.last_checked",
+              time_ago: time_ago_in_words(ai_health.last_checked_at),
+              expires_at: l(ai_health.cache_expires_at, format: "%H:%M:%S")) %>
       <% else %>
         <%= t("admin.system_health.show.ai.not_checked_help") %>
       <% end %>
@@ -172,6 +174,10 @@
       <div>
         <dt class="text-secondary"><%= t("admin.system_health.show.ai.labels.probe_request_timeout") %></dt>
         <dd class="mt-1 font-medium text-primary"><%= t("admin.system_health.show.values.seconds", seconds: ai_health.probe_request_timeout) %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.show.ai.labels.probe_cache_ttl") %></dt>
+        <dd class="mt-1 font-medium text-primary" data-testid="probe-cache-ttl"><%= t("admin.system_health.show.values.seconds", seconds: ai_health.probe_cache_ttl.to_i) %></dd>
       </div>
       <div>
         <dt class="text-secondary">

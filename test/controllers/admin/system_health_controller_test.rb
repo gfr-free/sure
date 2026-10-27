@@ -387,6 +387,26 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/local-token/, response.body)
   end
 
+  test "AI status shows the probe cache duration and when cached results expire" do
+    sign_in users(:sure_support_staff)
+
+    freeze_time do
+      AiHealth::Probe.any_instance.stubs(:llm).returns(probe_result(:passing))
+
+      with_ai_environment("OPENAI_ACCESS_TOKEN" => "local-token", "AI_HEALTH_PROBE_CACHE_TTL" => "90") do
+        get ai_status_admin_system_health_url
+      end
+
+      zone = ActiveSupport::TimeZone[users(:sure_support_staff).family.timezone.to_s] || Time.zone
+      expires_at = (Time.current + 90.seconds).in_time_zone(zone).strftime("%H:%M:%S")
+
+      assert_response :success
+      assert_select "[data-testid='probe-cache-ttl']", text: "90s"
+      assert_match(/Results are cached until #{expires_at}/, response.body)
+      assert_no_match(/cached briefly/, response.body)
+    end
+  end
+
   test "AI status does not probe PDF processing when it is explicitly disabled" do
     sign_in users(:sure_support_staff)
     AiHealth::Probe.any_instance.expects(:pdf_text_extraction).never

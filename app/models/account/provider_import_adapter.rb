@@ -618,8 +618,10 @@ class Account::ProviderImportAdapter
               updates[:account_provider_id] = account_provider_id
             end
 
-            # Attach external_id if provided and missing
-            if external_id.present? && existing.external_id.blank?
+            # Attach external_id if provided and missing. When the lookup found
+            # another row by this external_id, that row keeps it: moving it here
+            # would hit the unique index and drop the whole snapshot.
+            if external_id.present? && existing.external_id.blank? && !external_id_taken?(external_id)
               updates[:external_id] = external_id
             end
 
@@ -634,13 +636,14 @@ class Account::ProviderImportAdapter
               DebugLogEntry.capture(
                 category: "provider_sync_warning",
                 level: "warn",
-                message: "Could not adopt colliding holding: #{update_error.class}",
+                message: "Could not apply provider snapshot to colliding holding: #{update_error.class}",
                 source: self.class.name,
                 provider_key: source,
                 account: account,
                 account_provider_id: account_provider_id,
                 metadata: {
                   holding_id: existing.id,
+                  holding_account_provider_id: existing.account_provider_id,
                   security_id: security.id,
                   date: date,
                   currency: currency,
@@ -1103,6 +1106,10 @@ class Account::ProviderImportAdapter
     # remaps (A onto B, B onto C) an incoming B matches both the B->C row and
     # the A->B row on the same date. `id` settles anything left, so the pick
     # never depends on the query plan.
+    def external_id_taken?(external_id)
+      account.holdings.where(external_id: external_id).exists?
+    end
+
     def previous_holding_for(security:, currency:, date:, account_provider_id:)
       scope = account.holdings
         .where(currency: currency)

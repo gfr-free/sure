@@ -60,6 +60,15 @@ en:
       no_merchants_found: No matching merchants found
       sources_hint: Selected merchants will be merged into the target. Family merchants will be deleted, provider merchants will be unlinked.
       submit: Merge selected
+      select_all_visible: Select all shown
+      selected_count:
+        one: "%{count} selected"
+        other: "%{count} selected"
+      confirm_title: Merge merchants?
+      confirm_body:
+        one: "%{count} merchant will be merged into %{target}. This cannot be undone."
+        other: "%{count} merchants will be merged into %{target}. This cannot be undone."
+      confirm_accept: Merge
     new:
       title: New merchant
     perform_merge:

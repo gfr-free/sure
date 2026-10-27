@@ -59,43 +59,15 @@ class HoldingsController < ApplicationController
   end
 
   def remap_security
-    # Combobox returns "TICKER|EXCHANGE|PROVIDER" format
-    parsed = Security.parse_combobox_id(params[:security_id])
+    new_security = selected_security || Security.resolve_typed_ticker(params[:manual_ticker])
 
-    # Validate ticker is present (form has required: true, but can be bypassed)
-    if parsed[:ticker].blank?
+    if new_security.nil?
       flash[:alert] = t(".security_not_found")
       redirect_to account_path(@holding.account, tab: "holdings")
       return
     end
 
-    # The user explicitly selected this security from provider search results,
-    # so we use the combobox data directly — no need to re-resolve via provider APIs.
-    new_security = Security.find_or_initialize_by(
-      ticker: parsed[:ticker],
-      exchange_operating_mic: parsed[:exchange_operating_mic]
-    )
-
-    # Honor the user's provider choice (validated by model inclusion check on save)
-    new_security.price_provider = parsed[:price_provider] if parsed[:price_provider].present?
-
-    # Bring it online — user explicitly selected it from provider search results,
-    # so we know the provider can handle it.
-    new_security.offline = false
-    new_security.failed_fetch_count = 0
-    new_security.failed_fetch_at = nil
-
-    new_security.save!
-
-    @holding.remap_security!(new_security)
-
-    # Re-materialize holdings with the new security's prices.
-    # Reload account to avoid stale associations from remap_security!.
-    # The around_action :switch_timezone already sets the family timezone
-    # for this request, so Date.current is correct here.
-    account = Account.find(@holding.account_id)
-    strategy = account.linked? ? :reverse : :forward
-    Balance::Materializer.new(account, strategy: strategy, security_ids: [ new_security.id ]).materialize_balances
+    @holding.remap_security_and_materialize!(new_security)
 
     flash[:notice] = t(".success")
 
@@ -179,6 +151,29 @@ class HoldingsController < ApplicationController
                    .joins(:account)
                    .merge(Account.accessible_by(Current.user))
                    .find(params[:id])
+    end
+
+    # The combobox sends "TICKER|EXCHANGE|PROVIDER" for a result the user picked
+    # from the provider search, so it is used directly without re-resolving.
+    def selected_security
+      parsed = Security.parse_combobox_id(params[:security_id])
+      return nil if parsed[:ticker].blank?
+
+      security = Security.find_or_initialize_by(
+        ticker: parsed[:ticker],
+        exchange_operating_mic: parsed[:exchange_operating_mic]
+      )
+      return nil if security.cash?
+
+      # Honor the user's provider choice (validated by model inclusion check on save)
+      security.price_provider = parsed[:price_provider] if parsed[:price_provider].present?
+
+      # The provider found it, so bring it online.
+      security.offline = false
+      security.failed_fetch_count = 0
+      security.failed_fetch_at = nil
+      security.save!
+      security
     end
 
     def require_holding_write_permission!

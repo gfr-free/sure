@@ -36,6 +36,7 @@ RSpec.describe 'API V1 Holdings', type: :request do
   let(:account) do
     Account.create!(
       family: family,
+      owner: user,
       name: 'Investment Account',
       balance: 50_000,
       currency: 'USD',
@@ -176,6 +177,76 @@ RSpec.describe 'API V1 Holdings', type: :request do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:id) { SecureRandom.uuid }
+
+        run_test!
+      end
+    end
+  end
+
+  path '/api/v1/holdings/{id}/remap_security' do
+    parameter name: :id, in: :path, type: :string, required: true, description: 'Holding ID'
+
+    patch 'Change the security of a holding' do
+      tags 'Holdings'
+      description 'Moves the holding, the account\'s other holdings of the same security and its trades ' \
+                  'to another security, and locks the choice against provider syncs. Pass the ID of an ' \
+                  'existing security, or a ticker that is resolved through the configured providers or ' \
+                  'created as an offline security.'
+      security [ { apiKeyAuth: [] } ]
+      consumes 'application/json'
+      produces 'application/json'
+
+      parameter name: :body, in: :body, required: true, schema: {
+        type: :object,
+        properties: {
+          holding: {
+            type: :object,
+            properties: {
+              security_id: { type: :string, format: :uuid, description: 'ID of an existing security' },
+              ticker: { type: :string, description: 'Ticker to resolve when no security_id is given' },
+              exchange_operating_mic: { type: :string, description: 'Exchange MIC used with ticker' }
+            }
+          }
+        },
+        required: %w[holding]
+      }
+
+      let(:new_security) do
+        Security.create!(ticker: 'VXUS', name: 'Vanguard Total International Stock ETF', country_code: 'US')
+      end
+
+      let(:body) { { holding: { security_id: new_security.id } } }
+
+      response '200', 'security changed' do
+        schema '$ref' => '#/components/schemas/Holding'
+
+        let(:id) { holding.id }
+
+        run_test!
+      end
+
+      response '401', 'unauthorized' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { holding.id }
+        let(:'X-Api-Key') { nil }
+
+        run_test!
+      end
+
+      response '404', 'holding not found' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { SecureRandom.uuid }
+
+        run_test!
+      end
+
+      response '422', 'security not found' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:id) { holding.id }
+        let(:body) { { holding: { security_id: SecureRandom.uuid } } }
 
         run_test!
       end

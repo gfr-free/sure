@@ -67,6 +67,9 @@ de:
       originally: "war %{ticker}"
       search_security: Wertpapier suchen
       search_security_placeholder: Nach Ticker oder Name suchen
+      manual_ticker: Ticker
+      manual_ticker_placeholder: z. B. AAPL
+      manual_ticker_hint: Es ist kein Kursanbieter eingerichtet. Das Wertpapier wird deshalb ohne Kursaktualisierung gespeichert.
       cancel: Abbrechen
       remap_security: Speichern
       no_security_provider: Wertpapier-Provider nicht konfiguriert. Suche nach Wertpapieren nicht möglich.

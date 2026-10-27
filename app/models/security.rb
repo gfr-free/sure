@@ -107,6 +107,16 @@ class Security < ApplicationRecord
     { ticker: parts[0].presence, exchange_operating_mic: parts[1].presence, price_provider: parts[2].presence }
   end
 
+  # Resolves a ticker the user typed (looked up through the providers, or
+  # created offline). Cash securities are internal to one account and never
+  # a valid choice, so they resolve to nil like a blank ticker.
+  def self.resolve_typed_ticker(ticker, exchange_operating_mic: nil)
+    return nil if ticker.blank?
+
+    security = Security::Resolver.new(ticker, exchange_operating_mic: exchange_operating_mic).resolve
+    security unless security&.cash?
+  end
+
   # Lazily finds or creates a synthetic cash security for an account.
   # Used as fallback when creating an interest Trade without a user-selected
   # security, and to represent non-primary-currency cash positions as holdings

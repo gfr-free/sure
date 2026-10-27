@@ -87,7 +87,88 @@ class Api::V1::HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "remap_security moves the holding and its trades to an existing security" do
+    trade = @account.trades.find_by!(security: securities(:aapl))
+
+    patch remap_security_api_v1_holding_url(@holding),
+          params: { holding: { security_id: securities(:msft).id } },
+          headers: api_headers(write_api_key)
+
+    assert_response :success
+    response_data = JSON.parse(response.body)
+    assert_equal "MSFT", response_data.dig("security", "ticker")
+    assert_equal securities(:msft), @holding.reload.security
+    assert @holding.security_locked?
+    assert_equal securities(:msft), trade.reload.security
+  end
+
+  test "remap_security resolves a ticker without a security provider" do
+    Security.stubs(:providers).returns([])
+
+    patch remap_security_api_v1_holding_url(@holding),
+          params: { holding: { ticker: "newt" } },
+          headers: api_headers(write_api_key)
+
+    assert_response :success
+    new_security = Security.find_by!(ticker: "NEWT")
+    assert new_security.offline?
+    assert_equal new_security, @holding.reload.security
+  end
+
+  test "remap_security rejects a missing or cash security" do
+    cash = Security.cash_for(@account)
+
+    [ {}, { security_id: cash.id }, { ticker: cash.ticker }, { security_id: SecureRandom.uuid } ].each do |holding_params|
+      patch remap_security_api_v1_holding_url(@holding),
+            params: { holding: holding_params },
+            headers: api_headers(write_api_key)
+
+      assert_response :unprocessable_entity
+    end
+    assert_equal securities(:aapl), @holding.reload.security
+  end
+
+  test "remap_security requires the write scope" do
+    patch remap_security_api_v1_holding_url(@holding),
+          params: { holding: { security_id: securities(:msft).id } },
+          headers: api_headers(@api_key)
+
+    assert_response :forbidden
+    assert_equal securities(:aapl), @holding.reload.security
+  end
+
+  test "remap_security cannot reach accounts the user may only read" do
+    @private_account.account_shares.create!(user: @user, permission: "read_only")
+
+    patch remap_security_api_v1_holding_url(@private_holding),
+          params: { holding: { security_id: securities(:aapl).id } },
+          headers: api_headers(write_api_key)
+
+    assert_response :not_found
+    assert_equal securities(:msft), @private_holding.reload.security
+  end
+
+  test "remap_security requires authentication and an existing holding" do
+    patch remap_security_api_v1_holding_url(@holding), params: { holding: { security_id: securities(:msft).id } }
+    assert_response :unauthorized
+
+    patch remap_security_api_v1_holding_url(SecureRandom.uuid),
+          params: { holding: { security_id: securities(:msft).id } },
+          headers: api_headers(write_api_key)
+    assert_response :not_found
+  end
+
   private
+
+    def write_api_key
+      @write_api_key ||= ApiKey.create!(
+        user: @user,
+        name: "Test Write Key",
+        scopes: [ "read_write" ],
+        source: "mobile",
+        display_key: "test_write_#{SecureRandom.hex(8)}"
+      )
+    end
 
     def api_headers(api_key)
       { "X-Api-Key" => api_key.display_key }

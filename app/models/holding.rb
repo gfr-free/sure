@@ -143,6 +143,18 @@ class Holding < ApplicationRecord
     provider_security_id.present? && security_id != provider_security_id && provider_security.present?
   end
 
+  # Remaps like remap_security! and recalculates the account's holdings and
+  # balances for the new security, so the change shows up right away.
+  # Callers run inside the family timezone, so Date.current is correct.
+  def remap_security_and_materialize!(new_security)
+    remap_security!(new_security)
+
+    # A fresh account avoids stale associations left behind by remap_security!.
+    remapped_account = Account.find(account_id)
+    strategy = remapped_account.linked? ? :reverse : :forward
+    Balance::Materializer.new(remapped_account, strategy: strategy, security_ids: [ new_security.id ]).materialize_balances
+  end
+
   # Remap this holding (and all other holdings for the same security) to a different security
   # Also moves all trades for the old security to the new security
   # If the target security already has holdings on some dates, merge by combining qty/amount

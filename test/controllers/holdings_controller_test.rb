@@ -259,6 +259,42 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, msft.failed_fetch_count
   end
 
+  test "remap_security offers a ticker field when no security provider is configured" do
+    Security.stubs(:providers).returns([])
+
+    get holding_path(@holding)
+
+    assert_response :success
+    assert_select "form[action='#{remap_security_holding_path(@holding)}'] input[name='manual_ticker'][required]"
+  end
+
+  test "remap_security accepts a typed ticker without a security provider" do
+    Security.stubs(:providers).returns([])
+    Security.stubs(:search_provider).returns([])
+    trade = @account.trades.find_by!(security: securities(:aapl))
+
+    patch remap_security_holding_path(@holding), params: { manual_ticker: "newt" }
+
+    assert_redirected_to account_path(@account, tab: "holdings")
+    assert_equal I18n.t("holdings.remap_security.success"), flash[:notice]
+    new_security = Security.find_by!(ticker: "NEWT")
+    assert new_security.offline?
+    assert_equal new_security, @holding.reload.security
+    assert_equal new_security, trade.reload.security
+    assert_equal [ "NEWT" ], @account.reload.current_holdings.map(&:ticker)
+  end
+
+  test "remap_security rejects a typed ticker that names a cash security" do
+    Security.stubs(:providers).returns([])
+    cash = Security.cash_for(@account)
+
+    patch remap_security_holding_path(@holding), params: { manual_ticker: cash.ticker }
+
+    assert_redirected_to account_path(@account, tab: "holdings")
+    assert_equal I18n.t("holdings.remap_security.security_not_found"), flash[:alert]
+    assert_equal securities(:aapl), @holding.reload.security
+  end
+
   test "sync_prices redirects with alert for offline security" do
     @holding.security.update!(offline: true)
 

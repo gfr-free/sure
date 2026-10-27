@@ -52,4 +52,33 @@ class HoldingDrawerActionsTest < ApplicationSystemTestCase
     assert_current_path account_path(@holding.account, tab: "holdings")
     assert_equal securities(:aapl), @holding.reload.security
   end
+
+  test "changing the security without a price provider uses a typed ticker" do
+    Security.stubs(:providers).returns([])
+    Security.stubs(:search_provider).returns([])
+
+    visit holding_path(@holding)
+    find("button[aria-label='#{I18n.t('holdings.show.edit_security')}']").click
+    fill_in "manual_ticker", with: "newt"
+    click_on I18n.t("holdings.show.remap_security")
+
+    assert_text I18n.t("holdings.remap_security.success")
+    assert_equal "NEWT", @holding.reload.ticker
+  end
+
+  test "changing the security accepts a ticker the provider search did not list" do
+    Security.stubs(:providers).returns([ mock("security_provider") ])
+    Security.stubs(:search_provider).returns([])
+
+    visit holding_path(@holding)
+    find("button[aria-label='#{I18n.t('holdings.show.edit_security')}']").click
+    find(".hw-combobox__input").click
+    find(".hw-combobox__input").send_keys("newt")
+    # The typed value is submitted under name_when_new once no search result matches it.
+    assert_selector "input[name='manual_ticker'][value='newt']", visible: :all
+    click_on I18n.t("holdings.show.remap_security")
+
+    assert_text I18n.t("holdings.remap_security.success")
+    assert_equal "NEWT", @holding.reload.ticker
+  end
 end

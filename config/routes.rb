@@ -788,7 +788,9 @@ Rails.application.routes.draw do
         resource :split, only: [ :show, :create, :update, :destroy ]
       end
       resources :trades, only: [ :index, :show, :create, :update, :destroy ]
-      resources :holdings, only: [ :index, :show ]
+      resources :holdings, only: [ :index, :show ] do
+        patch :remap_security, on: :member
+      end
       resources :transfers, only: [ :index, :show ]
       resources :rejected_transfers, only: [ :index, :show ]
       resources :valuations, only: [ :index, :create, :update, :show ]

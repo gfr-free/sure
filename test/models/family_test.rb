@@ -30,6 +30,35 @@ class FamilyTest < ActiveSupport::TestCase
     assert_equal evening_utc.in_time_zone(Time.zone).to_date, family.local_date(evening_utc)
   end
 
+  test "switching budgets off expires budget insights and leaves the rest" do
+    family = families(:dylan_family)
+    budget_insight = family.insights.create!(
+      insight_type: "budget_at_risk", priority: "high", status: "active",
+      title: "Budget at risk", body: "Two categories are close.", generated_at: Time.current, dedup_key: "budget-toggle-test"
+    )
+    other_insight = family.insights.create!(
+      insight_type: "idle_cash", priority: "low", status: "read",
+      title: "Idle cash", body: "Cash sits idle.", generated_at: Time.current, dedup_key: "idle-toggle-test"
+    )
+
+    family.update!(budgets_enabled: false)
+
+    assert_predicate budget_insight.reload, :expired?
+    assert_predicate other_insight.reload, :read?
+  end
+
+  test "switching Plan off expires reserve insights" do
+    family = families(:dylan_family)
+    goal_insight = family.insights.create!(
+      insight_type: "maintained_goal_depleted", priority: "high", status: "active",
+      title: "Reserve short", body: "The reserve is short.", generated_at: Time.current, dedup_key: "plan-toggle-test"
+    )
+
+    family.update!(plan_enabled: false)
+
+    assert_predicate goal_insight.reload, :expired?
+  end
+
   test "investment_contributions_category creates category when missing" do
     family = families(:dylan_family)
     family.categories.where(name: Category.investment_contributions_name).destroy_all

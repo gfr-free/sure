@@ -1,5 +1,6 @@
 class GoalsController < ApplicationController
   before_action :require_preview_features!
+  before_action :ensure_plan_enabled
   before_action :set_goal, only: %i[show edit update destroy pause resume complete archive unarchive reopen consume record_consumption]
 
   FUNDABLE_TYPES = Goal::FUNDABLE_ACCOUNT_TYPES

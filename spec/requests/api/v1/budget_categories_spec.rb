@@ -99,7 +99,7 @@ RSpec.describe 'API V1 Budget Categories', type: :request do
         run_test!
       end
 
-      response '403', 'insufficient scope' do
+      response '403', 'insufficient scope, or budgets disabled for the family' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:'X-Api-Key') { api_key_without_read_scope.plain_key }
@@ -142,7 +142,7 @@ RSpec.describe 'API V1 Budget Categories', type: :request do
         run_test!
       end
 
-      response '403', 'insufficient scope' do
+      response '403', 'insufficient scope, or budgets disabled for the family' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:'X-Api-Key') { api_key_without_read_scope.plain_key }

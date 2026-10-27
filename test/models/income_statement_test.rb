@@ -874,6 +874,33 @@ class IncomeStatementTest < ActiveSupport::TestCase
     assert_nil net.net_expense_categories.find { |ct| ct.category.id == @food_category.id }
   end
 
+  test "net_category_totals reports expense categories fully offset by refunds" do
+    Entry.joins(:account).where(accounts: { family_id: @family.id }).destroy_all
+
+    # Food: $50 spent, $80 refunded => netted out of the expense side
+    create_transaction(account: @checking_account, amount: 50, category: @food_category)
+    create_transaction(account: @checking_account, amount: -80, category: @food_category)
+    # Income-only category never had spending, so it is not "offset"
+    create_transaction(account: @checking_account, amount: -1000, category: @income_category)
+
+    net = IncomeStatement.new(@family).net_category_totals(period: Period.last_30_days)
+
+    assert_equal [ @food_category ], net.offset_expense_categories
+  end
+
+  test "net_category_totals reports expense categories netted to exactly zero" do
+    Entry.joins(:account).where(accounts: { family_id: @family.id }).destroy_all
+
+    create_transaction(account: @checking_account, amount: 40, category: @food_category)
+    create_transaction(account: @checking_account, amount: -40, category: @food_category)
+
+    net = IncomeStatement.new(@family).net_category_totals(period: Period.last_30_days)
+
+    assert_empty net.net_expense_categories
+    assert_empty net.net_income_categories
+    assert_equal [ @food_category ], net.offset_expense_categories
+  end
+
   test "empty account_ids returns no results for category stats" do
     results = IncomeStatement::CategoryStats.new(@family, account_ids: []).call
     assert_empty results

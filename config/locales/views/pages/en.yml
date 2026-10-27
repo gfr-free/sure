@@ -130,6 +130,9 @@ en:
         categories: "Categories"
         value: "Value"
         weight: "Weight"
+        offset_categories_html:
+          one: "%{categories} is not shown: refunds or income in this category cover its spending."
+          other: "%{categories} are not shown: refunds or income in these categories cover their spending."
       investment_summary:
         title: "Investments"
         total_return: "Total Return"

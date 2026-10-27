@@ -340,6 +340,47 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-controller='sankey-chart']"
   end
 
+  test "dashboard outflows donut names categories whose refunds cancel out their spending" do
+    Entry.joins(:account).where(accounts: { family_id: @family.id }).destroy_all
+    shopping = @family.categories.create!(name: "Shopping", color: "#FF5733")
+    travel = @family.categories.create!(name: "Travel <b>& Leisure</b>", color: "#33FF57")
+
+    create_transaction(account: @family.accounts.first, amount: 100, category: shopping)
+    create_transaction(account: @family.accounts.first, amount: 50, category: travel)
+    create_transaction(account: @family.accounts.first, amount: -80, category: travel)
+
+    get root_path
+    assert_response :ok
+
+    assert_select "#outflows-donut-offset-note" do
+      assert_select "a", text: travel.name, count: 1
+      assert_select "a", text: shopping.name, count: 0
+      assert_select "b", count: 0
+    end
+  end
+
+  test "dashboard outflows donut stays visible when refunds cancel out all spending" do
+    Entry.joins(:account).where(accounts: { family_id: @family.id }).destroy_all
+    travel = @family.categories.create!(name: "Travel", color: "#33FF57")
+    create_transaction(account: @family.accounts.first, amount: 50, category: travel)
+    create_transaction(account: @family.accounts.first, amount: -80, category: travel)
+
+    get root_path
+    assert_response :ok
+    assert_select "#outflows-donut-offset-note a", text: "Travel"
+  end
+
+  test "dashboard outflows donut shows no offset note when nothing is netted out" do
+    Entry.joins(:account).where(accounts: { family_id: @family.id }).destroy_all
+    shopping = @family.categories.create!(name: "Shopping", color: "#FF5733")
+    create_transaction(account: @family.accounts.first, amount: 100, category: shopping)
+
+    get root_path
+    assert_response :ok
+    assert_select "#outflows-donut-section"
+    assert_select "#outflows-donut-offset-note", count: 0
+  end
+
   test "dashboard renders sankey chart zoom controls and stable node ids" do
     parent_category = @family.categories.create!(name: "Shopping", color: "#FF5733")
     subcategory = @family.categories.create!(name: "Groceries", parent: parent_category, color: "#33FF57")

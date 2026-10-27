@@ -45,73 +45,83 @@
 
       <!-- Category List -->
       <div class="w-full @2xl:w-2/3 bg-container-inset rounded-xl p-1 space-y-1 overflow-x-auto">
-        <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
-          <div class="w-16 @2xl:w-40">
-            <p><%= t("pages.dashboard.outflows_donut.categories") %><span class="text-subdued mx-1">&middot;</span><%= outflows_data[:categories].count %></p>
-          </div>
-          <div class="ml-auto text-right flex items-center gap-6">
+        <% if outflows_data[:categories].any? %>
+          <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
             <div class="w-16 @2xl:w-40">
-              <p><%= t("pages.dashboard.outflows_donut.value") %></p>
+              <p><%= t("pages.dashboard.outflows_donut.categories") %><span class="text-subdued mx-1">&middot;</span><%= outflows_data[:categories].count %></p>
             </div>
-            <div class="w-16">
-              <p><%= t("pages.dashboard.outflows_donut.weight") %></p>
+            <div class="ml-auto text-right flex items-center gap-6">
+              <div class="w-16 @2xl:w-40">
+                <p><%= t("pages.dashboard.outflows_donut.value") %></p>
+              </div>
+              <div class="w-16">
+                <p><%= t("pages.dashboard.outflows_donut.weight") %></p>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
-          <% outflows_data[:categories].each_with_index do |category, idx| %>
-            <%
-              category_content = capture do
-            %>
-              <div class="flex items-center gap-3 flex-1 min-w-0">
-                <div class="h-7 w-7 flex-shrink-0 group-hover:scale-105 transition-all duration-300 rounded-full flex justify-center items-center"
-                  style="
-                    background-color: color-mix(in oklab, <%= category[:color] %> 10%, transparent);
-                    border-color: color-mix(in oklab, <%= category[:color] %> 10%, transparent);
-                    color: <%= category[:color] %>;">
-                  <% if category[:icon] %>
-                    <%= icon(category[:icon], color: "current", size: "sm") %>
-                  <% else %>
-                    <%= render DS::FilledIcon.new(
-                      variant: :text,
-                      hex_color: category[:color],
-                      text: category[:name],
-                      size: "sm",
-                      rounded: true
-                    ) %>
-                  <% end %>
+          <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
+            <% outflows_data[:categories].each_with_index do |category, idx| %>
+              <%
+                category_content = capture do
+              %>
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <div class="h-7 w-7 flex-shrink-0 group-hover:scale-105 transition-all duration-300 rounded-full flex justify-center items-center"
+                    style="
+                      background-color: color-mix(in oklab, <%= category[:color] %> 10%, transparent);
+                      border-color: color-mix(in oklab, <%= category[:color] %> 10%, transparent);
+                      color: <%= category[:color] %>;">
+                    <% if category[:icon] %>
+                      <%= icon(category[:icon], color: "current", size: "sm") %>
+                    <% else %>
+                      <%= render DS::FilledIcon.new(
+                        variant: :text,
+                        hex_color: category[:color],
+                        text: category[:name],
+                        size: "sm",
+                        rounded: true
+                      ) %>
+                    <% end %>
+                  </div>
+                  <span class="text-sm font-medium text-primary truncate"><%= category[:name] %></span>
                 </div>
-                <span class="text-sm font-medium text-primary truncate"><%= category[:name] %></span>
-              </div>
-              <div class="flex items-center gap-4 flex-shrink-0 text-right">
-                <span class="text-sm font-medium text-primary whitespace-nowrap privacy-sensitive"><%= format_money Money.new(category[:amount], category[:currency]) %></span>
-                <span class="text-sm text-secondary whitespace-nowrap w-10 @2xl:w-15 privacy-sensitive"><%= category[:percentage] %>%</span>
-              </div>
-            <% end %>
-
-            <% if category[:clickable] != false %>
-              <%= link_to transactions_path(q: { categories: [category[:filter_value]], start_date: period.date_range.first, end_date: period.date_range.last }),
-                  class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
-                  data: {
-                    turbo_frame: "_top",
-                    turbo_prefetch: false,
-                    category_id: category[:id],
-                    action: "mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment"
-                  } do %>
-                <%= category_content %>
+                <div class="flex items-center gap-4 flex-shrink-0 text-right">
+                  <span class="text-sm font-medium text-primary whitespace-nowrap privacy-sensitive"><%= format_money Money.new(category[:amount], category[:currency]) %></span>
+                  <span class="text-sm text-secondary whitespace-nowrap w-10 @2xl:w-15 privacy-sensitive"><%= category[:percentage] %>%</span>
+                </div>
               <% end %>
-            <% else %>
-              <div class="flex items-center justify-between mx-3 p-3 rounded-lg group gap-3"
-                  data-category-id="<%= category[:id] %>"
-                  data-action="mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment">
-                <%= category_content %>
-              </div>
+
+              <% if category[:clickable] != false %>
+                <%= link_to category[:transactions_path],
+                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
+                    data: {
+                      turbo_frame: "_top",
+                      turbo_prefetch: false,
+                      category_id: category[:id],
+                      action: "mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment"
+                    } do %>
+                  <%= category_content %>
+                <% end %>
+              <% else %>
+                <div class="flex items-center justify-between mx-3 p-3 rounded-lg group gap-3"
+                    data-category-id="<%= category[:id] %>"
+                    data-action="mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment">
+                  <%= category_content %>
+                </div>
+              <% end %>
+              <% if idx < outflows_data[:categories].size - 1 %>
+                <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
+              <% end %>
             <% end %>
-            <% if idx < outflows_data[:categories].size - 1 %>
-              <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
-            <% end %>
+          </div>
+        <% end %>
+        <% if outflows_data[:offset_categories].present? %>
+          <%= render DS::Note.new(class: "mx-3 mb-2 mt-1", id: "outflows-donut-offset-note") do %>
+            <div class="flex items-start gap-2">
+              <%= icon("info", size: "sm", class: "mt-0.5") %>
+              <p><%= t("pages.dashboard.outflows_donut.offset_categories_html", count: outflows_data[:offset_categories].size, categories: outflows_offset_category_links(outflows_data[:offset_categories])) %></p>
+            </div>
           <% end %>
-        </div>
+        <% end %>
       </div>
     </div>
   </div>

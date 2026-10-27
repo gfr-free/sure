@@ -142,6 +142,7 @@ class DS::Dialog < DesignSystemComponent
     data[:action] = [
       "pointerdown->DS--dialog#trackPress:capture",
       "pointerup->DS--dialog#trackRelease:capture",
+      "pointercancel->DS--dialog#cancelPress:capture",
       "click->DS--dialog#clickOutside",
       data[:action]
     ].compact.join(" ")

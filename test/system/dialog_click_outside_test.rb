@@ -21,14 +21,19 @@ class DialogClickOutsideTest < ApplicationSystemTestCase
     assert_no_selector "dialog[open]"
   end
 
+  # The press before it, outside the content, never became a click.
   test "a keyboard click on a control that removes itself keeps the dialog open" do
     page.execute_script(<<~JS)
+      const dialog = document.querySelector("turbo-frame#modal dialog[open]");
+      dialog.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+      dialog.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 0 }));
+
       const button = document.createElement("button");
       button.type = "button";
       button.id = "remove-me";
       button.textContent = "Remove";
       button.addEventListener("click", () => button.remove());
-      document.querySelector("turbo-frame#modal dialog[open] h2").after(button);
+      dialog.querySelector("h2").after(button);
       button.focus();
     JS
 

@@ -491,6 +491,23 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "tools/call decodes array arguments sent as a JSON-encoded string" do
+    with_mcp_env do
+      post "/mcp", params: jsonrpc_request("tools/call", {
+        name: "get_transactions",
+        arguments: { categories: [ categories(:food_and_drink).name ].to_json }
+      }).to_json, headers: mcp_headers(@token)
+
+      assert_response :ok
+      result = JSON.parse(response.body)["result"]
+      assert_not result["isError"], "Expected transactions, got: #{result.inspect}"
+
+      inner = JSON.parse(result["content"][0]["text"])
+      assert_includes inner["transactions"].map { |t| t["id"] }, transactions(:one).id
+      assert inner["transactions"].all? { |t| t["category"] == categories(:food_and_drink).name }
+    end
+  end
+
   # A vault payload is richer than the other tools' output — nested account hashes,
   # BigDecimal balances, dates, a `.compact`ed hash — so these exercise a real
   # record all the way out through tools/call's JSON envelope, rather than

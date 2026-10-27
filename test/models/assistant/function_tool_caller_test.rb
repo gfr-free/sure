@@ -117,6 +117,86 @@ class Assistant::FunctionToolCallerTest < ActiveSupport::TestCase
     assert_includes result.function_result["hint"], "Do not retry"
   end
 
+  test "array arguments sent as a JSON-encoded string are decoded before the call" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+    request = FunctionRequest.new(
+      id: "call_9", call_id: "call_9", function_name: "array_echo",
+      function_args: { "names" => "[\"Food\", \"Rent\"]", "label" => "[not an array]" }.to_json
+    )
+
+    result = caller.fulfill_requests([ request ]).first
+
+    assert_equal [ "Food", "Rent" ], result.function_result["names"]
+    assert_equal "[not an array]", result.function_result["label"], "Non-array params stay untouched"
+  end
+
+  test "a bare string for an array argument is wrapped into a one-element array" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+    request = FunctionRequest.new(
+      id: "call_10", call_id: "call_10", function_name: "array_echo",
+      function_args: { "names" => "Food" }.to_json
+    )
+
+    result = caller.fulfill_requests([ request ]).first
+
+    assert_equal [ "Food" ], result.function_result["names"]
+  end
+
+  test "a JSON-encoded single value for an array argument is wrapped" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+    request = FunctionRequest.new(
+      id: "call_12", call_id: "call_12", function_name: "array_echo",
+      function_args: { "names" => "\"Food\"" }.to_json
+    )
+
+    result = caller.fulfill_requests([ request ]).first
+
+    assert_equal [ "Food" ], result.function_result["names"]
+  end
+
+  test "blank strings and JSON null for an array argument are passed through unchanged" do
+    caller = Assistant::FunctionToolCaller.new([ ArrayEchoFunction.new(nil) ])
+
+    [ "", "  ", "null" ].each_with_index do |raw, i|
+      request = FunctionRequest.new(
+        id: "call_blank_#{i}", call_id: "call_blank_#{i}", function_name: "array_echo",
+        function_args: { "names" => raw }.to_json
+      )
+
+      result = caller.fulfill_requests([ request ]).first
+
+      assert_equal raw, result.function_result["names"], "#{raw.inspect} must not become an empty list"
+    end
+  end
+
+  test "get_transactions filters by categories sent as a JSON-encoded string" do
+    user = users(:family_admin)
+    caller = Assistant::FunctionToolCaller.new([ Assistant::Function::GetTransactions.new(user) ])
+    request = FunctionRequest.new(
+      id: "call_11", call_id: "call_11", function_name: "get_transactions",
+      function_args: { "categories" => [ categories(:food_and_drink).name ].to_json }.to_json
+    )
+
+    result = caller.fulfill_requests([ request ]).first.function_result
+
+    assert_nil result["error"], "Expected transactions, got: #{result.inspect}"
+    assert_includes result["transactions"].map { |t| t["id"] }, transactions(:one).id
+    assert result["transactions"].all? { |t| t["category"] == categories(:food_and_drink).name }
+  end
+
+  class ArrayEchoFunction < Assistant::Function
+    def self.name = "array_echo"
+    def self.description = "Echoes arguments; declares an array param"
+    def call(params = {}) = params
+
+    def params_schema
+      build_schema(properties: {
+        names: { type: "array", items: { type: "string" } },
+        label: { type: "string" }
+      })
+    end
+  end
+
   class NotFoundFunction < Assistant::Function
     def self.name = "not_found"
     def self.description = "Always raises RecordNotFound"

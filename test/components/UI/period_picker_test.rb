@@ -173,4 +173,66 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
     assert_equal LOAN_OPTIONS.size, page.all("a[role='menuitemradio']").size
     assert_no_selector "a[href*='start_date=']"
   end
+
+  test "the full menu ends with a custom range action that opens a dialog" do
+    render_inline(UI::PeriodPicker.new(selected: Period.last_30_days, url: "/", frame: "dashboard_sections"))
+
+    action = page.find("a[role='menuitem'][aria-haspopup='dialog']")
+    assert_equal I18n.t("UI.period_picker.custom_range.open"), action.text.strip
+    assert_equal "period-picker#open:prevent", action["data-action"]
+    # Not part of the single-select group, so the radio count stays unchanged.
+    assert_equal Period.all.size, page.all("a[role='menuitemradio']").size
+  end
+
+  test "the custom range form targets the picker's url and frame and starts on the current range" do
+    period = Period.last_30_days
+
+    render_inline(UI::PeriodPicker.new(selected: period, url: "/", frame: "dashboard_sections"))
+
+    form = page.find("dialog form[method='get'][action='/']", visible: :all)
+    assert_equal "dashboard_sections", form["data-turbo-frame"]
+    assert_equal "advance", form["data-turbo-action"]
+    assert_equal period.start_date.to_s, form.find("input[name='start_date']", visible: :all).value
+    assert_equal period.end_date.to_s, form.find("input[name='end_date']", visible: :all).value
+    assert_equal Date.current.to_s, form.find("input[name='end_date']", visible: :all)[:max]
+  end
+
+  test "the custom range form starts on the active custom range" do
+    custom_period = Period.custom(start_date: 40.days.ago.to_date, end_date: 20.days.ago.to_date)
+
+    render_inline(UI::PeriodPicker.new(selected: custom_period, url: "/"))
+
+    assert_equal custom_period.start_date.to_s, page.find("input[name='start_date']", visible: :all).value
+    assert_equal custom_period.end_date.to_s, page.find("input[name='end_date']", visible: :all).value
+    assert_equal custom_period.end_date.to_s, page.find("input[name='start_date']", visible: :all)[:max]
+    assert_equal custom_period.start_date.to_s, page.find("input[name='end_date']", visible: :all)[:min]
+  end
+
+  test "the custom range form starts on a preset key's range" do
+    render_inline(UI::PeriodPicker.new(selected: "last_7_days", url: "/"))
+
+    assert_equal Period.last_7_days.start_date.to_s, page.find("input[name='start_date']", visible: :all).value
+  end
+
+  test "the custom range form carries extra_params, including arrays, as hidden fields" do
+    render_inline(UI::PeriodPicker.new(
+      selected: Period.last_30_days,
+      url: "/accounts/abc",
+      extra_params: { chart_view: "balance", money_flow_account_ids: [ "a1", "b2" ], start_date: "2026-01-01" }
+    ))
+
+    form = page.find("dialog form", visible: :all)
+    assert_equal "balance", form.find("input[type='hidden'][name='chart_view']", visible: :all).value
+    assert_equal %w[a1 b2], form.all("input[type='hidden'][name='money_flow_account_ids[]']", visible: :all).map(&:value)
+    # The date fields own start_date; a stale one in extra_params must not ride along.
+    assert_equal 0, form.all("input[type='hidden'][name='start_date']", visible: :all).size
+  end
+
+  test "options leave out the custom range action and dialog" do
+    render_inline(UI::PeriodPicker.new(selected: "last_5_years", url: "/accounts/abc", options: LOAN_OPTIONS))
+
+    assert_no_selector "a[aria-haspopup='dialog']"
+    assert_no_selector "dialog", visible: :all
+    assert_no_selector "[data-controller='period-picker']", visible: :all
+  end
 end

@@ -1,8 +1,10 @@
+<%= tag.div class: "contents", data: { controller: ("period-picker" if custom_range_form?) } do %>
 <%= render DS::Menu.new(variant: :button, placement: placement) do |menu| %>
   <% menu.with_button(
        type: "button",
        class: "inline-flex items-center gap-1.5 bg-container border border-secondary font-medium rounded-lg pl-3 pr-2 py-2 text-sm cursor-pointer text-primary hover:bg-container-inset-hover focus:outline-hidden focus:ring-0",
-       aria: { label: t("UI.period_picker.aria_label", period: selected_label) }
+       aria: { label: t("UI.period_picker.aria_label", period: selected_label) },
+       data: { period_picker_target: "trigger" }
      ) do %>
     <span class="whitespace-nowrap"><%= selected_label %></span>
     <%= helpers.icon("chevron-down", size: "sm") %>
@@ -39,4 +41,64 @@
          data: { turbo_action: turbo_action_for(true) }
        ) %>
   <% end %>
+
+  <% if custom_range_form? %>
+    <% menu.with_item(variant: :divider) %>
+    <% menu.with_item(
+         variant: :link,
+         text: t("UI.period_picker.custom_range.open"),
+         icon: "calendar-range",
+         href: "#",
+         aria: { haspopup: "dialog" },
+         data: { action: "period-picker#open:prevent" }
+       ) %>
+  <% end %>
+<% end %>
+
+<% if custom_range_form? %>
+  <% start_value, end_value = custom_range_defaults %>
+  <%= render DS::Dialog.new(
+        auto_open: false,
+        disable_frame: true,
+        width: "sm",
+        data: { period_picker_target: "dialog", action: "close->period-picker#restoreFocus" }
+      ) do |dialog| %>
+    <% dialog.with_header(title: t("UI.period_picker.custom_range.title")) %>
+
+    <% dialog.with_body do %>
+      <%# A GET to the picker's own url and frame: the server reads start_date
+          and end_date exactly as it does for a chart drag-select. %>
+      <%= helpers.styled_form_with url: url,
+                                   method: :get,
+                                   class: "space-y-4",
+                                   data: { turbo_frame: frame, turbo_action: "advance" } do |form| %>
+        <% custom_range_hidden_params.each do |name, value| %>
+          <%= hidden_field_tag name, value, id: nil %>
+        <% end %>
+
+        <%= form.date_field :start_date,
+                            label: t("UI.period_picker.custom_range.start_date"),
+                            value: start_value,
+                            max: end_value,
+                            required: true,
+                            data: { period_picker_target: "startDate", action: "change->period-picker#syncBounds" } %>
+        <%= form.date_field :end_date,
+                            label: t("UI.period_picker.custom_range.end_date"),
+                            value: end_value,
+                            min: start_value,
+                            max: max_date,
+                            required: true,
+                            data: { period_picker_target: "endDate", action: "change->period-picker#syncBounds" } %>
+
+        <div class="flex justify-end gap-2 pt-1">
+          <%= render DS::Button.new(text: t("UI.period_picker.custom_range.cancel"),
+                                    variant: "secondary",
+                                    type: "button",
+                                    data: { action: "DS--dialog#close" }) %>
+          <%= render DS::Button.new(text: t("UI.period_picker.custom_range.apply"), type: "submit") %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>
 <% end %>

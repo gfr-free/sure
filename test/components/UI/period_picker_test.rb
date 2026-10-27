@@ -204,8 +204,28 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
 
     assert_equal custom_period.start_date.to_s, page.find("input[name='start_date']", visible: :all).value
     assert_equal custom_period.end_date.to_s, page.find("input[name='end_date']", visible: :all).value
-    assert_equal custom_period.end_date.to_s, page.find("input[name='start_date']", visible: :all)[:max]
-    assert_equal custom_period.start_date.to_s, page.find("input[name='end_date']", visible: :all)[:min]
+    # The fields stay at least a day apart: a one-day range draws the chart's empty state.
+    assert_equal (custom_period.end_date - 1.day).to_s, page.find("input[name='start_date']", visible: :all)[:max]
+    assert_equal (custom_period.start_date + 1.day).to_s, page.find("input[name='end_date']", visible: :all)[:min]
+    assert_selector "[data-controller='period-picker'][data-period-picker-custom-selected-value='true']"
+  end
+
+  test "the custom range form never opens on a single day" do
+    travel_to Date.new(2026, 10, 1) do
+      render_inline(UI::PeriodPicker.new(selected: "current_month", url: "/"))
+
+      assert_equal "2026-09-30", page.find("input[name='start_date']", visible: :all).value
+      assert_equal "2026-10-01", page.find("input[name='end_date']", visible: :all).value
+      assert_selector "[data-period-picker-custom-selected-value='false']"
+    end
+  end
+
+  test "the custom range form caps a range running past today at today" do
+    future_period = Period.custom(start_date: 10.days.ago.to_date, end_date: 10.days.from_now.to_date)
+
+    render_inline(UI::PeriodPicker.new(selected: future_period, url: "/"))
+
+    assert_equal Date.current.to_s, page.find("input[name='end_date']", visible: :all).value
   end
 
   test "the custom range form starts on a preset key's range" do

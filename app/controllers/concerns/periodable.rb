@@ -33,12 +33,8 @@ module Periodable
     # Scoped to its own rescue so a bad/backwards date range (the only
     # expected failure here) can't be confused with an unrelated failure
     # elsewhere in #set_period, e.g. persisting the user's default_period.
-    #
-    # An end date in the future is capped at today: there is no data past it,
-    # and an open-ended range would make the chart trail off into empty days.
     def custom_period_from_params
-      end_date = [ Date.parse(params[:end_date]), Date.current ].min
-      Period.custom(start_date: Date.parse(params[:start_date]), end_date: end_date)
+      Period.custom(start_date: Date.parse(params[:start_date]), end_date: Date.parse(params[:end_date]))
     rescue ArgumentError, TypeError, ActiveModel::ValidationError
       Period.last_30_days
     end

@@ -56,21 +56,6 @@ class PeriodableTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label='Time period: #{@custom_label}']"
   end
 
-  test "an end date in the future is capped at today" do
-    get root_path, params: { start_date: @start_date.to_s, end_date: 10.days.from_now.to_date.to_s }
-
-    capped_label = Period.custom(start_date: @start_date, end_date: Date.current).label_range
-    assert_response :success
-    assert_select "button[aria-label='Time period: #{capped_label}']"
-  end
-
-  test "a range that starts in the future falls back to last 30 days" do
-    get root_path, params: { start_date: 2.days.from_now.to_date.to_s, end_date: 5.days.from_now.to_date.to_s }
-
-    assert_response :success
-    assert_select "button[aria-label='Time period: 30D']"
-  end
-
   test "empty start_date and end_date are ignored like missing ones" do
     @user.update!(default_period: "last_7_days")
 

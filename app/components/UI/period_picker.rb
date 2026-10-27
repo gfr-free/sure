@@ -72,10 +72,13 @@ class UI::PeriodPicker < ApplicationComponent
     options.nil?
   end
 
-  # The dialog opens on the range the chart already shows.
+  # The dialog opens on the range the chart already shows, kept to at least two
+  # days: a single-day range draws a one-point series, which the chart shows as
+  # its empty state (the drag-select refuses such a range for the same reason).
   def custom_range_defaults
     period = selected.is_a?(Period) ? selected : period_for(selected_key)
-    [ period.start_date, [ period.end_date, max_date ].min ]
+    end_date = [ period.end_date, max_date ].min
+    [ [ period.start_date, end_date - 1.day ].min, end_date ]
   end
 
   def max_date
@@ -85,9 +88,7 @@ class UI::PeriodPicker < ApplicationComponent
   # `extra_params` as flat name/value pairs for hidden fields, so the form
   # carries the same query state (including array params) as the preset links.
   def custom_range_hidden_params
-    extra_params.except(:period, :start_date, :end_date).to_query.split("&").map do |pair|
-      pair.split("=", 2).map { |part| CGI.unescape(part.to_s) }
-    end
+    URI.decode_www_form(extra_params.except(:period, :start_date, :end_date).to_query)
   end
 
   def selected?(key)

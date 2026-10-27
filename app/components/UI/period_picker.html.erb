@@ -1,4 +1,6 @@
-<%= tag.div class: "contents", data: { controller: ("period-picker" if custom_range_form?) } do %>
+<%# A plain block rather than `contents`: the dialog's own wrapper must not
+    become a second flex item (and gap) in the caller's toolbar. %>
+<%= tag.div data: custom_range_form? ? { controller: "period-picker", period_picker_custom_selected_value: custom_selected? } : nil do %>
 <%= render DS::Menu.new(variant: :button, placement: placement) do |menu| %>
   <% menu.with_button(
        type: "button",
@@ -71,7 +73,7 @@
       <%= helpers.styled_form_with url: url,
                                    method: :get,
                                    class: "space-y-4",
-                                   data: { turbo_frame: frame, turbo_action: "advance" } do |form| %>
+                                   data: { turbo_frame: frame, turbo_action: "advance", period_picker_target: "form", action: "submit->period-picker#submit" } do |form| %>
         <% custom_range_hidden_params.each do |name, value| %>
           <%= hidden_field_tag name, value, id: nil %>
         <% end %>
@@ -79,13 +81,13 @@
         <%= form.date_field :start_date,
                             label: t("UI.period_picker.custom_range.start_date"),
                             value: start_value,
-                            max: end_value,
+                            max: end_value - 1.day,
                             required: true,
                             data: { period_picker_target: "startDate", action: "change->period-picker#syncBounds" } %>
         <%= form.date_field :end_date,
                             label: t("UI.period_picker.custom_range.end_date"),
                             value: end_value,
-                            min: start_value,
+                            min: start_value + 1.day,
                             max: max_date,
                             required: true,
                             data: { period_picker_target: "endDate", action: "change->period-picker#syncBounds" } %>

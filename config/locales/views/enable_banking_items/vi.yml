@@ -27,12 +27,6 @@ vi:
       success: Cấu hình Enable Banking thành công.
     destroy:
       success: Kết nối Enable Banking đã được đưa vào hàng đợi xóa.
-    link_accounts:
-      already_linked: Các tài khoản đã chọn đã được liên kết.
-      link_failed: Liên kết tài khoản thất bại
-      no_accounts_selected: Chưa chọn tài khoản nào.
-      no_session: Không có kết nối Enable Banking nào đang hoạt động. Vui lòng kết nối với ngân hàng trước.
-      success: Đã liên kết thành công %{count} tài khoản.
     link_existing_account:
       success: Tài khoản đã được liên kết thành công với Enable Banking
       errors:

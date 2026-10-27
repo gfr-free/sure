@@ -27,12 +27,6 @@ hu:
       success: Az Enable Banking konfigurálása sikeres.
     destroy:
       success: Az Enable Banking kapcsolat törlési sorba került.
-    link_accounts:
-      already_linked: A kiválasztott számlák már össze vannak kapcsolva.
-      link_failed: A számlák összekapcsolása sikertelen
-      no_accounts_selected: Nincs kiválasztott számla.
-      no_session: Nincs aktív Enable Banking kapcsolat. Kérjük, először csatlakozz egy bankhoz.
-      success: Sikeresen összekapcsolva %{count} számla.
     link_existing_account:
       success: A számla sikeresen össze lett kapcsolva az Enable Banking-gel
       errors:

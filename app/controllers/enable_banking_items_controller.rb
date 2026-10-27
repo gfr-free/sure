@@ -1,7 +1,7 @@
 class EnableBankingItemsController < ApplicationController
   include EnableBankingItems::MapsHelper
   before_action :set_enable_banking_item, only: [ :update, :destroy, :sync, :select_bank, :authorize, :reauthorize, :setup_accounts, :complete_account_setup, :new_connection ]
-  before_action :require_admin!, only: [ :new, :create, :link_accounts, :select_existing_account, :link_existing_account, :update, :destroy, :sync, :select_bank, :authorize, :callback, :reauthorize, :setup_accounts, :complete_account_setup, :new_connection ]
+  before_action :require_admin!, only: [ :new, :create, :select_existing_account, :link_existing_account, :update, :destroy, :sync, :select_bank, :authorize, :callback, :reauthorize, :setup_accounts, :complete_account_setup, :new_connection ]
   skip_before_action :verify_authenticity_token, only: [ :callback ]
 
   OAUTH_STATE_SESSION_KEY = :enable_banking_oauth_states
@@ -218,81 +218,6 @@ class EnableBankingItemsController < ApplicationController
       Rails.logger.error "Enable Banking reauthorization error: #{e.message}"
       redirect_to settings_providers_path, alert: t(".reauthorization_failed",
         default: "Failed to re-authorize: %{message}", message: e.message)
-    end
-  end
-
-  # Link accounts from Enable Banking to internal accounts
-  def link_accounts
-    selected_uids = params[:account_uids] || []
-    accountable_type = params[:accountable_type] || "Depository"
-
-    if selected_uids.empty?
-      redirect_to accounts_path, alert: t(".no_accounts_selected", default: "No accounts selected.")
-      return
-    end
-
-    enable_banking_item = Current.family.enable_banking_items.where.not(session_id: nil).first
-
-    unless enable_banking_item.present?
-      redirect_to settings_providers_path, alert: t(".no_session", default: "No active Enable Banking connection. Please connect a bank first.")
-      return
-    end
-
-    created_accounts = []
-    already_linked_accounts = []
-
-    # Wrap in transaction so partial failures don't leave orphaned accounts without provider links
-    begin
-      ActiveRecord::Base.transaction do
-        selected_uids.each do |uid|
-          enable_banking_account = enable_banking_item.enable_banking_accounts.find_by(uid: uid)
-          next unless enable_banking_account
-
-          # Check if already linked
-          if enable_banking_account.account_provider.present?
-            already_linked_accounts << enable_banking_account.name
-            next
-          end
-
-          # Create the internal Account (uses save! internally, will raise on failure)
-          # Skip initial sync - provider sync will handle balance creation with correct currency
-          account = Account.create_and_sync(
-            {
-              family: Current.family,
-              name: enable_banking_account.name,
-              balance: enable_banking_account.current_balance || 0,
-              currency: enable_banking_account.currency || "EUR",
-              accountable_type: accountable_type,
-              accountable_attributes: {}
-            },
-            skip_initial_sync: true
-          )
-
-          # Link account to enable_banking_account via account_providers
-          # Uses create! so any failure will rollback the entire transaction
-          AccountProvider.create!(
-            account: account,
-            provider: enable_banking_account
-          )
-
-          created_accounts << account
-        end
-      end
-    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotSaved => e
-      Rails.logger.error "Enable Banking link_accounts failed: #{e.class} - #{e.message}"
-      redirect_to accounts_path, alert: t(".link_failed", default: "Failed to link accounts: %{error}", error: e.message)
-      return
-    end
-
-    # Trigger sync if accounts were created
-    enable_banking_item.sync_later if created_accounts.any?
-
-    if created_accounts.any?
-      redirect_to accounts_path, notice: t(".success", default: "%{count} account(s) linked successfully.", count: created_accounts.count)
-    elsif already_linked_accounts.any?
-      redirect_to accounts_path, alert: t(".already_linked", default: "Selected accounts are already linked.")
-    else
-      redirect_to accounts_path, alert: t(".link_failed", default: "Failed to link accounts.")
     end
   end
 

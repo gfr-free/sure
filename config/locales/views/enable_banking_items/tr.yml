@@ -46,13 +46,6 @@ tr:
         daha sonra tekrar deneyin.
       session_invalid: Oturum süresi doldu. Lütfen bankanızla yeniden bağlantı kurun.
       unexpected: Eşitleme sırasında beklenmeyen bir hata oluştu.
-    link_accounts:
-      already_linked: Seçilen hesaplar zaten bağlı.
-      link_failed: Hesaplar bağlanamadı
-      no_accounts_selected: Hesap seçilmedi.
-      no_session: Aktif bir Enable Banking bağlantısı yok. Lütfen önce bir bankaya
-        bağlanın.
-      success: "%{count} hesap başarıyla bağlandı."
     link_existing_account:
       errors:
         invalid_enable_banking_account: Geçersiz Enable Banking hesabı seçildi

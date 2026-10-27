@@ -48,13 +48,6 @@ ca:
         a provar més tard.
       session_invalid: La sessió ha caducat. Torna a connectar el teu banc.
       unexpected: S'ha produït un error inesperat durant la sincronització.
-    link_accounts:
-      already_linked: Els comptes seleccionats ja estan enllaçats.
-      link_failed: No s'han pogut enllaçar els comptes
-      no_accounts_selected: No s'han seleccionat comptes.
-      no_session: No hi ha cap connexió activa d'Enable Banking. Primer connecta't
-        a un banc.
-      success: S'han enllaçat correctament %{count} comptes.
     link_existing_account:
       errors:
         invalid_enable_banking_account: S'ha seleccionat un compte d'Enable Banking

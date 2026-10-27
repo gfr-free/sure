@@ -51,14 +51,6 @@ fr:
         réessayer plus tard.
       session_invalid: Session expirée. Veuillez reconnecter votre banque.
       unexpected: Une erreur inattendue est survenue lors de la synchronisation.
-    link_accounts:
-      already_linked: Les comptes sélectionnés sont déjà liés.
-      link_failed: Échec de la liaison des comptes
-      no_accounts_selected: Aucun compte sélectionné.
-      no_session:
-        Aucune connexion Enable Banking active. Veuillez d'abord vous connecter
-        à une banque.
-      success: "%{count} compte(s) lié(s) avec succès."
     link_existing_account:
       errors:
         invalid_enable_banking_account: Compte Enable Banking sélectionné invalide

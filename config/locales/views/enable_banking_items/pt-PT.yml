@@ -27,12 +27,6 @@ pt-PT:
       success: Configuração do Enable Banking concluída com sucesso.
     destroy:
       success: A ligação Enable Banking foi colocada em fila para eliminação.
-    link_accounts:
-      already_linked: As contas selecionadas já estão associadas.
-      link_failed: Falha ao associar contas
-      no_accounts_selected: Nenhuma conta selecionada.
-      no_session: Não existe uma ligação Enable Banking ativa. Ligue-se a um banco primeiro.
-      success: "%{count} contas associadas com sucesso."
     link_existing_account:
       success: Conta associada com sucesso ao Enable Banking
       errors:

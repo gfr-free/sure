@@ -27,12 +27,6 @@ zh-TW:
       success: Enable Banking 設定成功。
     destroy:
       success: Enable Banking 連線已加入刪除佇列。
-    link_accounts:
-      already_linked: 所選帳戶已連結。
-      link_failed: 連結帳戶失敗
-      no_accounts_selected: 未選擇任何帳戶。
-      no_session: 無活躍的 Enable Banking 連線。請先連線一家銀行。
-      success: 已成功連結 %{count} 個帳戶。
     link_existing_account:
       success: 帳戶已成功連結到 Enable Banking
       errors:

@@ -54,17 +54,6 @@ pl:
         później.
       session_invalid: Sesja wygasła. Połącz bank ponownie.
       unexpected: Wystąpił nieoczekiwany błąd podczas synchronizacji.
-    link_accounts:
-      already_linked: Wybrane konta są już połączone.
-      link_failed: Nie udało się połączyć kont
-      no_accounts_selected: Nie wybrano żadnych kont.
-      no_session: Brak aktywnego połączenia Enable Banking. Najpierw połącz się z
-        bankiem.
-      success:
-        few: Pomyślnie połączono %{count} konta.
-        many: Pomyślnie połączono %{count} kont.
-        one: Pomyślnie połączono %{count} konto.
-        other: Pomyślnie połączono %{count} konta.
     link_existing_account:
       errors:
         invalid_enable_banking_account: Wybrano nieprawidłowe konto Enable Banking

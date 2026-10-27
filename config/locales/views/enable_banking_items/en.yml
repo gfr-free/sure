@@ -27,12 +27,6 @@ en:
       success: Enable Banking configuration successful.
     destroy:
       success: Enable Banking connection has been queued for deletion.
-    link_accounts:
-      already_linked: The selected accounts are already linked.
-      link_failed: Failed to link accounts
-      no_accounts_selected: No accounts selected.
-      no_session: No active Enable Banking connection. Please connect to a bank first.
-      success: Successfully linked %{count} accounts.
     link_existing_account:
       success: Account successfully linked to Enable Banking
       errors:

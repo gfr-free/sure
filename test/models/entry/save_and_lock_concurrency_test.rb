@@ -27,6 +27,7 @@ class Entry::SaveAndLockConcurrencyTest < ActiveSupport::TestCase
       Entry.where(id: @entry.id).delete_all
       Transaction.where(id: @entry.entryable_id).delete_all
     end
+    Rule.where(family_id: @family.id).destroy_all if @family # created by Family#add_classifier_rules
     Category.where(family_id: @family.id).delete_all if @family
     if @account
       Sync.where(syncable: @account).delete_all

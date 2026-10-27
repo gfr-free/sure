@@ -45,12 +45,15 @@ SCHRITT 0  KONTEXT
    (nicht mehr, nicht weniger). Abweichung = Befund L13.
 2. Repo-Regeln lesen: AGENTS.md, docs/llm-guides/architecture.md und die zum Diff passenden
    Guides (design-system, testing, providers, api-endpoint-consistency, gating-a-preview-feature).
-3. LEKTIONEN.md lesen: den Abschnitt L1–L33 vollständig, aus "Nachträge" alle Einträge zu den
+3. LEKTIONEN.md lesen: den Abschnitt L1–L34 vollständig, aus "Nachträge" alle Einträge zu den
    Lektionen, die zum Diff passen (grep nach "L<n>" und nach berührten Dateinamen).
 4. Duplikate und Überschneidungen (L17): offene und geschlossene PRs und Issues upstream und im Fork
    zum selben Thema und zu jeder geänderten Spalte, Methode und Datei suchen (Titel UND Diff-Inhalt,
    z. B. `encrypts :iban`). Ist das Problem auf aktuellem upstream main noch reproduzierbar?
    Ändert ein anderer offener PR dieselben Zeilen anders (Konflikt, Doppelarbeit, Widerspruch)?
+5. Funktion selbst prüfen (L34, Owner-Vorgabe 21.10.): Die Funktion, die der Diff bearbeitet, auf
+   aktuellem main und auf dem Branch im Browser oder per Systemtest auf das sichtbare Endergebnis ansehen.
+   Ist sie auf main schon kaputt: im Thread melden, bestehenden Fix suchen oder eigenen vorschlagen.
 
 SCHRITT 1  DIFF ZEILE FÜR ZEILE
 Für jede geänderte Datei: Was tat die Stelle vorher, was tut sie jetzt, welche Annahme steckt darin?
@@ -165,6 +168,10 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
   Defaults (Rewrite); Spalten entfernen erst nach ignored_columns-Phase, Umbenennen/Typwechsel
   per Expand-and-Contract; jsonb statt json; Geld als decimal mit precision/scale.
   (Sure hat kein strong_migrations, diese Prüfung ist also nur hier.)
+- Alter Release läuft parallel (Rolling Deploy: Worker nach Web, Image-Rollback): Liest der alte Code
+  nach der Migration noch korrekt (z. B. verschlüsselte Werte), schreibt er gelöschte Spalten oder
+  bereinigte Daten (PII, generierte Namen) zurück? Dann Drop bzw. einmalige Bereinigung in einen
+  Folge-Release verschieben oder per Code-Guard absichern. (Owner-Ok 27.10., upstream PR 4336, 4339)
 - Unique-Index: vorher Duplikate bereinigen oder Preflight mit klarer Meldung.
 - Datenmigrationen mit Modellklassen: Modell-Callbacks, Default-Scopes und spätere
   Codeänderungen bedenken (lieber SQL oder lokale Klassen).
@@ -284,7 +291,7 @@ Abweichend von Anthropics Security-Review-Vorlage WERDEN gemeldet: fehlende Vers
 Auth-Einstiegen und Races mit realem Pfad (in Sure mehrfach echte Befunde, L4, L23).
 
 SCHRITT 6  LEKTIONEN-ABGLEICH
-Für jede zum Diff passende Lektion (L1–L33) eine Zeile: "L<n>: eingehalten / Befund #<k> / nicht
+Für jede zum Diff passende Lektion (L1–L34) eine Zeile: "L<n>: eingehalten / Befund #<k> / nicht
 zutreffend weil …". Nicht passende Lektionen weglassen. Bei {{AKTION}} = beheben: jeden
 behobenen Befund unter "Nachträge" in LEKTIONEN.md einer Lektion zuordnen (neue Fehlerart = neue
 Lektion, durchgerutschte bekannte Art = Prüffrage schärfen).

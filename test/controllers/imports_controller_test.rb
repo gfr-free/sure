@@ -457,6 +457,25 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("imports.create.invalid_document_file_type"), flash[:alert]
   end
 
+  test "publishing a Sure import records the publisher and enqueues the job" do
+    sign_in member = users(:family_member)
+    ndjson = { type: "Account", data: {
+      id: "account-1", name: "Checking", balance: "1.00", currency: "USD",
+      accountable_type: "Depository", accountable: { subtype: "checking" }
+    } }.to_json
+    import = member.family.imports.create!(type: "SureImport", user: users(:family_admin))
+    import.ndjson_file.attach(io: StringIO.new(ndjson), filename: "all.ndjson", content_type: "application/x-ndjson")
+    import.sync_ndjson_rows_count!
+
+    assert_enqueued_with(job: ImportJob) do
+      post publish_import_url(import)
+    end
+
+    assert_redirected_to import_path(import)
+    assert_equal "importing", import.reload.status
+    assert_equal member, import.user
+  end
+
   test "publishes import" do
     import = imports(:transaction)
 

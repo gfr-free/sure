@@ -869,6 +869,10 @@ class Account < ApplicationRecord
     account_shares.find_by(user: user)&.permission&.to_sym
   end
 
+  def writable_by?(user)
+    permission_for(user).in?([ :owner, :full_control ])
+  end
+
   def share_with!(user, permission: "read_only", include_in_finances: true)
     account_shares.create!(user: user, permission: permission, include_in_finances: include_in_finances)
   end

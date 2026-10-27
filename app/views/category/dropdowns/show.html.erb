@@ -132,7 +132,7 @@
           <% end %>
         <% end %>
 
-        <% unless @transaction.transfer? %>
+        <% if @can_edit_entry && !@transaction.transfer? %>
           <%= link_to new_transaction_transfer_match_path(@transaction.entry),
                   class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover",
                   data: { turbo_frame: "modal" } do %>
@@ -142,7 +142,7 @@
           <% end %>
         <% end %>
 
-        <% if @can_split %>
+        <% if @can_edit_entry && @transaction.splittable? %>
           <%= link_to new_transaction_split_path(@transaction.entry),
                   class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover",
                   data: { turbo_frame: "modal" } do %>
@@ -152,26 +152,28 @@
           <% end %>
         <% end %>
 
-        <div class="flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2">
-          <div class="flex items-center gap-2">
-            <%= form_with url: transaction_path(@transaction.entry),
-                        method: :patch,
-                        data: { controller: "auto-submit-form" } do |f| %>
-              <%= f.hidden_field "entry[excluded]", value: !@transaction.entry.excluded %>
-              <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
-              <%= f.check_box "entry[excluded]",
-                          checked: @transaction.entry.excluded,
-                          class: "checkbox checkbox--light",
-                          data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
-            <% end %>
+        <% if @can_edit_entry %>
+          <div class="flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2">
+            <div class="flex items-center gap-2">
+              <%= form_with url: transaction_path(@transaction.entry),
+                          method: :patch,
+                          data: { controller: "auto-submit-form" } do |f| %>
+                <%= f.hidden_field "entry[excluded]", value: !@transaction.entry.excluded %>
+                <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
+                <%= f.check_box "entry[excluded]",
+                            checked: @transaction.entry.excluded,
+                            class: "checkbox checkbox--light",
+                            data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
+              <% end %>
+            </div>
+
+            <p><%= t(".one_time", type: @transaction.entry.amount.negative? ? t(".income") : t(".expense")) %></p>
+
+            <span class="text-orange-500 ml-auto">
+              <%= icon("asterisk", color: "current") %>
+            </span>
           </div>
-
-          <p><%= t(".one_time", type: @transaction.entry.amount.negative? ? t(".income") : t(".expense")) %></p>
-
-          <span class="text-orange-500 ml-auto">
-            <%= icon("asterisk", color: "current") %>
-          </span>
-        </div>
+        <% end %>
       </div>
     </div>
   <% end %>

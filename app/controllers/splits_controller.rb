@@ -1,6 +1,6 @@
 class SplitsController < ApplicationController
   before_action :set_entry
-  before_action :require_split_write_permission!, only: %i[new create edit update destroy]
+  before_action :require_split_write_permission!
 
   def new
     set_form_options
@@ -83,8 +83,15 @@ class SplitsController < ApplicationController
       @entry = Current.accessible_entries.find(params[:transaction_id])
     end
 
+    # The editor opens in the modal frame, which would swallow a plain redirect and its alert.
     def require_split_write_permission!
-      require_account_permission!(@entry.account, redirect_path: transactions_path)
+      return if @entry.account.writable_by?(Current.user)
+
+      if turbo_frame_request?
+        frame_redirect_to transactions_path, alert: t("accounts.not_authorized")
+      else
+        require_account_permission!(@entry.account, redirect_path: transactions_path)
+      end
     end
 
     def resolve_to_parent!

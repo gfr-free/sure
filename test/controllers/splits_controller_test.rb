@@ -365,6 +365,17 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
   end
 
+  test "new answers a refused modal request with a full-page redirect" do
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+
+    get new_transaction_split_path(@entry), headers: { "Turbo-Frame" => "modal" }
+
+    assert_response :success
+    assert_select "turbo-frame#modal turbo-stream[action=redirect][target=?]", transactions_path
+    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+  end
+
   test "new renders for a member with full control" do
     sign_in users(:family_member)
 

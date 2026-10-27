@@ -4,8 +4,7 @@ class Category::DropdownsController < ApplicationController
   def show
     @categories = categories_scope.to_a.excluding(@selected_category).prepend(@selected_category).compact
     @recent_categories = Category.recently_used_for(family: Current.family, excluding: @selected_category).to_a
-    @can_split = @transaction&.splittable? &&
-      @transaction.entry.account.permission_for(Current.user).in?([ :owner, :full_control ])
+    @can_edit_entry = @transaction&.entry&.account&.writable_by?(Current.user)
   end
 
   private
@@ -15,7 +14,10 @@ class Category::DropdownsController < ApplicationController
       end
 
       if params[:transaction_id]
-        @transaction = Current.family.transactions.find(params[:transaction_id])
+        @transaction = Current.family.transactions
+                             .joins(entry: :account)
+                             .merge(Account.accessible_by(Current.user))
+                             .find(params[:transaction_id])
       end
     end
 

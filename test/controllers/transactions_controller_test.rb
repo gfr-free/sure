@@ -625,6 +625,14 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
       assert_select "form[action='#{transaction_split_path(parent)}']", count: 0
     end
 
+    account_shares(:depository_shared_with_member).update!(permission: "full_control")
+    [ parent, child ].each do |entry|
+      get transaction_url(entry)
+      assert_select "a[href='#{edit_transaction_split_path(parent)}']", count: 1
+      assert_select "form[action='#{transaction_split_path(parent)}']", count: 1
+    end
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+
     unsplit = create_transaction(account: accounts(:depository), amount: 50)
     get transaction_url(unsplit)
     assert_response :success

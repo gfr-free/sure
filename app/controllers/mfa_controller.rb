@@ -173,10 +173,25 @@ class MfaController < ApplicationController
 
     def complete_mfa_sign_in(user)
       session.delete(:mfa_user_id)
-      @session = create_session_for(user)
+      @session = create_session_for(user, id_token_hint: take_pending_id_token_hint(user))
       return false unless @session
 
       flash[:notice] = t("invitations.accept_choice.joined_household") if accept_pending_invitation_for(user)
       true
+    end
+
+    # An SSO login that required MFA parked its id_token on the identity (see
+    # SessionsController#openid_connect); move it to the new session so logout
+    # can still end the IdP session.
+    def take_pending_id_token_hint(user)
+      provider = session[:sso_login_provider]
+      return if provider.blank?
+
+      identity = user.oidc_identities.find_by(provider: provider)
+      id_token = identity&.pending_id_token_hint
+      return if id_token.blank?
+
+      identity.update!(pending_id_token_hint: nil)
+      id_token
     end
 end

@@ -36,11 +36,11 @@ module Authentication
       nil
     end
 
-    def create_session_for(user)
+    def create_session_for(user, id_token_hint: nil)
       return false unless user&.persisted?
 
       user.with_active_lock! do
-        session = user.sessions.create!
+        session = user.sessions.create!(id_token_hint: id_token_hint)
         cookies.signed.permanent[:session_token] = { value: session.id, httponly: true }
         session
       end

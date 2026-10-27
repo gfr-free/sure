@@ -98,7 +98,8 @@ class SessionsController < ApplicationController
 
   def destroy
     user = Current.user
-    id_token = session[:id_token_hint]
+    # Cookie sessions issued before the id_token moved to the database still carry it.
+    id_token = @session.id_token_hint.presence || session[:id_token_hint]
     login_provider = session[:sso_login_provider]
 
     # Find the identity for the provider used during login, with fallback to first if session data lost
@@ -304,16 +305,19 @@ class SessionsController < ApplicationController
         return
       end
 
-      # Store id_token and provider for RP-initiated logout
-      session[:id_token_hint] = auth.credentials&.id_token if auth.credentials&.id_token
+      # Keep provider and id_token for RP-initiated logout. The id_token is
+      # stored in the database: with many group claims it alone can exceed the
+      # 4 KB cookie limit of the session store.
       session[:sso_login_provider] = auth.provider
+      id_token = auth.credentials&.id_token.presence
 
       # MFA check: If user has MFA enabled, require verification
       if user.otp_required?
+        oidc_identity.update!(pending_id_token_hint: id_token)
         session[:mfa_user_id] = user.id
         redirect_to verify_mfa_path
       else
-        @session = create_session_for(user)
+        @session = create_session_for(user, id_token_hint: id_token)
         unless @session
           redirect_to new_session_path, alert: t("sessions.openid_connect.failed")
           return

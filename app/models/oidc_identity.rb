@@ -1,4 +1,12 @@
 class OidcIdentity < ApplicationRecord
+  include Encryptable
+
+  # id_token from an SSO login that is still waiting for MFA; it moves to the
+  # Session created once MFA succeeds (see MfaController#complete_mfa_sign_in).
+  if encryption_ready?
+    encrypts :pending_id_token_hint
+  end
+
   belongs_to :user
 
   validates :provider, presence: true

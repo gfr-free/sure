@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1848,6 +1848,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.jsonb "info", default: {}
     t.string "issuer"
     t.datetime "last_authenticated_at"
+    t.text "pending_id_token_hint"
     t.string "provider", null: false
     t.string "uid", null: false
     t.datetime "updated_at", null: false
@@ -2371,6 +2372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_090001) do
     t.uuid "active_impersonator_session_id"
     t.datetime "created_at", null: false
     t.jsonb "data", default: {}
+    t.text "id_token_hint"
     t.string "ip_address"
     t.string "ip_address_digest"
     t.jsonb "prev_transaction_page_params", default: {}

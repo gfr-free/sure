@@ -2,6 +2,13 @@
 de:
   settings:
     hostings:
+      bullion_reference_settings:
+        description: Münz- und Barrenkurse ergeben sich aus dem Feingewicht mal dem Metallpreis. Wähle, welcher Kursanbieter die Metallpreise liefert; das passende Symbol je Metall wählt Sure selbst. Änderungen gelten ab der nächsten Synchronisierung.
+        not_set: Nicht verfügbar
+        provider_disabled: "%{provider} ist nicht als Kursanbieter für Wertpapiere aktiviert, deshalb bekommen Münzen und Barren keine neuen Preise. Aktiviere ihn unter „Anbieter für Wertpapierkurse“ oder wähle einen anderen Anbieter."
+        provider_label: Kursanbieter
+        title: Edelmetallpreise
+        twelve_data_plan_hint: Der Gratis-Tarif von Twelve Data liefert nur Gold. Silber, Platin und Palladium brauchen einen kostenpflichtigen Tarif.
       invite_code_settings:
         description: Lege fest, wie sich neue Benutzer für deine %{product}-Instanz registrieren können.
         email_confirmation_description: Wenn aktiviert, müssen Benutzer ihre E-Mail-Adresse bestätigen, wenn sie diese ändern.
@@ -137,6 +144,7 @@ de:
         step_2_html: Geh auf die Seite <a href="https://twelvedata.com/account/api-keys" target="_blank" rel="noopener noreferrer" class="underline">API Keys</a>.
         step_3: Lass deinen Secret Key anzeigen und füg ihn unten ein.
       update:
+        invalid_bullion_reference: Bitte einen unterstützten Kursanbieter für Edelmetalle wählen.
         failure: Ungültiger Einstellungswert
         success: Einstellungen aktualisiert
         invalid_onboarding_state: Ungültiger Onboarding-Status

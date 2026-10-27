@@ -87,6 +87,10 @@ class Setting < RailsSettings::Base
   # Multi-provider: comma-separated list of enabled securities providers
   field :securities_providers, type: :string, default: ENV.fetch("SECURITIES_PROVIDERS", "")
 
+  # Securities provider for the metal prices that coin and bar prices are
+  # derived from (BullionSpec::PriceDeriver picks each metal's symbol).
+  field :bullion_reference_provider, type: :string, default: ENV.fetch("BULLION_REFERENCE_PROVIDER", "yahoo_finance")
+
   # New provider API keys (encrypted at rest — see EncryptedSettingFields below)
   field :tiingo_api_key, type: :string, default: ENV["TIINGO_API_KEY"]
   field :eodhd_api_key, type: :string, default: ENV["EODHD_API_KEY"]

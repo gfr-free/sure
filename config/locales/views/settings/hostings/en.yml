@@ -2,6 +2,13 @@
 en:
   settings:
     hostings:
+      bullion_reference_settings:
+        description: Coin and bar prices are their fine weight times the price of the metal. Choose which price provider supplies the metal prices; Sure picks the right symbol for each metal. Changes apply from the next sync.
+        not_set: Not available
+        provider_disabled: "%{provider} is not enabled as a securities price provider, so coins and bars get no new prices. Enable it under Securities price providers or choose another provider."
+        provider_label: Price provider
+        title: Precious metal prices
+        twelve_data_plan_hint: Twelve Data's free plan quotes gold only. Silver, platinum and palladium need a paid plan.
       invite_code_settings:
         description: Control how new people sign up for your instance of %{product}.
         email_confirmation_description: When enabled, users must confirm their email
@@ -316,6 +323,7 @@ en:
         view_pricing: View Twelve Data pricing
         title: Twelve Data
       update:
+        invalid_bullion_reference: Choose a supported price provider for precious metals.
         invalid_demo_family: Selected family must own the configured demo email.
         select_demo_family: Select a disposable demo family first.
         failure: Invalid setting value

@@ -336,6 +336,55 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "updates the precious metal price provider" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { bullion_reference_provider: "twelve_data" } }
+
+      assert_equal "twelve_data", Setting.bullion_reference_provider
+    end
+  ensure
+    Setting.bullion_reference_provider = nil
+  end
+
+  test "rejects a precious metal price provider without known symbols" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { bullion_reference_provider: "alpha_vantage" } }
+
+      assert_equal "yahoo_finance", Setting.bullion_reference_provider
+    end
+  end
+
+  test "shows the precious metal price provider and each metal's symbol" do
+    with_self_hosting do
+      get settings_hosting_url
+
+      assert_response :success
+      assert_select "select[name='setting[bullion_reference_provider]'] option[selected][value='yahoo_finance']"
+      assert_select "select[name='setting[bullion_reference_provider]'] option[value='twelve_data']"
+      assert_includes response.body, "PA=F"
+    end
+  end
+
+  test "warns when the precious metal price provider is not enabled" do
+    with_self_hosting do
+      Setting.stubs(:enabled_securities_providers).returns([ "twelve_data" ])
+      get settings_hosting_url
+
+      assert_response :success
+      assert_includes response.body, I18n.t("settings.hostings.bullion_reference_settings.provider_disabled", provider: "Yahoo Finance")
+    end
+  end
+
+  test "shows no warning when the precious metal price provider is enabled" do
+    with_self_hosting do
+      Setting.stubs(:enabled_securities_providers).returns([ "yahoo_finance" ])
+      get settings_hosting_url
+
+      assert_response :success
+      assert_not_includes response.body, I18n.t("settings.hostings.bullion_reference_settings.provider_disabled", provider: "Yahoo Finance")
+    end
+  end
+
   test "can update settings when self hosting is enabled" do
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { twelve_data_api_key: "1234567890" } }

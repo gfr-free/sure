@@ -9,7 +9,7 @@ import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 // (install/teardown, ResizeObserver, turbo:load reinstall, page-relative
 // tooltip positioning).
 const CURRENT_COLOR = "var(--color-success)";
-const PREVIOUS_COLOR = "var(--color-gray-400)";
+const PREVIOUS_COLOR = "var(--utility-bg-subdued)";
 
 export default class extends Controller {
   static values = {
@@ -150,7 +150,7 @@ export default class extends Controller {
       .attr("x2", innerWidth)
       .attr("y1", (d) => y(d))
       .attr("y2", (d) => y(d))
-      .attr("stroke", "var(--color-gray-300)")
+      .attr("stroke", "var(--utility-border-primary)")
       .attr("stroke-dasharray", "4, 4")
       .attr("stroke-opacity", 0.6);
 

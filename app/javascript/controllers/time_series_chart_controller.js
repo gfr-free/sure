@@ -114,7 +114,7 @@ export default class extends Controller {
       .attr("y1", 0)
       .attr("x2", this._d3InitialContainerWidth / 2)
       .attr("y2", this._d3InitialContainerHeight)
-      .attr("stroke", "var(--color-gray-300)")
+      .attr("stroke", "var(--utility-border-primary)")
       .attr("stroke-dasharray", "4, 4");
   }
 
@@ -198,14 +198,14 @@ export default class extends Controller {
       .append("stop")
       .attr("class", "split-after")
       .attr("offset", "100%")
-      .attr("stop-color", "var(--color-gray-400)");
+      .attr("stop-color", "var(--utility-bg-subdued)");
 
     // Fourth stop - solid gray to end
     gradient
       .append("stop")
       .attr("class", "end-color")
       .attr("offset", "100%")
-      .attr("stop-color", "var(--color-gray-400)");
+      .attr("stop-color", "var(--utility-bg-subdued)");
   }
 
   _setTrendlineSplitAt(percent) {

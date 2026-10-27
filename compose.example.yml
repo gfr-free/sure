@@ -93,6 +93,14 @@ services:
     environment:
       <<: *rails_env
       # BINDING: "::"  # Uncomment for IPv6 dual-stack inside the container
+    healthcheck:
+      # /up answers 200 once Rails has booted. The first start runs database
+      # migrations before the server listens, hence the long start_period.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:3000/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     depends_on:
       db:
         condition: service_healthy
@@ -110,6 +118,12 @@ services:
     volumes:
       - app-storage:/rails/storage
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "sidekiq"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy

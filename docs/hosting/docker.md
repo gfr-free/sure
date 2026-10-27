@@ -309,6 +309,13 @@ The `-d` flag will run Docker Compose in "detached" mode. To verify it is runnin
 docker compose ls
 ```
 
+The `web`, `worker`, `db` and `redis` services have health checks, so `docker compose ps` shows each of them as `starting`, `healthy` or `unhealthy`:
+
+- `web` requests `http://localhost:3000/up` inside the container, which answers once Rails has booted. The container runs database migrations before the server starts, so failed checks in the first two minutes do not count. A longer migration after an upgrade can show `unhealthy` until the server is up.
+- `worker` checks that the Sidekiq process is running. It does not check that Sidekiq can reach Redis or is processing jobs; see "Inspecting background jobs" below for that.
+
+Docker only reports the status; it does not restart an `unhealthy` container. If you set `PORT` inside the container, change the port in the `web` health check to match.
+
 ### Step 7: Enjoy!
 
 Your app is now set up. You can visit it at `http://localhost:3000` in your browser.

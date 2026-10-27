@@ -36,4 +36,12 @@ class DS::DisclosureTest < ViewComponent::TestCase
     assert_selector "details[data-controller='color-icon-picker']"
     assert_selector "summary.custom-summary", text: "trigger"
   end
+
+  test "card variant stretches caller summary rows across the card" do
+    render_inline(DS::Disclosure.new(variant: :card)) do |disclosure|
+      disclosure.with_summary_content { "<div class=\"flex items-center\">row</div>".html_safe }
+    end
+
+    assert_selector "summary > div.w-full > div.flex", text: "row"
+  end
 end

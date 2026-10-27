@@ -16,8 +16,11 @@ class Settings::ProviderCardTest < ViewComponent::TestCase
     render_inline(Settings::ProviderCard.new(provider_key: "example", name: "Example",
       external_link: { text: "Provider website", href: nil, tooltip: "Setup unavailable" }))
 
-    assert_selector "button[disabled]", text: "Provider website"
-    assert_selector "[title='Setup unavailable'][tabindex='0'][aria-description='Setup unavailable']"
+    assert_selector "[data-controller='DS--tooltip'] button[aria-disabled='true'][aria-description='Setup unavailable']",
+      text: "Provider website"
+    assert_selector "[role='tooltip']", text: "Setup unavailable", visible: :all
+    assert_no_selector "button[disabled]"
+    assert_no_selector "[title]"
     assert_no_selector "a"
   end
 

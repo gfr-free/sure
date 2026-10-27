@@ -27,18 +27,19 @@ class SimplefinItem::Importer
     end
 
     begin
-      # Defensive guard: If last_synced_at is set but there are linked accounts
-      # with no transactions captured yet (typical after a balances-only run),
-      # force the first full run to use chunked history to backfill.
+      # Defensive guard: If last_synced_at is set but any linked account was never
+      # covered by a chunked history walk (after a balances-only run, or a new
+      # upstream account linked or relinked next to already synced siblings), use
+      # chunked history so that account gets more than the short regular window.
       #
       # Check for linked accounts via BOTH legacy FK (accounts.simplefin_account_id) AND
       # the new AccountProvider system. An account is "linked" if either association exists.
       linked_accounts = simplefin_item.simplefin_accounts.select { |sfa| sfa.current_account.present? }
-      no_txns_yet = linked_accounts.any? && linked_accounts.all? { |sfa| sfa.raw_transactions_payload.blank? }
+      needs_history = linked_accounts.any? { |sfa| sfa.history_backfilled_at.nil? }
 
-      if simplefin_item.last_synced_at.nil? || no_txns_yet
-        # First sync (or balances-only pre-run) — use chunked approach to get full history
-        Rails.logger.info "SimplefinItem::Importer - Using CHUNKED HISTORY import (last_synced_at=#{simplefin_item.last_synced_at.inspect}, no_txns_yet=#{no_txns_yet})"
+      if simplefin_item.last_synced_at.nil? || needs_history
+        # First sync, or a linked account without history — use chunked approach to get full history
+        Rails.logger.info "SimplefinItem::Importer - Using CHUNKED HISTORY import (last_synced_at=#{simplefin_item.last_synced_at.inspect}, needs_history=#{needs_history})"
         import_with_chunked_history
       else
         # Regular sync - use single request with buffer
@@ -516,7 +517,18 @@ class SimplefinItem::Importer
       }
       persist_stats!
 
+      mark_history_backfilled
+
       Rails.logger.info "SimpleFin chunked sync completed: #{chunk_count} chunks processed, #{total_accounts_imported} account records, #{total_new_transactions} new transactions#{stopped_early ? " (stopped early)" : ""}"
+    end
+
+    # Records the finished walk on every account of the item, linked or not, so
+    # later syncs use the regular window until a new upstream account appears.
+    # An account the walk could not fetch (e.g. its connection failed) is marked
+    # too: retrying it would repeat the whole walk on every sync and exhaust
+    # SimpleFIN's daily request quota.
+    def mark_history_backfilled
+      simplefin_item.simplefin_accounts.where(history_backfilled_at: nil).update_all(history_backfilled_at: Time.current)
     end
 
     # Count total transactions in linked SimpleFIN accounts (for adaptive chunking)

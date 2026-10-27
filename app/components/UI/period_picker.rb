@@ -13,6 +13,11 @@ class UI::PeriodPicker < ApplicationComponent
   # trailing row so the list always has exactly one checked item, and the
   # trigger shows the range's actual dates rather than a bare "Custom".
   #
+  # The full Period menu also ends with a "Custom range…" action that opens a
+  # dialog with two date fields. Its GET form sends `start_date`/`end_date` to
+  # the same `url` and `frame`, so the result is the same custom range a chart
+  # drag-select produces (and is never saved as the user's default period).
+  #
   # NOTE: `url` must be a path without a query string; pass query state via
   # `extra_params` so the picker can compose `?period=…` cleanly.
   attr_reader :selected, :selected_key, :url, :frame, :extra_params, :placement, :options
@@ -59,6 +64,31 @@ class UI::PeriodPicker < ApplicationComponent
   # would be a choice that chart cannot show.
   def custom_row?
     options.nil? && custom_selected?
+  end
+
+  # Like the custom row, the custom range form belongs to the full Period menu
+  # only; a chart that narrows the menu cannot show an arbitrary range.
+  def custom_range_form?
+    options.nil?
+  end
+
+  # The dialog opens on the range the chart already shows, kept to at least two
+  # days: a single-day range draws a one-point series, which the chart shows as
+  # its empty state (the drag-select refuses such a range for the same reason).
+  def custom_range_defaults
+    period = selected.is_a?(Period) ? selected : period_for(selected_key)
+    end_date = [ period.end_date, max_date ].min
+    [ [ period.start_date, end_date - 1.day ].min, end_date ]
+  end
+
+  def max_date
+    Date.current
+  end
+
+  # `extra_params` as flat name/value pairs for hidden fields, so the form
+  # carries the same query state (including array params) as the preset links.
+  def custom_range_hidden_params
+    URI.decode_www_form(extra_params.except(:period, :start_date, :end_date).to_query)
   end
 
   def selected?(key)

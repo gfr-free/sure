@@ -169,6 +169,13 @@ de:
         vs_available_history: vs. verfügbarer Verlauf
     period_picker:
       aria_label: 'Zeitraum: %{period}'
+      custom_range:
+        open: Benutzerdefiniert…
+        title: Eigener Zeitraum
+        start_date: Startdatum
+        end_date: Enddatum
+        apply: Übernehmen
+        cancel: Abbrechen
   ds:
     alert:
       variants:

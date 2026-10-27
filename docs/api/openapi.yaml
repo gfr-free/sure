@@ -7345,6 +7345,80 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/holdings/{id}/remap_security":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      description: Holding ID
+      schema:
+        type: string
+    patch:
+      summary: Change the security of a holding
+      tags:
+      - Holdings
+      description: Moves the holding, the account's other holdings of the same security
+        and its trades to another security, and locks the choice against provider
+        syncs. Pass the ID of an existing security, or a ticker that is resolved through
+        the configured providers or created as an offline security. When the new security
+        already has a holding on that day, the two are merged and the response carries
+        the merged holding's id. Cash holdings and cash securities cannot be remapped.
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: security changed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Holding"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: forbidden - api key missing read_write scope
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '404':
+          description: holding not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: security not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                holding:
+                  type: object
+                  properties:
+                    security_id:
+                      type: string
+                      format: uuid
+                      description: ID of an existing security
+                    ticker:
+                      type: string
+                      description: Ticker to resolve when no security_id is given
+                    exchange_operating_mic:
+                      type: string
+                      description: Exchange MIC used with ticker
+              required:
+              - holding
+        required: true
   "/api/v1/import_sessions":
     post:
       summary: Create import session

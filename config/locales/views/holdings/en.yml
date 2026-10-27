@@ -73,6 +73,9 @@ en:
       originally: "was %{ticker}"
       search_security: Search security
       search_security_placeholder: Search by ticker or name
+      manual_ticker: Ticker
+      manual_ticker_placeholder: e.g. AAPL
+      manual_ticker_hint: No price provider is configured, so the security is saved without price updates.
       cancel: Cancel
       remap_security: Save
       provider_disabled_warning: "Price updates paused — %{provider} provider is disabled. Switch to another provider below or re-enable it in Settings."

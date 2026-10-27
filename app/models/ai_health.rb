@@ -132,10 +132,15 @@ class AiHealth
   end
 
   # Each result expires one cache TTL after its own check, so the oldest one
-  # decides when the next page load runs a live check again.
+  # decides when the next page load runs a live check again. Nil once that
+  # moment has passed, e.g. when slow probes outlast the TTL. A cached result
+  # keeps the zone of the request that wrote it, so convert to the viewer's.
   def cache_expires_at
     oldest = probe_checked_at.min
-    oldest + probe_cache_ttl if oldest
+    return unless oldest
+
+    expires_at = (oldest + probe_cache_ttl).in_time_zone
+    expires_at if expires_at.future?
   end
 
   def self.redact_endpoint(value)

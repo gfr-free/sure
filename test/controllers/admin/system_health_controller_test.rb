@@ -390,20 +390,56 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
   test "AI status shows the probe cache duration and when cached results expire" do
     sign_in users(:sure_support_staff)
 
+    users(:sure_support_staff).family.update!(timezone: "America/New_York")
+
     freeze_time do
-      AiHealth::Probe.any_instance.stubs(:llm).returns(probe_result(:passing))
+      # Another admin's request wrote the cached results in a different zone.
+      stub_all_probes(probe_result(:passing).with(checked_at: Time.current.in_time_zone("Asia/Tokyo")))
 
       with_ai_environment("OPENAI_ACCESS_TOKEN" => "local-token", "AI_HEALTH_PROBE_CACHE_TTL" => "90") do
         get ai_status_admin_system_health_url
       end
 
-      zone = ActiveSupport::TimeZone[users(:sure_support_staff).family.timezone.to_s] || Time.zone
-      expires_at = (Time.current + 90.seconds).in_time_zone(zone).strftime("%H:%M:%S")
+      expires_at = (Time.current + 90.seconds).in_time_zone("America/New_York").strftime("%H:%M:%S")
 
       assert_response :success
       assert_select "[data-testid='probe-cache-ttl']", text: "90s"
-      assert_match(/Results are cached until #{expires_at}/, response.body)
+      assert_match(/Results are cached until #{expires_at};/, response.body)
       assert_no_match(/cached briefly/, response.body)
+    end
+  end
+
+  test "AI status names the expiry day for a cache that outlasts today" do
+    sign_in users(:sure_support_staff)
+
+    travel_to Time.zone.now.change(hour: 12) do
+      stub_all_probes(probe_result(:passing))
+
+      with_ai_environment("OPENAI_ACCESS_TOKEN" => "local-token", "AI_HEALTH_PROBE_CACHE_TTL" => "86400") do
+        get ai_status_admin_system_health_url
+      end
+
+      expires_at = I18n.l(Time.current.in_time_zone(users(:sure_support_staff).family.timezone.presence || Time.zone) + 1.day, format: :short)
+
+      assert_response :success
+      assert_select "[data-testid='probe-cache-ttl']", text: "86400s"
+      assert_match(/Results are cached until #{Regexp.escape(expires_at)};/, response.body)
+    end
+  end
+
+  test "AI status says the cache has expired when slow checks outlast it" do
+    sign_in users(:sure_support_staff)
+
+    freeze_time do
+      stub_all_probes(probe_result(:passing).with(checked_at: 2.minutes.ago))
+
+      with_ai_environment("OPENAI_ACCESS_TOKEN" => "local-token", "AI_HEALTH_PROBE_CACHE_TTL" => "60") do
+        get ai_status_admin_system_health_url
+      end
+
+      assert_response :success
+      assert_match(/Their cache has expired, so the next page load runs them again/, response.body)
+      assert_no_match(/cached until/, response.body)
     end
   end
 
@@ -1065,6 +1101,12 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
         path: path,
         query: query
       ).to_s
+    end
+
+    def stub_all_probes(result)
+      %i[llm function_calling pdf_text_extraction pdf_vision_processing openai_vector_store pgvector embedding].each do |probe|
+        AiHealth::Probe.any_instance.stubs(probe).returns(result)
+      end
     end
 
     def probe_result(status, failure_code: nil, http_status: nil)

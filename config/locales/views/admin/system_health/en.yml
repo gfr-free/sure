@@ -255,6 +255,7 @@ en:
         ai:
           run_checks: Run checks again
           last_checked: "Live checks completed %{time_ago} ago. Results are cached until %{expires_at}; later page loads run the checks again."
+          last_checked_expired: "Live checks completed %{time_ago} ago. Their cache has expired, so the next page load runs them again."
           not_checked_help: Open the AI status URL directly or run the checks to verify service liveness.
           loading: "Running live checks…"
           alerts:

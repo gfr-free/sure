@@ -24,10 +24,12 @@
 <div class="space-y-4" data-testid="ai-status">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <p class="text-sm text-secondary">
-      <% if ai_health.last_checked_at %>
+      <% if (expires_at = ai_health.cache_expires_at) %>
         <%= t("admin.system_health.show.ai.last_checked",
               time_ago: time_ago_in_words(ai_health.last_checked_at),
-              expires_at: l(ai_health.cache_expires_at, format: "%H:%M:%S")) %>
+              expires_at: l(expires_at, format: expires_at.to_date == Date.current ? "%H:%M:%S" : :short)) %>
+      <% elsif ai_health.last_checked_at %>
+        <%= t("admin.system_health.show.ai.last_checked_expired", time_ago: time_ago_in_words(ai_health.last_checked_at)) %>
       <% else %>
         <%= t("admin.system_health.show.ai.not_checked_help") %>
       <% end %>

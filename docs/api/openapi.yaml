@@ -7360,7 +7360,9 @@ paths:
       description: Moves the holding, the account's other holdings of the same security
         and its trades to another security, and locks the choice against provider
         syncs. Pass the ID of an existing security, or a ticker that is resolved through
-        the configured providers or created as an offline security.
+        the configured providers or created as an offline security. When the new security
+        already has a holding on that day, the two are merged and the response carries
+        the merged holding's id. Cash holdings and cash securities cannot be remapped.
       security:
       - apiKeyAuth: []
       parameters: []
@@ -7373,6 +7375,12 @@ paths:
                 "$ref": "#/components/schemas/Holding"
         '401':
           description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: forbidden - api key missing read_write scope
           content:
             application/json:
               schema:

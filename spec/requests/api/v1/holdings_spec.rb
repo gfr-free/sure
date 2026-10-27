@@ -191,7 +191,9 @@ RSpec.describe 'API V1 Holdings', type: :request do
       description 'Moves the holding, the account\'s other holdings of the same security and its trades ' \
                   'to another security, and locks the choice against provider syncs. Pass the ID of an ' \
                   'existing security, or a ticker that is resolved through the configured providers or ' \
-                  'created as an offline security.'
+                  'created as an offline security. When the new security already has a holding on that ' \
+                  'day, the two are merged and the response carries the merged holding\'s id. Cash ' \
+                  'holdings and cash securities cannot be remapped.'
       security [ { apiKeyAuth: [] } ]
       consumes 'application/json'
       produces 'application/json'
@@ -230,6 +232,25 @@ RSpec.describe 'API V1 Holdings', type: :request do
 
         let(:id) { holding.id }
         let(:'X-Api-Key') { nil }
+
+        run_test!
+      end
+
+      response '403', 'forbidden - api key missing read_write scope' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:read_only_api_key) do
+          key = ApiKey.generate_secure_key
+          ApiKey.create!(
+            user: user,
+            name: 'API Docs Read Key',
+            key: key,
+            scopes: %w[read],
+            source: 'mobile'
+          )
+        end
+        let(:'X-Api-Key') { read_only_api_key.plain_key }
+        let(:id) { holding.id }
 
         run_test!
       end

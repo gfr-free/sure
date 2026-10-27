@@ -39,18 +39,23 @@ class Api::V1::HoldingsController < Api::V1::BaseController
   def remap_security
     new_security = requested_security
 
-    unless new_security
-      render_validation_error("Security not found", [ "Provide the security_id of an existing security or a ticker" ])
+    unless @holding.remappable_to?(new_security)
+      render_validation_error("Security not found", [ "Provide the security_id or ticker of a non-cash security; cash holdings cannot be remapped" ])
       return
     end
 
+    account = @holding.account
     date = @holding.date
     currency = @holding.currency
     @holding.remap_security_and_materialize!(new_security)
 
-    # The remap merges into an existing holding of the new security on the
-    # same day, so this one may no longer exist.
-    @holding = @holding.account.holdings.find_by!(security: new_security, date: date, currency: currency)
+    # The remap can merge this row into an existing one of the new security
+    # (or recalculation can replace it), so answer with the new security's
+    # holding for that day, falling back to its latest one.
+    remapped = account.holdings.where(security: new_security)
+    @holding = remapped.find_by(date: date, currency: currency) || remapped.order(date: :desc).first
+    return head(:no_content) unless @holding
+
     render :show
   rescue => e
     log_and_render_error("remap_security", e)
@@ -83,13 +88,14 @@ class Api::V1::HoldingsController < Api::V1::BaseController
     end
 
     def remap_params
-      params.fetch(:holding, {}).permit(:security_id, :ticker, :exchange_operating_mic)
+      return {} unless params[:holding].is_a?(ActionController::Parameters)
+
+      params[:holding].permit(:security_id, :ticker, :exchange_operating_mic)
     end
 
-    # Cash securities belong to a single account and are never a valid target.
     def requested_security
       if remap_params[:security_id].present?
-        Security.standard.find_by(id: remap_params[:security_id])
+        Security.find_by(id: remap_params[:security_id].to_s)
       else
         Security.resolve_typed_ticker(remap_params[:ticker], exchange_operating_mic: remap_params[:exchange_operating_mic])
       end

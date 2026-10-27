@@ -128,6 +128,32 @@ class Api::V1::HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal securities(:aapl), @holding.reload.security
   end
 
+  test "remap_security answers with the holding it merged into" do
+    merged_into = @account.holdings.create!(security: securities(:msft), date: @holding.date, qty: 5, price: 400, amount: 2000, currency: "USD")
+
+    patch remap_security_api_v1_holding_url(@holding),
+          params: { holding: { security_id: securities(:msft).id } },
+          headers: api_headers(write_api_key)
+
+    assert_response :success
+    assert_equal merged_into.id, JSON.parse(response.body)["id"]
+    assert_not Holding.exists?(@holding.id)
+  end
+
+  test "remap_security rejects malformed params and cash holdings" do
+    patch remap_security_api_v1_holding_url(@holding),
+          params: { holding: "MSFT" },
+          headers: api_headers(write_api_key)
+    assert_response :unprocessable_entity
+
+    cash_holding = @account.holdings.create!(security: Security.cash_for(@account), date: Date.current, qty: 100, price: 1, amount: 100, currency: "USD")
+    patch remap_security_api_v1_holding_url(cash_holding),
+          params: { holding: { security_id: securities(:msft).id } },
+          headers: api_headers(write_api_key)
+    assert_response :unprocessable_entity
+    assert cash_holding.reload.security.cash?
+  end
+
   test "remap_security requires the write scope" do
     patch remap_security_api_v1_holding_url(@holding),
           params: { holding: { security_id: securities(:msft).id } },

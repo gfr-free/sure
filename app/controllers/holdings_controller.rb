@@ -59,9 +59,9 @@ class HoldingsController < ApplicationController
   end
 
   def remap_security
-    new_security = selected_security || Security.resolve_typed_ticker(params[:manual_ticker])
+    new_security = Security.from_combobox_selection!(params[:security_id]) || Security.resolve_typed_ticker(params[:manual_ticker])
 
-    if new_security.nil?
+    unless @holding.remappable_to?(new_security)
       flash[:alert] = t(".security_not_found")
       redirect_to account_path(@holding.account, tab: "holdings")
       return
@@ -151,29 +151,6 @@ class HoldingsController < ApplicationController
                    .joins(:account)
                    .merge(Account.accessible_by(Current.user))
                    .find(params[:id])
-    end
-
-    # The combobox sends "TICKER|EXCHANGE|PROVIDER" for a result the user picked
-    # from the provider search, so it is used directly without re-resolving.
-    def selected_security
-      parsed = Security.parse_combobox_id(params[:security_id])
-      return nil if parsed[:ticker].blank?
-
-      security = Security.find_or_initialize_by(
-        ticker: parsed[:ticker],
-        exchange_operating_mic: parsed[:exchange_operating_mic]
-      )
-      return nil if security.cash?
-
-      # Honor the user's provider choice (validated by model inclusion check on save)
-      security.price_provider = parsed[:price_provider] if parsed[:price_provider].present?
-
-      # The provider found it, so bring it online.
-      security.offline = false
-      security.failed_fetch_count = 0
-      security.failed_fetch_at = nil
-      security.save!
-      security
     end
 
     def require_holding_write_permission!

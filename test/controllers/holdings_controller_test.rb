@@ -270,7 +270,6 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
 
   test "remap_security accepts a typed ticker without a security provider" do
     Security.stubs(:providers).returns([])
-    Security.stubs(:search_provider).returns([])
     trade = @account.trades.find_by!(security: securities(:aapl))
 
     patch remap_security_holding_path(@holding), params: { manual_ticker: "newt" }

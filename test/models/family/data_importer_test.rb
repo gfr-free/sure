@@ -442,6 +442,27 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal parent.id, child.parent_id
   end
 
+  test "imports categories from exports that still carry the legacy classification fields" do
+    ndjson = build_ndjson([
+      {
+        type: "Category",
+        data: {
+          id: "cat-legacy",
+          name: "Legacy Salary",
+          color: "#33FF57",
+          classification: "income",
+          classification_unused: "income"
+        }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    category = @family.categories.find_by!(name: "Legacy Salary")
+    assert_equal "#33FF57", category.color
+    assert_not category.has_attribute?(:classification_unused)
+  end
+
   test "imports tags" do
     ndjson = build_ndjson([
       {

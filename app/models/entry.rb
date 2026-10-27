@@ -517,7 +517,8 @@ class Entry < ApplicationRecord
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes, lock_user_edits: lock_user_edits)
+      splits = with_user_edit_locks(splits) if lock_user_edits
+      split!(splits, lock_attributes: lock_attributes)
       true
     end
   end
@@ -529,8 +530,9 @@ class Entry < ApplicationRecord
     with_split_lock do
       next false unless split_parent?
 
+      splits = with_user_edit_locks(splits, previous: child_entries.includes(:entryable).to_a) if lock_user_edits
       unsplit!
-      split!(splits, lock_user_edits: lock_user_edits)
+      split!(splits)
       true
     end
   end
@@ -553,13 +555,11 @@ class Entry < ApplicationRecord
   #
   # @param splits [Array<Hash>] array of { name:, amount:, category_id:, merchant_id:, tag_ids:, excluded: } hashes.
   #   merchant_id and tag_ids are optional per split and fall back to the parent's merchant / no tags.
+  #   An optional user_locks: list names the values to lock (see with_user_edit_locks).
   # @param lock_attributes [Boolean] locks the category and merchant each split sets on its child, so
   #   rules further down (or a later run) don't overwrite them. Tags are only ever added by rules.
-  # @param lock_user_edits [Boolean] locks each split's name and the category it sets. Splits made by
-  #   hand pass this, so what the user typed and picked survives the rules that run after each sync.
-  #   The merchant stays unlocked: a row without one follows the parent's merchant.
   # @return [Array<Entry>] the created child entries
-  def split!(splits, lock_attributes: false, lock_user_edits: false)
+  def split!(splits, lock_attributes: false)
     total = splits.sum { |s| s[:amount].to_d }
     unless total == amount
       raise ActiveRecord::RecordInvalid.new(self), "Split amounts must sum to parent amount (expected #{amount}, got #{total})"
@@ -574,12 +574,8 @@ class Entry < ApplicationRecord
           kind: entryable.try(:kind)
         )
         locked_at = Time.current
-        lockable = if lock_attributes
-          split_attrs.slice(:category_id, :merchant_id)
-        elsif lock_user_edits
-          split_attrs.slice(:category_id)
-        end
-        child_transaction.locked_attributes = lockable.compact_blank.keys.index_with { locked_at } if lockable
+        locks = lock_attributes ? split_attrs.slice(:category_id, :merchant_id).compact_blank.keys : Array(split_attrs[:user_locks])
+        child_transaction.locked_attributes = locks.without(:name).index_with { locked_at }
 
         child_entries.create!(
           account: account,
@@ -591,7 +587,7 @@ class Entry < ApplicationRecord
           import: import,
           import_locked: import_locked,
           excluded: TRUTHY_VALUES.include?(split_attrs[:excluded]),
-          locked_attributes: lock_user_edits ? { "name" => locked_at } : {},
+          locked_attributes: locks.include?(:name) ? { "name" => locked_at } : {},
           entryable: child_transaction
         )
       end
@@ -700,6 +696,29 @@ class Entry < ApplicationRecord
   end
 
   private
+    # Marks the values the user set on each split (user_locks:), so split! locks them and the rules
+    # that run after each sync leave them alone. A name equal to the parent's is the dialog's prefill
+    # or the API default, not an edit. When a split is edited, a row that keeps an old row's name
+    # keeps that row's lock state for values it didn't change, so a category a rule filled in still
+    # follows the rule. Merchants are not locked here.
+    def with_user_edit_locks(splits, previous: [])
+      unmatched = previous.dup
+
+      splits.map do |split_attrs|
+        old = unmatched.find { |child| child.name == split_attrs[:name] }
+        unmatched.delete(old) if old
+
+        locks = []
+        locks << :name if old ? old.locked?(:name) : split_attrs[:name] != name
+        if split_attrs[:category_id].present? &&
+           (old.nil? || old.entryable.locked?(:category_id) || old.entryable.category_id != split_attrs[:category_id])
+          locks << :category_id
+        end
+
+        split_attrs.merge(user_locks: locks)
+      end
+    end
+
     # Takes FOR UPDATE on the transaction row, then on this entry (lock! also reloads both), always
     # in that order so the split methods can't deadlock each other. Yields the transaction, or nil
     # for other entryables.

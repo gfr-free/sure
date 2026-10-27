@@ -277,7 +277,8 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
         ]
       }
     }
-    assert_split_edits_survive_rules(%w[Groceries Household])
+    assert_split_edits_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Groceries Household])
 
     patch transaction_split_path(@entry), params: {
       split: {
@@ -287,7 +288,8 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
         ]
       }
     }
-    assert_split_edits_survive_rules(%w[Food Other])
+    assert_split_edits_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Food Other])
   end
 
   test "update with mismatched amounts rejects" do
@@ -368,23 +370,4 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("splits.destroy.success"), flash[:notice]
     refute @entry.reload.excluded?
   end
-
-  private
-    def assert_split_edits_survive_rules(names)
-      rule = @user.family.rules.create!(
-        resource_type: "transaction",
-        conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 0) ],
-        actions: [
-          Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id),
-          Rule::Action.new(action_type: "set_transaction_name", value: "Renamed by rule")
-        ]
-      )
-      rule.apply
-      rule.destroy!
-
-      chosen, open = @entry.reload.child_entries.order(amount: :desc).to_a
-      assert_equal categories(:food_and_drink), chosen.transaction.reload.category
-      assert_equal categories(:income), open.transaction.reload.category
-      assert_equal names, [ chosen.reload.name, open.reload.name ]
-    end
 end

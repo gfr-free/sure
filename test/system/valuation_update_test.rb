@@ -8,7 +8,9 @@ class ValuationUpdateTest < ApplicationSystemTestCase
     @entry = entries(:valuation)
   end
 
-  test "updating a balance closes the confirm dialog and says balances are recalculating" do
+  # The recalculation notice is asserted in the controller test: the toast
+  # removes itself after a few seconds, so checking it here would race.
+  test "confirming a balance update closes the confirm dialog" do
     visit account_url(@entry.account, tab: "activity")
 
     click_link @entry.name
@@ -24,9 +26,7 @@ class ValuationUpdateTest < ApplicationSystemTestCase
       click_button I18n.t("valuations.confirm_update.update")
     end
 
-    within "#notification-tray" do
-      assert_text I18n.t("valuations.update.balances_recalculating")
-    end
     assert_no_selector "#modal dialog"
+    assert_equal 6000, @entry.reload.amount
   end
 end

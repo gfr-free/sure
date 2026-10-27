@@ -149,22 +149,30 @@ class Rack::Attack
   # neither rotating IPs nor holding several sessions buys more attempts.
   # Only requests on a throttled path pay for the lookup, and it is memoized
   # on the request so every throttle on that path shares it.
-  session_user = ->(request) do
-    request.env.fetch("sure.session_user") do
-      request.env["sure.session_user"] = begin
+  session_user_id = ->(request) do
+    request.env.fetch("sure.session_user_id") do
+      request.env["sure.session_user_id"] = begin
         session_id = ActionDispatch::Request.new(request.env).cookie_jar.signed[:session_token]
-        # Same check as Authentication#find_session_by_cookie: a session whose
-        # owner was deactivated is rejected there, so it isn't counted here.
+        # Same checks as Session.find_active_by_cookie: a session whose owner
+        # was deactivated, or that sat idle too long, is rejected there, so it
+        # isn't counted here.
         if session_id.present?
-          user_id, impersonation_id = Session.joins(:user).where(id: session_id, users: { active: true })
+          user_id, impersonation_id = Session.joins(:user)
+            .where(id: session_id, users: { active: true })
+            .where(sessions: { updated_at: Session::INACTIVITY_TIMEOUT.ago.. })
             .pick(:user_id, :active_impersonator_session_id)
         end
         if impersonation_id
           user_id = ImpersonationSession.in_progress.where(id: impersonation_id).pick(:impersonated_id) || user_id
         end
-        "user:#{user_id}" if user_id
+        user_id
       end
     end
+  end
+
+  session_user = ->(request) do
+    user_id = session_user_id.call(request)
+    "user:#{user_id}" if user_id
   end
 
   # Self-service password change checks the current password
@@ -186,35 +194,69 @@ class Rack::Attack
     session_user.call(request) if password_change_request.call(request)
   end
 
-  # Trade Republic web login: creating a connection, or updating its phone
-  # number or PIN, sends the submitted PIN to Trade Republic together with the
-  # phone number; the other initiate actions send the stored ones, and the
-  # authenticator code submitted to complete_login is checked there too. Each
-  # attempt also pushes a confirmation to the account holder's phone.
-  # Unbounded, a signed-in attacker could guess PINs or codes, or flood both
-  # Trade Republic and the account holder's phone. The polls carry no credential, but
-  # each one is a Trade Republic round trip; the browser polls once a second
-  # (faster just before a QR code rotates) for up to two minutes, so they get
-  # a looser budget. Requests without a valid session are redirected before
-  # reaching Trade Republic and spend neither budget.
+  # Trade Republic web login. Creating a connection, or updating its phone
+  # number or PIN, sends the submitted PIN to Trade Republic with the phone
+  # number and asks that phone for a confirmation; complete_login checks the
+  # submitted authenticator code there. Unlike the endpoints above, the check
+  # happens at Trade Republic rather than against a stored value, but it has
+  # the same guessing shape. Unbounded, a signed-in attacker could guess a PIN
+  # or code, or flood the phone's owner with confirmations. Besides ip and
+  # signed-in user, these are keyed by the target phone number: signup creates
+  # a family admin, so several accounts could otherwise each spend their own
+  # budget against one phone. Starting a login again (initiate_login,
+  # initiate_qr_login) sends no credential, so it is only keyed by ip and
+  # user. Requests without a valid session are redirected before reaching
+  # Trade Republic and spend no budget.
   trade_republic_path = %r{\A/trade_republic_items(?:/(?<id>[^/.?]+)(?:/(?<action>[a-z_]+))?)?(?:\.[^./?]+)?\z}
 
-  trade_republic_login_attempt = ->(request) do
+  # :credential for requests that send a PIN or code, :restart for starting a
+  # login again, :poll for the login polls, nil for anything else.
+  trade_republic_login_kind = ->(request) do
     match = request.path.match(trade_republic_path)
-    next false unless match
+    next unless match
 
     if match[:id].nil?
-      request.post?
+      :credential if request.post?
     elsif match[:action].nil?
-      request.patch? || request.put?
-    else
-      request.post? && match[:action].in?(%w[initiate_login complete_login initiate_qr_login])
+      :credential if request.patch? || request.put?
+    elsif request.post?
+      case match[:action]
+      when "complete_login" then :credential
+      when "initiate_login", "initiate_qr_login" then :restart
+      when "poll_login", "poll_qr_login" then :poll
+      end
     end
   end
 
+  trade_republic_login_attempt = ->(request) do
+    trade_republic_login_kind.call(request).in?(%i[credential restart])
+  end
+
+  # The browser polls once a second, faster just before a QR code rotates,
+  # for up to two minutes; Settings and Accounts can each poll the same login,
+  # and a family may run several. Polls carry no credential, so the budget
+  # only bounds the Trade Republic round trip each one makes.
   trade_republic_login_poll = ->(request) do
-    match = request.path.match(trade_republic_path) if request.post?
-    match.present? && match[:action].in?(%w[poll_login poll_qr_login])
+    trade_republic_login_kind.call(request) == :poll
+  end
+
+  trade_republic_login_phone = ->(request) do
+    next unless trade_republic_login_kind.call(request) == :credential
+    next unless (user_id = session_user_id.call(request))
+
+    item_params = request.params["trade_republic_item"]
+    phone = item_params["phone_number"] if item_params.is_a?(Hash)
+    # The update form leaves the phone number blank to keep the stored one,
+    # and complete_login always uses the stored one. Only the signed-in
+    # user's family is looked at, as in the controller.
+    item_id = request.path.match(trade_republic_path)[:id]
+    if phone.blank? && item_id
+      phone = TradeRepublicItem.where(id: item_id, family_id: User.where(id: user_id).select(:family_id))
+        .pick(:phone_number)
+    end
+    digits = phone.to_s.gsub(/\D/, "").sub(/\A0+/, "")
+    # The cache only ever sees a digest of the number.
+    "phone:#{Digest::SHA256.hexdigest(digits)}" if digits.present?
   end
 
   throttle("trade_republic_login/ip", limit: 10, period: 1.minute) do |request|
@@ -225,11 +267,15 @@ class Rack::Attack
     session_user.call(request) if trade_republic_login_attempt.call(request)
   end
 
-  throttle("trade_republic_login_poll/ip", limit: 180, period: 1.minute) do |request|
+  throttle("trade_republic_login/phone", limit: 10, period: 1.minute) do |request|
+    trade_republic_login_phone.call(request)
+  end
+
+  throttle("trade_republic_login_poll/ip", limit: 300, period: 1.minute) do |request|
     request.ip if trade_republic_login_poll.call(request) && session_user.call(request)
   end
 
-  throttle("trade_republic_login_poll/user", limit: 180, period: 1.minute) do |request|
+  throttle("trade_republic_login_poll/user", limit: 300, period: 1.minute) do |request|
     session_user.call(request) if trade_republic_login_poll.call(request)
   end
 

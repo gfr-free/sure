@@ -40,7 +40,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
       api_login/ip api_login/email
       api_sso_link/ip api_sso_link/email
       password_change/ip password_change/user
-      trade_republic_login/ip trade_republic_login/user
+      trade_republic_login/ip trade_republic_login/user trade_republic_login/phone
     ].each do |name|
       assert_includes throttles, name, "#{name} should have rate limiting configured"
     end
@@ -182,6 +182,15 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_nil ip_block.call(request), "authentication rejects this session, so it must not spend the ip budget"
   end
 
+  test "password change throttles ignore a session that sat idle past the inactivity timeout" do
+    user_block = Rack::Attack.throttles["password_change/user"].block
+    session = users(:family_member).sessions.create!
+    session.update_column(:updated_at, (Session::INACTIVITY_TIMEOUT + 1.day).ago)
+
+    request = throttle_request("/password", method: "PATCH", session_cookie: session.id)
+    assert_nil user_block.call(request), "authentication rejects this session, so it must not produce a user key"
+  end
+
   test "password change throttle keys an impersonation by the impersonated user" do
     user_block = Rack::Attack.throttles["password_change/user"].block
     impersonation = impersonation_sessions(:in_progress)
@@ -302,6 +311,80 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     no_session_request = throttle_request("/trade_republic_items/#{item.id}/complete_login", method: "POST")
     assert_nil attempt_user_block.call(no_session_request), "a missing session cookie must not produce a throttle key"
     assert_nil attempt_ip_block.call(no_session_request), "a missing session cookie must not spend the ip budget"
+  end
+
+  test "trade republic phone throttle keys pin and code requests by the normalized target phone number" do
+    phone_block = Rack::Attack.throttles["trade_republic_login/phone"].block
+    admin = users(:family_admin)
+    session = admin.sessions.create!
+    item = trade_republic_items(:configured_item)
+    stored_key = "phone:#{Digest::SHA256.hexdigest("491701234567")}"
+
+    [ "+491701234567", "+49 170 1234567", "0049 170-1234567" ].each do |phone|
+      create_request = throttle_request("/trade_republic_items", method: "POST", session_cookie: session.id,
+        params: { trade_republic_item: { phone_number: phone, pin: "1234" } })
+      assert_equal stored_key, phone_block.call(create_request), "#{phone} should share one budget"
+    end
+
+    other_phone_request = throttle_request("/trade_republic_items/#{item.id}", method: "PATCH", session_cookie: session.id,
+      params: { trade_republic_item: { phone_number: "+491709999999", pin: "1234" } })
+    assert_equal "phone:#{Digest::SHA256.hexdigest("491709999999")}", phone_block.call(other_phone_request)
+
+    # The update form leaves the phone number blank to keep the stored one,
+    # and complete_login always uses the stored one.
+    blank_phone_request = throttle_request("/trade_republic_items/#{item.id}", method: "PATCH", session_cookie: session.id,
+      params: { trade_republic_item: { phone_number: "", pin: "1234" } })
+    assert_equal stored_key, phone_block.call(blank_phone_request)
+    complete_request = throttle_request("/trade_republic_items/#{item.id}/complete_login", method: "POST", session_cookie: session.id)
+    assert_equal stored_key, phone_block.call(complete_request)
+
+    other_family_session = users(:empty).sessions.create!
+    other_family_request = throttle_request("/trade_republic_items/#{item.id}/complete_login", method: "POST", session_cookie: other_family_session.id)
+    assert_nil phone_block.call(other_family_request), "another family's item must not be looked up"
+
+    malformed_request = throttle_request("/trade_republic_items", method: "POST", session_cookie: session.id,
+      params: { trade_republic_item: "+491701234567" })
+    assert_nil phone_block.call(malformed_request)
+
+    %w[initiate_login initiate_qr_login poll_login poll_qr_login].each do |action|
+      request = throttle_request("/trade_republic_items/#{item.id}/#{action}", method: "POST", session_cookie: session.id)
+      assert_nil phone_block.call(request), "#{action} sends no PIN or code"
+    end
+
+    no_session_request = throttle_request("/trade_republic_items", method: "POST",
+      params: { trade_republic_item: { phone_number: "+491701234567", pin: "1234" } })
+    assert_nil phone_block.call(no_session_request), "a missing session cookie must not spend the phone budget"
+  end
+
+  test "trade republic phone throttle shares one budget across accounts that target the same phone" do
+    # Signup makes every new user the admin of their own family, so one
+    # attacker can hold several accounts, each with an item for the same phone.
+    phone = trade_republic_items(:requires_update_item).phone_number
+    other_item = families(:empty).trade_republic_items.create!(name: "TR", currency: "EUR", status: :requires_update, phone_number: phone)
+
+    first = open_session
+    second = open_session
+    first.post sessions_path, params: { email: users(:family_admin).email, password: user_password_test }
+    second.post sessions_path, params: { email: users(:empty).email, password: user_password_test }
+
+    freeze_time
+
+    params = { trade_republic_login: { code: "0000" } }
+
+    with_rack_attack_enabled do
+      5.times do |i|
+        first.post complete_login_trade_republic_item_path(trade_republic_items(:requires_update_item)), params: params,
+          env: { "REMOTE_ADDR" => "198.51.100.#{i + 1}" }
+        assert_equal 303, first.response.status
+        second.post complete_login_trade_republic_item_path(other_item), params: params,
+          env: { "REMOTE_ADDR" => "198.51.100.#{i + 101}" }
+        assert_equal 303, second.response.status
+      end
+
+      second.post complete_login_trade_republic_item_path(other_item), params: params,
+        env: { "REMOTE_ADDR" => "198.51.100.250" }
+      assert_equal 429, second.response.status
+    end
   end
 
   test "trade republic login throttle blocks a signed-in session that rotates ips" do

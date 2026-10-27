@@ -13,13 +13,23 @@ module Provider::PrivateKeyPem
     end
   end
 
-  KEY_BLOCK = /-----BEGIN ((?:RSA |EC )?PRIVATE KEY)-----(.*?)-----END \1-----/m
+  # A real key is a few KB at most; the cap bounds the regex work on junk input.
+  MAX_LENGTH = 16.kilobytes
+  # Base64 bodies never contain "-", which keeps the match linear.
+  KEY_BLOCK = /-----BEGIN ((?:RSA |EC )?PRIVATE KEY)-----([^-]*)-----END \1-----/
 
   def self.parse(raw)
-    match = raw.to_s.match(KEY_BLOCK)
+    text = raw.to_s
+    raise Error.new("input is too long to be a private key", :too_long) if text.length > MAX_LENGTH
+
+    if text.include?("ENCRYPTED PRIVATE KEY") || text.include?("Proc-Type: 4,ENCRYPTED")
+      raise Error.new("the private key is protected by a passphrase", :encrypted)
+    end
+
+    match = text.match(KEY_BLOCK)
 
     unless match
-      if raw.to_s.include?("-----BEGIN CERTIFICATE-----")
+      if text.include?("-----BEGIN CERTIFICATE-----")
         raise Error.new("found only a certificate, not a private key", :certificate_only)
       end
 

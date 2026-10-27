@@ -96,6 +96,11 @@ module ActiveSupport
       Current.session = user.sessions.order(:created_at).last
     end
 
+    # CoinbaseItem validates its api_secret as an ECDSA P-256 key.
+    def coinbase_api_secret
+      @coinbase_api_secret ||= OpenSSL::PKey::EC.generate("prime256v1").to_pem
+    end
+
     def ensure_tailwind_build
       tailwind_build = Rails.root.join("app/assets/builds/tailwind.css")
       FileUtils.mkdir_p(tailwind_build.dirname)

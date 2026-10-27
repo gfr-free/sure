@@ -8,7 +8,7 @@ class CoinbaseItem::ImporterTest < ActiveSupport::TestCase
       family: families(:dylan_family),
       name: "Coinbase",
       api_key: "key",
-      api_secret: "secret"
+      api_secret: coinbase_api_secret
     )
   end
 

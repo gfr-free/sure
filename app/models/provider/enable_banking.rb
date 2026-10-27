@@ -294,7 +294,10 @@ class Provider::EnableBanking
 
     def extract_private_key(certificate_pem)
       key = Provider::PrivateKeyPem.parse(certificate_pem)
-      raise EnableBankingError.new("Invalid private key in certificate: RS256 signing needs an RSA key", :invalid_certificate) unless key.is_a?(OpenSSL::PKey::RSA)
+      unless key.is_a?(OpenSSL::PKey::RSA)
+        Rails.logger.error "Enable Banking: Private key is a #{key.oid} key, not RSA"
+        raise EnableBankingError.new("Invalid private key in certificate: RS256 signing needs an RSA key", :invalid_certificate)
+      end
 
       key
     rescue Provider::PrivateKeyPem::Error => e

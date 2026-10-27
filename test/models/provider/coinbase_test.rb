@@ -126,7 +126,14 @@ class Provider::CoinbaseTest < ActiveSupport::TestCase
     provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: ed25519_secret)
 
     error = assert_raises(Provider::Coinbase::AuthenticationError) { provider.send(:generate_jwt, "GET", "/v2/user") }
+    assert_match "Ed25519", error.message
     assert_match "ECDSA", error.message
+  end
+
+  test "generate_jwt parses the secret once per provider" do
+    Provider::PrivateKeyPem.expects(:parse).once.returns(OpenSSL::PKey::EC.new(@test_key_multiline))
+
+    2.times { @provider.send(:generate_jwt, "GET", "/v2/user") }
   end
 
   test "generate_jwt rejects an EC key on a curve other than P-256" do

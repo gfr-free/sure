@@ -474,6 +474,14 @@ class Provider::EnableBankingTest < ActiveSupport::TestCase
     assert_match "only a certificate", error.message
   end
 
+  test "rejects a private key that is not RSA" do
+    error = assert_raises(Provider::EnableBanking::EnableBankingError) do
+      Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: OpenSSL::PKey::EC.generate("prime256v1").to_pem)
+    end
+    assert_equal :invalid_certificate, error.error_type
+    assert_match "RSA", error.message
+  end
+
   private
 
     def self_signed_certificate(key)

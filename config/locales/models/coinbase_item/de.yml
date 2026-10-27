@@ -1,0 +1,13 @@
+---
+de:
+  activerecord:
+    attributes:
+      coinbase_item:
+        api_secret: API-Geheimnis
+    errors:
+      models:
+        coinbase_item:
+          attributes:
+            api_secret:
+              ed25519_key: ist ein Ed25519-Schlüssel, der hier nicht funktioniert. Erstelle einen neuen API-Schlüssel mit dem Signaturalgorithmus ECDSA.
+              invalid_key: ist kein gültiger ECDSA-Privatschlüssel. Füge den ganzen Schlüssel inklusive der BEGIN- und END-Zeilen ein.

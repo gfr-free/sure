@@ -54,6 +54,32 @@ class Provider::PrivateKeyPemTest < ActiveSupport::TestCase
     assert_equal :unreadable, error.reason
   end
 
+  test "reports passphrase-protected keys" do
+    encrypted_pkcs8 = @ec_key.private_to_pem(OpenSSL::Cipher.new("aes-256-cbc"), "secret")
+    encrypted_traditional = OpenSSL::PKey::RSA.new(2048).to_pem(OpenSSL::Cipher.new("aes-256-cbc"), "secret")
+
+    [ encrypted_pkcs8, encrypted_traditional, encrypted_pkcs8.tr("\n", " ") ].each do |pem|
+      error = assert_raises(Provider::PrivateKeyPem::Error) { Provider::PrivateKeyPem.parse(pem) }
+      assert_equal :encrypted, error.reason
+    end
+  end
+
+  test "rejects oversized input without scanning it" do
+    junk = "-----BEGIN PRIVATE KEY-----" * 1_000
+
+    error = assert_raises(Provider::PrivateKeyPem::Error) { Provider::PrivateKeyPem.parse(junk) }
+    assert_equal :too_long, error.reason
+  end
+
+  test "stays fast on repeated BEGIN lines without an END line" do
+    junk = "-----BEGIN PRIVATE KEY-----" * 590
+
+    elapsed = Benchmark.realtime do
+      assert_raises(Provider::PrivateKeyPem::Error) { Provider::PrivateKeyPem.parse(junk) }
+    end
+    assert_operator elapsed, :<, 0.5
+  end
+
   private
 
     def assert_same_key(expected, actual, message = nil)

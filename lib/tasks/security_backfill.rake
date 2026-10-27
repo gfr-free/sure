@@ -48,7 +48,7 @@ namespace :security do
     # InviteCode tokens
     results[:invite_codes] = backfill_model(InviteCode, %i[token], batch_size, dry_run)
 
-    # Session user_agent and ip_address (encryption) and ip_address_digest (hashing)
+    # Session user_agent and ip_address (encryption) and ip_address_digest (keyed hashing)
     results[:sessions] = backfill_sessions(batch_size, dry_run)
 
     # Audit log IP addresses
@@ -177,19 +177,12 @@ namespace :security do
         next if dry_run
 
         begin
-          changes = {}
+          # update_columns encrypts these through the attribute types (safe read for plaintext)
+          changes = %i[user_agent ip_address].index_with { |field| safe_read_field(session, field) }.compact
 
-          # Re-save user_agent and ip_address to trigger encryption (use safe read for plaintext)
-          plaintext_values = %i[user_agent ip_address].index_with { |field| safe_read_field(session, field) }.compact
-          encryptor = Session.new(plaintext_values)
-          plaintext_values.each_key do |field|
-            changes[field] = encryptor.read_attribute_before_type_cast(field)
-          end
-
-          # Hash IP address into ip_address_digest if not already done
-          if plaintext_values[:ip_address].present? && session.ip_address_digest.blank?
-            changes[:ip_address_digest] = Digest::SHA256.hexdigest(plaintext_values[:ip_address].to_s)
-          end
+          # Recompute the keyed digest, also replacing unkeyed SHA-256 digests
+          # written by older releases
+          changes[:ip_address_digest] = Session.ip_address_digest(changes[:ip_address]) if changes[:ip_address].present?
 
           if changes.present?
             session.update_columns(changes)

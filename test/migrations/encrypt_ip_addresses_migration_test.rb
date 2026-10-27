@@ -12,22 +12,42 @@ class EncryptIpAddressesMigrationTest < ActiveSupport::TestCase
     @impersonation_log = impersonation_sessions(:in_progress).logs.create!(path: "/accounts")
 
     # Plaintext as written before encryption covered these columns.
-    Session.where(id: @session.id).update_all("ip_address = '192.0.2.10', ip_address_digest = NULL")
+    Session.where(id: @session.id).update_all(ip_address_digest: Digest::SHA256.hexdigest("192.0.2.10"))
+    Session.where(id: @session.id).update_all("ip_address = '192.0.2.10'")
     SsoAuditLog.where(id: @audit_log.id).update_all("ip_address = '192.0.2.11'")
     ImpersonationSessionLog.where(id: @impersonation_log.id).update_all("ip_address = '192.0.2.12'")
   end
 
-  test "encrypts plaintext IP addresses and backfills the session digest" do
+  test "encrypts plaintext IP addresses and keys the session digest" do
     run_migration(:up)
 
     assert_equal "192.0.2.10", @session.reload.ip_address
-    assert_equal Digest::SHA256.hexdigest("192.0.2.10"), @session.ip_address_digest
+    assert_equal Session.ip_address_digest("192.0.2.10"), @session.ip_address_digest
     assert_equal "192.0.2.11", @audit_log.reload.ip_address
     assert_equal "192.0.2.12", @impersonation_log.reload.ip_address
 
     assert_not_equal "192.0.2.10", raw_ip(Session, @session.id)
     assert_not_equal "192.0.2.11", raw_ip(SsoAuditLog, @audit_log.id)
     assert_not_equal "192.0.2.12", raw_ip(ImpersonationSessionLog, @impersonation_log.id)
+  end
+
+  test "does not print IP addresses to the migration log" do
+    output = capture_io do
+      EncryptIpAddresses.new.up
+      EncryptIpAddresses.new.down
+    end.join
+
+    assert_includes output, "sessions: 1 IP addresses rewritten"
+    assert_not_includes output, "192.0.2.10"
+  end
+
+  test "leaves the digest of sessions without an IP alone" do
+    Session.where(id: @session.id).update_all("ip_address = '', ip_address_digest = 'kept'")
+
+    run_migration(:up)
+
+    assert_equal "kept", @session.reload.ip_address_digest
+    assert_equal "", @session.ip_address
   end
 
   test "can be run again without double encrypting" do
@@ -37,11 +57,12 @@ class EncryptIpAddressesMigrationTest < ActiveSupport::TestCase
     assert_equal "192.0.2.11", @audit_log.reload.ip_address
   end
 
-  test "rolling back restores plaintext" do
+  test "rolling back restores plaintext and the unkeyed digest" do
     run_migration(:up)
     run_migration(:down)
 
     assert_equal "192.0.2.10", raw_ip(Session, @session.id)
+    assert_equal Digest::SHA256.hexdigest("192.0.2.10"), @session.reload.ip_address_digest
     assert_equal "192.0.2.11", raw_ip(SsoAuditLog, @audit_log.id)
     assert_equal "192.0.2.12", raw_ip(ImpersonationSessionLog, @impersonation_log.id)
   end

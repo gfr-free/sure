@@ -189,8 +189,7 @@ class EncryptionVerificationTest < ActiveSupport::TestCase
       assert_equal "Mozilla/5.0 Test Browser", session.user_agent
 
       # Verify IP hash is consistent
-      expected_hash = Digest::SHA256.hexdigest("192.168.1.100")
-      assert_equal expected_hash, session.ip_address_digest
+      assert_equal Session.ip_address_digest("192.168.1.100"), session.ip_address_digest
 
       session.destroy
     ensure
@@ -199,14 +198,15 @@ class EncryptionVerificationTest < ActiveSupport::TestCase
     end
   end
 
-  test "session ip_address is encrypted and the digest stays searchable" do
+  test "session ip_address is encrypted and its digest is keyed" do
     Current.ip_address = "192.168.1.100"
 
     begin
       session = Session.create!(user: users(:family_admin))
 
       assert_equal "192.168.1.100", session.reload.ip_address
-      assert_equal Digest::SHA256.hexdigest("192.168.1.100"), session.ip_address_digest
+      assert_equal Session.ip_address_digest("192.168.1.100"), session.ip_address_digest
+      assert_not_equal Digest::SHA256.hexdigest("192.168.1.100"), session.ip_address_digest
       assert_column_not_plaintext(Session, session.id, :ip_address, "192.168.1.100")
     ensure
       Current.ip_address = nil

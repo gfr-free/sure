@@ -13,6 +13,11 @@ module Api
       rescue_from SsoIdentityBlock::BlockedIdentity, with: :render_removed_identity
 
       def signup
+        unless AuthConfig.local_registration_allowed?
+          render json: { error: "Local registration is disabled. Please use single sign-on." }, status: :forbidden
+          return
+        end
+
         # RegistrationsController refuses to register a user while the instance
         # is closed. That gate is declared `if: :self_hosted?`, but
         # onboarding_state only ever reaches "closed" on a self-hosted

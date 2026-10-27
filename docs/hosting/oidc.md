@@ -112,6 +112,7 @@ production:
   - When `true`, the login page shows the email/password form and "Forgot password" link.
   - When `false`, local login is disabled for all users unless the admin override flag is enabled.
   - When `false`, password reset via Sure is also disabled (users must reset via the IdP).
+  - When `false`, registering with an email and password is disabled too, in the web app and in `POST /api/v1/auth/signup`. The "Sign up" tab is hidden, and invitees accept their invitation by signing in through SSO. The admin override below does not reopen registration. The only exception is the very first account of a fresh instance, which may still register locally.
 
 - `AUTH_LOCAL_ADMIN_OVERRIDE_ENABLED` (default: `false`)
   - When `true` and `AUTH_LOCAL_LOGIN_ENABLED=false`, super‑admin users can still log in with local passwords.

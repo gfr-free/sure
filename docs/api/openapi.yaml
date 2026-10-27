@@ -4847,8 +4847,9 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '403':
-          description: 'registration refused: the instance is closed to new registrations,
-            or an invite code is required or invalid'
+          description: 'registration refused: local registration is disabled (SSO-only
+            mode), the instance is closed to new registrations, or an invite code
+            is required or invalid'
           content:
             application/json:
               schema:

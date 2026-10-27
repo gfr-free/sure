@@ -194,6 +194,16 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", new_session_path(invitation: @invitation.token), text: /already have an account/i
   end
 
+  test "invitation offers only sign in when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+
+    get accept_invitation_url(@invitation.token)
+
+    assert_response :success
+    assert_select "a[href=?]", new_registration_path(invitation: @invitation.token), count: 0
+    assert_select "a[href=?]", new_session_path(invitation: @invitation.token), text: /single sign-on/i
+  end
+
   test "should not accept invalid invitation token" do
     get accept_invitation_url("invalid-token")
     assert_response :not_found

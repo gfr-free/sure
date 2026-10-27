@@ -67,7 +67,7 @@ RSpec.describe 'API V1 Auth', type: :request do
         run_test!
       end
 
-      response '403', 'registration refused: the instance is closed to new registrations, or an invite code is required or invalid' do
+      response '403', 'registration refused: local registration is disabled (SSO-only mode), the instance is closed to new registrations, or an invite code is required or invalid' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
         run_test!
       end

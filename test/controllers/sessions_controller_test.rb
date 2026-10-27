@@ -140,6 +140,21 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "login page offers the sign up tab when local login is enabled" do
+    get new_session_url
+
+    assert_select "a[href=?]", new_registration_path
+  end
+
+  test "login page hides the sign up tab when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+
+    get new_session_url
+
+    assert_response :success
+    assert_select "a[href=?]", new_registration_path, count: 0
+  end
+
   test "login page offers passkey sign-in" do
     AuthConfig.stubs(:passkey_login_enabled?).returns(true)
 

@@ -41,6 +41,22 @@ class TransferMatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Transfer created", flash[:notice]
   end
 
+  test "matching a categorized transaction as a card payment clears its category" do
+    outflow_entry = create_transaction(amount: 100, account: accounts(:depository), category: categories(:food_and_drink))
+    inflow_entry = create_transaction(amount: -100, account: accounts(:credit_card), category: categories(:income))
+
+    post transaction_transfer_match_path(outflow_entry), params: {
+      transfer_match: {
+        method: "existing",
+        matched_entry_id: inflow_entry.id
+      }
+    }
+
+    assert_redirected_to transactions_url
+    assert_nil outflow_entry.transaction.reload.category
+    assert_nil inflow_entry.transaction.reload.category
+  end
+
   test "creates transfer for target account" do
     inflow_transaction = create_transaction(amount: 100, account: accounts(:depository))
 

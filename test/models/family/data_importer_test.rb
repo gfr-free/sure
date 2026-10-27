@@ -336,6 +336,210 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal Date.parse("2020-04-01"), opening_anchor.entry.date
   end
 
+  test "derives synthesized opening balance from the exported balance and imported activity" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Main Account", balance: "1000", currency: "USD", accountable_type: "Depository" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: 10.days.ago.to_date, amount: "-500.00", name: "Salary", currency: "USD" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-2", account_id: "acct-1", date: 5.days.ago.to_date, amount: "200.00", name: "Grocery Store", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    account = @family.accounts.find_by!(name: "Main Account")
+    assert_equal 700.0, account.valuations.opening_anchor.first.entry.amount.to_f
+
+    Balance::Materializer.new(account, strategy: :forward).materialize_balances
+
+    assert_equal 1000.0, account.reload.balance.to_f
+    assert_equal [ 0 ], account.balances.pluck(:cash_adjustments).map(&:to_f).uniq
+  end
+
+  test "derives synthesized liability opening balance from imported activity" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Card", balance: "300", currency: "USD", accountable_type: "CreditCard" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: 5.days.ago.to_date, amount: "100.00", name: "Grocery Store", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    account = @family.accounts.find_by!(name: "Card")
+    assert_equal 200.0, account.valuations.opening_anchor.first.entry.amount.to_f
+
+    Balance::Materializer.new(account, strategy: :forward).materialize_balances
+
+    assert_equal 300.0, account.reload.balance.to_f
+  end
+
+  test "keeps the exported balance as opening balance when the file dates it" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Main Account", balance: "5000", currency: "USD", accountable_type: "Depository", opening_balance_date: "2020-01-01" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: "2020-04-02", amount: "-50.00", name: "Refund", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    account = @family.accounts.find_by!(name: "Main Account")
+    assert_equal 5000.0, account.valuations.opening_anchor.first.entry.amount.to_f
+  end
+
+  test "derives opening balance only for activity it can net" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Main Account", balance: "1000", currency: "USD", accountable_type: "Depository" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: 5.days.ago.to_date, amount: "100.00", name: "Hotel", currency: "EUR" }
+      },
+      {
+        type: "Account",
+        data: { id: "inv-1", name: "Brokerage", balance: "1500", cash_balance: "500", currency: "USD", accountable_type: "Investment" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-2", account_id: "inv-1", date: 5.days.ago.to_date, amount: "-1500.00", name: "Deposit", currency: "USD" }
+      },
+      {
+        type: "Holding",
+        data: { id: "holding-1", account_id: "inv-1", ticker: "VTI", date: Date.current, qty: "10", price: "100", amount: "1000", currency: "USD" }
+      },
+      {
+        type: "Account",
+        data: { id: "acct-2", name: "Savings", balance: "1000", currency: "USD", accountable_type: "Depository", opening_balance_date: "not a date" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-3", account_id: "acct-2", date: 5.days.ago.to_date, amount: "-500.00", name: "Salary", currency: "USD" }
+      },
+      {
+        type: "Account",
+        data: { id: "acct-3", name: "Travel", balance: "1000", currency: "USD", accountable_type: "Depository" }
+      },
+      {
+        type: "Valuation",
+        data: { id: "val-1", account_id: "acct-3", date: 5.days.ago.to_date, amount: "900", name: "Statement", currency: "EUR", kind: "reconciliation" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    assert_equal 1000.0, @family.accounts.find_by!(name: "Main Account").valuations.opening_anchor.first.entry.amount.to_f
+    assert_equal 1500.0, @family.accounts.find_by!(name: "Brokerage").valuations.opening_anchor.first.entry.amount.to_f
+    assert_equal 500.0, @family.accounts.find_by!(name: "Savings").valuations.opening_anchor.first.entry.amount.to_f
+    assert_equal 1000.0, @family.accounts.find_by!(name: "Travel").valuations.opening_anchor.first.entry.amount.to_f
+  end
+
+  test "derives synthesized opening balance over trades and for cash-only investment accounts" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Main Account", balance: "1000", currency: "USD", accountable_type: "Depository" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: 10.days.ago.to_date, amount: "-500.00", name: "Salary", currency: "USD" }
+      },
+      {
+        type: "Trade",
+        data: { id: "trade-1", account_id: "acct-1", date: 5.days.ago.to_date, ticker: "VTI", qty: "3", price: "100", amount: "300", currency: "USD" }
+      },
+      {
+        type: "Account",
+        data: { id: "crypto-1", name: "Wallet", balance: "800", currency: "USD", accountable_type: "Crypto" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-2", account_id: "crypto-1", date: 5.days.ago.to_date, amount: "-200.00", name: "Deposit", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    assert_equal 800.0, @family.accounts.find_by!(name: "Main Account").valuations.opening_anchor.first.entry.amount.to_f
+
+    wallet = @family.accounts.find_by!(name: "Wallet")
+    assert_equal 600.0, wallet.valuations.opening_anchor.first.entry.amount.to_f
+
+    Balance::Materializer.new(wallet, strategy: :forward).materialize_balances
+
+    assert_equal 800.0, wallet.reload.balance.to_f
+  end
+
+  test "derives synthesized loan opening balance from imported payments" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "loan-1", name: "Mortgage", balance: "9000", currency: "USD", accountable_type: "Loan" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "loan-1", date: 5.days.ago.to_date, amount: "-1000.00", name: "Payment", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    account = @family.accounts.find_by!(name: "Mortgage")
+    assert_equal 10000.0, account.valuations.opening_anchor.first.entry.amount.to_f
+
+    Balance::Materializer.new(account, strategy: :forward).materialize_balances
+
+    assert_equal 9000.0, account.reload.balance.to_f
+  end
+
+  test "aligns synthesized opening balance with the first imported valuation" do
+    ndjson = build_ndjson([
+      {
+        type: "Account",
+        data: { id: "acct-1", name: "Main Account", balance: "1000", currency: "USD", accountable_type: "Depository" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-1", account_id: "acct-1", date: 20.days.ago.to_date, amount: "-100.00", name: "Refund", currency: "USD" }
+      },
+      {
+        type: "Valuation",
+        data: { id: "val-1", account_id: "acct-1", date: 15.days.ago.to_date, amount: "600", name: "Statement", currency: "USD", kind: "reconciliation" }
+      },
+      {
+        type: "Transaction",
+        data: { id: "txn-2", account_id: "acct-1", date: 10.days.ago.to_date, amount: "-400.00", name: "Salary", currency: "USD" }
+      }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    account = @family.accounts.find_by!(name: "Main Account")
+    assert_equal 500.0, account.valuations.opening_anchor.first.entry.amount.to_f
+
+    Balance::Materializer.new(account, strategy: :forward).materialize_balances
+
+    assert_equal 1000.0, account.reload.balance.to_f
+    assert_equal [ 0 ], account.balances.pluck(:cash_adjustments).map(&:to_f).uniq
+  end
+
   test "imports explicit opening anchor valuations without synthesizing duplicates" do
     ndjson = build_ndjson([
       {

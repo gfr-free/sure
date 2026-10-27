@@ -199,6 +199,37 @@ class EncryptionVerificationTest < ActiveSupport::TestCase
     end
   end
 
+  test "session ip_address is encrypted and the digest stays searchable" do
+    Current.ip_address = "192.168.1.100"
+
+    begin
+      session = Session.create!(user: users(:family_admin))
+
+      assert_equal "192.168.1.100", session.reload.ip_address
+      assert_equal Digest::SHA256.hexdigest("192.168.1.100"), session.ip_address_digest
+      assert_column_not_plaintext(Session, session.id, :ip_address, "192.168.1.100")
+    ensure
+      Current.ip_address = nil
+    end
+  end
+
+  test "sso audit log ip_address is encrypted" do
+    request = ActionDispatch::TestRequest.create("REMOTE_ADDR" => "203.0.113.7")
+    log = SsoAuditLog.log_login!(user: users(:family_admin), provider: "openid_connect", request: request)
+
+    assert_equal "203.0.113.7", log.reload.ip_address
+    assert_column_not_plaintext(SsoAuditLog, log.id, :ip_address, "203.0.113.7")
+  end
+
+  test "impersonation session log ip_address is encrypted" do
+    log = impersonation_sessions(:in_progress).logs.create!(
+      controller: "accounts", action: "index", path: "/accounts", method: "GET", ip_address: "198.51.100.23"
+    )
+
+    assert_equal "198.51.100.23", log.reload.ip_address
+    assert_column_not_plaintext(ImpersonationSessionLog, log.id, :ip_address, "198.51.100.23")
+  end
+
   # ============================================================================
   # MOBILE DEVICE MODEL TESTS
   # ============================================================================

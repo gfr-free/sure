@@ -48,8 +48,12 @@ namespace :security do
     # InviteCode tokens
     results[:invite_codes] = backfill_model(InviteCode, %i[token], batch_size, dry_run)
 
-    # Session user_agent (encryption) and ip_address_digest (hashing)
+    # Session user_agent and ip_address (encryption) and ip_address_digest (hashing)
     results[:sessions] = backfill_sessions(batch_size, dry_run)
+
+    # Audit log IP addresses
+    results[:sso_audit_logs] = backfill_model(SsoAuditLog, %i[ip_address], batch_size, dry_run)
+    results[:impersonation_session_logs] = backfill_model(ImpersonationSessionLog, %i[ip_address], batch_size, dry_run)
 
     # MobileDevice device_id
     results[:mobile_devices] = backfill_model(MobileDevice, %i[device_id], batch_size, dry_run)
@@ -175,18 +179,16 @@ namespace :security do
         begin
           changes = {}
 
-          # Re-save user_agent to trigger encryption (use safe read for plaintext)
-          user_agent_value = safe_read_field(session, :user_agent)
-          unless user_agent_value.nil?
-            # Use temporary instance to encrypt
-            encryptor = Session.new
-            encryptor.user_agent = user_agent_value
-            changes[:user_agent] = encryptor.read_attribute_before_type_cast(:user_agent)
+          # Re-save user_agent and ip_address to trigger encryption (use safe read for plaintext)
+          plaintext_values = %i[user_agent ip_address].index_with { |field| safe_read_field(session, field) }.compact
+          encryptor = Session.new(plaintext_values)
+          plaintext_values.each_key do |field|
+            changes[field] = encryptor.read_attribute_before_type_cast(field)
           end
 
           # Hash IP address into ip_address_digest if not already done
-          if session.ip_address.present? && session.ip_address_digest.blank?
-            changes[:ip_address_digest] = Digest::SHA256.hexdigest(session.ip_address.to_s)
+          if plaintext_values[:ip_address].present? && session.ip_address_digest.blank?
+            changes[:ip_address_digest] = Digest::SHA256.hexdigest(plaintext_values[:ip_address].to_s)
           end
 
           if changes.present?

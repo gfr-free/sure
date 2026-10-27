@@ -1,9 +1,11 @@
 class Session < ApplicationRecord
   include Encryptable
 
-  # Encrypt user_agent if ActiveRecord encryption is configured
+  # Encrypt user_agent and ip_address if ActiveRecord encryption is configured;
+  # lookups go through ip_address_digest.
   if encryption_ready?
     encrypts :user_agent
+    encrypts :ip_address
   end
 
   # Sessions have no explicit expiry column; a session is considered expired

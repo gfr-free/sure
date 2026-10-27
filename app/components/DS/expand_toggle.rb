@@ -49,7 +49,7 @@ class DS::ExpandToggle < DesignSystemComponent
     @collapse_label = collapse_label
     @data = data
     @extra_classes = class_name
-    @variant = variant.to_sym
+    @variant = (variant.presence || :outline).to_sym
     raise ArgumentError, "Unknown variant: #{variant}" unless VARIANTS.key?(@variant)
   end
 

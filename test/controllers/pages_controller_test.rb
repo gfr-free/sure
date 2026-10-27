@@ -21,7 +21,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#netWorthChart[data-time-series-chart-selectable-value='true'][draggable='false']"
   end
 
-  test "dashboard renders the balance sheet expand-all toggle through DS::ExpandToggle" do
+  test "dashboard renders the borderless balance sheet expand-all toggle the inline script keys off" do
     get root_path
 
     assert_response :ok

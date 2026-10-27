@@ -26,6 +26,7 @@ class DS::ExpandToggleTest < ViewComponent::TestCase
 
   test "renders the balance-sheet marker without a shrink class" do
     render_inline(DS::ExpandToggle.new(
+      variant: :ghost,
       expand_label: "Expand all",
       collapse_label: "Collapse all",
       data: { balance_sheet_expand_all: true }
@@ -63,6 +64,12 @@ class DS::ExpandToggleTest < ViewComponent::TestCase
     assert_no_selector "button.bg-container"
     assert_selector "button [data-icon='expand'] svg[class*='!w-3.5']"
     assert_selector "button [data-icon='collapse'] svg[class*='!w-3.5']", visible: :all
+  end
+
+  test "falls back to the outline variant when none is given" do
+    render_inline(DS::ExpandToggle.new(variant: nil, expand_label: "a", collapse_label: "b", data: { x: true }))
+
+    assert_selector "button.border.border-primary"
   end
 
   test "rejects an unknown variant" do

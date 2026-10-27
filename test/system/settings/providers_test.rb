@@ -90,12 +90,26 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
     within available_provider_cards_container do
       assert_text "US / UK"
       assert_text "Bank"
-      find("button[aria-disabled='true']", text: "App Store").hover
-      assert_selector "[role='tooltip']", text: "Coming soon!"
+      assert_selector "button[aria-disabled='true']", text: "App Store"
       assert_no_selector "a[data-turbo-frame='drawer']", visible: true
       find('[data-providers-filter-target="card"]', text: "Apple Wallet").native.save_screenshot(
         Rails.root.join("tmp", "apple-wallet-available.png"))
     end
+
+    app_store = "[data-provider-name='apple wallet'] button[aria-disabled='true']"
+    tooltip = "[data-provider-name='apple wallet'] [role='tooltip']"
+    assert_no_selector tooltip, text: "Coming soon!"
+
+    # Keyboard users reach the aria-disabled button and get the hint; Escape
+    # dismisses it.
+    page.execute_script("arguments[0].focus()", find(app_store, text: "App Store"))
+    assert_selector tooltip, text: "Coming soon!"
+    find(app_store, text: "App Store").send_keys(:escape)
+    assert_no_selector tooltip, text: "Coming soon!"
+    page.execute_script("document.activeElement.blur()")
+
+    find(app_store, text: "App Store").hover
+    assert_selector tooltip, text: "Coming soon!"
   end
 
   test "Wallet unlink confirmation disconnects the publisher and keeps account activity" do

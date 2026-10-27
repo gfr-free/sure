@@ -27,12 +27,19 @@
               target: "_blank", data: { turbo: false }, title: external_link[:tooltip]) %>
       <% else %>
         <%# `aria-disabled` instead of `disabled` keeps the button focusable, so
-            keyboard users can reach it and reveal the tooltip. %>
-        <%= render DS::Tooltip.new(text: external_link[:tooltip]) do |tooltip| %>
-          <% tooltip.with_trigger do %>
-            <%= render DS::Button.new(text: external_link.fetch(:text), variant: :secondary, size: :sm,
-                  aria: { disabled: true, description: external_link[:tooltip] }) %>
+            keyboard users can reach it and reveal the tooltip;
+            `pointer-events-none` drops the enabled hover state while the
+            tooltip wrapper still receives the pointer. %>
+        <% if external_link[:tooltip].present? %>
+          <% tooltip = DS::Tooltip.new(text: external_link[:tooltip]) %>
+          <%= render tooltip do |t| %>
+            <% t.with_trigger do %>
+              <%= render DS::Button.new(text: external_link.fetch(:text), variant: :secondary, size: :sm,
+                    class: "pointer-events-none", aria: { disabled: true, describedby: tooltip.tooltip_id }) %>
+            <% end %>
           <% end %>
+        <% else %>
+          <%= render DS::Button.new(text: external_link.fetch(:text), variant: :secondary, size: :sm, disabled: true) %>
         <% end %>
       <% end %>
     <% else %>

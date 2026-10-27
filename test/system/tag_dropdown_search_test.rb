@@ -9,8 +9,7 @@ class TagDropdownSearchTest < ApplicationSystemTestCase
   test "the tag picker search field filters the tag list" do
     visit tag_dropdown_path(entry_id: @entry.id)
 
-    search = find("input[type=search][role=combobox]")
-    assert_equal search, page.active_element
+    search = find("input[type=search][role=combobox]:focus")
 
     search.set("emerg")
 

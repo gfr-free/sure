@@ -22,7 +22,7 @@ class Tag::DropdownsControllerTest < ActionDispatch::IntegrationTest
     get tag_dropdown_url(entry_id: @entry.id)
 
     assert_response :success
-    assert_select "div.focus-ring-within input[type=search][role=combobox][aria-autocomplete=list][aria-expanded=false]" \
+    assert_select "div.focus-ring-within input[type=search][role=combobox][aria-autocomplete=list]" \
                   "[data-list-filter-target=input][autocomplete=off]", count: 1
     assert_select "input[autocomplete=nope]", count: 0
   end

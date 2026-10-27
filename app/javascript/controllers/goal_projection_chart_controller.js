@@ -72,6 +72,10 @@ export default class extends Controller {
     };
     document.addEventListener("turbo:render", this._onTurboRender);
     document.addEventListener("turbo:frame-load", this._onTurboRender);
+    this._onDocumentPointerDown = (event) => {
+      if (event.target !== this._overlayNode) this._hideHover?.();
+    };
+    document.addEventListener("pointerdown", this._onDocumentPointerDown);
   }
 
   disconnect() {
@@ -82,6 +86,7 @@ export default class extends Controller {
       document.removeEventListener("turbo:render", this._onTurboRender);
       document.removeEventListener("turbo:frame-load", this._onTurboRender);
     }
+    document.removeEventListener("pointerdown", this._onDocumentPointerDown);
   }
 
   _draw() {
@@ -541,7 +546,10 @@ export default class extends Controller {
       .attr("width", innerWidth)
       .attr("height", innerHeight)
       .attr("fill", "transparent")
-      .style("cursor", "crosshair");
+      .style("cursor", "crosshair")
+      // Vertical swipes still scroll the page on touch screens; horizontal
+      // ones reach the pointer handlers so a finger can scrub the series.
+      .style("touch-action", "pan-y pinch-zoom");
 
     const bisectDate = d3.bisector((d) => d.date).left;
     const dateFmt = d3.timeFormat("%b %d, %Y");
@@ -612,11 +620,22 @@ export default class extends Controller {
       tooltip.style.display = "none";
     };
 
-    overlay.on("pointermove", (event) => {
+    const showAtPointer = (event) => {
       const [mx, my] = d3.pointer(event);
       showAt(mx, my);
+    };
+    // A tap fires no pointermove and is followed straight away by
+    // pointerleave, so touch shows the tooltip on pointerdown and keeps it
+    // until a tap lands outside the plot (see _onDocumentPointerDown).
+    overlay.on("pointerdown", showAtPointer);
+    overlay.on("pointermove", showAtPointer);
+    overlay.on("pointerleave", (event) => {
+      if (event.pointerType !== "touch") hide();
     });
-    overlay.on("pointerleave", hide);
+    // The browser took the touch over for scrolling or zooming.
+    overlay.on("pointercancel", hide);
+    this._overlayNode = overlay.node();
+    this._hideHover = hide;
   }
 
   _monthsBetween(a, b) {

@@ -1287,10 +1287,18 @@ class Family::DataImporter
         truthy?(data["authoritative_balance_history"])
     end
 
+    def cash_only_investment?(account)
+      account.balance_type == :investment &&
+        account.holdings.none? &&
+        account.entries.where(entryable_type: "Trade").none?
+    end
+
+    def explicit_opening_balance_date(data)
+      parse_import_date(data["opening_balance_date"] || data["opening_balance_on"])
+    end
+
     def opening_balance_date_for(old_id, data)
-      explicit_date = parse_import_date(
-        data["opening_balance_date"] || data["opening_balance_on"]
-      )
+      explicit_date = explicit_opening_balance_date(data)
 
       max_allowed_date = @oldest_import_entry_dates_by_account[old_id]&.prev_day
       [ explicit_date, max_allowed_date ].compact.min
@@ -1304,7 +1312,7 @@ class Family::DataImporter
     def derive_opening_balance?(old_id, data)
       @import_session.blank? &&
         @oldest_import_entry_dates_by_account.key?(old_id) &&
-        (data["opening_balance_date"] || data["opening_balance_on"]).blank?
+        explicit_opening_balance_date(data).nil?
     end
 
     def align_synthesized_opening_balances!
@@ -1317,25 +1325,34 @@ class Family::DataImporter
     end
 
     # Walks back from the first balance the file states (its first valuation,
-    # or else the exported balance) over the transactions up to that date.
-    # Only for accounts whose balance moves by transactions alone; investment
-    # balances also depend on holdings, which the first sync rebuilds.
+    # or else the exported balance) over the flows the forward calculator
+    # replays up to that date. Holdings move an investment balance too, and the
+    # first sync rebuilds them from trades, so an investment account only
+    # qualifies while it has neither.
     def derived_opening_balance(account)
-      return unless account.balance_type == :cash || account.accountable_type == "Loan"
+      flow_types =
+        if account.balance_type == :cash
+          %w[Transaction Trade]
+        elsif account.accountable_type == "Loan" || cash_only_investment?(account)
+          %w[Transaction]
+        end
+      return if flow_types.nil?
 
       first_valuation = account.entries.valuations
         .where.not(entryable_id: account.valuations.opening_anchor.select(:id))
         .order(:date, :id)
         .first
+      return if first_valuation && first_valuation.currency != account.currency
 
-      flows = account.entries.excluding_pending.excluding_split_parents.where(entryable_type: "Transaction")
+      flows = account.entries.excluding_pending.excluding_split_parents.where(entryable_type: flow_types)
       flows = flows.where(date: ..first_valuation.date) if first_valuation
 
       # Converting other currencies needs rates the first sync loads.
-      return if flows.where.not(currency: account.currency).exists?
+      net_outflows_by_currency = flows.group(:currency).sum(:amount)
+      return if net_outflows_by_currency.keys.any? { |currency| currency != account.currency }
 
       known_balance = first_valuation&.amount || account.balance
-      net_outflows = flows.sum(:amount)
+      net_outflows = net_outflows_by_currency.values.sum
 
       account.asset? ? known_balance + net_outflows : known_balance - net_outflows
     end

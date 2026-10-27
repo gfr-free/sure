@@ -98,4 +98,49 @@ class Provider::CoinbaseTest < ActiveSupport::TestCase
     assert public_key.verify(OpenSSL::Digest::SHA256.new, der_sig, message),
       "JWT signature must verify against the EC public key"
   end
+
+  # --- pasted key formats ---
+
+  test "generate_jwt accepts a PEM pasted into the single-line secret field" do
+    # Browsers turn the line breaks of a pasted multi-line PEM into spaces.
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: @test_key_multiline.gsub("\n", " "))
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt accepts a quoted PEM with escaped CRLF line breaks" do
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: %("#{@test_key_multiline.gsub("\n", '\r\n')}"))
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt accepts a PKCS#8 EC key" do
+    pkcs8 = OpenSSL::PKey::EC.new(@test_key_multiline).private_to_pem
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: pkcs8)
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt explains that an Ed25519 secret is not supported" do
+    ed25519_secret = Base64.strict_encode64(SecureRandom.random_bytes(64))
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: ed25519_secret)
+
+    error = assert_raises(Provider::Coinbase::AuthenticationError) { provider.send(:generate_jwt, "GET", "/v2/user") }
+    assert_match "Ed25519", error.message
+    assert_match "ECDSA", error.message
+  end
+
+  test "generate_jwt parses the secret once per provider" do
+    Provider::PrivateKeyPem.expects(:parse).once.returns(OpenSSL::PKey::EC.new(@test_key_multiline))
+
+    2.times { @provider.send(:generate_jwt, "GET", "/v2/user") }
+  end
+
+  test "generate_jwt rejects an EC key on a curve other than P-256" do
+    other_curve = OpenSSL::PKey::EC.generate("secp384r1").to_pem
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: other_curve)
+
+    error = assert_raises(Provider::Coinbase::AuthenticationError) { provider.send(:generate_jwt, "GET", "/v2/user") }
+    assert_match "P-256", error.message
+  end
 end

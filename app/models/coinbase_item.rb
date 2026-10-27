@@ -14,6 +14,7 @@ class CoinbaseItem < ApplicationRecord
   validates :name, presence: true
   validates :api_key, presence: true
   validates :api_secret, presence: true
+  validate :api_secret_is_usable_key, if: :will_save_change_to_api_secret?
 
   belongs_to :family
   has_one_attached :logo, dependent: :purge_later
@@ -169,4 +170,14 @@ class CoinbaseItem < ApplicationRecord
       institution_color: "#0052FF"
     )
   end
+
+  private
+
+    def api_secret_is_usable_key
+      return if api_secret.blank?
+
+      Provider::Coinbase.parse_private_key(api_secret)
+    rescue Provider::Coinbase::AuthenticationError
+      errors.add(:api_secret, Provider::Coinbase.ed25519_secret?(api_secret) ? :ed25519_key : :invalid_key)
+    end
 end

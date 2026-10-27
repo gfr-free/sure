@@ -46,7 +46,7 @@ class Settings::ProviderPanelsTest < ActionDispatch::IntegrationTest
 
   test "sync and disconnect actions are named DS buttons" do
     family = families(:dylan_family)
-    CoinbaseItem.create!(family: family, name: "Coinbase", api_key: "key", api_secret: "secret")
+    CoinbaseItem.create!(family: family, name: "Coinbase", api_key: "key", api_secret: coinbase_api_secret)
     EnableBankingItem.create!(family: family, name: "Live", country_code: "FI", application_id: "app",
                               client_certificate: "cert", session_id: "live", session_expires_at: 1.day.from_now)
     EnableBankingItem.create!(family: family, name: "Expired", country_code: "FI", application_id: "app",

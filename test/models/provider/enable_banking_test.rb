@@ -440,4 +440,59 @@ class Provider::EnableBankingTest < ActiveSupport::TestCase
     assert_equal "BALANCES_UNAVAILABLE", error.response_data[:error]
     assert_equal "redacted", error.response_data.dig(:detail, :account_id)
   end
+
+  test "accepts a private key with escaped line breaks" do
+    key = OpenSSL::PKey::RSA.new(2048)
+    provider = Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: key.private_to_pem.gsub("\n", '\n'))
+
+    assert_equal key.public_key.to_pem, provider.private_key.public_key.to_pem
+  end
+
+  test "accepts a private key pasted together with its certificate" do
+    key = OpenSSL::PKey::RSA.new(2048)
+    pem = self_signed_certificate(key).to_pem + key.private_to_pem
+    provider = Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: pem)
+
+    assert_equal key.public_key.to_pem, provider.private_key.public_key.to_pem
+  end
+
+  test "accepts an indented private key" do
+    key = OpenSSL::PKey::RSA.new(2048)
+    pem = key.private_to_pem.lines.map { |line| "  #{line}" }.join
+    provider = Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: pem)
+
+    assert_equal key.public_key.to_pem, provider.private_key.public_key.to_pem
+  end
+
+  test "explains when only a certificate was pasted" do
+    certificate = self_signed_certificate(OpenSSL::PKey::RSA.new(2048)).to_pem
+
+    error = assert_raises(Provider::EnableBanking::EnableBankingError) do
+      Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: certificate)
+    end
+    assert_equal :invalid_certificate, error.error_type
+    assert_match "only a certificate", error.message
+  end
+
+  test "rejects a private key that is not RSA" do
+    error = assert_raises(Provider::EnableBanking::EnableBankingError) do
+      Provider::EnableBanking.new(application_id: "test_app_id", client_certificate: OpenSSL::PKey::EC.generate("prime256v1").to_pem)
+    end
+    assert_equal :invalid_certificate, error.error_type
+    assert_match "RSA", error.message
+  end
+
+  private
+
+    def self_signed_certificate(key)
+      OpenSSL::X509::Certificate.new.tap do |certificate|
+        certificate.version = 2
+        certificate.serial = 1
+        certificate.subject = certificate.issuer = OpenSSL::X509::Name.parse("/CN=test")
+        certificate.public_key = key
+        certificate.not_before = Time.current
+        certificate.not_after = 1.hour.from_now
+        certificate.sign(key, OpenSSL::Digest::SHA256.new)
+      end
+    end
 end

@@ -15,6 +15,30 @@ class Provider::Coinbase
 
   attr_reader :api_key, :api_secret
 
+  # Parses the PEM EC private key of a CDP key, however it was pasted (see
+  # Provider::PrivateKeyPem). ES256 signing needs a P-256 key; CDP's default
+  # Ed25519 secrets are a bare base64 string and cannot be used here.
+  def self.parse_private_key(secret)
+    key = Provider::PrivateKeyPem.parse(secret)
+    unless key.is_a?(OpenSSL::PKey::EC) && key.group.curve_name == "prime256v1"
+      raise AuthenticationError, "Coinbase API secret must be an ECDSA (P-256) private key. Create the API key with the ECDSA signature algorithm."
+    end
+
+    key
+  rescue Provider::PrivateKeyPem::Error => e
+    if ed25519_secret?(secret)
+      raise AuthenticationError, "Coinbase API secret is an Ed25519 key, which is not supported. Create a new API key with the ECDSA signature algorithm."
+    end
+
+    raise AuthenticationError, "Coinbase API secret is not a valid ECDSA private key (#{e.message}). Paste the full key including the BEGIN and END lines."
+  end
+
+  def self.ed25519_secret?(secret)
+    Base64.strict_decode64(secret.to_s.strip).bytesize == 64
+  rescue ArgumentError
+    false
+  end
+
   def initialize(api_key:, api_secret:)
     @api_key = api_key
     @api_secret = api_secret
@@ -131,20 +155,15 @@ class Provider::Coinbase
       results.first(limit)
     end
 
-    # Parses a PEM EC private key, normalizing literal \n sequences to real
-    # newlines. Coinbase CDP keys are often stored or pasted as a single-line
-    # string with escaped newlines (e.g. copied directly from the JSON download
-    # file). Both forms are accepted.
     def parse_ec_private_key(pem)
-      OpenSSL::PKey::EC.new(pem.to_s.gsub('\n', "\n"))
+      self.class.parse_private_key(pem)
     end
 
     # Generate JWT token for CDP API authentication.
     # Uses ES256 (ECDSA P-256) signing — matches the key format Coinbase CDP
-    # issues. api_secret must be a PEM EC private key
-    # (-----BEGIN EC PRIVATE KEY-----) either with real newlines or literal \n.
+    # issues for ECDSA keys. api_secret must be a PEM EC private key.
     def generate_jwt(method, path)
-      private_key = parse_ec_private_key(api_secret)
+      private_key = @private_key ||= parse_ec_private_key(api_secret)
 
       now = Time.now.to_i
       uri = "#{method} api.coinbase.com#{path}"

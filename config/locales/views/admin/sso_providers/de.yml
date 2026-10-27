@@ -85,6 +85,7 @@ de:
         redirect_uri_placeholder: "https://yourdomain.com/auth/openid_connect/callback"
         redirect_uri_help: "Callback-URL, die beim Identitätsanbieter eingetragen werden muss"
         copy_button: "Kopieren"
+        copied: "Kopiert!"
         cancel: "Abbrechen"
         submit: "Provider speichern"
         errors_title:

@@ -1,0 +1,14 @@
+<%# locals: (sso_provider:, target:) %>
+
+<div class="flex items-center gap-2" data-controller="clipboard" data-clipboard-copied-text-value="<%= t("admin.sso_providers.form.copied") %>">
+  <code class="flex-1 min-w-0 break-all bg-surface px-3 py-2 rounded text-sm text-secondary"
+        data-admin-sso-form-target="<%= target %>"
+        data-clipboard-target="source"><%= "#{request.base_url}/auth/#{sso_provider.name.presence || 'PROVIDER_NAME'}/callback" %></code>
+  <%= render DS::Button.new(
+    text: t("admin.sso_providers.form.copy_button"),
+    variant: :ghost,
+    icon: "copy",
+    class: "shrink-0",
+    data: { action: "clipboard#copy" }
+  ) %>
+</div>

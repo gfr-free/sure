@@ -89,6 +89,7 @@ it:
         saml_sp_callback_url_label: "URL callback SP (ACS URL)"
         saml_sp_callback_url_help: "Configura questo URL come URL del servizio di asserzione del consumatore nel tuo IdP"
         copy_button: "Copia"
+        copied: "Copiato!"
         cancel: "Annulla"
         submit: "Salva provider"
         create_provider: "Crea provider"

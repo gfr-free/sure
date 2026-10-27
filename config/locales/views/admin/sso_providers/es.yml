@@ -89,6 +89,7 @@ es:
         saml_sp_callback_url_label: URL de callback del SP (URL ACS)
         saml_sp_callback_url_help: Configura esta URL como Assertion Consumer Service URL en tu IdP
         copy_button: Copiar
+        copied: "¡Copiado!"
         cancel: Cancelar
         submit: Guardar proveedor
         create_provider: Crear proveedor

@@ -89,6 +89,7 @@ hu:
         saml_sp_callback_url_label: "SP visszahívási URL (ACS URL)"
         saml_sp_callback_url_help: "Ezt az URL-t kell megadni az Assertion Consumer Service URL-ként az IdP-ben"
         copy_button: "Másolás"
+        copied: "Másolva!"
         cancel: "Mégse"
         submit: "Szolgáltató mentése"
         create_provider: "Szolgáltató létrehozása"

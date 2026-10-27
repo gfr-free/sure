@@ -25,6 +25,7 @@ fr:
         client_secret_placeholder_existing: "••••••••••••••••"
         client_secret_placeholder_new: votre-secret-client
         copy_button: Copier
+        copied: "Copié !"
         create_provider: Créer un fournisseur
         default_role_help: 'Rôle attribué aux utilisateurs créés via le provisionnement SSO juste-à-temps (JIT). Par défaut : Membre.'
         default_role_label: Rôle par défaut pour les nouveaux utilisateurs

@@ -89,6 +89,7 @@ vi:
         saml_sp_callback_url_label: "URL Callback SP (ACS URL)"
         saml_sp_callback_url_help: "Cấu hình URL này là URL Assertion Consumer Service trong IdP của bạn"
         copy_button: "Sao chép"
+        copied: "Đã sao chép!"
         cancel: "Hủy"
         submit: "Lưu nhà cung cấp"
         create_provider: "Tạo nhà cung cấp"

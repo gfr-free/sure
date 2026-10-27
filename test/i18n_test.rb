@@ -153,6 +153,17 @@ class I18nTest < ActiveSupport::TestCase
     end
   end
 
+  # The SSO callback copy button flips its label to "copied"; a locale that
+  # translates the button must translate the confirmation too.
+  def test_sso_provider_copied_label_exists_beside_copy_button
+    sibling = "admin.sso_providers.form.copy_button"
+    locales = I18n.available_locales.select { |locale| I18n.t(sibling, locale: locale, fallback: false, default: nil) }
+    assert_includes locales, :de
+
+    missing = locales.reject { |locale| I18n.t("admin.sso_providers.form.copied", locale: locale, fallback: false, default: nil) }
+    assert_empty missing, "admin.sso_providers.form.copied is missing for: #{missing.join(", ")}"
+  end
+
   def test_trade_republic_activity_labels_exist_for_each_locale
     required_labels = %w[
       contribution withdrawal interest dividend card_payment cash_withdrawal

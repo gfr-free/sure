@@ -89,6 +89,7 @@ zh-TW:
         saml_sp_callback_url_label: SP 回呼網址 (ACS URL)
         saml_sp_callback_url_help: 請在您的 IdP 中把這個網址設為 Assertion Consumer Service URL
         copy_button: 複製
+        copied: "已複製！"
         cancel: 取消
         submit: 儲存供應商
         create_provider: 建立供應商

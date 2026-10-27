@@ -284,6 +284,14 @@ de:
       upload_failed: Der Anhang ließ sich nicht hochladen. Versuch es noch einmal oder wende dich an den Support.
       uploaded_many: "%{count} Anhänge hochgeladen"
       uploaded_one: Anhang hochgeladen
+    bulk_transfer_unlinks:
+      create:
+        skipped:
+          one: 1 Überweisung bleibt bestehen, weil dir Schreibrechte für ihre Konten oder Gebühren fehlen
+          other: "%{count} Überweisungen bleiben bestehen, weil dir Schreibrechte für ihre Konten oder Gebühren fehlen"
+        success:
+          one: 1 Überweisung entfernt
+          other: "%{count} Überweisungen entfernt"
     bulk_updates:
       new:
         cancel: Abbrechen
@@ -348,6 +356,9 @@ de:
       duplicate: Duplizieren
       edit: Bearbeiten
       selected: ausgewählt
+      unlink_transfers: Überweisungen entfernen
+      unlink_transfers_confirm_body: Die Transaktionen bleiben in beiden Konten erhalten und zählen wieder als Einnahme oder Ausgabe. Überweisungsgebühren werden gelöscht.
+      unlink_transfers_confirm_title: Ausgewählte Überweisungen entfernen?
     split_parent_row:
       split_label: Teilen
     summary:

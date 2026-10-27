@@ -176,6 +176,16 @@ class Transfer < ApplicationRecord
     !Transaction::UNCATEGORIZED_EXCLUDED_KINDS.include?(kind_for_leg(outflow_transaction))
   end
 
+  # Unlinking (reject/destroy) needs write access to one endpoint, plus every
+  # account holding a fee transaction, since destroying the transfer deletes
+  # those fees (same rule as TransfersController#unlink_permission_account).
+  def unlinkable_with?(writable_account_ids)
+    endpoint_ids = [ from_account&.id, to_account&.id ].compact
+
+    endpoint_ids.any? { |id| writable_account_ids.include?(id) } &&
+      fee_transactions.all? { |fee| writable_account_ids.include?(fee.entry&.account_id) }
+  end
+
   def reject!
     Transfer.transaction do
       RejectedTransfer.find_or_create_by!(inflow_transaction_id: inflow_transaction_id, outflow_transaction_id: outflow_transaction_id)

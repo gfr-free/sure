@@ -1,6 +1,14 @@
 ---
 en:
   transactions:
+    bulk_transfer_unlinks:
+      create:
+        skipped:
+          one: 1 transfer was kept because you lack write access to its accounts or fees
+          other: "%{count} transfers were kept because you lack write access to their accounts or fees"
+        success:
+          one: 1 transfer removed
+          other: "%{count} transfers removed"
     bulk_updates:
       new:
         cancel: Cancel
@@ -24,6 +32,9 @@ en:
       duplicate: Duplicate
       edit: Edit
       selected: selected
+      unlink_transfers: Remove transfers
+      unlink_transfers_confirm_body: The transactions stay in both accounts and count as income or expense again. Transfer fees are deleted.
+      unlink_transfers_confirm_title: Remove selected transfers?
     form:
       details: Details
       account: Account

@@ -27,6 +27,7 @@ pt-PT:
       account_updated: Conta atualizada
     update:
       account_updated: Conta atualizada
+      balances_recalculating: "A recalcular saldos. As alterações aparecerão dentro de instantes."
       entry_updated: Registo atualizado
     errors:
       amount_required: O montante é obrigatório

@@ -86,7 +86,7 @@ class ValuationsController < ApplicationController
       respond_to do |format|
         format.html { redirect_back_or_to account_path(@entry.account), notice: t(".entry_updated") }
         format.turbo_stream do
-          render turbo_stream: [
+          streams = [
             turbo_stream.replace(
               dom_id(@entry, :header),
               partial: "valuations/header",
@@ -94,6 +94,17 @@ class ValuationsController < ApplicationController
             ),
             turbo_stream.replace(@entry)
           ]
+
+          # A balance change comes from the confirm dialog and re-syncs the account
+          # in the background: close the dialog and say balances are recalculating,
+          # so the unchanged balances don't look like the edit was ignored.
+          if result.present?
+            flash[:notice] = t(".balances_recalculating")
+            streams << turbo_stream.replace("modal", view_context.turbo_frame_tag("modal"))
+            streams.concat(flash_notification_stream_items)
+          end
+
+          render turbo_stream: streams
         end
       end
     else

@@ -25,6 +25,7 @@ zh-CN:
       account_updated: 账户已更新
     update:
       account_updated: 账户已更新
+      balances_recalculating: "正在重新计算余额，更改将在片刻后显示。"
       entry_updated: 条目已更新
     errors:
       amount_required: 需要金额

@@ -31,6 +31,7 @@ class DS::ProgressRingTest < ViewComponent::TestCase
     assert_equal "var(--color-success)", DS::ProgressRing.new(percent: 1, tone: :success).stroke_color
     assert_equal "var(--color-warning)", DS::ProgressRing.new(percent: 1, tone: :warning).stroke_color
     assert_equal "var(--color-destructive)", DS::ProgressRing.new(percent: 1, tone: :destructive).stroke_color
+    assert_equal "var(--color-info)", DS::ProgressRing.new(percent: 1, tone: :info).stroke_color
     # Unknown tone falls back to neutral.
     assert_equal "var(--color-gray-400)", DS::ProgressRing.new(percent: 1, tone: :bogus).stroke_color
   end
@@ -41,5 +42,14 @@ class DS::ProgressRingTest < ViewComponent::TestCase
 
     full = DS::ProgressRing.new(percent: 100)
     assert_in_delta 0.0, full.dash_offset, 0.001
+  end
+
+  test "renders an inline 16px ring for fractional weights without a center label" do
+    render_inline(DS::ProgressRing.new(percent: 12.5, size: 16, stroke_width: 2, tone: :info, show_percent: false))
+
+    assert_selector "svg[width='16'][height='16'][aria-hidden='true'] circle", count: 2
+    assert_selector "circle[r='7.0'][stroke='var(--color-info)']"
+    assert_no_text "%"
+    assert_no_selector "[role='progressbar']"
   end
 end

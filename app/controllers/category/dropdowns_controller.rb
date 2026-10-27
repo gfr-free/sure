@@ -4,6 +4,8 @@ class Category::DropdownsController < ApplicationController
   def show
     @categories = categories_scope.to_a.excluding(@selected_category).prepend(@selected_category).compact
     @recent_categories = Category.recently_used_for(family: Current.family, excluding: @selected_category).to_a
+    @can_split = @transaction&.splittable? &&
+      @transaction.entry.account.permission_for(Current.user).in?([ :owner, :full_control ])
   end
 
   private

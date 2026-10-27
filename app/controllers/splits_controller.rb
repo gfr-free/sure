@@ -1,6 +1,6 @@
 class SplitsController < ApplicationController
   before_action :set_entry
-  before_action :require_split_write_permission!, only: %i[create update destroy]
+  before_action :require_split_write_permission!, only: %i[new create edit update destroy]
 
   def new
     set_form_options

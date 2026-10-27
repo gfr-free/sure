@@ -91,4 +91,18 @@ class Category::DropdownsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-category-quick-create-target='createAsSubcategory']", count: 0
     assert_select "[data-category-quick-create-target='parentPicker']", count: 0
   end
+
+  test "offers the split action only when the user can split the transaction" do
+    entry = create_transaction(account: accounts(:depository), amount: 100)
+
+    get category_dropdown_url(transaction_id: entry.entryable_id)
+    assert_select "a[href='#{new_transaction_split_path(entry)}']", count: 1
+
+    account_shares(:depository_shared_with_member).update!(permission: "read_write")
+    sign_in users(:family_member)
+
+    get category_dropdown_url(transaction_id: entry.entryable_id)
+    assert_response :success
+    assert_select "a[href='#{new_transaction_split_path(entry)}']", count: 0
+  end
 end

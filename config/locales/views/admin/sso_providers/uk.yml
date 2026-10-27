@@ -91,6 +91,7 @@ uk:
         saml_sp_callback_url_label: "URL-адреса зворотного виклику SP (URL-адреса ACS)"
         saml_sp_callback_url_help: "Налаштуйте цю URL-адресу як URL-адресу служби Assertion Consumer Service у вашому IdP"
         copy_button: "Копіювати"
+        copied: "Скопійовано!"
         cancel: "Скасувати"
         submit: "Зберегти постачальника"
         create_provider: "Створити постачальника"

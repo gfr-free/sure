@@ -70,6 +70,7 @@ nl:
         redirect_uri_placeholder: "https://uwdomein.nl/auth/openid_connect/callback"
         redirect_uri_help: "Callback URL om te configureren in uw identiteitsprovider"
         copy_button: "Kopiëren"
+        copied: "Gekopieerd!"
         cancel: "Annuleren"
         submit: "Provider opslaan"
         errors_title: "%{count} fout verhinderde het opslaan van deze provider:"

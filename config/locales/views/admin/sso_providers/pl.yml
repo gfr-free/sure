@@ -25,6 +25,7 @@ pl:
         client_secret_placeholder_existing: zapisany-sekret
         client_secret_placeholder_new: twoj-client-secret
         copy_button: Kopiuj
+        copied: "Skopiowano!"
         create_provider: Utwórz dostawcę
         default_role_help: 'Rola przypisywana użytkownikom tworzonym przez SSO just-in-time
           (JIT). Domyślnie: Członek.'

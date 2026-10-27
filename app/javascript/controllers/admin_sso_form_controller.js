@@ -21,9 +21,7 @@ export default class extends Controller {
     const baseUrl = window.location.origin
     callbackDisplay.textContent = `${baseUrl}/auth/${providerName}/callback`
 
-    if (this.hasSamlCallbackUrlTarget) {
-      this.updateSamlCallbackUrl()
-    }
+    this.updateSamlCallbackUrl()
   }
 
   toggleFields() {

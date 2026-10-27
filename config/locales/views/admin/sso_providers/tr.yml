@@ -26,6 +26,7 @@ tr:
         client_secret_placeholder_existing: "••••••••"
         client_secret_placeholder_new: istemci-gizli-anahtariniz
         copy_button: Kopyala
+        copied: "Kopyalandı!"
         create_provider: Sağlayıcı Oluştur
         default_role_help: Anlık (JIT) SSO hesap oluşturma yoluyla oluşturulan kullanıcılara
           atanan rol. Varsayılan olarak Üye.

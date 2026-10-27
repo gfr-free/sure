@@ -16,8 +16,10 @@ module Money::Arithmetic
       ensure_same_currency!(other, :-)
       self.class.new(amount - other.amount, currency)
     else
-      value = other.is_a?(CoercedNumeric) ? other.value : other
-      self.class.new(amount - value, currency)
+      # Numeric - Money arrives via #coerce with the operands swapped
+      return self.class.new(other.value - amount, currency) if other.is_a?(CoercedNumeric)
+
+      self.class.new(amount - other, currency)
     end
   end
 

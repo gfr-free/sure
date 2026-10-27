@@ -68,7 +68,7 @@ class Rule::ActionExecutor
 
   # Executors with a non-trivial value format (e.g. structured JSON) can override this
   # to provide a human-readable summary for the rule list view. Returning nil falls back
-  # to the default (options-based) display logic in Rule::Action#value_display.
+  # to the display_options lookup in Rule::Action#value_display.
   def value_display(value)
     nil
   end

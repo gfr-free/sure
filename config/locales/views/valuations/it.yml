@@ -25,6 +25,7 @@ it:
       account_updated: Conto aggiornato
     update:
       account_updated: Conto aggiornato
+      balances_recalculating: "Ricalcolo dei saldi in corso. Le modifiche appariranno tra pochi istanti."
       entry_updated: Voce aggiornata
     errors:
       amount_required: L'importo è obbligatorio

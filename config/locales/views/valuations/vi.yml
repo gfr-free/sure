@@ -25,6 +25,7 @@ vi:
       account_updated: Tài khoản đã được cập nhật
     update:
       account_updated: Tài khoản đã được cập nhật
+      balances_recalculating: "Đang tính lại số dư. Thay đổi sẽ xuất hiện trong giây lát."
       entry_updated: Mục nhập đã được cập nhật
     errors:
       amount_required: Số tiền là bắt buộc

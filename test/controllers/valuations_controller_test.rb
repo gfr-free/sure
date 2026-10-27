@@ -51,6 +51,32 @@ class ValuationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Test notes", @entry.notes
   end
 
+  test "turbo stream update closes the confirm dialog and says balances are recalculating" do
+    patch valuation_url(@entry), params: {
+      entry: {
+        amount: 22000,
+        date: @entry.date
+      }
+    }, as: :turbo_stream
+
+    assert_response :success
+    assert_enqueued_with job: SyncJob
+    assert_match I18n.t("valuations.update.balances_recalculating"), response.body
+    assert_match "notification-tray", response.body
+    assert_match %(<turbo-stream action="replace" target="modal">), response.body
+  end
+
+  test "turbo stream notes-only update does not announce a recalculation" do
+    patch valuation_url(@entry), params: {
+      entry: { notes: "Only a note" }
+    }, as: :turbo_stream
+
+    assert_response :success
+    assert_no_match I18n.t("valuations.update.balances_recalculating"), response.body
+    assert_no_match %(target="modal"), response.body
+    assert_equal "Only a note", @entry.reload.notes
+  end
+
   test "confirm_create with blank amount returns unprocessable entity" do
     account = accounts(:investment)
 

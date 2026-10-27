@@ -78,4 +78,5 @@ fr:
       update_value: Mettre à jour la valeur
     update:
       account_updated: Compte mis à jour
+      balances_recalculating: "Recalcul des soldes en cours. Les modifications apparaîtront dans quelques instants."
       entry_updated: Entrée mise à jour

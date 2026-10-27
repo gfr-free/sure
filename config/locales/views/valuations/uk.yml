@@ -26,6 +26,7 @@ uk:
       account_updated: Рахунок оновлено
     update:
       account_updated: Рахунок оновлено
+      balances_recalculating: "Перерахунок балансів. Зміни з’являться за кілька секунд."
       entry_updated: Запис оновлено
     errors:
       amount_required: Сума є обов'язковою

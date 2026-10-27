@@ -27,12 +27,6 @@ zh-CN:
       success: Enable Banking 配置成功。
     destroy:
       success: Enable Banking 连接已排队等待删除。
-    link_accounts:
-      already_linked: 所选账户已连接。
-      link_failed: 连接账户失败
-      no_accounts_selected: 未选择账户。
-      no_session: 当前没有活动的 Enable Banking 连接。请先连接银行。
-      success: 已成功连接 %{count} 个账户。
     link_existing_account:
       success: 账户已成功连接到 Enable Banking
       errors:

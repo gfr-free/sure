@@ -344,6 +344,14 @@ class EnableBankingItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "active", orphan.reload.status
   end
 
+  # The setup flow links accounts per connection (setup_accounts). A collection
+  # route without a connection id would have to guess which one is meant.
+  test "accounts cannot be linked without naming the connection" do
+    assert_raises(ActionController::RoutingError) do
+      Rails.application.routes.recognize_path("/enable_banking_items/link_accounts", method: :post)
+    end
+  end
+
   private
 
     def stub_authorization_start

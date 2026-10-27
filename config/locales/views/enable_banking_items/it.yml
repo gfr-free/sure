@@ -27,12 +27,6 @@ it:
       success: Configurazione Enable Banking riuscita.
     destroy:
       success: La connessione Enable Banking è stata messa in coda per l'eliminazione.
-    link_accounts:
-      already_linked: I conti selezionati sono già collegati.
-      link_failed: Collegamento conti fallito
-      no_accounts_selected: Nessun conto selezionato.
-      no_session: Nessuna connessione Enable Banking attiva. Connettiti prima a una banca.
-      success: Collegati con successo %{count} conti.
     link_existing_account:
       success: Conto collegato con successo a Enable Banking
       errors:

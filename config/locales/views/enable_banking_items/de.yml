@@ -22,12 +22,6 @@ de:
       success: Enable-Banking-Konfiguration erfolgreich.
     destroy:
       success: Die Enable-Banking-Verbindung wurde zur Löschung vorgemerkt.
-    link_accounts:
-      already_linked: Die ausgewählten Konten sind bereits verknüpft.
-      link_failed: Konten konnten nicht verknüpft werden
-      no_accounts_selected: Keine Konten ausgewählt.
-      no_session: Keine aktive Enable-Banking-Verbindung. Bitte verbinde zuerst eine Bank.
-      success: "%{count} Konten wurden erfolgreich verknüpft."
     link_existing_account:
       success: Konto erfolgreich mit Enable-Banking verknüpft
       errors:

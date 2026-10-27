@@ -53,13 +53,6 @@ ru:
         позже.
       session_invalid: Сессия истекла. Пожалуйста, переподключите ваш банк.
       unexpected: Произошла непредвиденная ошибка во время синхронизации.
-    link_accounts:
-      already_linked: Выбранные счета уже связаны.
-      link_failed: Не удалось связать счета
-      no_accounts_selected: Счета не выбраны.
-      no_session: Нет активного подключения Enable Banking. Пожалуйста, сначала подключитесь
-        к банку.
-      success: Успешно связаны %{count} счетов.
     link_existing_account:
       errors:
         invalid_enable_banking_account: Выбран недействительный счёт Enable Banking

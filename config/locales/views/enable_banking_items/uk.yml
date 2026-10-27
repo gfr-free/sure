@@ -27,12 +27,6 @@ uk:
       success: "Конфігурація Enable Banking успішна."
     destroy:
       success: "Підключення Enable Banking поставлено в чергу на видалення."
-    link_accounts:
-      already_linked: "Вибрані рахунки вже прив'язано."
-      link_failed: "Не вдалося прив'язати рахунки"
-      no_accounts_selected: "Не вибрано жодного рахунку."
-      no_session: "Немає активного підключення Enable Banking. Будь ласка, спочатку підключіться до банку."
-      success: "Успішно прив'язано %{count} рахунків."
     link_existing_account:
       success: "Рахунок успішно прив'язано до Enable Banking"
       errors:

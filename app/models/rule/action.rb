@@ -111,7 +111,7 @@ class Rule::Action < ApplicationRecord
 
     return "" if value.blank?
 
-    cached_options = options
+    cached_options = executor.display_options
     return "" if cached_options.blank?
 
     labels_by_id = cached_options.to_h { |label, id| [ id.to_s, label ] }

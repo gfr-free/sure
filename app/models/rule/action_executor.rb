@@ -25,6 +25,12 @@ class Rule::ActionExecutor
     nil
   end
 
+  # Label lookup for value_display. Override when the select labels carry
+  # cosmetic markup (e.g. indented subcategories) that shouldn't reach summaries.
+  def display_options
+    options
+  end
+
   # Attributes this action sets. When several rules set the same attribute on
   # a transaction, the rule highest in the list wins (see Rule::Runner), so the
   # action skips transactions a rule above already claimed. Additive actions
@@ -62,7 +68,7 @@ class Rule::ActionExecutor
 
   # Executors with a non-trivial value format (e.g. structured JSON) can override this
   # to provide a human-readable summary for the rule list view. Returning nil falls back
-  # to the default (options-based) display logic in Rule::Action#value_display.
+  # to the display_options lookup in Rule::Action#value_display.
   def value_display(value)
     nil
   end

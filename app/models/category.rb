@@ -161,9 +161,9 @@ class Category < ApplicationRecord
     # leading spaces collapse in <option> text).
     #
     # Pass indent: false when the result is used as a display-label lookup
-    # rather than rendered as actual <select> options (e.g. Rule::Action and
-    # Rule::Condition#value_display), so the cosmetic arrow doesn't leak into
-    # plain-text summaries.
+    # rather than rendered as actual <select> options (e.g. the rule
+    # display_options behind value_display), so the cosmetic arrow doesn't leak
+    # into plain-text summaries.
     def self.select_options(categories, indent: true)
       self.for(categories).flat_map do |group|
         [ [ group.category.name, group.category.id ] ] +

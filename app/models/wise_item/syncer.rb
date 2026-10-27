@@ -4,6 +4,7 @@ class WiseItem::Syncer
   include SyncStats::Collector
 
   SafeSyncError = Class.new(StandardError)
+  ImportFailedError = Class.new(StandardError)
 
   attr_reader :wise_item
 
@@ -17,6 +18,8 @@ class WiseItem::Syncer
     # Phase 1: Import balances and transactions from Wise API
     update_status(sync, :importing_accounts)
     import_result = wise_item.import_latest_wise_data(sync_start_date: sync.window_start_date)
+    # Nothing was imported, so completing the sync would report stale data as fresh
+    raise ImportFailedError, "Wise import failed: #{import_result_message(import_result)}" if import_failed_completely?(import_result)
     sync_errors.concat(import_result_errors(import_result))
 
     # Phase 2: Collect setup statistics
@@ -106,6 +109,14 @@ class WiseItem::Syncer
       errors
     end
 
+    def import_failed_completely?(result)
+      !result.is_a?(Hash) || result[:error].present?
+    end
+
+    def import_result_message(result)
+      result.is_a?(Hash) ? result[:error] : "unexpected result #{result.class}"
+    end
+
     def result_failure_errors(results, category:, message_key:)
       failed = Array(results).count { |r| r.is_a?(Hash) && r[:success] == false }
       return [] unless failed.positive?
@@ -153,6 +164,8 @@ class WiseItem::Syncer
     def user_safe_error_message(error)
       if error.is_a?(Provider::Wise::WiseError) && error.error_type.in?([ :unauthorized, :access_forbidden ])
         I18n.t("wise_items.syncer.credentials_invalid")
+      elsif error.is_a?(ImportFailedError)
+        I18n.t("wise_items.syncer.import_failed")
       else
         I18n.t("wise_items.syncer.failed")
       end

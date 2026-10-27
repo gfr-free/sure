@@ -223,6 +223,39 @@ class IncomeStatementTest < ActiveSupport::TestCase
     assert_equal 123, expense_totals.category_totals.find { |ct| ct.category.id == orphan_category.id }.total
   end
 
+  test "converts a foreign-currency account's transactions at the day's exchange rate" do
+    eur_account = @family.accounts.create! name: "EUR Checking", currency: "EUR", balance: 1000, accountable: Depository.new
+    ExchangeRate.create!(from_currency: "EUR", to_currency: @family.currency, date: Date.current, rate: 1.5)
+    create_transaction(account: eur_account, currency: "EUR", amount: 100, category: @groceries_category)
+    create_transaction(account: eur_account, currency: "EUR", amount: -200, category: @income_category)
+
+    income_statement = IncomeStatement.new(@family)
+    totals = income_statement.totals(date_range: Period.last_30_days.date_range)
+
+    assert_equal Money.new(1000 + 300, @family.currency), totals.income_money
+    assert_equal Money.new(200 + 300 + 400 + 150, @family.currency), totals.expense_money
+    assert_equal 200 + 300 + 400 + 150, income_statement.expense_totals(period: Period.last_30_days).total
+    assert_equal 1000 + 300, income_statement.income_totals(period: Period.last_30_days).total
+  end
+
+  # Documents the current fallback: the rate join matches the entry's exact
+  # date only, so a transaction whose day has no rate counts 1:1 even when a
+  # rate exists for another day.
+  test "counts a foreign-currency transaction 1:1 when its day has no exchange rate" do
+    eur_account = @family.accounts.create! name: "EUR Checking", currency: "EUR", balance: 1000, accountable: Depository.new
+    ExchangeRate.create!(from_currency: "EUR", to_currency: @family.currency, date: 1.day.ago.to_date, rate: 1.5)
+    create_transaction(account: eur_account, currency: "EUR", amount: 100, category: @groceries_category)
+    create_transaction(account: eur_account, currency: "EUR", amount: -200, category: @income_category)
+
+    income_statement = IncomeStatement.new(@family)
+    totals = income_statement.totals(date_range: Period.last_30_days.date_range)
+
+    assert_equal Money.new(1000 + 200, @family.currency), totals.income_money
+    assert_equal Money.new(200 + 300 + 400 + 100, @family.currency), totals.expense_money
+    assert_equal 200 + 300 + 400 + 100, income_statement.expense_totals(period: Period.last_30_days).total
+    assert_equal 1000 + 200, income_statement.income_totals(period: Period.last_30_days).total
+  end
+
   test "memoizes expense and income period totals across repeated calculations" do
     income_statement = IncomeStatement.new(@family)
     period = Period.last_30_days

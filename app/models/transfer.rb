@@ -200,7 +200,22 @@ class Transfer < ApplicationRecord
         outflow_attrs[:category] = category if category.present?
       end
 
-      inflow_transaction.update!(kind: "funds_movement")
+      inflow_attrs = { kind: "funds_movement" }
+
+      # A plain transfer or card payment is uncategorized (see
+      # Transaction::UNCATEGORIZED_EXCLUDED_KINDS), so a category either leg
+      # carried as a standalone transaction no longer applies. The lock keeps
+      # a provider sync or rule from putting it back.
+      unless categorizable?
+        [ [ inflow_transaction, inflow_attrs ], [ outflow_transaction, outflow_attrs ] ].each do |transaction, attrs|
+          next if transaction.category_id.blank?
+
+          attrs[:category] = nil
+          attrs[:locked_attributes] = transaction.locked_attributes.merge("category_id" => Time.current)
+        end
+      end
+
+      inflow_transaction.update!(inflow_attrs)
       outflow_transaction.update!(outflow_attrs)
     end
   end

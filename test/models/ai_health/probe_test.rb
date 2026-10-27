@@ -72,6 +72,20 @@ class AiHealth::ProbeTest < ActiveSupport::TestCase
     end
   end
 
+  test "cache_ttl honors AI_HEALTH_PROBE_CACHE_TTL and falls back for missing or non-positive values" do
+    ClimateControl.modify(AI_HEALTH_PROBE_CACHE_TTL: "300") do
+      assert_equal 300.seconds, AiHealth::Probe.cache_ttl
+    end
+
+    [ nil, "0", "-5", "not-a-number" ].each do |value|
+      ClimateControl.modify(AI_HEALTH_PROBE_CACHE_TTL: value) do
+        assert_equal AiHealth::Probe::DEFAULT_CACHE_TTL, AiHealth::Probe.cache_ttl, "expected the default for #{value.inspect}"
+      end
+    end
+
+    assert_equal AiHealth::Probe.cache_ttl, @probe.send(:cache_ttl)
+  end
+
   test "OpenAI-compatible LLM probe calls chat completions instead of the models endpoint" do
     endpoint = "https://api.cloudflare.com/client/v4/accounts/account-id/ai/v1"
     request = stub_request(:post, "#{endpoint}/chat/completions")

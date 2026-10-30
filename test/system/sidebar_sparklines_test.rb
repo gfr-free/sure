@@ -137,6 +137,14 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
 
       page.execute_script(<<~JS)
         const requestAnimationFrame = window.requestAnimationFrame
+        const requestedAt = {}
+        window.sparklineResponseTimes = []
+        document.addEventListener("turbo:before-fetch-request", (event) => {
+          if (event.target.id.startsWith("sparkline_account_")) requestedAt[event.target.id] = performance.now()
+        })
+        document.addEventListener("turbo:before-fetch-response", (event) => {
+          if (event.target.id in requestedAt) window.sparklineResponseTimes.push(performance.now() - requestedAt[event.target.id])
+        })
         document.addEventListener("turbo:before-frame-render", (event) => {
           if (!event.target.id.startsWith("sparkline_account_")) return
           const render = event.detail.render
@@ -153,6 +161,12 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
 
       assert_selector ACCOUNT_SPARKLINE_FRAME, minimum: 1
       assert_no_selector "#{ACCOUNT_SPARKLINE_FRAME}:not([complete])", wait: SETTLE_WAIT_SECONDS
+
+      # A response that missed the window would let the badge land before the
+      # render and be painted over, which proves nothing about the gap.
+      response_times = page.evaluate_script("window.sparklineResponseTimes")
+      assert_not_empty response_times
+      assert response_times.all? { |ms| ms < RENDER_GAP_TIMEOUT_MS }, "Sparkline responses took #{response_times.map(&:round)} ms"
 
       assert_no_selector "#{ACCOUNT_SPARKLINE_FRAME} p", text: BADGE_TEXT, visible: :all
       assert_selector "#{ACCOUNT_SPARKLINE_FRAME} [data-controller='time-series-chart'] svg path", minimum: 1

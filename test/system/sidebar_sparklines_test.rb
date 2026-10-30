@@ -26,6 +26,10 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
   # for every fetched frame to finish instead of requiring a response time.
   SETTLE_WAIT_SECONDS = 15
 
+  # Long enough for a sparkline response to arrive inside it, so the render
+  # gap test only fails when the countdown outlives a response it already had.
+  RENDER_GAP_TIMEOUT_MS = 1500
+
   # Holds sparkline responses open for as long as a test needs one pending.
   # The wait has to happen inside the server thread, which the test cannot
   # reach, so a process-wide flag stands in for it; clearing the flag releases
@@ -44,6 +48,18 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
     end
   end
   AccountsController.prepend(StalledSparklines)
+
+  # Answers sparkline requests with a server error while enabled.
+  module FailingSparklines
+    mattr_accessor :enabled, default: false
+
+    def sparkline
+      return head(:internal_server_error) if FailingSparklines.enabled
+
+      super
+    end
+  end
+  AccountsController.prepend(FailingSparklines)
 
   setup do
     @user = users(:family_admin)
@@ -110,27 +126,36 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
     assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart'] svg path", minimum: 1
   end
 
-  # Turbo inserts a response several repaints before turbo:frame-load fires.
-  # Holding the render open past the window makes that gap long enough for a
-  # countdown that only stops on frame-load to replace the arrived sparkline.
-  test "a response that has arrived does not raise the timeout badge while it renders" do
-    with_short_sparkline_timeout do
+  # Turbo inserts a response and then waits for repaints before it fires
+  # turbo:frame-load. Slowing those repaints down after the insertion lets the
+  # window expire inside that gap, where a countdown that only stops on
+  # frame-load replaces the sparkline that has just been drawn. The window is
+  # long enough for the response itself to arrive in time.
+  test "a sparkline that has rendered is not replaced by the timeout badge" do
+    stub_const(AccountsHelper, :SPARKLINE_FRAME_TIMEOUT_MS, RENDER_GAP_TIMEOUT_MS) do
       visit root_path
 
       page.execute_script(<<~JS)
+        const requestAnimationFrame = window.requestAnimationFrame
         document.addEventListener("turbo:before-frame-render", (event) => {
           if (!event.target.id.startsWith("sparkline_account_")) return
-          event.preventDefault()
-          setTimeout(() => event.detail.resume(), #{SHORT_TIMEOUT_MS * 5})
+          const render = event.detail.render
+          event.detail.render = (currentElement, newElement) => {
+            render(currentElement, newElement)
+            window.requestAnimationFrame = (callback) =>
+              setTimeout(() => requestAnimationFrame(callback), #{RENDER_GAP_TIMEOUT_MS})
+            setTimeout(() => { window.requestAnimationFrame = requestAnimationFrame }, #{RENDER_GAP_TIMEOUT_MS * 4})
+          }
         })
       JS
 
       expand_first_group
 
-      wait_out_timeout_window
+      assert_selector ACCOUNT_SPARKLINE_FRAME, minimum: 1
+      assert_no_selector "#{ACCOUNT_SPARKLINE_FRAME}:not([complete])", wait: SETTLE_WAIT_SECONDS
 
       assert_no_selector "#{ACCOUNT_SPARKLINE_FRAME} p", text: BADGE_TEXT, visible: :all
-      assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart'] svg path", minimum: 1
+      assert_selector "#{ACCOUNT_SPARKLINE_FRAME} [data-controller='time-series-chart'] svg path", minimum: 1
     end
   end
 
@@ -148,6 +173,20 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
     end
   end
 
+  # A response ends the wait only when it succeeds; an error is as much a
+  # failed sparkline as a request that never returns.
+  test "an error response still raises the timeout badge" do
+    with_short_sparkline_timeout do
+      visit root_path
+
+      with_failing_sparkline_responses do
+        expand_first_group
+
+        assert_selector "#{ACCOUNT_SPARKLINE_FRAME} p", text: BADGE_TEXT, minimum: 1
+      end
+    end
+  end
+
   private
 
     def with_short_sparkline_timeout(&block)
@@ -159,6 +198,13 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
       yield
     ensure
       StalledSparklines.enabled = false
+    end
+
+    def with_failing_sparkline_responses
+      FailingSparklines.enabled = true
+      yield
+    ensure
+      FailingSparklines.enabled = false
     end
 
     def expand_first_group

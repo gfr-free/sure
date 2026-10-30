@@ -42,6 +42,8 @@ module EntriesHelper
       end
     end
 
+    rates = family_currency_rates(deduped_entries) if totals
+
     deduped_entries.group_by(&:date).sort.reverse_each.map do |date, grouped_entries|
       content = capture do
         yield grouped_entries
@@ -49,8 +51,21 @@ module EntriesHelper
 
       next if content.blank?
 
-      render partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals: }
+      render partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals:, rates: }
     end.compact.join.html_safe
+  end
+
+  # Rates for the extra family-currency day total, loaded once for the whole
+  # list. Nil when every entry is already in the family currency.
+  def family_currency_rates(entries)
+    family_currency = Current.family&.primary_currency_code
+    return if family_currency.blank? || entries.all? { |entry| entry.currency == family_currency }
+
+    ExchangeRate::Lookup.new(currencies: entries.map(&:currency), dates: entries.map(&:date), to: family_currency)
+  end
+
+  def show_family_currency_total?(entries, rates)
+    rates.present? && entries.any? { |entry| entry.currency != rates.to }
   end
 
   def entry_name_detailed(entry)

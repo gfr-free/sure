@@ -606,6 +606,45 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_dom "#total-transactions", count: 1, text: "1"
   end
 
+  test "day totals add the family-currency total when entries use other currencies" do
+    family = @user.family
+    eur_account = family.accounts.create!(name: "EUR Checking", balance: 0, currency: "EUR", accountable: Depository.new)
+    day = Date.current - 40.days
+    ExchangeRate.create!(from_currency: "EUR", to_currency: family.currency, date: day, rate: 2)
+    create_transaction(account: eur_account, currency: "EUR", amount: 10, date: day)
+    create_transaction(account: accounts(:depository), currency: "USD", amount: 5, date: day)
+
+    get transactions_url(q: { start_date: day, end_date: day })
+
+    assert_select "#entry-group-#{day}-totals" do
+      assert_select "span", text: "-$5.00 | -€10.00"
+      assert_select "span", text: "≈ -$25.00"
+    end
+  end
+
+  test "day totals show a hint instead of a converted total when a rate is missing" do
+    family = @user.family
+    gbp_account = family.accounts.create!(name: "GBP Checking", balance: 0, currency: "GBP", accountable: Depository.new)
+    day = Date.current - 40.days
+    create_transaction(account: gbp_account, currency: "GBP", amount: 10, date: day)
+
+    get transactions_url(q: { start_date: day, end_date: day })
+
+    assert_select "#entry-group-#{day}-totals" do
+      assert_select "span", text: /No USD rate/
+      assert_select "span", text: /≈/, count: 0
+    end
+  end
+
+  test "day totals stay unchanged when every entry uses the family currency" do
+    day = Date.current - 40.days
+    create_transaction(account: accounts(:depository), currency: "USD", amount: 5, date: day)
+
+    get transactions_url(q: { start_date: day, end_date: day })
+
+    assert_select "#entry-group-#{day}-totals", text: "-$5.00"
+  end
+
   test "can update notes on split child transaction" do
     parent = create_transaction(account: accounts(:depository), amount: 100)
     parent.split!([ { name: "Part 1", amount: 60, category_id: nil }, { name: "Part 2", amount: 40, category_id: nil } ])

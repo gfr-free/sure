@@ -17,6 +17,40 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p.ml-auto.privacy-sensitive"
   end
 
+  test "account activity shows each day's balance in the family currency for a foreign-currency account" do
+    eur_account = @user.family.accounts.create!(name: "EUR Checking", balance: 100, currency: "EUR", accountable: Depository.new)
+    day = Date.current - 3.days
+    create_transaction(account: eur_account, currency: "EUR", amount: 10, date: day)
+    eur_account.balances.create!(date: day, balance: 100, currency: "EUR", start_cash_balance: 110, cash_inflows: 0, cash_outflows: 10)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: day, rate: 2)
+
+    get account_url(eur_account)
+
+    assert_response :success
+    assert_select "##{dom_id(eur_account, "entries_#{day}")} summary" do
+      assert_select "span", text: "€100.00"
+      assert_select "span", text: "≈ $200.00"
+    end
+  end
+
+  test "account activity hints at a missing rate instead of a converted balance" do
+    eur_account = @user.family.accounts.create!(name: "EUR Checking", balance: 100, currency: "EUR", accountable: Depository.new)
+    day = Date.current - 3.days
+    create_transaction(account: eur_account, currency: "EUR", amount: 10, date: day)
+
+    get account_url(eur_account)
+
+    assert_select "##{dom_id(eur_account, "entries_#{day}")} summary span", text: /No USD rate/
+  end
+
+  test "account activity adds no converted balance for a family-currency account" do
+    create_transaction(account: @account, currency: "USD", amount: 10, date: Date.current - 3.days)
+
+    get account_url(@account)
+
+    assert_select "##{dom_id(@account, "entries_#{Date.current - 3.days}")} summary span", text: /≈/, count: 0
+  end
+
   test "show filters account activity to uncategorized transactions" do
     uncategorized = create_transaction(account: @account, name: "Uncategorized Filter Target", category: nil)
     categorized = create_transaction(account: @account, name: "Categorized Filter Decoy", category: categories(:food_and_drink))

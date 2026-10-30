@@ -21,6 +21,11 @@
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
             <span class="font-medium privacy-sensitive"><%= end_balance_money.format %></span>
+            <% if rates %>
+              <span class="privacy-sensitive">
+                <%= render "entries/family_currency_total", total: family_currency_balance_money, currency: rates.to %>
+              </span>
+            <% end %>
             <%= render DS::Tooltip.new(text: t("UI.account.activity_date.balance_tooltip"), placement: "left", size: "sm", as: :span) %>
           </div>
           <%= helpers.icon "chevron-down", class: "group-open:rotate-180" %>

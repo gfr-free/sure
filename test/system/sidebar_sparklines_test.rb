@@ -21,6 +21,11 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
   # with a short one and every wait below is proportional to it.
   SHORT_TIMEOUT_MS = 300
 
+  # A real request may outlive the short window on a busy runner and raise the
+  # badge until its response renders over it. The badge checks therefore wait
+  # for every fetched frame to finish instead of requiring a response time.
+  SETTLE_WAIT_SECONDS = 15
+
   # Holds sparkline responses open for as long as a test needs one pending.
   # The wait has to happen inside the server thread, which the test cannot
   # reach, so a process-wide flag stands in for it; clearing the flag releases
@@ -58,6 +63,7 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
       # simply never asked for.
       assert_selector "#{GROUP_SPARKLINE_FRAME}[complete]", minimum: 1
 
+      wait_for_fetched_frames
       wait_out_timeout_window
 
       # No badge anywhere in the sidebar, group totals included.
@@ -75,8 +81,9 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
 
       expand_first_group
 
-      assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart']", minimum: 1
+      assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart']", minimum: 1, wait: SETTLE_WAIT_SECONDS
 
+      wait_for_fetched_frames
       wait_out_timeout_window
 
       assert_no_selector "#{SPARKLINE_FRAME} p", text: BADGE_TEXT, visible: :all
@@ -101,6 +108,30 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
     expand_first_group
 
     assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart'] svg path", minimum: 1
+  end
+
+  # Turbo inserts a response several repaints before turbo:frame-load fires.
+  # Holding the render open past the window makes that gap long enough for a
+  # countdown that only stops on frame-load to replace the arrived sparkline.
+  test "a response that has arrived does not raise the timeout badge while it renders" do
+    with_short_sparkline_timeout do
+      visit root_path
+
+      page.execute_script(<<~JS)
+        document.addEventListener("turbo:before-frame-render", (event) => {
+          if (!event.target.id.startsWith("sparkline_account_")) return
+          event.preventDefault()
+          setTimeout(() => event.detail.resume(), #{SHORT_TIMEOUT_MS * 5})
+        })
+      JS
+
+      expand_first_group
+
+      wait_out_timeout_window
+
+      assert_no_selector "#{ACCOUNT_SPARKLINE_FRAME} p", text: BADGE_TEXT, visible: :all
+      assert_selector "#{ACCOUNT_SPARKLINE_FRAME}[complete] [data-controller='time-series-chart'] svg path", minimum: 1
+    end
   end
 
   test "a request that never comes back still raises the timeout badge" do
@@ -132,6 +163,12 @@ class SidebarSparklinesTest < ApplicationSystemTestCase
 
     def expand_first_group
       find("#sidebar-scroll details", match: :first).find("summary").click
+    end
+
+    # Turbo marks a frame `busy` only while its request is in flight, so this
+    # waits for real responses without treating unfetched lazy frames as late.
+    def wait_for_fetched_frames
+      assert_no_selector "#{SPARKLINE_FRAME}[busy]", visible: :all, wait: SETTLE_WAIT_SECONDS
     end
 
     # Sleeping is the assertion here: the badge is an absence, and an absence

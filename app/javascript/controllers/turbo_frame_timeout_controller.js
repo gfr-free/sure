@@ -7,7 +7,11 @@ import { Controller } from "@hotwired/stimulus"
 // controller connects, or never, so the frame declares when to start:
 //
 //   data-action="turbo:before-fetch-request->turbo-frame-timeout#startTimeout
-//                turbo:frame-load->turbo-frame-timeout#clearTimeout"
+//                turbo:before-fetch-response->turbo-frame-timeout#clearTimeout"
+//
+// It stops when the response arrives, not on turbo:frame-load: Turbo inserts
+// the new content several repaints before frame-load fires, and a countdown
+// expiring in that gap would overwrite the rendered frame with the badge.
 export default class extends Controller {
   static values = { timeout: { type: Number, default: 10000 } }
 

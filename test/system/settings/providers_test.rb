@@ -108,7 +108,9 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
     assert_no_selector tooltip, text: "Coming soon!"
     page.execute_script("document.activeElement.blur()")
 
-    find(app_store, text: "App Store").hover
+    # The button is pointer-events-none, so hover the tooltip wrapper that
+    # actually receives the pointer.
+    find("[data-provider-name='apple wallet'] [data-controller='DS--tooltip']").hover
     assert_selector tooltip, text: "Coming soon!"
   end
 

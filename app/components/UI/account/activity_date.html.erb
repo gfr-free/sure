@@ -21,7 +21,7 @@
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
             <span class="font-medium privacy-sensitive"><%= end_balance_money.format %></span>
-            <% if rates %>
+            <% if rates && balance %>
               <span class="privacy-sensitive">
                 <%= render "entries/family_currency_total", total: family_currency_balance_money, currency: rates.to %>
               </span>

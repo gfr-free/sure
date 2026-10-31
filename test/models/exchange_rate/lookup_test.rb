@@ -52,8 +52,8 @@ class ExchangeRate::LookupTest < ActiveSupport::TestCase
 
     assert_queries_count(1) do
       dates.each do |date|
-        lookup.rate(from: "EUR", date: date)
-        lookup.rate(from: "GBP", date: date)
+        assert_equal 1.1, lookup.rate(from: "EUR", date: date)
+        assert_equal 1.3, lookup.rate(from: "GBP", date: date)
       end
     end
   end

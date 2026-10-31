@@ -37,10 +37,23 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     eur_account = @user.family.accounts.create!(name: "EUR Checking", balance: 100, currency: "EUR", accountable: Depository.new)
     day = Date.current - 3.days
     create_transaction(account: eur_account, currency: "EUR", amount: 10, date: day)
+    eur_account.balances.create!(date: day, balance: 100, currency: "EUR", start_cash_balance: 110, cash_inflows: 0, cash_outflows: 10)
 
     get account_url(eur_account)
 
     assert_select "##{dom_id(eur_account, "entries_#{day}")} summary span", text: /No USD rate/
+    assert_select "##{dom_id(eur_account, "entries_#{day}")} summary span", text: /≈/, count: 0
+  end
+
+  test "account activity shows no converted balance for a day without balance data" do
+    eur_account = @user.family.accounts.create!(name: "EUR Checking", balance: 100, currency: "EUR", accountable: Depository.new)
+    day = Date.current - 3.days
+    create_transaction(account: eur_account, currency: "EUR", amount: 10, date: day)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: day, rate: 2)
+
+    get account_url(eur_account)
+
+    assert_select "##{dom_id(eur_account, "entries_#{day}")} summary span", text: /≈|No USD rate/, count: 0
   end
 
   test "account activity adds no converted balance for a family-currency account" do

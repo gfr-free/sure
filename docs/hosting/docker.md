@@ -645,7 +645,7 @@ ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT="third value"
 
 ### On an instance that already has data
 
-Data written before the keys were set stays unencrypted until you convert it. With the keys active, the app can't read that data on its own: sign-in fails with "invalid email or password" and provider syncs fail. Follow these steps in order. Sign-in works again once step 5 is done, so run steps 3 to 5 right after each other:
+Data written before the keys were set stays unencrypted until you convert it. With the keys active, the app can't read that data on its own: sign-in fails with "invalid email or password" and provider syncs fail. The steps below set a temporary flag that keeps old rows readable while you convert them, so the app keeps working throughout. Follow them in order and remove the flag in step 6 once every `failed_count` is `0`:
 
 1. Take a backup and note the folder name it prints (for example `0.7.6/2026-10-27_111135-manual`):
 

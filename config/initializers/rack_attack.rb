@@ -63,7 +63,7 @@ class Rack::Attack
   # documented format for api/v1/auth/login and .../sso_link) would otherwise
   # bypass the email throttle entirely. Peek at the JSON body without
   # consuming it, so the controller still gets a fresh, unread input stream.
-  json_request_email = ->(request) do
+  json_request_payload = ->(request) do
     # Rack 3 no longer requires rack.input to be rewindable — bail out
     # without reading if the server's input stream can't be rewound, rather
     # than consuming a body the controller can never get back.
@@ -72,10 +72,12 @@ class Rack::Attack
     body = request.body.read
     request.body.rewind
     payload = JSON.parse(body)
-    payload["email"] if payload.is_a?(Hash)
+    payload if payload.is_a?(Hash)
   rescue JSON::ParserError, TypeError
     nil
   end
+
+  json_request_email = ->(request) { json_request_payload.call(request)&.[]("email") }
 
   credential_guess_email = ->(request) {
     email = request.params["email"].presence || json_request_email.call(request)
@@ -209,11 +211,16 @@ class Rack::Attack
   # Trade Republic and spend no budget.
   trade_republic_path = %r{\A/trade_republic_items(?:/(?<id>[^/.?]+)(?:/(?<action>[a-z_]+))?)?(?:\.[^./?]+)?\z}
 
+  # Rails routes "/trade_republic_items/" and "//trade_republic_items" to the
+  # same actions, so the path is matched without repeated or trailing slashes.
+  trade_republic_match = ->(request) do
+    request.path.squeeze("/").sub(%r{/+\z}, "").match(trade_republic_path)
+  end
+
   # :credential for requests that send a PIN or code, :restart for starting a
   # login again, :poll for the login polls, nil for anything else.
   trade_republic_login_kind = ->(request) do
-    match = request.path.match(trade_republic_path)
-    next unless match
+    next unless (match = trade_republic_match.call(request))
 
     if match[:id].nil?
       :credential if request.post?
@@ -244,12 +251,18 @@ class Rack::Attack
     next unless trade_republic_login_kind.call(request) == :credential
     next unless (user_id = session_user_id.call(request))
 
-    item_params = request.params["trade_republic_item"]
+    # Rails lets query parameters override body parameters (Rack's #params
+    # does the opposite) and reads a JSON body that Rack::Attack has not
+    # parsed. Read them in Rails' order, so the number that is checked is the
+    # one the controller gets.
+    item_params = request.GET.fetch("trade_republic_item") do
+      (json_request_payload.call(request) || request.POST)["trade_republic_item"]
+    end
     phone = item_params["phone_number"] if item_params.is_a?(Hash)
     # The update form leaves the phone number blank to keep the stored one,
     # and complete_login always uses the stored one. Only the signed-in
     # user's family is looked at, as in the controller.
-    item_id = request.path.match(trade_republic_path)[:id]
+    item_id = trade_republic_match.call(request)[:id]
     if phone.blank? && item_id
       phone = TradeRepublicItem.where(id: item_id, family_id: User.where(id: user_id).select(:family_id))
         .pick(:phone_number)

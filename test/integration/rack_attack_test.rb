@@ -356,6 +356,42 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_nil phone_block.call(no_session_request), "a missing session cookie must not spend the phone budget"
   end
 
+  test "trade republic throttles match the paths and parameters Rails dispatches on" do
+    user_block = Rack::Attack.throttles["trade_republic_login/user"].block
+    poll_user_block = Rack::Attack.throttles["trade_republic_login_poll/user"].block
+    phone_block = Rack::Attack.throttles["trade_republic_login/phone"].block
+    admin = users(:family_admin)
+    session = admin.sessions.create!
+    item = trade_republic_items(:configured_item)
+    user_key = "user:#{admin.id}"
+    phone_key = ->(digits) { "phone:#{Digest::SHA256.hexdigest(digits)}" }
+
+    [ "/trade_republic_items/", "/trade_republic_items//", "/trade_republic_items//#{item.id}/complete_login/" ].each do |path|
+      request = throttle_request(path, method: "POST", session_cookie: session.id)
+      assert_equal user_key, user_block.call(request), "#{path} reaches Trade Republic, so it must be throttled"
+    end
+    poll_request = throttle_request("/trade_republic_items/#{item.id}/poll_login/", method: "POST", session_cookie: session.id)
+    assert_equal user_key, poll_user_block.call(poll_request)
+
+    json_create = throttle_request("/trade_republic_items", method: "POST", session_cookie: session.id,
+      json_body: { trade_republic_item: { phone_number: "+491701234567", pin: "1234" } })
+    assert_equal phone_key.call("491701234567"), phone_block.call(json_create), "a JSON body carries the phone number too"
+
+    json_update = throttle_request("/trade_republic_items/#{item.id}", method: "PATCH", session_cookie: session.id,
+      json_body: { trade_republic_item: { phone_number: "+491709999999", pin: "1234" } })
+    assert_equal phone_key.call("491709999999"), phone_block.call(json_update)
+
+    # Rails lets the query string override the body, so a decoy number in the
+    # body must not hide the one in the query.
+    query_override = throttle_request("/trade_republic_items?trade_republic_item[phone_number]=%2B491701234567", method: "POST",
+      session_cookie: session.id, params: { trade_republic_item: { phone_number: "+490000000001" } })
+    assert_equal phone_key.call("491701234567"), phone_block.call(query_override)
+
+    json_with_query = throttle_request("/trade_republic_items?trade_republic_item[phone_number]=%2B491701234567", method: "POST",
+      session_cookie: session.id, json_body: { trade_republic_item: { phone_number: "+490000000001" } })
+    assert_equal phone_key.call("491701234567"), phone_block.call(json_with_query)
+  end
+
   test "trade republic phone throttle shares one budget across accounts that target the same phone" do
     # Signup makes every new user the admin of their own family, so one
     # attacker can hold several accounts, each with an item for the same phone.

@@ -63,7 +63,7 @@ class Rack::Attack
   # documented format for api/v1/auth/login and .../sso_link) would otherwise
   # bypass the email throttle entirely. Peek at the JSON body without
   # consuming it, so the controller still gets a fresh, unread input stream.
-  json_request_email = ->(request) do
+  json_request_payload = ->(request) do
     # Rack 3 no longer requires rack.input to be rewindable — bail out
     # without reading if the server's input stream can't be rewound, rather
     # than consuming a body the controller can never get back.
@@ -72,10 +72,12 @@ class Rack::Attack
     body = request.body.read
     request.body.rewind
     payload = JSON.parse(body)
-    payload["email"] if payload.is_a?(Hash)
+    payload if payload.is_a?(Hash)
   rescue JSON::ParserError, TypeError
     nil
   end
+
+  json_request_email = ->(request) { json_request_payload.call(request)&.[]("email") }
 
   credential_guess_email = ->(request) {
     email = request.params["email"].presence || json_request_email.call(request)
@@ -143,31 +145,41 @@ class Rack::Attack
     credential_guess_email.call(request) if request.post? && credential_guess_path.call(request, "/api/v1/auth/sso_link")
   end
 
-  # Self-service password change checks the current password
-  # (password_challenge) for a signed-in user, so there's no email param. The
-  # signed session cookie leads to the user whose password is being checked
-  # (the impersonated user while an impersonation is in progress, like
-  # Current.user), so neither rotating IPs nor holding several sessions buys
-  # more guesses. Only PATCH/PUT /password pays for the lookup, and it is
-  # memoized on the request so both throttles share it.
-  password_change_user = ->(request) do
-    request.env.fetch("sure.password_change_user") do
-      request.env["sure.password_change_user"] = begin
+  # The signed-in user behind a request, keyed like Current.user: the signed
+  # session cookie leads to the session's owner, or to the impersonated user
+  # while an impersonation is in progress. Keying a throttle by it means
+  # neither rotating IPs nor holding several sessions buys more attempts.
+  # Only requests on a throttled path pay for the lookup, and it is memoized
+  # on the request so every throttle on that path shares it.
+  session_user_id = ->(request) do
+    request.env.fetch("sure.session_user_id") do
+      request.env["sure.session_user_id"] = begin
         session_id = ActionDispatch::Request.new(request.env).cookie_jar.signed[:session_token]
-        # Same check as Authentication#find_session_by_cookie: a session whose
-        # owner was deactivated is rejected there, so it isn't counted here.
+        # Same checks as Session.find_active_by_cookie: a session whose owner
+        # was deactivated, or that sat idle too long, is rejected there, so it
+        # isn't counted here.
         if session_id.present?
-          user_id, impersonation_id = Session.joins(:user).where(id: session_id, users: { active: true })
+          user_id, impersonation_id = Session.joins(:user)
+            .where(id: session_id, users: { active: true })
+            .where(sessions: { updated_at: Session::INACTIVITY_TIMEOUT.ago.. })
             .pick(:user_id, :active_impersonator_session_id)
         end
         if impersonation_id
           user_id = ImpersonationSession.in_progress.where(id: impersonation_id).pick(:impersonated_id) || user_id
         end
-        "user:#{user_id}" if user_id
+        user_id
       end
     end
   end
 
+  session_user = ->(request) do
+    user_id = session_user_id.call(request)
+    "user:#{user_id}" if user_id
+  end
+
+  # Self-service password change checks the current password
+  # (password_challenge) for a signed-in user, so there's no email param; the
+  # user whose password is being checked is the discriminator instead.
   # Rack::MethodOverride runs earlier in the stack, so the form's
   # `_method=patch` already shows up as PATCH here.
   password_change_request = ->(request) do
@@ -177,11 +189,107 @@ class Rack::Attack
   # Requests without a valid session never reach the password check (they're
   # redirected to sign in), so they don't spend the shared per-IP budget.
   throttle("password_change/ip", limit: 10, period: 1.minute) do |request|
-    request.ip if password_change_request.call(request) && password_change_user.call(request)
+    request.ip if password_change_request.call(request) && session_user.call(request)
   end
 
   throttle("password_change/user", limit: 10, period: 1.minute) do |request|
-    password_change_user.call(request) if password_change_request.call(request)
+    session_user.call(request) if password_change_request.call(request)
+  end
+
+  # Trade Republic web login. Creating a connection, or updating its phone
+  # number or PIN, sends the submitted PIN to Trade Republic with the phone
+  # number and asks that phone for a confirmation; complete_login checks the
+  # submitted authenticator code there. Unlike the endpoints above, the check
+  # happens at Trade Republic rather than against a stored value, but it has
+  # the same guessing shape. Unbounded, a signed-in attacker could guess a PIN
+  # or code, or flood the phone's owner with confirmations. Besides ip and
+  # signed-in user, these are keyed by the target phone number: signup creates
+  # a family admin, so several accounts could otherwise each spend their own
+  # budget against one phone. Starting a login again (initiate_login,
+  # initiate_qr_login) sends no credential, so it is only keyed by ip and
+  # user. Requests without a valid session are redirected before reaching
+  # Trade Republic and spend no budget.
+  trade_republic_path = %r{\A/trade_republic_items(?:/(?<id>[^/.?]+)(?:/(?<action>[a-z_]+))?)?(?:\.[^./?]+)?\z}
+
+  # Rails routes "/trade_republic_items/" and "//trade_republic_items" to the
+  # same actions, so the path is matched without repeated or trailing slashes.
+  trade_republic_match = ->(request) do
+    request.path.squeeze("/").sub(%r{/+\z}, "").match(trade_republic_path)
+  end
+
+  # :credential for requests that send a PIN or code, :restart for starting a
+  # login again, :poll for the login polls, nil for anything else.
+  trade_republic_login_kind = ->(request) do
+    next unless (match = trade_republic_match.call(request))
+
+    if match[:id].nil?
+      :credential if request.post?
+    elsif match[:action].nil?
+      :credential if request.patch? || request.put?
+    elsif request.post?
+      case match[:action]
+      when "complete_login" then :credential
+      when "initiate_login", "initiate_qr_login" then :restart
+      when "poll_login", "poll_qr_login" then :poll
+      end
+    end
+  end
+
+  trade_republic_login_attempt = ->(request) do
+    trade_republic_login_kind.call(request).in?(%i[credential restart])
+  end
+
+  # The browser polls once a second, faster just before a QR code rotates,
+  # for up to two minutes; Settings and Accounts can each poll the same login,
+  # and a family may run several. Polls carry no credential, so the budget
+  # only bounds the Trade Republic round trip each one makes.
+  trade_republic_login_poll = ->(request) do
+    trade_republic_login_kind.call(request) == :poll
+  end
+
+  trade_republic_login_phone = ->(request) do
+    next unless trade_republic_login_kind.call(request) == :credential
+    next unless (user_id = session_user_id.call(request))
+
+    # Rails lets query parameters override body parameters (Rack's #params
+    # does the opposite) and reads a JSON body that Rack::Attack has not
+    # parsed. Read them in Rails' order, so the number that is checked is the
+    # one the controller gets.
+    item_params = request.GET.fetch("trade_republic_item") do
+      (json_request_payload.call(request) || request.POST)["trade_republic_item"]
+    end
+    phone = item_params["phone_number"] if item_params.is_a?(Hash)
+    # The update form leaves the phone number blank to keep the stored one,
+    # and complete_login always uses the stored one. Only the signed-in
+    # user's family is looked at, as in the controller.
+    item_id = trade_republic_match.call(request)[:id]
+    if phone.blank? && item_id
+      phone = TradeRepublicItem.where(id: item_id, family_id: User.where(id: user_id).select(:family_id))
+        .pick(:phone_number)
+    end
+    digits = phone.to_s.gsub(/\D/, "").sub(/\A0+/, "")
+    # The cache only ever sees a digest of the number.
+    "phone:#{Digest::SHA256.hexdigest(digits)}" if digits.present?
+  end
+
+  throttle("trade_republic_login/ip", limit: 10, period: 1.minute) do |request|
+    request.ip if trade_republic_login_attempt.call(request) && session_user.call(request)
+  end
+
+  throttle("trade_republic_login/user", limit: 10, period: 1.minute) do |request|
+    session_user.call(request) if trade_republic_login_attempt.call(request)
+  end
+
+  throttle("trade_republic_login/phone", limit: 10, period: 1.minute) do |request|
+    trade_republic_login_phone.call(request)
+  end
+
+  throttle("trade_republic_login_poll/ip", limit: 300, period: 1.minute) do |request|
+    request.ip if trade_republic_login_poll.call(request) && session_user.call(request)
+  end
+
+  throttle("trade_republic_login_poll/user", limit: 300, period: 1.minute) do |request|
+    session_user.call(request) if trade_republic_login_poll.call(request)
   end
 
   # FinanceKit publisher endpoints belong to this section: both the upload and

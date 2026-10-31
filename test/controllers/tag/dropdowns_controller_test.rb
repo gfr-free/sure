@@ -18,6 +18,15 @@ class Tag::DropdownsControllerTest < ActionDispatch::IntegrationTest
     assert_select "##{dom_id(@entry, :tag_option)}_#{tags(:two).id}[aria-selected=false]"
   end
 
+  test "renders the search field through DS::SearchInput" do
+    get tag_dropdown_url(entry_id: @entry.id)
+
+    assert_response :success
+    assert_select "div.focus-ring-within input[type=search][role=combobox][aria-autocomplete=list]" \
+                  "[data-list-filter-target=input][autocomplete=off]", count: 1
+    assert_select "input[autocomplete=nope]", count: 0
+  end
+
   test "does not load another family's transaction" do
     other_entry = entries(:transaction)
     sign_in users(:empty)

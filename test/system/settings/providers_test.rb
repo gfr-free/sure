@@ -90,12 +90,32 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
     within available_provider_cards_container do
       assert_text "US / UK"
       assert_text "Bank"
-      assert_button "App Store", disabled: true
-      assert_selector '[title="Coming soon!"]'
+      assert_selector "button[aria-disabled='true']", text: "App Store"
       assert_no_selector "a[data-turbo-frame='drawer']", visible: true
       find('[data-providers-filter-target="card"]', text: "Apple Wallet").native.save_screenshot(
         Rails.root.join("tmp", "apple-wallet-available.png"))
     end
+
+    app_store = "[data-provider-name='apple wallet'] button[aria-disabled='true']"
+    tooltip = "[data-provider-name='apple wallet'] [role='tooltip']"
+    assert_no_selector tooltip, text: "Coming soon!"
+
+    # Keyboard users reach the aria-disabled button and get the hint; Escape
+    # dismisses it.
+    page.execute_script("arguments[0].focus()", find(app_store, text: "App Store"))
+    assert_selector tooltip, text: "Coming soon!"
+    find(app_store, text: "App Store").send_keys(:escape)
+    assert_no_selector tooltip, text: "Coming soon!"
+    page.execute_script("document.activeElement.blur()")
+
+    # The button is pointer-events-none, so the pointer lands on the tooltip
+    # wrapper; dispatch the mouseenter it listens for instead of relying on
+    # driver-specific pointer movement.
+    page.execute_script(
+      "arguments[0].closest('span[data-controller]').dispatchEvent(new MouseEvent('mouseenter'))",
+      find(app_store, text: "App Store")
+    )
+    assert_selector tooltip, text: "Coming soon!"
   end
 
   test "Wallet unlink confirmation disconnects the publisher and keeps account activity" do

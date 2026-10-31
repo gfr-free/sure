@@ -24,8 +24,8 @@ class Settings::ProvidersControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "div[data-provider-name='apple wallet'][data-provider-region='us / uk'][data-provider-kind='bank']" do
-      assert_select "button[disabled]", text: "App Store"
-      assert_select "span[title='Coming soon!']"
+      assert_select "button[aria-disabled=true]", text: "App Store"
+      assert_select "[role=tooltip]", text: "Coming soon!"
       assert_select "a", count: 0
       assert_select "p", text: "US / UK · Bank"
     end
@@ -75,7 +75,7 @@ class Settings::ProvidersControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "details#financekit-connection", count: 0
-    assert_select "[data-provider-name='apple wallet'] button[disabled]", text: "App Store"
+    assert_select "[data-provider-name='apple wallet'] button[aria-disabled=true]", text: "App Store"
   end
 
   test "Wallet-only connections never offer Sync all including when repair is needed" do

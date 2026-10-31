@@ -1,19 +1,18 @@
 <%= turbo_frame_tag "tag_dropdown" do %>
   <div class="flex flex-col relative" data-controller="list-filter">
     <div class="grow p-1.5">
-      <div class="relative flex items-center bg-container border border-secondary rounded-lg">
-        <input
-          placeholder="<%= t(".search_placeholder") %>"
-          autocomplete="nope"
-          type="search"
-          role="combobox"
-          aria-label="<%= t(".search_placeholder") %>"
-          aria-expanded="false"
-          aria-autocomplete="list"
-          class="bg-container placeholder:text-sm placeholder:text-secondary font-normal h-10 relative pl-10 w-full border-none rounded-lg focus:outline-hidden focus:ring-0"
-          data-list-filter-target="input"
-          data-action="list-filter#filter keydown->list-filter#handleKeydown">
-        <%= icon("search", class: "absolute inset-0 ml-2 transform top-1/2 -translate-y-1/2") %>
+      <div class="flex items-center bg-container border border-secondary rounded-lg focus-ring-within">
+        <%= render DS::SearchInput.new(
+              variant: :embedded,
+              class: "flex-1 min-w-0",
+              placeholder: t(".search_placeholder"),
+              role: "combobox",
+              aria: { expanded: false, autocomplete: "list" },
+              data: {
+                list_filter_target: "input",
+                action: "list-filter#filter keydown->list-filter#handleKeydown"
+              }
+            ) %>
       </div>
     </div>
 

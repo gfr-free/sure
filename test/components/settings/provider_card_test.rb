@@ -16,9 +16,19 @@ class Settings::ProviderCardTest < ViewComponent::TestCase
     render_inline(Settings::ProviderCard.new(provider_key: "example", name: "Example",
       external_link: { text: "Provider website", href: nil, tooltip: "Setup unavailable" }))
 
-    assert_selector "button[disabled]", text: "Provider website"
-    assert_selector "[title='Setup unavailable'][tabindex='0'][aria-description='Setup unavailable']"
+    button = page.find("[data-controller='DS--tooltip'] button[aria-disabled='true']", text: "Provider website")
+    assert_selector "[role='tooltip']##{button['aria-describedby']}", text: "Setup unavailable", visible: :all
+    assert_no_selector "button[disabled]"
+    assert_no_selector "[title]"
     assert_no_selector "a"
+  end
+
+  test "external setup without a URL or tooltip renders a plain disabled button" do
+    render_inline(Settings::ProviderCard.new(provider_key: "example", name: "Example",
+      external_link: { text: "Provider website", href: nil }))
+
+    assert_selector "button[disabled]", text: "Provider website"
+    assert_no_selector "[role='tooltip']", visible: :all
   end
 
   test "regular providers still open the connection drawer" do

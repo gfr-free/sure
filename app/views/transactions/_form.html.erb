@@ -1,7 +1,7 @@
 <%# locals: (entry:, account_currencies:, manual_accounts:, categories:, merchants:, tags:) %>
 <% auto_generate_names = Current.family.auto_generate_transaction_names? %>
 
-<%= styled_form_with model: entry, url: transactions_path, class: "space-y-4", data: { controller: auto_generate_names ? "transaction-form transaction-name-preview category-suggestion" : "transaction-form category-suggestion", action: "formdata->category-suggestion#syncName hw-combobox:selection->category-suggestion#onNameSuggestionSelected turbo:before-cache@document->transaction-form#refreshIdempotencyKey pageshow@window->transaction-form#refreshIdempotencyKeyIfPersisted", transaction_form_exchange_rate_url_value: exchange_rate_path, transaction_form_account_currencies_value: account_currencies.to_json } do |f| %>
+<%= styled_form_with model: entry, url: transactions_path, multipart: true, class: "space-y-4", data: { controller: auto_generate_names ? "transaction-form transaction-name-preview category-suggestion" : "transaction-form category-suggestion", action: "formdata->category-suggestion#syncName hw-combobox:selection->category-suggestion#onNameSuggestionSelected turbo:before-cache@document->transaction-form#refreshIdempotencyKey pageshow@window->transaction-form#refreshIdempotencyKeyIfPersisted", transaction_form_exchange_rate_url_value: exchange_rate_path, transaction_form_account_currencies_value: account_currencies.to_json } do |f| %>
   <% if entry.errors.any? %>
     <%= render "shared/form_errors", model: entry %>
   <% end %>
@@ -111,7 +111,7 @@
       destination_input: destination_input %>
   </section>
 
-  <%= render DS::Disclosure.new(title: t(".details")) do %>
+  <%= render DS::Disclosure.new(title: t(".details"), open: @reselect_attachments) do %>
     <section class="space-y-2">
       <%= f.fields_for :entryable do |ef| %>
         <%= render DS::MerchantSelect.new(
@@ -133,6 +133,18 @@
                       placeholder: t(".note_placeholder"),
                       rows: 5,
                       "data-auto-submit-form-target": "auto" %>
+
+      <div data-controller="attachment-upload"
+           data-attachment-upload-max-files-value="<%= Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>"
+           data-attachment-upload-max-size-value="<%= Transaction::MAX_ATTACHMENT_SIZE %>">
+        <%= f.label :attachments, t(".attachments_label"), class: "block text-sm text-secondary mb-1" %>
+        <% if @reselect_attachments %>
+          <div class="mb-2">
+            <%= render DS::Alert.new(message: t(".attachments_reselect"), variant: :warning) %>
+          </div>
+        <% end %>
+        <%= render "transactions/attachment_dropzone", form: f %>
+      </div>
     </section>
   <% end %>
 

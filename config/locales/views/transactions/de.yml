@@ -6,6 +6,8 @@ de:
       account: Konto
       account_prompt: Konto auswählen
       amount: Betrag
+      attachments_label: Anhänge
+      attachments_reselect: Bitte wähle deine Dateien vor dem Absenden erneut aus.
       category: Kategorie
       category_search_placeholder: Kategorien suchen
       category_prompt: Kategorie auswählen

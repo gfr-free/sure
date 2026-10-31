@@ -49,6 +49,15 @@ export default class AttachmentUploadController extends Controller {
       if (this.hasFileNameTarget) this.fileNameTarget.classList.add("hidden")
     }
 
+    // Inside another form (new transaction) its own submit button stays as is:
+    // an invalid selection blocks that form's submit and the dropzone says why.
+    if (!this.hasSubmitButtonTarget) {
+      this.fileInputTarget.setCustomValidity(errorMessage)
+      const textElement = this.hasFileNameTarget && this.fileNameTarget.querySelector("p")
+      if (errorMessage && textElement) textElement.textContent = errorMessage
+      return
+    }
+
     this.submitButtonTarget.disabled = !isValid
 
     if (hasFiles && isValid) {

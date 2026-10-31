@@ -29,6 +29,8 @@ en:
       account: Account
       account_prompt: Select an Account
       amount: Amount
+      attachments_label: Attachments
+      attachments_reselect: Please select your files again before submitting.
       category: Category
       category_label: Category
       category_prompt: Select a Category

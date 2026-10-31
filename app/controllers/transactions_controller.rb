@@ -156,6 +156,7 @@ class TransactionsController < ApplicationController
     end
 
     @entry = account.entries.new(entry_params_with_idempotency_key(idempotency_key))
+    files_picked = attach_new_transaction_files(@entry)
 
     if @entry.save
       @entry.sync_account_later
@@ -167,6 +168,8 @@ class TransactionsController < ApplicationController
     else
       clear_stale_auto_generated_name!(@entry)
       set_new_transaction_form_options
+      # Browsers can't refill a file input, so the form asks for the files again.
+      @reselect_attachments = files_picked
       render :new, status: :unprocessable_entity
     end
   rescue ActiveRecord::RecordNotUnique
@@ -659,6 +662,23 @@ class TransactionsController < ApplicationController
       # disabling its date/nature/amount/currency fields in the editor, and
       # hiding it from future provider dedup matching.
       entry_params.merge(idempotency_key: idempotency_key)
+    end
+
+    # Files picked in the new-transaction form are attached to the unsaved
+    # transaction, so they go through Transaction#validate_attachments and are
+    # only stored once the entry commits. A repeated submission short-circuits
+    # to the existing entry above and never reaches this, so it can't attach
+    # the files a second time. Only real uploads are accepted: a string would
+    # be treated by Active Storage as a signed blob id. Returns whether any
+    # file was attached.
+    def attach_new_transaction_files(entry)
+      return false unless entry.entryable.is_a?(Transaction)
+
+      files = Array(params.dig(:entry, :attachments)).grep(ActionDispatch::Http::UploadedFile)
+      return false if files.empty?
+
+      entry.entryable.attachments.attach(files)
+      true
     end
 
     def find_duplicate_manual_entry(account, idempotency_key)

@@ -1,5 +1,8 @@
 ---
 en:
+  planning_features:
+    budgets_disabled: Budgets are turned off. An admin can turn them back on in Settings → Preferences.
+    plan_disabled: Plan is turned off. An admin can turn it back on in Settings → Preferences.
   plans:
     show:
       title: Plan

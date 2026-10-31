@@ -1,6 +1,8 @@
 class Settings::BudgetSharesController < ApplicationController
   layout "settings"
 
+  before_action :ensure_budgets_enabled
+
   def update
     eligible_members = Current.family.users.where.not(id: Current.user.id).where(active: true)
 

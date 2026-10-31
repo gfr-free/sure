@@ -913,6 +913,20 @@ class UserTest < ActiveSupport::TestCase
     assert_equal user, plaid_item.owner
   end
 
+  test "transfer_to_family! detaches moved accounts from imports of the old family" do
+    user = users(:family_member)
+    source_family = user.family
+    import = source_family.imports.create!(type: "AccountImport", user: user)
+    account = Account.create!(family: source_family, owner: user, import: import, name: "Imported Checking", balance: 100, currency: "USD", accountable: Depository.new)
+    entry = account.entries.create!(name: "Imported", date: Date.current, amount: 10, currency: "USD", import: import, entryable: Transaction.new)
+
+    user.transfer_to_family!(Family.create!(name: "Transferred Import Family"), role: "admin")
+    import.revert
+
+    assert_nil account.reload.import_id
+    assert_nil entry.reload.import_id
+  end
+
   test "transfer_to_family! moves unmapped FinanceKit items owned by the user" do
     user = users(:family_member)
     source_family = user.family

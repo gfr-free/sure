@@ -793,6 +793,16 @@ class QifImportTest < ActiveSupport::TestCase
     assert_in_delta 50, grocery.amount, 0.01
   end
 
+  test "import! assigns QIF accounts to the importing user" do
+    @import.update!(account: nil, user: users(:family_member), raw_file_str: QIF_WITH_ACCOUNTS)
+    @import.generate_rows_from_csv
+    @import.sync_mappings
+    @import.import!
+
+    assert_equal users(:family_member), @family.accounts.find_by!(name: "QIF Checking").owner
+    assert_equal users(:family_member), @family.accounts.find_by!(name: "QIF Visa").owner
+  end
+
   test "import! routes mixed transaction and investment sections independently" do
     @import.update!(account: nil, raw_file_str: QIF_WITH_MIXED_ACCOUNT_TYPES)
     @import.generate_rows_from_csv

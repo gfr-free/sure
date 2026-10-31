@@ -159,14 +159,14 @@ class SureImport < Import
     raise
   end
 
-  def publish_later
+  def publish_later(user: self.user)
     raise MaxRowCountExceededError if row_count_exceeded?
 
     validate_sure_preflight!
     raise NotPublishableError, "Import was uploaded but has no publishable records." unless publishable?
 
     previous_status = status
-    update! status: :importing
+    update! status: :importing, user: user
 
     begin
       ImportJob.perform_later(self)

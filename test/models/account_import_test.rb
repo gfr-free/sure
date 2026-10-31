@@ -95,6 +95,55 @@ class AccountImportTest < ActiveSupport::TestCase
     end
   end
 
+  test "import assigns created accounts to the importing user" do
+    member = users(:family_member)
+    @import.update!(user: member)
+    publish_single_account_import
+
+    account = @import.accounts.sole
+    assert_equal member, account.owner
+    assert_includes Account.accessible_by(member), account
+  end
+
+  test "import shares created accounts with the family by default" do
+    @import.update!(user: users(:family_member))
+    publish_single_account_import
+
+    account = @import.accounts.sole
+    assert_includes Account.accessible_by(users(:family_admin)), account
+  end
+
+  test "import keeps created accounts private under a private sharing default" do
+    @import.family.update!(default_account_sharing: "private")
+    @import.update!(user: users(:family_member))
+    publish_single_account_import
+
+    assert_empty @import.accounts.sole.account_shares
+  end
+
+  test "import falls back to the default owner when the importing user is deactivated" do
+    @import.update!(user: users(:family_member))
+    users(:family_member).update_column(:active, false)
+    publish_single_account_import
+
+    assert_equal users(:family_admin), @import.accounts.sole.owner
+  end
+
+  test "import falls back to the default owner without an importing user" do
+    @import.update!(user: nil)
+    publish_single_account_import
+
+    assert_equal users(:family_admin), @import.accounts.sole.owner
+  end
+
+  test "import falls back to the default owner when the importing user left the family" do
+    @import.update!(user: users(:family_member))
+    users(:family_member).update_column(:family_id, families(:empty).id)
+    publish_single_account_import
+
+    assert_equal users(:family_admin), @import.accounts.sole.owner
+  end
+
   test "import creates accounts with explicit balance dates" do
     import_csv = <<~CSV
       type,name,amount,currency,date
@@ -209,4 +258,22 @@ class AccountImportTest < ActiveSupport::TestCase
   test "max_row_count is limited to 50" do
     assert_equal 50, @import.max_row_count
   end
+  private
+    def publish_single_account_import
+      @import.update!(
+        raw_file_str: "type,name,amount,currency\ndepository,Imported Checking,1000.00,USD\n",
+        entity_type_col_label: "type",
+        name_col_label: "name",
+        amount_col_label: "amount",
+        currency_col_label: "currency"
+      )
+      @import.generate_rows_from_csv
+      @import.mappings.create! key: "depository", value: "Depository", type: "Import::AccountTypeMapping"
+      @import.reload
+
+      assert_nil Current.user
+      @import.publish
+
+      assert @import.complete?, "Import failed: #{@import.error}"
+    end
 end

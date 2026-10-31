@@ -113,7 +113,7 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
     # Move the pointer off first so the hover below always yields a fresh
     # mouseenter, wherever a previous test left the pointer.
     find("[data-provider-name='apple wallet'] p", match: :first).hover
-    find("[data-provider-name='apple wallet'] [data-controller='DS--tooltip']").hover
+    find(app_store).find(:xpath, "ancestor::span[@data-controller][1]").hover
     assert_selector tooltip, text: "Coming soon!"
   end
 

@@ -108,12 +108,13 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
     assert_no_selector tooltip, text: "Coming soon!"
     page.execute_script("document.activeElement.blur()")
 
-    # The button is pointer-events-none, so hover the tooltip wrapper that
-    # actually receives the pointer.
-    # Move the pointer off first so the hover below always yields a fresh
-    # mouseenter, wherever a previous test left the pointer.
-    find("[data-provider-name='apple wallet'] p", match: :first).hover
-    find(app_store).find(:xpath, "ancestor::span[@data-controller][1]").hover
+    # The button is pointer-events-none, so the pointer lands on the tooltip
+    # wrapper; dispatch the mouseenter it listens for instead of relying on
+    # driver-specific pointer movement.
+    page.execute_script(
+      "arguments[0].closest('span[data-controller]').dispatchEvent(new MouseEvent('mouseenter'))",
+      find(app_store, text: "App Store")
+    )
     assert_selector tooltip, text: "Coming soon!"
   end
 

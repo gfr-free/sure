@@ -110,6 +110,9 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
 
     # The button is pointer-events-none, so hover the tooltip wrapper that
     # actually receives the pointer.
+    # Move the pointer off first so the hover below always yields a fresh
+    # mouseenter, wherever a previous test left the pointer.
+    find("[data-provider-name='apple wallet'] p", match: :first).hover
     find("[data-provider-name='apple wallet'] [data-controller='DS--tooltip']").hover
     assert_selector tooltip, text: "Coming soon!"
   end

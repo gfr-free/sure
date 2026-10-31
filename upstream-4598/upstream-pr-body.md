@@ -11,22 +11,24 @@ I confirmed the cause by logging Turbo events and the controller in the browser 
 
 ## Change
 
-- `turbo_frame_timeout_controller.js`: new `responseReceived(event)` clears the countdown when a successful response arrives (`event.detail.fetchResponse.succeeded`). Error responses (404, 500, login redirect) keep counting, so they still end in the badge, as today.
-- `AccountsHelper#sparkline_frame_data`: wires `turbo:before-fetch-response->turbo-frame-timeout#responseReceived` instead of `turbo:frame-load->turbo-frame-timeout#clearTimeout`.
+- `AccountsHelper#sparkline_frame_data`: clears the countdown on `turbo:before-frame-render` instead of `turbo:frame-load`. Turbo dispatches it only when the response contains the matching frame, right before inserting it, so the countdown can no longer expire in the render gap.
+- Responses without the frame never reach that event and keep counting, so they still end in the badge, as today: errors (404, 500) and the sign-in page a request is redirected to after the session expired (Turbo dispatches `turbo:frame-missing` there).
+- `turbo_frame_timeout_controller.js`: header comment updated; no new method.
 - Sidebar fragment cache version `account_sidebar_tabs_v5` → `v6`. The fragment is cached for 12 h with `skip_digest: true`, so cached markup would otherwise keep the old wiring.
 - `test/system/sidebar_sparklines_test.rb`:
   - Badge checks first wait until no frame is `busy` (Turbo sets it only while a request is in flight), then wait out the window and check all frames, group totals included. A slow runner no longer fails them, while a countdown that is never cleared still does.
   - New: "a sparkline that has rendered is not replaced by the timeout badge". It slows the repaints Turbo waits for after inserting the response, so the window expires inside the gap, and it asserts that the responses arrived before the window. It fails deterministically on the old wiring.
-  - New: "an error response still raises the timeout badge" (server answers 500).
+  - New: "an error response still raises the timeout badge" (server answers 500) and "a response without the sparkline frame still raises the timeout badge" (server answers a page without the frame, like the sign-in page after a redirect). Both run with a 1.5 s window and assert that the response arrived inside it, so the badge proves the response did not clear the countdown.
 
 ## Validation
 
 - `bin/rails test`: full suite green.
-- `test/system/sidebar_sparklines_test.rb`: 20 consecutive runs green.
+- `test/system/sidebar_sparklines_test.rb`: 20 consecutive runs green with the first version, 8 more with the `turbo:before-frame-render` wiring.
 - Mutation checks:
-  - Countdown never cleared → 2 tests fail.
+  - Countdown never cleared → 3 tests fail.
   - Countdown started in `connect()` (the bug fixed in #3576) → 3 tests fail.
-  - Every response clears the countdown → the error test fails.
+  - Every response clears the countdown → the error test and the missing-frame test fail.
+  - Every successful response clears the countdown (`fetchResponse.succeeded`) → the missing-frame test fails.
   - Old `turbo:frame-load` wiring → the render-gap test fails (5/5 runs).
 - Rubocop, erb_lint, `biome lint` and Brakeman are clean.
 

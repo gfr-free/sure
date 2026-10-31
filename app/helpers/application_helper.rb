@@ -190,6 +190,19 @@ module ApplicationHelper
               .join(separator)
   end
 
+  # Sums the collection in `rates.to`, converting each item at its own date.
+  # Returns nil when any item lacks a cached rate, so callers show a hint
+  # instead of a total that silently treats the gap as 1:1.
+  def converted_total(collection:, money_method:, rates:, negate: false)
+    amounts = without_transfers(collection).map do |item|
+      rates.convert(item.public_send(money_method), date: item.date)
+    end
+    return nil if amounts.any?(&:nil?)
+
+    total = amounts.sum(Money.new(0, rates.to))
+    negate ? -total : total
+  end
+
   def currency_picker_options_for_family(family = Current.family, extra: [])
     return Money::Currency.as_options.map(&:iso_code) unless family
 
@@ -303,15 +316,18 @@ module ApplicationHelper
 
     # Exclude transfers while preserving the original group currency even when its total is zero.
     def calculate_total(item, money_method, negate)
-      # Filter out transfer-type transactions from entries
-      # Only Entry objects have entryable transactions, Account objects don't
-      items = item.reject do |i|
+      items = without_transfers(item)
+      # Keep the group's currency when every entry is excluded from the total.
+      total = items.sum(Money.new(0, item.first.currency), &money_method)
+      negate ? -total : total
+    end
+
+    # Only Entry objects have entryable transactions, Account objects don't
+    def without_transfers(items)
+      items.reject do |i|
         i.is_a?(Entry) &&
         i.entryable.is_a?(Transaction) &&
         i.entryable.transfer?
       end
-      # Keep the group's currency when every entry is excluded from the total.
-      total = items.sum(Money.new(0, item.first.currency), &money_method)
-      negate ? -total : total
     end
 end

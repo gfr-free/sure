@@ -1,4 +1,4 @@
-<%# locals: (date:, entries:, content:, totals: false) %>
+<%# locals: (date:, entries:, content:, totals: false, rates: nil) %>
 
 <div id="entry-group-<%= date %>" class="bg-container-inset rounded-xl p-1 w-full" data-bulk-select-target="group">
   <div class="py-2 px-4 flex items-center justify-between font-medium text-xs text-secondary">
@@ -19,8 +19,11 @@
     </div>
 
     <% if totals %>
-      <div id="entry-group-<%= date %>-totals" class="privacy-sensitive">
-        <%= totals_by_currency(collection: entries, money_method: :amount_money, negate: true) %>
+      <div id="entry-group-<%= date %>-totals" class="privacy-sensitive flex items-center gap-2">
+        <span><%= totals_by_currency(collection: entries, money_method: :amount_money, negate: true) %></span>
+        <% if show_family_currency_total?(entries, rates) %>
+          <%= render "entries/family_currency_total", total: converted_total(collection: entries, money_method: :amount_money, rates:, negate: true), currency: rates.to %>
+        <% end %>
       </div>
     <% end %>
   </div>

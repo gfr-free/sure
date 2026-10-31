@@ -1,0 +1,14 @@
+<%# locals: (total:, currency:) %>
+
+<% if total %>
+  <%= render DS::Tooltip.new(text: t("entries.family_currency_total.converted_tooltip", currency:), as: :span) do |tooltip| %>
+    <% tooltip.with_trigger do %>
+      <span class="text-primary"><%= t("entries.family_currency_total.converted", amount: format_money(total)) %></span>
+    <% end %>
+  <% end %>
+<% else %>
+  <span class="flex items-center gap-1 text-warning">
+    <%= t("entries.family_currency_total.missing_rate", currency:) %>
+    <%= render DS::Tooltip.new(text: t("entries.family_currency_total.missing_rate_tooltip", currency:), icon: "alert-circle", size: "xs", color: "warning", as: :span) %>
+  </span>
+<% end %>

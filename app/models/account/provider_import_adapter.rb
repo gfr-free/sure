@@ -1094,6 +1094,10 @@ class Account::ProviderImportAdapter
 
   private
 
+    def external_id_taken?(external_id)
+      account.holdings.where(external_id: external_id).exists?
+    end
+
     # The latest earlier holding of the security the provider reports. A
     # remapped row records that security in provider_security_id; an
     # unremapped one has it as its own security. A provider that reports the
@@ -1106,10 +1110,6 @@ class Account::ProviderImportAdapter
     # remaps (A onto B, B onto C) an incoming B matches both the B->C row and
     # the A->B row on the same date. `id` settles anything left, so the pick
     # never depends on the query plan.
-    def external_id_taken?(external_id)
-      account.holdings.where(external_id: external_id).exists?
-    end
-
     def previous_holding_for(security:, currency:, date:, account_provider_id:)
       scope = account.holdings
         .where(currency: currency)

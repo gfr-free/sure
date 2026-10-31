@@ -758,6 +758,8 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "index searches by email, name and family name" do
+    skip "names are encrypted, see the encrypted search test" if User.encryption_ready?
+
     get admin_users_url(q: "BOBDYLAN.com")
     assert_response :success
     assert_includes response.body, users(:family_admin).email
@@ -772,10 +774,40 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, users(:family_admin).email
   end
 
+  test "index search matches the full email and family name when user data is encrypted" do
+    skip "Encryption not configured" unless User.encryption_ready?
+
+    get admin_users_url(q: " BOB@bobdylan.com ")
+    assert_response :success
+    assert_includes response.body, users(:family_admin).email
+    assert_not_includes response.body, users(:family_member).email
+    assert_includes response.body, I18n.t("admin.users.index.filters.search_encrypted_hint")
+
+    get admin_users_url(q: "Inactive Trial")
+    assert_includes response.body, users(:inactive_trial_user).email
+    assert_not_includes response.body, users(:family_admin).email
+
+    get admin_users_url(q: "iv")
+    assert_not_includes response.body, users(:family_admin).email
+  end
+
   test "index search treats like wildcards literally" do
     get admin_users_url(q: "%")
     assert_response :success
     assert_includes response.body, I18n.t("admin.users.index.no_users")
+  end
+
+  test "index falls back to the first page for invalid page params" do
+    get admin_users_url(page: 0)
+    assert_response :success
+
+    get admin_users_url, params: { page: [ "1" ] }
+    assert_response :success
+  end
+
+  test "index detail links keep the list search and page" do
+    get admin_users_url(q: "dylan")
+    assert_select "a[href='#{admin_user_path(users(:family_admin), q: "dylan")}']"
   end
 
   test "index links each user to their detail page" do
@@ -783,10 +815,12 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{admin_user_path(users(:family_admin))}']", text: users(:family_admin).display_name
   end
 
-  test "show renders counters for the user's family without balances" do
+  test "show renders counters for the user's family without balances or error texts" do
     user = users(:family_admin)
     family = user.family
-    failed = Sync.create!(syncable: family, status: "failed", error: "Provider rejected the token", failed_at: 1.hour.ago)
+    Sync.create!(syncable: family, status: "failed", error: "Failing row contains (secret-row-value)", failed_at: 1.hour.ago)
+    Sync.create!(syncable: family, status: "completed", completed_at: 1.minute.from_now)
+    Sync.create!(syncable: family, status: "failed", failed_at: Time.current)
 
     get admin_user_url(user)
     assert_response :success
@@ -794,11 +828,20 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, user.email
     assert_includes response.body, family.name
     assert_select "dd", text: family.accounts.count.to_s
-    assert_select "dd", text: Entry.joins(:account).where(accounts: { family_id: family.id }).count.to_s
-    assert_includes response.body, failed.error
-    family.accounts.where.not(balance: 0).each do |account|
+    assert_select "dd", text: family.entries.count.to_s
+    assert_select "dd", text: Sync.for_family(family).failed.count.to_s
+    last_completed_at = Sync.for_family(family).maximum(:completed_at).in_time_zone(family.timezone)
+    assert_includes response.body, I18n.l(last_completed_at, format: :long)
+    assert_not_includes response.body, "secret-row-value"
+    family.accounts.each do |account|
       assert_not_includes response.body, account.name
+      assert_not_includes response.body, account.balance_money.format
     end
+  end
+
+  test "show back link returns to the same slice of the list" do
+    get admin_user_url(users(:family_admin), q: "dylan", page: 1)
+    assert_select "a[href='#{admin_users_path(q: "dylan", page: 1)}']"
   end
 
   test "show is denied for users who are not super admins" do
@@ -815,6 +858,6 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
 
   private
     def user_detail_links
-      css_select("a[href^='/admin/users/']").map { |a| a["href"] }.grep(%r{\A/admin/users/[0-9a-f-]{36}\z}).uniq
+      css_select("a[href^='/admin/users/']").map { |a| a["href"].split("?").first }.grep(%r{\A/admin/users/[0-9a-f-]{36}\z}).uniq
     end
 end

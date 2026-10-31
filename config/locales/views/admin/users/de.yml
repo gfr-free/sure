@@ -14,6 +14,7 @@ de:
           role: "Rolle"
           search: "Suche"
           search_placeholder: "E-Mail, Name oder Familie/Gruppe"
+          search_encrypted_hint: "Diese Instanz verschlüsselt Nutzerdaten: Die E-Mail passt nur vollständig, Namen sind nicht durchsuchbar. Familiennamen passen auch teilweise."
           role_all: "Alle Rollen"
           trial_status: "Teststatus"
           trial_all: "Alle"
@@ -63,6 +64,15 @@ de:
         last_login: "Letzte Anmeldung"
         session_count: "Anzahl Sitzungen"
         subscription: "Abonnement"
+        subscription_statuses:
+          incomplete: "Unvollständig"
+          incomplete_expired: "Unvollständig (abgelaufen)"
+          trialing: "Testphase"
+          active: "Aktiv"
+          past_due: "Überfällig"
+          canceled: "Gekündigt"
+          unpaid: "Unbezahlt"
+          paused: "Pausiert"
         counters:
           title: "Nutzung"
           description: "Zähler für die Familie/Gruppe des Benutzers. Salden, Kontonamen und Buchungen werden nicht angezeigt."
@@ -70,11 +80,11 @@ de:
           entries: "Buchungen"
           syncs: "Synchronisierungen"
           failed_syncs: "Fehlgeschlagene Synchronisierungen"
-          last_sync: "Letzte Synchronisierung: %{time}"
+          last_successful_sync: "Letzte erfolgreiche Synchronisierung: %{time}"
         recent_errors:
           title: "Letzte Synchronisierungsfehler"
+          description: "Nur Quelle und Zeitpunkt. Fehlertexte werden nicht angezeigt, weil sie importierte Daten enthalten können."
           empty: "Keine fehlgeschlagenen Synchronisierungen."
-          no_message: "Keine Fehlermeldung gespeichert."
       update:
         success: "Benutzerrolle wurde erfolgreich aktualisiert."
         failure: "Benutzerrolle konnte nicht aktualisiert werden."

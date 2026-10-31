@@ -17,6 +17,7 @@ en:
           role: "Role"
           search: "Search"
           search_placeholder: "Email, name or family/group"
+          search_encrypted_hint: "This instance encrypts user data: email only matches in full, names cannot be searched. Family names match in part."
           role_all: "All roles"
           trial_status: "Trial status"
           trial_all: "All"
@@ -96,6 +97,15 @@ en:
         last_login: "Last login"
         session_count: "Session count"
         subscription: "Subscription"
+        subscription_statuses:
+          incomplete: "Incomplete"
+          incomplete_expired: "Incomplete (expired)"
+          trialing: "Trial"
+          active: "Active"
+          past_due: "Past due"
+          canceled: "Canceled"
+          unpaid: "Unpaid"
+          paused: "Paused"
         counters:
           title: "Usage"
           description: "Counts for the user's family/group. Balances, account names and transactions are not shown."
@@ -103,11 +113,11 @@ en:
           entries: "Transactions"
           syncs: "Syncs"
           failed_syncs: "Failed syncs"
-          last_sync: "Last sync: %{time}"
+          last_successful_sync: "Last successful sync: %{time}"
         recent_errors:
           title: "Recent sync errors"
+          description: "Source and time only. Error texts are not shown because they can contain imported data."
           empty: "No failed syncs."
-          no_message: "No error message recorded."
       update:
         success_role: "User role updated successfully."
         success_password: "User password updated successfully."

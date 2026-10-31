@@ -173,67 +173,13 @@ class Holding < ApplicationRecord
           # or wins first and makes find_by! raise, rather than the merge
           # writing onto a gone row.
           existing = account.holdings.lock.find_by!(security: new_security, date: holding.date, currency: holding.currency)
-          merged_qty = existing.qty + holding.qty
-          merged_amount = existing.amount + holding.amount
-
-          # Weighted average cost basis when both rows hold units. A negative
-          # row is units gone, not units bought, so it adds no cost: when only
-          # one side holds units, the merged row keeps that side's basis, as a
-          # sale leaves the per-share basis unchanged.
-          merged_cost_basis = if !merged_qty.positive?
-            existing.cost_basis
-          elsif existing.qty.positive? && holding.qty.positive?
-            if existing.cost_basis.present? && holding.cost_basis.present?
-              ((existing.cost_basis * existing.qty) + (holding.cost_basis * holding.qty)) / merged_qty
-            else
-              existing.cost_basis # Keep existing if we can't calculate weighted average
-            end
-          else
-            (existing.qty.positive? ? existing : holding).cost_basis
-          end
-
-          # amount / qty, as the calculators write amount = qty x price with
-          # a positive price; that holds for a negative merged row too. Two
-          # rows priced differently can net to a qty and an amount of opposite
-          # signs, where that ratio would be negative. The materializer prices
-          # this row at the target security's own price for the date, so keep
-          # the target's price then. A merge that nets to zero units gets a
-          # zero price even if the amounts leave a remainder, as before.
-          merged_price = if merged_qty.zero?
-            0
-          elsif (merged_amount.negative? && merged_qty.positive?) || (merged_amount.positive? && merged_qty.negative?)
-            existing.price
-          else
-            merged_amount / merged_qty
-          end
-
-          # Preserve provider tracking from the holding being destroyed
-          # so subsequent syncs can find the merged holding
-          merge_attrs = {
-            qty: merged_qty,
-            amount: merged_amount,
-            price: merged_price,
-            cost_basis: merged_cost_basis
-          }
-          merge_attrs[:external_id] ||= holding.external_id if existing.external_id.blank? && holding.external_id.present?
-          merge_attrs[:provider_security_id] ||= holding.provider_security_id || old_security.id if existing.provider_security_id.blank?
-          merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
-          merge_attrs[:security_locked] = true # Lock merged holding to prevent provider overwrites
-
-          # Holdings are derived rows the materializer rebuilds (with
-          # upsert_all, skipping validations), and a merged qty or amount can
-          # legitimately be negative, e.g. after a full in-kind transfer out.
-          # The >= 0 validations guard user edits and must not veto the merge,
-          # so write only these columns. update_columns skips updated_at,
-          # which update! set and other readers rely on, so set it here.
-          # Destroy the source row first: its external_id is under a unique
-          # index on (account_id, external_id) and is being moved onto
-          # existing.
-          holding.destroy!
-          existing.update_columns(merge_attrs.merge(updated_at: Time.current))
+          # Lock merged holding to prevent provider overwrites
+          tracking = { security_locked: true }
+          tracking[:provider_security_id] = holding.provider_security_id || old_security.id if existing.provider_security_id.blank?
+          merge_holding_into!(existing, holding, tracking)
         else
           # No collision: update to new security. Write only the columns this
-          # remap owns, for the same reason as the merge above: a negative
+          # remap owns, for the same reason as merge_holding_into!: a negative
           # derived row must still move.
           # The row is locked, so update_columns should always write it; it
           # returns false rather than raising if not, so fail and roll back.
@@ -278,11 +224,29 @@ class Holding < ApplicationRecord
       # Move trades back (see note above about limitation)
       account.trades.where(security: current_security).update_all(security_id: original_security.id)
 
+      remapped = account.holdings.where(security: current_security, provider_security: original_security)
+
+      # The original security can already hold rows on the same dates, e.g.
+      # when a sync re-created the provider's position there after the remap.
+      # Moving onto them would break the unique (account, security, date,
+      # currency) index, so merge into them instead, as remap_security! does.
+      collision_keys = account.holdings
+        .where(security: original_security)
+        .where(date: remapped.select(:date))
+        .pluck(:date, :currency)
+        .to_set
+
       # Reset ALL holdings that were remapped from this provider_security
       # Write only the columns the reset owns, so a negative derived row
       # still moves back (see remap_security!). Lock the rows as they are
       # loaded, under this predicate, for the same reason as there.
-      account.holdings.where(security: current_security, provider_security: original_security).lock.find_each do |holding|
+      remapped.lock.find_each do |holding|
+        if collision_keys.include?([ holding.date, holding.currency ])
+          existing = account.holdings.lock.find_by!(security: original_security, date: holding.date, currency: holding.currency)
+          merge_holding_into!(existing, holding, security_locked: false, provider_security_id: nil)
+          next
+        end
+
         reset = holding.update_columns(
           security_id: original_security.id,
           security_locked: false,
@@ -295,8 +259,12 @@ class Holding < ApplicationRecord
       end
     end
 
-    # Reload self to reflect changes
-    reload
+    # Reload self to reflect changes (may raise RecordNotFound if self was merged away)
+    begin
+      reload
+    rescue ActiveRecord::RecordNotFound
+      nil
+    end
   end
 
   # Check if cost_basis is known (has a source and positive value)
@@ -312,6 +280,69 @@ class Holding < ApplicationRecord
   end
 
   private
+
+    # Folds holding into existing (same account, date and currency) and
+    # destroys holding. tracking sets the security-tracking columns the
+    # caller owns (remap locks the row, reset unlocks it).
+    def merge_holding_into!(existing, holding, tracking)
+      merged_qty = existing.qty + holding.qty
+      merged_amount = existing.amount + holding.amount
+
+      # Weighted average cost basis when both rows hold units. A negative
+      # row is units gone, not units bought, so it adds no cost: when only
+      # one side holds units, the merged row keeps that side's basis, as a
+      # sale leaves the per-share basis unchanged.
+      merged_cost_basis = if !merged_qty.positive?
+        existing.cost_basis
+      elsif existing.qty.positive? && holding.qty.positive?
+        if existing.cost_basis.present? && holding.cost_basis.present?
+          ((existing.cost_basis * existing.qty) + (holding.cost_basis * holding.qty)) / merged_qty
+        else
+          existing.cost_basis # Keep existing if we can't calculate weighted average
+        end
+      else
+        (existing.qty.positive? ? existing : holding).cost_basis
+      end
+
+      # amount / qty, as the calculators write amount = qty x price with
+      # a positive price; that holds for a negative merged row too. Two
+      # rows priced differently can net to a qty and an amount of opposite
+      # signs, where that ratio would be negative. The materializer prices
+      # this row at the target security's own price for the date, so keep
+      # the target's price then. A merge that nets to zero units gets a
+      # zero price even if the amounts leave a remainder, as before.
+      merged_price = if merged_qty.zero?
+        0
+      elsif (merged_amount.negative? && merged_qty.positive?) || (merged_amount.positive? && merged_qty.negative?)
+        existing.price
+      else
+        merged_amount / merged_qty
+      end
+
+      # Preserve provider tracking from the holding being destroyed
+      # so subsequent syncs can find the merged holding
+      merge_attrs = {
+        qty: merged_qty,
+        amount: merged_amount,
+        price: merged_price,
+        cost_basis: merged_cost_basis
+      }
+      merge_attrs[:external_id] ||= holding.external_id if existing.external_id.blank? && holding.external_id.present?
+      merge_attrs[:account_provider_id] ||= holding.account_provider_id if existing.account_provider_id.blank? && holding.account_provider_id.present?
+
+      # Holdings are derived rows the materializer rebuilds (with
+      # upsert_all, skipping validations), and a merged qty or amount can
+      # legitimately be negative, e.g. after a full in-kind transfer out.
+      # The >= 0 validations guard user edits and must not veto the merge,
+      # so write only these columns. update_columns skips updated_at,
+      # which update! set and other readers rely on, so set it here.
+      # Destroy the source row first: its external_id is under a unique
+      # index on (account_id, external_id) and is being moved onto
+      # existing.
+      holding.destroy!
+      existing.update_columns(merge_attrs.merge(tracking).merge(updated_at: Time.current))
+    end
+
     def amount_in_account_currency
       return amount if currency == account.currency
 

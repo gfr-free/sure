@@ -562,6 +562,37 @@ class HoldingTest < ActiveSupport::TestCase
     assert_equal 1, @account.trades.where(security: old_security).count
   end
 
+  # A sync can put trades back on the provider's security after a remap, so the
+  # account's reverse calculation writes rows there again on the same dates.
+  # Resetting must merge into those rows rather than collide with them on the
+  # unique (account, security, date, currency) index, and the provider's
+  # external_id must survive on the merged row.
+  test "reset_security_to_provider! merges into rows already on the provider security" do
+    old_security = @amzn.security
+    new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    @amzn.update_columns(external_id: "provider_position_amzn")
+    original_qty = @amzn.qty
+    original_amount = @amzn.amount
+
+    @amzn.remap_security!(new_security)
+    recreated = @account.holdings.create!(
+      security: old_security, date: @amzn.date, currency: @amzn.currency,
+      qty: 0, price: 216, amount: 0
+    )
+    recreated.update_columns(qty: -2, amount: -432)
+
+    @amzn.reset_security_to_provider!
+
+    merged = @account.holdings.find_by!(security: old_security, date: recreated.date, currency: recreated.currency)
+    assert_equal recreated.id, merged.id
+    assert_equal original_qty - 2, merged.qty
+    assert_equal original_amount - 432, merged.amount
+    assert_equal "provider_position_amzn", merged.external_id
+    assert_not merged.security_locked?
+    assert_nil merged.provider_security_id
+    assert_equal 0, @account.holdings.where(security: new_security).count
+  end
+
   test "reset_security_to_provider! does nothing if not remapped" do
     old_security = @amzn.security
     @amzn.reset_security_to_provider!

@@ -257,6 +257,9 @@ class Family < ApplicationRecord
   validates :auto_generate_transaction_names, inclusion: { in: [ true, false ] }
   validates :investment_contributions_as_spending, inclusion: { in: [ true, false ] }
   validates :categories_locked, inclusion: { in: [ true, false ] }
+  # The searchable timezone select submits "" while no zone is saved yet;
+  # store nil so provider date parsing keeps its default instead of raising.
+  normalizes :timezone, with: ->(timezone) { timezone.presence }
   validate :timezone_must_be_a_known_zone, if: :timezone_changed?
 
   before_validation :normalize_enabled_currencies!

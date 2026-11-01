@@ -6,6 +6,7 @@ es:
         renewal: Tu contribución continúa el %{date}.
         cancellation: Tu contribución finaliza el %{date}.
   settings:
+    encryption_migration_guide: Guía de configuración del cifrado y migración
     debugs:
       show:
         page_title: Depuración
@@ -120,6 +121,8 @@ es:
         show_counterparty_account_description: "Muestra los últimos 4 caracteres del IBAN o del número de cuenta de la contraparte en los detalles de una transacción, si tu conexión bancaria los proporciona. Solo aparece cuando esos datos están disponibles."
         show_counterparty_account_title: "Mostrar datos de la cuenta de la contraparte"
         split_grouped_title: Agrupar transacciones divididas
+        auto_generate_transaction_names_title: "Generar nombres de transacciones automáticamente"
+        auto_generate_transaction_names_description: "Si el nombre de una transacción introducida manualmente se deja en blanco, se rellena con la categoría y el comercio seleccionados (p. ej. «Entretenimiento - Netflix»). Si no se selecciona ninguno, el nombre sigue siendo obligatorio. Se aplica a todo el grupo familiar y solo a transacciones nuevas."
         split_grouped_description: Muestra las transacciones divididas agrupadas bajo su transacción principal en la lista. Si está desactivado, las divisiones aparecen como filas individuales.
     preferences:
       show:
@@ -271,6 +274,7 @@ es:
       accounts_label: Cuentas
       advanced_section_title: Avanzado
       ai_prompts_label: Indicaciones de IA
+      auto_matches_label: Coincidencias automáticas
       api_key_label: Clave API
       payment_label: Pago
       categories_label: Categorías

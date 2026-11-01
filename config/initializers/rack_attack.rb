@@ -67,7 +67,8 @@ class Rack::Attack
     # Rack 3 no longer requires rack.input to be rewindable — bail out
     # without reading if the server's input stream can't be rewound, rather
     # than consuming a body the controller can never get back.
-    next nil unless request.media_type == "application/json" && request.body.respond_to?(:rewind)
+    # Rails also parses the JSON synonyms text/x-json and application/jsonrequest.
+    next nil unless Mime::Type.lookup(request.media_type.to_s).symbol == :json && request.body.respond_to?(:rewind)
 
     body = request.body.read
     request.body.rewind

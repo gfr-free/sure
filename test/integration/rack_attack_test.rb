@@ -390,6 +390,13 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     json_with_query = throttle_request("/trade_republic_items?trade_republic_item[phone_number]=%2B491701234567", method: "POST",
       session_cookie: session.id, json_body: { trade_republic_item: { phone_number: "+490000000001" } })
     assert_equal phone_key.call("491701234567"), phone_block.call(json_with_query)
+
+    # Rails parses these content types as JSON as well.
+    %w[text/x-json application/jsonrequest].each do |content_type|
+      synonym_request = throttle_request("/trade_republic_items", method: "POST", session_cookie: session.id,
+        json_body: { trade_republic_item: { phone_number: "+491701234567", pin: "1234" } }, content_type: content_type)
+      assert_equal phone_key.call("491701234567"), phone_block.call(synonym_request), "#{content_type} carries the phone number too"
+    end
   end
 
   test "trade republic phone throttle shares one budget across accounts that target the same phone" do
@@ -524,7 +531,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
       def read(*args) = io.read(*args)
     end
 
-    def throttle_request(path, method: "GET", params: {}, session: {}, json_body: nil, json_body_raw: nil, non_rewindable_json_body: nil, session_cookie: nil, raw_cookie: nil)
+    def throttle_request(path, method: "GET", params: {}, session: {}, json_body: nil, json_body_raw: nil, non_rewindable_json_body: nil, content_type: "application/json", session_cookie: nil, raw_cookie: nil)
       # Rack::MockRequest.env_for doesn't set REMOTE_ADDR, so #ip is nil
       # unless set explicitly — asserting against a real value here (rather
       # than comparing to request.ip, which could trivially be nil on both
@@ -534,7 +541,7 @@ class RackAttackTest < ActionDispatch::IntegrationTest
 
       if json_body || json_body_raw
         opts[:input] = json_body_raw || json_body.to_json
-        opts["CONTENT_TYPE"] = "application/json"
+        opts["CONTENT_TYPE"] = content_type
       elsif non_rewindable_json_body
         opts[:input] = NonRewindableInput.new(StringIO.new(non_rewindable_json_body.to_json))
         opts["CONTENT_TYPE"] = "application/json"

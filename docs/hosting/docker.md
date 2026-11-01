@@ -95,6 +95,8 @@ SECRET_KEY_BASE="replacemewiththegeneratedstringfromthepriorstep"
 POSTGRES_PASSWORD="replacemewithyourdesireddatabasepassword"
 ```
 
+To encrypt sensitive data such as bank credentials at rest, also set the encryption keys now, before the first start; see [Encrypting sensitive data](#encrypting-sensitive-data).
+
 #### Using HTTPS
 
 Assuming you want to access your instance from the internet, you should have secured your URL address with an SSL certificate.  
@@ -523,7 +525,7 @@ Uploaded files are backed up from the `app-storage` volume. If you store them in
 The version comes from the running app: every time `web` starts it records its version, and a backup is refused if the database schema no longer matches it.
 
 > [!WARNING]
-> `config/.env` contains `SECRET_KEY_BASE` and your API keys. Without `SECRET_KEY_BASE`, encrypted data in the database cannot be read. Keep the backup folder private, and encrypt off-site copies (for example with [rclone crypt](https://rclone.org/crypt/)).
+> `config/.env` contains `SECRET_KEY_BASE`, your API keys and, if you set them, your [encryption keys](#encrypting-sensitive-data). Without them, encrypted data in the database cannot be read. Keep the backup folder private, and encrypt off-site copies (for example with [rclone crypt](https://rclone.org/crypt/)).
 
 ### Settings
 
@@ -608,6 +610,87 @@ Sure v0.7.5 shipped a `backup` service that ran `bin/db-backup.sh` and uploaded 
 Off-site backups now go to `<BACKUP_DESTINATION>/<INSTANCE_ID>/<version>/<date>-<trigger>/` and include `.env`, so use an encrypted remote. Earlier `backup_*.sql.gz` files are left in place and are no longer pruned; delete them once you no longer need them. To restore one of them, stop `web` and `worker` and load it with `gunzip -c backup_<timestamp>.sql.gz | docker compose exec -T db psql -U <POSTGRES_USER> -d <POSTGRES_DB>` into an empty database.
 
 If you download the new `bin/db-backup.sh` without updating the compose file, the backup service stops with an error that points here.
+
+## Encrypting sensitive data
+
+Sure can encrypt sensitive fields in the database: bank and provider credentials, MFA secrets, email addresses and names. It does this only when all three `ACTIVE_RECORD_ENCRYPTION_*` keys are set. Without them those fields are stored unencrypted, and the app logs a `[SECURITY]` warning at startup (`docker compose logs web | grep SECURITY`).
+
+> [!WARNING]
+> Once data is encrypted, it can only be read with the same three keys. Never change or remove them afterwards. Backups include them in `config/.env`; keep that file private.
+
+### Generate the keys
+
+Run this three times and keep the three values:
+
+```bash
+openssl rand -hex 32
+```
+
+Set all three or none: the app refuses to start when only some of them are set.
+
+Compose files from before this section existed don't pass the keys to the containers. If your `compose.yml` has no `ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA` line, copy the four `ACTIVE_RECORD_ENCRYPTION_*` lines from the `x-rails-env` block of [`compose.example.yml`](../../compose.example.yml) into yours.
+
+> [!IMPORTANT]
+> If you added the keys to `.env` earlier but your `compose.yml` didn't pass them on, they were never active and your data is still unencrypted. Updating `compose.yml` turns them on, so follow [On an instance that already has data](#on-an-instance-that-already-has-data) when you do. Otherwise nobody can sign in after `docker compose up -d`.
+
+### On a new instance
+
+Add the keys to `.env` before the first `docker compose up`:
+
+```txt
+ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="first value"
+ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY="second value"
+ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT="third value"
+```
+
+### On an instance that already has data
+
+Data written before the keys were set stays unencrypted until you convert it. With the keys active, the app can't read that data on its own: sign-in fails with "invalid email or password" and provider syncs fail. The steps below set a temporary flag that keeps old rows readable while you convert them, so the app keeps working throughout. Follow them in order and remove the flag in step 6 once every `failed_count` is `0`:
+
+1. Take a backup and note the folder name it prints (for example `0.7.6/2026-10-27_111135-manual`):
+
+   ```bash
+   docker compose run --rm backup create
+   ```
+
+2. Add the three keys to `.env`, plus this line, which lets the app read the old unencrypted data while you convert it:
+
+   ```txt
+   ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA=true
+   ```
+
+3. Stop background jobs, so no sync changes provider credentials during the conversion, and apply the settings to `web`:
+
+   ```bash
+   docker compose stop worker
+   docker compose up -d web
+   ```
+
+   (`docker compose restart` keeps the old environment.)
+
+4. Preview the conversion. Nothing is changed yet; `pending` shows how many rows per table still need converting:
+
+   ```bash
+   docker compose exec web bin/rails security:backfill_encryption
+   ```
+
+5. Convert the data:
+
+   ```bash
+   docker compose exec -e DRY_RUN=false web bin/rails security:backfill_encryption
+   ```
+
+   Check that every `failed_count` is `0`. If not, run the same command again: it only converts rows that are still unencrypted.
+
+6. Remove the `ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA` line from `.env` and start everything again with `docker compose up -d`.
+7. Sign in and open **Settings > Bank Sync** to confirm everything loads.
+
+To undo the change, stop `web` and `worker`, restore the backup from step 1 by its name (not `latest`, which may be a newer scheduled backup with encrypted data), remove the four `ACTIVE_RECORD_ENCRYPTION_*` lines from `.env` and run `docker compose up -d`:
+
+```bash
+docker compose stop web worker
+docker compose run --rm backup restore 0.7.6/2026-10-27_111135-manual
+```
 
 ## Troubleshooting
 

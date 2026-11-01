@@ -38,37 +38,19 @@ namespace :security do
     results = {}
     puts "Starting security backfill (dry_run: #{dry_run}, batch_size: #{batch_size})..."
 
-    # User fields (MFA + PII)
-    # Note: otp_backup_codes excluded - it's a PostgreSQL array column incompatible with AR encryption
-    results[:users] = backfill_model(User, %i[otp_secret email unconfirmed_email first_name last_name], batch_size, dry_run)
+    # Every model that declares `encrypts`, so providers added later are
+    # covered without editing this task.
+    Rails.autoloaders.main.eager_load_dir(Rails.root.join("app/models").to_s)
+    encrypted_models = ApplicationRecord.descendants
+      .reject(&:abstract_class?)
+      .select { |model| model == model.base_class && model.encrypted_attributes.present? }
+      .sort_by(&:name)
 
-    # Invitation tokens and email
-    results[:invitations] = backfill_model(Invitation, %i[token email], batch_size, dry_run)
+    encrypted_models.each do |model|
+      results[model.table_name.to_sym] = backfill_model(model, model.encrypted_attributes.to_a, batch_size, dry_run)
+    end
 
-    # InviteCode tokens
-    results[:invite_codes] = backfill_model(InviteCode, %i[token], batch_size, dry_run)
-
-    # Session user_agent (encryption) and ip_address_digest (hashing)
-    results[:sessions] = backfill_sessions(batch_size, dry_run)
-
-    # MobileDevice device_id
-    results[:mobile_devices] = backfill_model(MobileDevice, %i[device_id], batch_size, dry_run)
-
-    # Provider items
-    results[:plaid_items] = backfill_model(PlaidItem, %i[access_token raw_payload raw_institution_payload], batch_size, dry_run)
-    results[:simplefin_items] = backfill_model(SimplefinItem, %i[access_url raw_payload raw_institution_payload], batch_size, dry_run)
-    results[:lunchflow_items] = backfill_model(LunchflowItem, %i[api_key raw_payload raw_institution_payload], batch_size, dry_run)
-    results[:enable_banking_items] = backfill_model(EnableBankingItem, %i[client_certificate session_id raw_payload raw_institution_payload], batch_size, dry_run)
-
-    # Provider accounts
-    results[:plaid_accounts] = backfill_model(PlaidAccount, %i[raw_payload raw_transactions_payload raw_holdings_payload raw_liabilities_payload], batch_size, dry_run)
-    results[:simplefin_accounts] = backfill_model(SimplefinAccount, %i[raw_payload raw_transactions_payload raw_holdings_payload], batch_size, dry_run)
-    results[:lunchflow_accounts] = backfill_model(LunchflowAccount, %i[raw_payload raw_transactions_payload], batch_size, dry_run)
-    results[:enable_banking_accounts] = backfill_model(EnableBankingAccount, %i[raw_payload raw_transactions_payload], batch_size, dry_run)
-    results[:snaptrade_accounts] = backfill_model(SnaptradeAccount, %i[raw_payload raw_transactions_payload raw_holdings_payload raw_activities_payload account_number], batch_size, dry_run)
-    results[:coinbase_accounts] = backfill_model(CoinbaseAccount, %i[raw_payload raw_transactions_payload], batch_size, dry_run)
-    results[:coinstats_accounts] = backfill_model(CoinstatsAccount, %i[raw_payload raw_transactions_payload], batch_size, dry_run)
-    results[:mercury_accounts] = backfill_model(MercuryAccount, %i[raw_payload raw_transactions_payload], batch_size, dry_run)
+    results[:session_ip_digests] = backfill_session_ip_digests(batch_size, dry_run)
 
     puts({
       ok: true,
@@ -80,6 +62,7 @@ namespace :security do
 
   def backfill_model(model_class, fields, batch_size, dry_run, &filter_block)
     processed = 0
+    pending = 0
     updated = 0
     failed = []
 
@@ -90,18 +73,21 @@ namespace :security do
         # Skip if filter block returns false
         next if block_given? && !filter_block.call(record)
 
-        # Check if any field has data (use safe read to handle plaintext).
+        # Only fields still stored as plaintext: rewriting ciphertext on a rerun
+        # could also revert a credential a sync rotated in the meantime.
         # Nil-check rather than present?: empty values ({}, [], "") are still
         # plaintext that needs encrypting — present? skips them, leaving data
         # the encrypted getters raise on once keys are live.
-        next unless fields.any? { |f| !safe_read_field(record, f).nil? }
+        plaintext_fields = fields.reject { |f| record.encrypted_attribute?(f) }
+        next unless plaintext_fields.any? { |f| !safe_read_field(record, f).nil? }
 
+        pending += 1
         next if dry_run
 
         begin
           # Read plaintext values safely
           plaintext_values = {}
-          fields.each do |field|
+          plaintext_fields.each do |field|
             value = safe_read_field(record, field)
             plaintext_values[field] = value unless value.nil?
           end
@@ -132,6 +118,7 @@ namespace :security do
 
     {
       processed: processed,
+      pending: pending,
       updated: updated,
       failed_count: failed.size,
       failed_samples: failed.take(3)
@@ -162,7 +149,9 @@ namespace :security do
     end
   end
 
-  def backfill_sessions(batch_size, dry_run)
+  # Hashes legacy session IP addresses into ip_address_digest. Encryption of
+  # Session columns runs through backfill_model like every other model.
+  def backfill_session_ip_digests(batch_size, dry_run)
     processed = 0
     updated = 0
     failed = []
@@ -171,28 +160,11 @@ namespace :security do
       batch.each do |session|
         processed += 1
         next if dry_run
+        next unless session.ip_address.present? && session.ip_address_digest.blank?
 
         begin
-          changes = {}
-
-          # Re-save user_agent to trigger encryption (use safe read for plaintext)
-          user_agent_value = safe_read_field(session, :user_agent)
-          unless user_agent_value.nil?
-            # Use temporary instance to encrypt
-            encryptor = Session.new
-            encryptor.user_agent = user_agent_value
-            changes[:user_agent] = encryptor.read_attribute_before_type_cast(:user_agent)
-          end
-
-          # Hash IP address into ip_address_digest if not already done
-          if session.ip_address.present? && session.ip_address_digest.blank?
-            changes[:ip_address_digest] = Digest::SHA256.hexdigest(session.ip_address.to_s)
-          end
-
-          if changes.present?
-            session.update_columns(changes)
-            updated += 1
-          end
+          session.update_columns(ip_address_digest: Digest::SHA256.hexdigest(session.ip_address.to_s))
+          updated += 1
         rescue => e
           failed << { id: session.id, error: e.class.name, message: e.message }
         end

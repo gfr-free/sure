@@ -430,6 +430,11 @@ class Import < ApplicationRecord
     []
   end
 
+  # Accountable type for an account the account mapping creates from a file's account name.
+  def account_type_for_new_account(_name)
+    "Depository"
+  end
+
   def rows_ordered
     rows.ordered
   end

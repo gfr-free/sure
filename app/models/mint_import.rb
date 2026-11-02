@@ -67,7 +67,11 @@ class MintImport < Import
   end
 
   def mapping_steps
-    [ Import::CategoryMapping, Import::TagMapping, Import::AccountMapping ]
+    [ Import::CategoryMapping, Import::TagMapping, Import::AccountMapping, Import::NewAccountTypeMapping ]
+  end
+
+  def account_type_for_new_account(name)
+    Import::NewAccountTypeMapping.accountable_type_for(self, name)
   end
 
   def required_column_keys

@@ -39,7 +39,7 @@ class Import::AccountMapping < Import::Mapping
       new_account.balance = 0
       new_account.import = import
       new_account.currency = import.family.currency
-      new_account.accountable = Depository.new
+      new_account.accountable = import.account_type_for_new_account(key).constantize.new
     end
 
     self.mappable = account

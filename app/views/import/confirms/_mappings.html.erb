@@ -53,6 +53,9 @@
                 <%= render partial: "import/mappings/form", locals: { mapping: mapping } %>
               </div>
             <% end %>
+            <% if mappings.empty? %>
+              <p class="px-5 py-3 bg-container rounded-xl text-secondary"><%= t(".no_mappings") %></p>
+            <% end %>
           </div>
         </div>
       </div>

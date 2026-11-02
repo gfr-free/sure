@@ -186,6 +186,7 @@ en:
         rows_label: Rows
         unassigned_account: Need to create a new account for unassigned rows?
         next: Next
+        no_mappings: Nothing to assign in this step.
       show:
         invalid_data: "You have invalid data, please edit until all errors are resolved"
         account_mapping_description: Assign all of your imported file's accounts to
@@ -195,6 +196,9 @@ en:
         account_type_mapping_description: Assign all of your imported file's account
           types to %{product_name}'s
         account_type_mapping_title: Assign your account types
+        new_account_type_mapping_description: Choose the account type for each account
+          that will be created. We suggested one based on the account name.
+        new_account_type_mapping_title: Choose types for new accounts
         category_mapping_description: Assign all of your imported file's categories
           to %{product_name}'s existing categories.  You can also add new categories or leave
           them uncategorized.

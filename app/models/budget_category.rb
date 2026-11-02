@@ -191,12 +191,10 @@ class BudgetCategory < ApplicationRecord
 
     later = BudgetCategory.where(budget_id: later_budgets.select(:id), category_id: category_id)
 
-    assignments = changes.map { |column, value| self.class.sanitize_sql_array([ "#{column} = ?", value ]) }
-    # Same rule as forfeit_carried_overspend, in SQL: update_all skips callbacks.
-    assignments << "rolled_over_amount = GREATEST(rolled_over_amount, 0)" if changes[:carry_overspend] == false
-    assignments << self.class.sanitize_sql_array([ "updated_at = ?", Time.current ])
-
-    later.update_all(assignments.join(", "))
+    # Same rule as forfeit_carried_overspend, in SQL: update_all skips
+    # callbacks. Cleared first, while the rows still allow a negative carry.
+    later.where("rolled_over_amount < 0").update_all(rolled_over_amount: 0) if changes[:carry_overspend] == false
+    later.update_all(changes.merge(updated_at: Time.current))
   end
 
   def update_budgeted_spending!(new_budgeted_spending)

@@ -51,7 +51,7 @@ module IncomeStatement::ScopedTransactionsQuery
       <<~SQL.chomp
         AND (
           #{t}.investment_activity_label IS NULL
-          OR #{t}.investment_activity_label NOT IN ('Transfer', 'Sweep In', 'Sweep Out', 'Exchange')
+          OR #{t}.investment_activity_label NOT IN ('Transfer', 'Sweep In', 'Sweep Out', 'Exchange', 'Currency Exchange')
         )
       SQL
     end

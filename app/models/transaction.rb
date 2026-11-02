@@ -102,14 +102,25 @@ class Transaction < ApplicationRecord
   #     budget" are different questions; only the former belongs here.
   UNCATEGORIZED_EXCLUDED_KINDS = %w[funds_movement cc_payment].freeze
 
-  # All valid investment activity labels (for UI dropdown)
+  # Every stored investment activity label that validates, on a Transaction or
+  # a Trade. "Exchange" stays valid for existing rows, imports and API clients,
+  # but it is ambiguous (currency or security), so the pickers offer the two
+  # unambiguous labels instead.
   ACTIVITY_LABELS = [
     "Buy", "Sell", "Sweep In", "Sweep Out", "Dividend", "Reinvestment",
-    "Interest", "Fee", "Transfer", "Contribution", "Withdrawal", "Exchange", "Other"
+    "Interest", "Fee", "Transfer", "Contribution", "Withdrawal", "Exchange",
+    "Currency Exchange", "Security Exchange", "Other"
+  ].freeze
+
+  # The labels a user can pick for a cash transaction. Buy and Sell stay because
+  # picking them opens the convert-to-trade flow.
+  SELECTABLE_ACTIVITY_LABELS = [
+    "Buy", "Sell", "Sweep In", "Sweep Out", "Dividend", "Interest", "Fee",
+    "Transfer", "Contribution", "Withdrawal", "Currency Exchange", "Other"
   ].freeze
 
   # Internal movement labels that should be excluded from budget (auto cash management)
-  INTERNAL_MOVEMENT_LABELS = [ "Transfer", "Sweep In", "Sweep Out", "Exchange" ].freeze
+  INTERNAL_MOVEMENT_LABELS = [ "Transfer", "Sweep In", "Sweep Out", "Exchange", "Currency Exchange" ].freeze
 
   # Providers that support pending transaction flags
   # sorted

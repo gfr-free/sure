@@ -278,7 +278,8 @@ Sure supports these investment activity labels:
 | **Sweep In** | Cash swept into the account |
 | **Sweep Out** | Cash swept out of the account |
 | **Fee** | Account or transaction fees |
-| **Exchange** | Currency or security exchanges |
+| **Currency Exchange** | Money exchanged between currencies (cash transactions) |
+| **Security Exchange** | One security exchanged for another (trades) |
 | **Transfer** | Transfers between accounts |
 | **Other** | Miscellaneous transactions |
 

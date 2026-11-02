@@ -7,8 +7,19 @@ class Rule::ActionExecutor::SetInvestmentActivityLabel < Rule::ActionExecutor
     "select"
   end
 
+  # Offers what the transaction picker offers; actionable? still accepts every
+  # stored label so existing rules keep running.
   def options
-    Transaction::ACTIVITY_LABELS.map { |l| [ l, l ] }
+    Transaction::SELECTABLE_ACTIVITY_LABELS.map { |l| [ l, l ] }
+  end
+
+  # A rule saved with a label the picker no longer offers (e.g. "Exchange")
+  # keeps showing it.
+  def options_for(value)
+    return options if value.blank? || Transaction::SELECTABLE_ACTIVITY_LABELS.include?(value)
+    return options unless Transaction::ACTIVITY_LABELS.include?(value)
+
+    options + [ [ value, value ] ]
   end
 
   def claimed_attributes

@@ -7,17 +7,25 @@ class Trade < ApplicationRecord
   belongs_to :security
   belongs_to :category, optional: true
 
-  # Use the same activity labels as Transaction
+  # Validation accepts every Transaction label: providers such as Plaid map
+  # trades and cash entries through one table, so imported trades can carry
+  # cash labels like Contribution or Interest.
   ACTIVITY_LABELS = Transaction::ACTIVITY_LABELS.dup.freeze
+
+  # The labels a user can pick for a security trade.
+  SELECTABLE_ACTIVITY_LABELS = [
+    "Buy", "Sell", "Reinvestment", "Sweep In", "Sweep Out", "Transfer",
+    "Security Exchange", "Other"
+  ].freeze
 
   # The labels that mean the asset went somewhere else you own rather than
   # being bought or sold.
   #
   # Deliberately NOT `Transaction::INTERNAL_MOVEMENT_LABELS`, which also holds
-  # "Exchange". On cash that means a currency exchange and is internal; on a
-  # security the label covers "currency **or security** exchanges"
-  # (docs/onboarding/guide.md), and a security-for-security exchange can
-  # dispose of an appreciated asset.
+  # "Exchange" and "Currency Exchange". On cash those mean a currency exchange
+  # and are internal; on a security the legacy "Exchange" covers "currency
+  # **or security** exchanges", and a security-for-security exchange
+  # ("Security Exchange") can dispose of an appreciated asset.
   #
   # The two errors are not symmetrical. Listing a movement that was not a sale
   # is visible and correctable; erasing a realized gain is neither — it simply

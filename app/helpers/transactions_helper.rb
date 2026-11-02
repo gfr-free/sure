@@ -26,6 +26,16 @@ module TransactionsHelper
     t("transactions.activity_labels.#{label.parameterize(separator: "_")}", default: label)
   end
 
+  # @param entryable [Transaction, Trade]
+  # @return [Array<String>] the labels its picker offers, plus its stored label
+  #   when that is no longer offered (e.g. a legacy "Exchange"), so editing
+  #   the entry never silently drops it
+  def selectable_activity_labels(entryable)
+    labels = entryable.class::SELECTABLE_ACTIVITY_LABELS
+    current = entryable.investment_activity_label
+    current.present? && labels.exclude?(current) ? labels + [ current ] : labels
+  end
+
   # @param filter [Hash] one entry from transaction_search_filters
   # @return [String] the partial that renders that filter's controls
   def get_transaction_search_filter_partial_path(filter)

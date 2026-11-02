@@ -25,6 +25,13 @@ class Rule::ActionExecutor
     nil
   end
 
+  # The options for an action that already stores value. Executors whose
+  # stored values can outlive their option list override this to keep value
+  # selectable, so editing the rule does not silently replace it.
+  def options_for(_value)
+    options
+  end
+
   # Attributes this action sets. When several rules set the same attribute on
   # a transaction, the rule highest in the list wins (see Rule::Runner), so the
   # action skips transactions a rule above already claimed. Additive actions

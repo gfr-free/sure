@@ -44,6 +44,12 @@ class Family < ApplicationRecord
   # than a global Setting because it decides whose transaction descriptions get
   # sent to a third party — the same reason assistant_type lives here.
   CATEGORIZATION_PROVIDERS = %w[llm jev].freeze
+
+  # How AI merchant detection treats a transaction without a merchant:
+  # `create_new` may add a merchant from the model's answer, `existing_only`
+  # only assigns one the family already has (its own or a provider merchant on
+  # its transactions) and never writes a website or logo.
+  MERCHANT_DETECTION_MODES = %w[create_new existing_only].freeze
   SHARING_DEFAULTS = %w[shared private].freeze
 
   has_many :users, dependent: :destroy
@@ -164,6 +170,7 @@ class Family < ApplicationRecord
   validates :moniker, inclusion: { in: MONIKERS }
   validates :assistant_type, inclusion: { in: ASSISTANT_TYPES }
   validates :categorization_provider, inclusion: { in: CATEGORIZATION_PROVIDERS }
+  validates :merchant_detection_mode, inclusion: { in: MERCHANT_DETECTION_MODES }
   validates :categorization_confidence_threshold,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }
   validates :categorization_shadow_rate,
@@ -173,6 +180,10 @@ class Family < ApplicationRecord
   # settings UI can never disagree about which provider is actually in force.
   def effective_categorization_provider
     ENV["CATEGORIZATION_PROVIDER"].presence || categorization_provider
+  end
+
+  def detect_existing_merchants_only?
+    merchant_detection_mode == "existing_only"
   end
 
   # ENV-over-column precedence for the assistant, same shape as the provider

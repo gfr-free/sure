@@ -37,17 +37,39 @@
         ) %>
       <% end %>
     </div>
+
+    <% unless @family.recurring_transactions_disabled? %>
+      <div class="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-primary">
+        <div>
+          <p class="text-sm font-medium text-primary"><%= t("recurring_transactions.settings.auto_detection_label") %></p>
+          <p class="text-xs text-secondary"><%= t("recurring_transactions.settings.auto_detection_description") %></p>
+        </div>
+        <%= form_with url: update_settings_recurring_transactions_path, method: :patch, data: { turbo_frame: "_top", controller: "auto-submit-form" } do |f| %>
+          <%= f.hidden_field :recurring_detection_manual_only, value: @family.recurring_detection_manual_only? ? "false" : "true" %>
+          <%= render DS::Toggle.new(
+            id: "recurring_auto_detection_enabled",
+            name: "toggle_display",
+            checked: !@family.recurring_detection_manual_only?,
+            data: { auto_submit_form_target: "auto" }
+          ) %>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 
   <% unless @family.recurring_transactions_disabled? %>
     <%= render DS::Alert.new(title: t("recurring_transactions.info.title"), variant: :info) do %>
       <p><%= t("recurring_transactions.info.manual_description") %></p>
-      <p><%= t("recurring_transactions.info.automatic_description") %></p>
-      <ul class="list-disc list-inside space-y-0.5">
-        <% t("recurring_transactions.info.triggers").each do |trigger| %>
-          <li><%= trigger %></li>
-        <% end %>
-      </ul>
+      <% if @family.recurring_detection_manual_only? %>
+        <p><%= t("recurring_transactions.info.manual_only_description") %></p>
+      <% else %>
+        <p><%= t("recurring_transactions.info.automatic_description") %></p>
+        <ul class="list-disc list-inside space-y-0.5">
+          <% t("recurring_transactions.info.triggers").each do |trigger| %>
+            <li><%= trigger %></li>
+          <% end %>
+        </ul>
+      <% end %>
     <% end %>
 
       <% if @suggested_bills.any? %>

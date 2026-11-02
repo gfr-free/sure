@@ -1,5 +1,6 @@
 # Bills subsystem: after detecting patterns this now runs the rest of the
 # pipeline -- materialize occurrences, repair provider-replaced entries, match.
+# In manual-only mode it skips detection and runs only the remaining stages.
 class IdentifyRecurringTransactionsJob < ApplicationJob
   queue_as :default
 
@@ -21,7 +22,7 @@ class IdentifyRecurringTransactionsJob < ApplicationJob
 
     # Use advisory lock as final safety net against concurrent execution
     RecurringTransaction::Pipeline.with_family_lock(family_id) do
-      RecurringTransaction::Pipeline.new(family).run!
+      RecurringTransaction::Pipeline.new(family).run!(identify: family.recurring_auto_detection?)
     end
   end
 

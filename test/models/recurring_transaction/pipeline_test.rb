@@ -30,6 +30,24 @@ class RecurringTransaction::PipelineTest < ActiveSupport::TestCase
     end
   end
 
+  test "run! without identify creates no series but maintains existing ones" do
+    travel_to Date.new(2026, 8, 10) do
+      3.times do |i|
+        create_entry(amount: 42.50, date: Date.new(2026, 8, 9) - i.months, name: "CITY POWER")
+      end
+      series = create_series(name: "CITY WATER", amount: 80, day_offset: 5)
+      RecurringOccurrence.where(recurring_transaction: series).delete_all
+
+      patterns_count = Pipeline.new(@family).run!(identify: false)
+
+      assert_equal 0, patterns_count
+      assert_nil @family.recurring_transactions.find_by(name: "CITY POWER"),
+        "manual-only runs must not create series from detected patterns"
+      assert series.recurring_occurrences.exists?,
+        "existing series still get their occurrences"
+    end
+  end
+
   test "run! with backfill reconstructs history and is idempotent" do
     travel_to Date.new(2026, 8, 10) do
       series = create_series(name: "CITY WATER", amount: 80, day_offset: -1)

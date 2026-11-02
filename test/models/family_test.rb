@@ -799,6 +799,19 @@ class FamilyTest < ActiveSupport::TestCase
     assert_nil family.earliest_activity_date
   end
 
+  test "recurring_auto_detection? only in automatic mode with the feature on" do
+    family = families(:dylan_family)
+
+    family.assign_attributes(recurring_transactions_disabled: false, recurring_detection_manual_only: false)
+    assert family.recurring_auto_detection?
+
+    family.recurring_detection_manual_only = true
+    assert_not family.recurring_auto_detection?
+
+    family.assign_attributes(recurring_transactions_disabled: true, recurring_detection_manual_only: false)
+    assert_not family.recurring_auto_detection?
+  end
+
   private
     def set_preview_features(user, enabled)
       user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => enabled))

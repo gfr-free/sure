@@ -37,6 +37,16 @@ class IdentifyRecurringTransactionsJobTest < ActiveJob::TestCase
     IdentifyRecurringTransactionsJob.new.perform(@family.id, @scheduled_at)
   end
 
+  test "manual-only mode skips detection but keeps maintaining existing series" do
+    Sync.for_family(@family).incomplete.find_each(&:destroy)
+    @family.update!(recurring_detection_manual_only: true)
+
+    RecurringTransaction::Identifier.any_instance.expects(:identify_recurring_patterns).never
+    RecurringTransaction::Matcher.any_instance.expects(:run!).once
+
+    IdentifyRecurringTransactionsJob.new.perform(@family.id, @scheduled_at)
+  end
+
   test "skips when family is missing" do
     RecurringTransaction::Identifier.any_instance.expects(:identify_recurring_patterns).never
 

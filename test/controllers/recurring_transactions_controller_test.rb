@@ -168,6 +168,49 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to recurring_transactions_url
   end
 
+  test "manual-only switch updates only its own setting" do
+    @user.family.update!(recurring_transactions_disabled: false, recurring_detection_manual_only: false)
+
+    patch update_settings_recurring_transactions_url, params: { recurring_detection_manual_only: "true" }
+
+    assert_redirected_to recurring_transactions_url
+    family = @user.family.reload
+    assert family.recurring_detection_manual_only?
+    assert_not family.recurring_transactions_disabled?
+
+    patch update_settings_recurring_transactions_url, params: { recurring_transactions_disabled: "true" }
+
+    family.reload
+    assert family.recurring_transactions_disabled?
+    assert family.recurring_detection_manual_only?, "turning the feature off keeps the detection choice"
+  end
+
+  test "index offers the automatic detection switch while the feature is on" do
+    @user.family.update!(recurring_transactions_disabled: false, recurring_detection_manual_only: true)
+
+    get recurring_transactions_url
+
+    assert_response :success
+    assert_select "input#recurring_auto_detection_enabled:not([checked])"
+    assert_select "input[name=recurring_detection_manual_only][value=false]"
+    assert_select "a[href=?]", identify_recurring_transactions_path
+    assert_match I18n.t("recurring_transactions.info.manual_only_description"), response.body
+
+    @user.family.update!(recurring_transactions_disabled: true)
+    get recurring_transactions_url
+
+    assert_select "input#recurring_auto_detection_enabled", count: 0
+  end
+
+  test "identify still detects patterns in manual-only mode" do
+    @user.family.update!(recurring_detection_manual_only: true)
+    RecurringTransaction::Identifier.any_instance.expects(:identify_recurring_patterns).once.returns(0)
+
+    post identify_recurring_transactions_url
+
+    assert_redirected_to recurring_transactions_url
+  end
+
   test "cleanup retires stale series over POST" do
     post cleanup_recurring_transactions_url
 

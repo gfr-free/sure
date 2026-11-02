@@ -15,11 +15,14 @@ de:
     settings:
       enable_label: Wiederkehrende Transaktionen aktivieren
       enable_description: Erkenne automatisch wiederkehrende Transaktionsmuster und zeige anstehende prognostizierte Transaktionen an.
+      auto_detection_label: Muster automatisch erkennen
+      auto_detection_description: Nach jeder Synchronisierung und jedem Import nach neuen wiederkehrenden Mustern suchen. Ausschalten, um wiederkehrende Transaktionen nur von Hand anzulegen. Bestehende bleiben erhalten.
     settings_updated: Einstellungen für wiederkehrende Transaktionen aktualisiert
     info:
       title: Automatische Mustererkennung
       manual_description: Du kannst Muster manuell erkennen oder alte wiederkehrende Transaktionen mit den obigen Schaltflächen bereinigen.
       automatic_description: "Die automatische Erkennung wird außerdem ausgeführt nach:"
+      manual_only_description: Die automatische Erkennung ist aus. Neue Muster werden nur über die Schaltfläche oben gefunden; Synchronisierungen und Importe ordnen Zahlungen weiterhin den bestehenden wiederkehrenden Transaktionen zu.
       triggers:
         - Abschluss von CSV-Importen (Transaktionen, Trades, Konten usw.)
         - Abschluss einer Anbieter-Synchronisierung (Plaid, SimpleFIN usw.)

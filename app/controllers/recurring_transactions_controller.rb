@@ -542,7 +542,10 @@ class RecurringTransactionsController < ApplicationController
       end
     end
 
+    # Each settings form submits only its own switch; the other stays as is.
     def recurring_settings_params
-      { recurring_transactions_disabled: params[:recurring_transactions_disabled] == "true" }
+      %i[recurring_transactions_disabled recurring_detection_manual_only]
+        .select { |key| params.key?(key) }
+        .index_with { |key| params[key] == "true" }
     end
 end

@@ -793,6 +793,13 @@ class Family < ApplicationRecord
     "#{categories.count}-#{categories.maximum(:updated_at)&.to_f || 0}"
   end
 
+  # Background runs (post-sync) look for new patterns only in automatic mode.
+  # In manual-only mode the family curates its series by hand; the
+  # "Identify patterns" button still runs detection on request.
+  def recurring_auto_detection?
+    !recurring_transactions_disabled? && !recurring_detection_manual_only?
+  end
+
   # Used for invalidating caches keyed on recurring transactions (e.g. the
   # transactions index's projected recurring list). See #entries_version for
   # why .count is included alongside the timestamp.

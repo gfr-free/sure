@@ -4,7 +4,9 @@ class RecurringTransaction
   # changes -- in one place for its three callers: the post-sync job, the
   # Settings "Identify Patterns" button, and the Bills page's detection action.
   #
-  # `run!` returns the identified pattern count. `backfill: true` additionally
+  # `run!` returns the identified pattern count. `identify: false` skips pattern
+  # detection and only maintains the existing series (count 0); the post-sync
+  # job passes it for families in manual-only mode. `backfill: true` additionally
   # reconstructs recent history after the five stages; user-triggered detection
   # asks for it, background syncs never do. `run_with_lock!` returns the count,
   # or nil when another run already holds the family lock.
@@ -17,8 +19,8 @@ class RecurringTransaction
       @family = family
     end
 
-    def run!(backfill: false)
-      patterns_count = Identifier.new(family).identify_recurring_patterns
+    def run!(backfill: false, identify: true)
+      patterns_count = identify ? Identifier.new(family).identify_recurring_patterns : 0
 
       # Schedule.for reads recurrence_rules for every series; preload them so
       # occurrence generation doesn't issue one query per series (N+1).

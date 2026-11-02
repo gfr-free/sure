@@ -165,11 +165,14 @@ en:
     settings:
       enable_label: Enable Recurring Transactions
       enable_description: Automatically detect recurring transaction patterns and show upcoming projected transactions.
+      auto_detection_label: Detect patterns automatically
+      auto_detection_description: Look for new recurring patterns after every sync and import. Turn this off to add recurring transactions only by hand. Existing ones stay as they are.
     settings_updated: Recurring transactions settings updated
     info:
       title: Automatic Pattern Detection
       manual_description: You can manually identify patterns or clean up stale recurring transactions using the buttons above.
       automatic_description: "Automatic identification also runs after:"
+      manual_only_description: Automatic detection is off. New patterns are only found when you use the button above; syncs and imports keep matching payments to your existing recurring transactions.
       triggers:
         - CSV imports complete (transactions, trades, accounts, etc. )
         - Any provider sync completes ( Plaid, SimpleFIN, etc. )

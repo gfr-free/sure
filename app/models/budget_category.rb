@@ -23,6 +23,11 @@ class BudgetCategory < ApplicationRecord
 
   validates :budget_id, uniqueness: { scope: :category_id }
 
+  # The check constraint only admits a negative carry while the envelope
+  # carries its overspend, so switching that off has to drop the debt in the
+  # same write. The next recompute would arrive at zero anyway.
+  before_save :forfeit_carried_overspend, if: -> { will_save_change_to_carry_overspend? && !carry_overspend? }
+
   monetize :budgeted_spending, :available_to_spend, :avg_monthly_expense, :median_monthly_expense, :actual_spending,
            :rolled_over_amount
 
@@ -172,15 +177,26 @@ class BudgetCategory < ApplicationRecord
   # never had one to inherit — and the chain died there. Applying the choice
   # forward closes that hole without a tri-state column: later months carry the
   # most recent decision, which is the one the user just made.
-  def propagate_rollover_choice_forward!
-    later = BudgetCategory
-      .joins(:budget)
-      .where(category_id: category_id)
-      .where(budgets: { family_id: budget.family_id, user_id: budget.user_id })
-      .where("budgets.start_date > ?", budget.start_date)
-      .where.not(rollover_enabled: rollover_enabled)
+  #
+  # Callers pass only the toggles the user just changed: the form posts both
+  # on every save, and a month that merely switched rollover on must not
+  # overwrite the overspend choice later months already made.
+  def propagate_rollover_choice_forward!(toggles = %i[rollover_enabled carry_overspend])
+    changes = toggles.index_with { |toggle| self[toggle] }
+    return if changes.empty?
 
-    later.update_all(rollover_enabled: rollover_enabled, updated_at: Time.current)
+    later_budgets = Budget
+      .where(family_id: budget.family_id, user_id: budget.user_id)
+      .where("start_date > ?", budget.start_date)
+
+    later = BudgetCategory.where(budget_id: later_budgets.select(:id), category_id: category_id)
+
+    assignments = changes.map { |column, value| self.class.sanitize_sql_array([ "#{column} = ?", value ]) }
+    # Same rule as forfeit_carried_overspend, in SQL: update_all skips callbacks.
+    assignments << "rolled_over_amount = GREATEST(rolled_over_amount, 0)" if changes[:carry_overspend] == false
+    assignments << self.class.sanitize_sql_array([ "updated_at = ?", Time.current ])
+
+    later.update_all(assignments.join(", "))
   end
 
   def update_budgeted_spending!(new_budgeted_spending)
@@ -230,7 +246,15 @@ class BudgetCategory < ApplicationRecord
   end
 
   def rolled_over?
-    display_rolled_over_amount.positive?
+    !display_rolled_over_amount.zero?
+  end
+
+  def overspend_carried_over?
+    display_rolled_over_amount.negative?
+  end
+
+  def display_rolled_over_money
+    Money.new(display_rolled_over_amount, currency)
   end
 
   # Returns true if this subcategory has no individual budget limit and should use parent's budget
@@ -307,6 +331,9 @@ class BudgetCategory < ApplicationRecord
     else
       child_rollover = subcategory? ? 0 : subcategories.reject(&:inherits_parent_budget?).sum(&:rolled_over_amount)
       budget_amount = (self[:budgeted_spending] || 0) + rolled_over_amount + child_rollover
+      # A carried overspend larger than the allocation leaves the envelope
+      # in debt before anything is spent this month.
+      return 100 if budget_amount < 0
       return 0 if budget_amount == 0 && actual_spending == 0
       return 0 if budget_amount > 0 && actual_spending == 0
       return 100 if budget_amount == 0 && actual_spending > 0
@@ -326,10 +353,12 @@ class BudgetCategory < ApplicationRecord
   # on-track classification -- so it counts the carry too. Without it a
   # category funded entirely by rollover reads as unbudgeted, lands in
   # `unbudgeted_with_spending?` and gets an alert pill while it still has
-  # money left. `display_budgeted_spending` stays the month's allocation
-  # alone: the card shows the two figures side by side.
+  # money left. A carried overspend counts as well: the envelope owes money,
+  # so it is measured against that debt rather than reported as unbudgeted.
+  # `display_budgeted_spending` stays the month's allocation alone: the card
+  # shows the two figures side by side.
   def budgeted?
-    (display_budgeted_spending.to_d + display_rolled_over_amount.to_d).positive?
+    display_budgeted_spending.to_d.positive? || !display_rolled_over_amount.to_d.zero?
   end
 
   # Sibling of `display_budgeted_spending`: shared children show the parent's
@@ -457,5 +486,9 @@ class BudgetCategory < ApplicationRecord
       parent_budget_category.update!(
         budgeted_spending: sibling_budgeted_spending + (budgeted_spending || 0) + parent_budget_reserve
       )
+    end
+
+    def forfeit_carried_overspend
+      self.rolled_over_amount = 0 if self[:rolled_over_amount].to_d.negative?
     end
 end

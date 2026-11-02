@@ -32,16 +32,21 @@
 
     <%= form_with model: [budget_category.budget, budget_category], url: budget_budget_category_path(budget_category.budget, budget_category, **budget_owner_query), data: { controller: "auto-submit-form preserve-focus" } do |f| %>
       <div class="flex items-center gap-3">
-        <div class="flex items-center gap-1.5" title="<%= t("budget_categories.budget_category_form.rollover_title") %>">
-          <%= label_tag dom_id(budget_category, :rollover_enabled),
-                        t("budget_categories.budget_category_form.rollover_label"),
-                        class: "text-xs text-secondary cursor-pointer" %>
-          <%= render DS::Toggle.new(
-                id: dom_id(budget_category, :rollover_enabled),
-                name: "budget_category[rollover_enabled]",
-                checked: budget_category.rollover_enabled?,
-                data: { auto_submit_form_target: "auto" }
-              ) %>
+        <%# Stacked so the second toggle does not squeeze the category name. %>
+        <div class="flex flex-col items-end gap-1.5">
+          <%= render "budget_categories/rollover_toggle",
+                     budget_category: budget_category,
+                     attribute: :rollover_enabled,
+                     label: t("budget_categories.budget_category_form.rollover_label"),
+                     title: t("budget_categories.budget_category_form.rollover_title") %>
+
+          <% if budget_category.rollover_enabled? %>
+            <%= render "budget_categories/rollover_toggle",
+                       budget_category: budget_category,
+                       attribute: :carry_overspend,
+                       label: t("budget_categories.budget_category_form.carry_overspend_label"),
+                       title: t("budget_categories.budget_category_form.carry_overspend_title") %>
+          <% end %>
         </div>
 
         <div class="form-field w-[120px]">

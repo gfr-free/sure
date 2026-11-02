@@ -129,7 +129,8 @@ class Budget < ApplicationRecord
         category: current_categories_by_id.fetch(category_id),
         budgeted_spending: 0,
         currency: family.currency,
-        rollover_enabled: inherited_rollover.fetch(category_id, false)
+        rollover_enabled: inherited_rollover.key?(category_id),
+        carry_overspend: inherited_rollover.fetch(category_id, false)
       )
     end
 
@@ -143,6 +144,9 @@ class Budget < ApplicationRecord
   # rows therefore inherit it from the last initialized budget of the same
   # owner -- the same chain the carry itself walks. Turning it off on a given
   # month still overrides it from there on.
+  #
+  # Keyed by the categories that roll over; the value says whether they
+  # also carry their overspend.
   def inherited_rollover_flags(category_ids)
     return {} if category_ids.empty?
 
@@ -151,7 +155,7 @@ class Budget < ApplicationRecord
 
     source.budget_categories
       .where(category_id: category_ids, rollover_enabled: true)
-      .each_with_object({}) { |bc, flags| flags[bc.category_id] = true }
+      .each_with_object({}) { |bc, flags| flags[bc.category_id] = bc.carry_overspend? }
   end
 
   def uncategorized_budget_category
@@ -311,11 +315,12 @@ class Budget < ApplicationRecord
         target_bc = target_by_category[source_bc.category_id]
         next unless target_bc
 
-        # The toggle is a preference and travels with the copy; the amount
+        # The toggles are preferences and travel with the copy; the amount
         # is derived state that only Budget::RolloverCalculator may write.
         target_bc.update!(
           budgeted_spending: source_bc.budgeted_spending,
-          rollover_enabled: source_bc.rollover_enabled
+          rollover_enabled: source_bc.rollover_enabled,
+          carry_overspend: source_bc.carry_overspend
         )
       end
 

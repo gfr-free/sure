@@ -169,6 +169,54 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0.0, @parent_budget_category[:rolled_over_amount].to_f
   end
 
+  test "carrying overspend persists, recomputes the chain and shows the debt" do
+    previous_budget = Budget.find_or_bootstrap(@family, start_date: 1.month.ago)
+    previous_budget.update!(budgeted_spending: 5000, expected_income: 7000)
+    previous_budget_category = previous_budget.budget_categories.find_by!(category: @parent_category)
+    previous_budget_category.update!(budgeted_spending: 100, rollover_enabled: true, carry_overspend: true)
+
+    create_transaction(
+      date: previous_budget.start_date,
+      account: accounts(:depository),
+      amount: 150,
+      category: @parent_category
+    )
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: { budgeted_spending: 500, rollover_enabled: "1", carry_overspend: "1" } },
+          as: :turbo_stream
+
+    assert_response :success
+    assert @parent_budget_category.reload.carry_overspend?
+    assert_equal(-50.0, @parent_budget_category[:rolled_over_amount].to_f)
+
+    get budget_budget_category_path(@budget, @parent_budget_category)
+    assert_select "dd.text-destructive", text: /50/
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: { budgeted_spending: 500, rollover_enabled: "1", carry_overspend: "0" } },
+          as: :turbo_stream
+
+    assert_response :success
+    assert_not @parent_budget_category.reload.carry_overspend?
+    assert_equal 0.0, @parent_budget_category[:rolled_over_amount].to_f
+  end
+
+  test "the overspend toggle appears once rollover is on" do
+    form_selector = "##{dom_id(@parent_budget_category, :form)}"
+    carry_toggle = "input##{dom_id(@parent_budget_category, :carry_overspend)}"
+
+    get budget_budget_categories_path(@budget)
+    assert_select "#{form_selector} #{carry_toggle}", count: 0
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: { budgeted_spending: 500, rollover_enabled: "1" } },
+          as: :turbo_stream
+
+    assert_response :success
+    assert_select "turbo-stream[action=replace][target=#{dom_id(@parent_budget_category, :form)}] template #{carry_toggle}"
+  end
+
   test "updating an allocation without the toggle leaves rollover off" do
     patch budget_budget_category_path(@budget, @parent_budget_category),
           params: { budget_category: { budgeted_spending: 600 } },

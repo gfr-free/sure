@@ -36,11 +36,16 @@ class BudgetCategoriesController < ApplicationController
 
   def update
     @budget_category = @budget.budget_categories.find(params[:id])
-    unless rollover_enabled_param.nil?
-      @budget_category.update!(rollover_enabled: rollover_enabled_param)
+    if rollover_choice_params.any?
+      @budget_category.update!(rollover_choice_params)
+      # The overspend toggle only shows while rollover is on, so the row has
+      # to be redrawn when that flips.
+      @rollover_toggled = @budget_category.saved_change_to_rollover_enabled?
       # A month the user opened before making this choice was created with the
       # flag off and had nothing to inherit, so the chain stopped there.
-      @budget_category.propagate_rollover_choice_forward!
+      @budget_category.propagate_rollover_choice_forward!(
+        %i[rollover_enabled carry_overspend].select { |toggle| @budget_category.saved_change_to_attribute?(toggle) }
+      )
     end
     @budget_category.update_budgeted_spending!(budgeted_spending_param)
 
@@ -96,11 +101,11 @@ class BudgetCategoriesController < ApplicationController
       params.require(:budget_category_move).permit(:amount).fetch(:amount, nil).to_d
     end
 
-    def rollover_enabled_param
-      permitted = params.require(:budget_category).permit(:rollover_enabled)
-      return nil unless permitted.key?(:rollover_enabled)
-
-      ActiveModel::Type::Boolean.new.cast(permitted[:rollover_enabled])
+    def rollover_choice_params
+      @rollover_choice_params ||= params.require(:budget_category)
+        .permit(:rollover_enabled, :carry_overspend)
+        .to_h
+        .transform_values { |value| ActiveModel::Type::Boolean.new.cast(value) == true }
     end
 
     def budgeted_spending_param

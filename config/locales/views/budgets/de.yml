@@ -70,8 +70,11 @@ de:
       over_set: "> 100 % verplant"
       percent_set: "%{percent} verplant"
     budget_category:
+      overspend_carried_over: "-%{amount} Überziehung übertragen"
       rolled_over: "+%{amount} übertragen"
     budget_category_form:
+      carry_overspend_label: Überziehung
+      carry_overspend_title: Auch zu viel ausgegebenes Geld dieser Kategorie in den nächsten Monat übertragen, wo es das verfügbare Budget verringert
       monthly_average: "%{amount}/M Ø"
       rollover_label: Übertrag
       rollover_title: Nicht ausgegebenes Geld dieser Kategorie in den nächsten Monat übertragen
@@ -94,6 +97,7 @@ de:
       monthly_average_spending: Ausgaben im Monatsschnitt
       monthly_median_spending: Ausgaben im Monatsmedian
       no_transactions: Keine Transaktionen in diesem Budgetzeitraum.
+      overspend_carried_over: Übertragene Überziehung
       overspent: überzogen
       overview: Übersicht
       recent_transactions: Letzte Transaktionen

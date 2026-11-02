@@ -14,8 +14,10 @@ class TransactionsController < ApplicationController
 
   def new
     prefill_params_from_duplicate!
+    prefill_params_from_template!
     super
     apply_duplicate_attributes!
+    apply_template_attributes!
     set_new_transaction_form_options
   end
 
@@ -165,7 +167,7 @@ class TransactionsController < ApplicationController
       @entry.mark_user_modified!
       @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
 
-      respond_with_created_entry(@entry)
+      respond_with_created_entry(@entry, saved_template: save_entry_as_template(@entry))
     else
       clear_stale_auto_generated_name!(@entry)
       set_new_transaction_form_options
@@ -600,6 +602,34 @@ class TransactionsController < ApplicationController
       params[:account_id] ||= duplicate_source.account_id.to_s
     end
 
+    def template_source
+      return @template_source if defined?(@template_source)
+      @template_source = Current.family.transaction_templates.find_by(id: params[:template_id]) if params[:template_id].present?
+    end
+
+    def prefill_params_from_template!
+      return unless template_source
+      params[:nature] ||= template_source.nature
+    end
+
+    def apply_template_attributes!
+      return unless template_source
+
+      attributes = template_source.entry_attributes_for(Current.user)
+      @entry.assign_attributes(attributes.except(:entryable))
+      @entry.entryable.assign_attributes(attributes[:entryable].except(:tag_ids))
+      @entry.entryable.tag_ids = attributes[:entryable][:tag_ids]
+      @selected_account_id = template_source.account_for(Current.user)&.id
+    end
+
+    # "Save as template" on the New transaction form. A failed template save
+    # never undoes the transaction; the flash says so instead.
+    def save_entry_as_template(entry)
+      return unless params[:save_as_template] == "1" && !Current.user.guest?
+
+      TransactionTemplate.build_from_entry(entry).save
+    end
+
     def apply_duplicate_attributes!
       return unless duplicate_source
       @entry.assign_attributes(
@@ -687,8 +717,12 @@ class TransactionsController < ApplicationController
       @new_transaction_idempotency_key ||= submitted_idempotency_key || SecureRandom.uuid
     end
 
-    def respond_with_created_entry(entry)
-      flash[:notice] = t(".created")
+    def respond_with_created_entry(entry, saved_template: nil)
+      flash[:notice] = case saved_template
+      when true then t(".created_with_template")
+      when false then t(".created_without_template")
+      else t(".created")
+      end
 
       respond_to do |format|
         format.html { redirect_back_or_to account_path(entry.account) }
@@ -727,6 +761,7 @@ class TransactionsController < ApplicationController
       @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically.to_a
       @tags = Current.family.tags.alphabetically.to_a
+      @transaction_templates = Current.user.guest? ? [] : Current.family.transaction_templates.alphabetically.to_a
     end
 
     # Autocomplete suggestions for the name field, only queried when the

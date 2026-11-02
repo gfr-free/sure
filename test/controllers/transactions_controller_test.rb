@@ -1480,6 +1480,103 @@ end
     end
   end
 
+  test "new with template_id pre-fills the form from the template" do
+    template = @user.family.transaction_templates.create!(
+      name: "Rent", nature: "inflow", amount: 950, currency: "USD",
+      account: accounts(:depository), category: categories(:food_and_drink),
+      merchant: merchants(:amazon), tags: [ tags(:one) ], notes: "Monthly"
+    )
+
+    get new_transaction_url(template_id: template.id)
+
+    assert_response :success
+    assert_select "input[name='entry[name]'][value=?]", "Rent"
+    assert_select "input[type='text'][name='entry[amount]'][value=?]", "950.00"
+    assert_select "input[name='entry[nature]'][value=?]", "inflow"
+    assert_select "select[name='entry[account_id]'] option[selected][value=?]", accounts(:depository).id
+    assert_select "input[name='entry[entryable_attributes][category_id]'][value=?]", categories(:food_and_drink).id
+    assert_select "input[name='entry[entryable_attributes][merchant_id]'][value=?]", merchants(:amazon).id
+    assert_select "textarea[name='entry[notes]']", text: "Monthly"
+  end
+
+  test "new keeps the account it was opened from over the template account" do
+    template = @user.family.transaction_templates.create!(name: "Fuel", account: accounts(:depository))
+
+    get new_transaction_url(template_id: template.id, account_id: accounts(:credit_card).id)
+
+    assert_response :success
+    assert_select "input[type='hidden'][name='entry[account_id]'][value=?]", accounts(:credit_card).id
+  end
+
+  test "new with a template from another family does not prefill the form" do
+    template = families(:empty).transaction_templates.create!(name: "Should not leak")
+
+    get new_transaction_url(template_id: template.id)
+
+    assert_response :success
+    assert_no_match "Should not leak", response.body
+  end
+
+  test "new does not preselect a template account the user cannot see" do
+    sign_in users(:family_member)
+    template = @user.family.transaction_templates.create!(name: "Car", account: accounts(:other_asset))
+
+    get new_transaction_url(template_id: template.id)
+
+    assert_response :success
+    assert_select "select[name='entry[account_id]'] option[value=?]", accounts(:other_asset).id, count: 0
+    assert_select "input[name='entry[name]'][value=?]", "Car"
+  end
+
+  test "new lists the family's templates" do
+    template = @user.family.transaction_templates.create!(name: "Coffee")
+
+    get new_transaction_url
+
+    assert_response :success
+    assert_select "a[href=?]", new_transaction_path(template_id: template.id), text: "Coffee"
+    assert_select "input[type='checkbox'][name='save_as_template']"
+  end
+
+  test "create saves the transaction as a template when asked" do
+    assert_difference [ "Entry.count", "TransactionTemplate.count" ] do
+      post transactions_url, params: {
+        save_as_template: "1",
+        entry: {
+          account_id: @entry.account_id,
+          name: "Gym",
+          date: Date.current,
+          currency: "USD",
+          amount: 30,
+          nature: "outflow",
+          entryable_type: "Transaction",
+          entryable_attributes: { category_id: categories(:food_and_drink).id, tag_ids: [ tags(:one).id ] }
+        }
+      }
+    end
+
+    assert_equal "Transaction created and saved as a template", flash[:notice]
+    template = @user.family.transaction_templates.find_by!(name: "Gym")
+    assert_equal 30, template.amount
+    assert_equal "outflow", template.nature
+    assert_equal @entry.account, template.account
+    assert_equal [ tags(:one) ], template.tags.to_a
+  end
+
+  test "create does not save a template unless asked" do
+    assert_no_difference "TransactionTemplate.count" do
+      post transactions_url, params: {
+        save_as_template: "0",
+        entry: {
+          account_id: @entry.account_id, name: "Gym", date: Date.current, currency: "USD",
+          amount: 30, nature: "outflow", entryable_type: "Transaction"
+        }
+      }
+    end
+
+    assert_equal "Transaction created", flash[:notice]
+  end
+
   test "new preloads transaction form option data" do
     family = families(:empty)
     user = users(:empty)

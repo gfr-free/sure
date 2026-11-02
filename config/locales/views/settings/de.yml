@@ -213,6 +213,7 @@ de:
       security_label: Sicherheit
       self_hosting_label: Self-Hosting
       tags_label: Tags
+      transaction_templates_label: Transaktionsvorlagen
       transactions_section_title: Transaktionen
       whats_new_label: Was ist neu
       api_keys_label: API-Schlüssel

@@ -1,0 +1,39 @@
+---
+de:
+  transaction_templates:
+    nature:
+      inflow: Einnahme
+      outflow: Ausgabe
+    index:
+      title: Transaktionsvorlagen
+      new: Neue Vorlage
+      empty_title: Noch keine Vorlagen
+      empty_description: Speichere die Werte einer Transaktion, die du oft erfasst, und wähle die Vorlage dann im Formular „Neue Transaktion“, um sie einzusetzen.
+    template:
+      use: Neue Transaktion aus Vorlage
+      edit: Bearbeiten
+      delete: Löschen
+    new:
+      title: Neue Vorlage
+    edit:
+      title: Vorlage bearbeiten
+    form:
+      name: Name
+      name_placeholder: Zum Beispiel Miete
+      nature: Art
+      account: Konto
+      no_account: "(kein Konto)"
+      hidden_account: Das Konto dieser Vorlage ist nicht für dich freigegeben. Es bleibt unverändert.
+      amount: Betrag
+      amount_help: Optional. Leer lassen, um den Betrag jedes Mal einzugeben.
+      no_category: "(keine Kategorie)"
+      merchant: Händler
+      no_merchant: "(kein Händler)"
+      notes: Notizen
+      submit: Vorlage speichern
+    create:
+      created: Vorlage erstellt
+    update:
+      updated: Vorlage aktualisiert
+    destroy:
+      deleted: Vorlage gelöscht

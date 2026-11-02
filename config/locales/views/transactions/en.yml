@@ -54,11 +54,17 @@ en:
       merchant_search_placeholder: Search or create merchant
       no_matching_categories: No matching categories
       submit: Add transaction
+      use_template: Use template
+      manage_templates: Manage templates
+      save_as_template: Save as template
+      save_as_template_help: Reuse these values the next time you add a transaction.
       tag_search_placeholder: Search or create tag
       tags_label: Tags
       transfer: Transfer
     create:
       created: Transaction created
+      created_with_template: Transaction created and saved as a template
+      created_without_template: Transaction created, but the template could not be saved
     update:
       updated: Transaction updated
     new:

@@ -1,0 +1,51 @@
+<%# locals: (template:) %>
+
+<%= styled_form_with model: template, class: "space-y-4", data: { turbo_frame: :_top } do |f| %>
+  <% if template.errors.any? %>
+    <%= render "shared/form_errors", model: template %>
+  <% end %>
+
+  <section class="space-y-2">
+    <%= f.text_field :name, label: t(".name"), placeholder: t(".name_placeholder"), required: true, autofocus: true %>
+
+    <%= f.select :nature,
+          TransactionTemplate.natures.keys.map { |nature| [ t("transaction_templates.nature.#{nature}"), nature ] },
+          { label: t(".nature") } %>
+
+    <% if hidden_account? %>
+      <p class="text-xs text-secondary"><%= t(".hidden_account") %></p>
+    <% else %>
+      <%= f.collection_select :account_id, @accounts, :id, :name,
+            { include_blank: t(".no_account"), label: t(".account") },
+            class: "form-field__input text-ellipsis" %>
+    <% end %>
+
+    <%= f.money_field :amount, label: t(".amount"), required: false, default_currency: Current.family.currency %>
+    <p class="text-xs text-secondary"><%= t(".amount_help") %></p>
+
+    <%= render DS::CategorySelect.new(
+          form: f,
+          categories: @categories,
+          selected_id: template.category_id,
+          blank_label: t(".no_category"),
+          locked: Current.family.categories_locked?
+        ) %>
+
+    <%= render DS::MerchantSelect.new(
+          form: f,
+          method: :merchant_id,
+          merchants: @merchants,
+          selected_id: template.merchant_id,
+          include_blank: t(".no_merchant"),
+          label: t(".merchant")
+        ) %>
+
+    <%= render DS::TagSelect.new(form: f, tags: @tags, selected_ids: template.tag_ids) %>
+
+    <%= f.text_area :notes, label: t(".notes"), rows: 3 %>
+  </section>
+
+  <section>
+    <%= f.submit t(".submit") %>
+  </section>
+<% end %>

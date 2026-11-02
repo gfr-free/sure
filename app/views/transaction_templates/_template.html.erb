@@ -1,0 +1,28 @@
+<%# locals: (template:, visible_account_ids:) %>
+
+<div id="<%= dom_id(template) %>" class="flex justify-between items-center gap-4 p-4 bg-container hover:bg-surface-hover">
+  <div class="min-w-0 space-y-1">
+    <p class="text-sm font-medium text-primary truncate"><%= template.name %></p>
+    <p class="text-xs text-secondary truncate">
+      <%= safe_join([
+            t("transaction_templates.nature.#{template.nature}"),
+            (format_money(Money.new(template.amount, template.currency)) if template.amount.present?),
+            template.category&.name,
+            (template.account.name if template.account_id.in?(visible_account_ids)),
+            (template.tags.map(&:name).join(", ") if template.tags.any?)
+          ].compact, " · ") %>
+    </p>
+  </div>
+
+  <%= render DS::Menu.new do |menu| %>
+    <% menu.with_item(variant: "link", text: t(".use"), href: new_transaction_path(template_id: template.id), icon: "plus", frame: :modal) %>
+    <% menu.with_item(variant: "link", text: t(".edit"), href: edit_transaction_template_path(template), icon: "pencil", frame: :modal) %>
+    <% menu.with_item(
+          variant: "button",
+          text: t(".delete"),
+          href: transaction_template_path(template),
+          icon: "trash-2",
+          method: :delete,
+          confirm: CustomConfirm.for_resource_deletion(template.name)) %>
+  <% end %>
+</div>

@@ -389,6 +389,7 @@ en:
       statement_vault_label: Statement Vault
       system_health_label: System health
       tags_label: Tags
+      transaction_templates_label: Transaction templates
       transactions_section_title: Transactions
       users_label: Users
       whats_new_label: What's new

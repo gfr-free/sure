@@ -1,0 +1,34 @@
+<%= content_for :page_title, t(".title") %>
+<%= content_for :page_actions do %>
+  <%= render DS::Link.new(
+    text: t(".new"),
+    variant: "primary",
+    href: new_transaction_template_path,
+    icon: "plus",
+    frame: :modal
+  ) %>
+<% end %>
+
+<div class="bg-container rounded-xl shadow-border-xs p-4">
+  <% if @templates.any? %>
+    <div class="rounded-xl bg-container-inset space-y-1 p-1">
+      <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
+        <p><%= t(".title") %></p>
+        <span class="text-subdued">&middot;</span>
+        <p><%= @templates.size %></p>
+      </div>
+
+      <div class="bg-container rounded-lg shadow-border-xs">
+        <div class="overflow-hidden rounded-lg">
+          <%= render partial: "transaction_templates/template", collection: @templates, spacer_template: "shared/ruler", locals: { visible_account_ids: @visible_account_ids } %>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <%= render DS::EmptyState.new(icon: "layout-template", title: t(".empty_title"), description: t(".empty_description")) do |empty_state| %>
+      <% empty_state.with_action do %>
+        <%= render DS::Link.new(text: t(".new"), icon: "plus", href: new_transaction_template_path, frame: :modal) %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

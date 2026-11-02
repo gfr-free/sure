@@ -1,0 +1,39 @@
+---
+en:
+  transaction_templates:
+    nature:
+      inflow: Income
+      outflow: Expense
+    index:
+      title: Transaction templates
+      new: New template
+      empty_title: No templates yet
+      empty_description: Save the values of a transaction you enter often, then pick the template in the New transaction form to fill them in.
+    template:
+      use: New transaction from template
+      edit: Edit
+      delete: Delete
+    new:
+      title: New template
+    edit:
+      title: Edit template
+    form:
+      name: Name
+      name_placeholder: For example, Rent
+      nature: Type
+      account: Account
+      no_account: "(no account)"
+      hidden_account: The account of this template is not shared with you. It stays unchanged.
+      amount: Amount
+      amount_help: Optional. Leave blank to enter the amount each time.
+      no_category: "(no category)"
+      merchant: Merchant
+      no_merchant: "(no merchant)"
+      notes: Notes
+      submit: Save template
+    create:
+      created: Template created
+    update:
+      updated: Template updated
+    destroy:
+      deleted: Template deleted

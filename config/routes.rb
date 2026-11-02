@@ -453,6 +453,8 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :transaction_templates, except: :show
+
   resources :tags, except: :show do
     resources :deletions, only: %i[new create], module: :tag
     delete :destroy_all, on: :collection

@@ -241,6 +241,15 @@ Cache, Frames und Kontoauswahl der Sparklines geändert, ohne das zu bemerken; d
 - Hinweis: Die meisten Maintainer-Zurückweisungen sind Prozessgründe (veraltet, Duplikat, nicht abgesprochen,
   offene Bot-Threads, kein Rebase), nicht Code. L17, L19, L20 deshalb vor dem Öffnen eines Upstream-PRs prüfen.
 
+**L35 Währungs- und Zahlenformat-Neutralität (neu 03.11., Maintainer-Reviews fremder PRs).**
+Beträge, Beispiele und Formate gelten für jede Währung und jedes Locale, nicht nur für USD/EUR. Prüffragen:
+Passt ein Platzhalter- oder Beispielbetrag (Hinweistext, Formular) auch zu JPY, INR oder einer Währung mit
+anderer Größenordnung, oder ist er besser neutral? Kommen Nachkommastellen aus der Währung (minor unit), nicht
+aus dem Locale? Passen Gruppierung, Tausender- und Dezimaltrenner zusammen (indische 3-2-2-Gruppierung mit
+Währungstrennern)? Gibt es die verwendeten Locales überhaupt in config/locales? Texte ohne „dollar“.
+Beispiele: upstream PR 3020 (Hinweis „dollar amounts“), 4580 (Platzhalter 25000), 4669 (INR-Gruppierung), 4679
+(iOS-Widget teilt durch Locale-Nachkommastellen).
+
 ## Nachträge
 (Neue Befunde hier mit Datum, PR und zugeordneter Lektion anhängen.)
 - 07.10. (Broadcast-Prüfung Provider-Panels): neue Lektion L24 (L23 ist schon im Passkey-Nachtrag vergeben);
@@ -1851,3 +1860,14 @@ Cache, Frames und Kontoauswahl der Sparklines geändert, ohne das zu bemerken; d
   - L10: Zählen Überweisungen zwischen eigenen Konten in kontobezogenen Flüssen (Sankey) gleich wie in der Gesamtsicht? (Bugfix 4180)
   - L16: Werden Provider-Parameter gegen die echte API-Doku geprüft (ignorierte Parameter liefern still den ganzen Verlauf)? (Bugfix 4565)
   - Review-Prompt (Teil D): Alle durchgerutschten Befunde fallen unter vorhandene Schritte; kein Vorschlag für Teil A.
+- 03.11.2026 Maintainer-Reviews fremder Upstream-PRs (erster Lauf, 60 Befunde aus 35 PRs; 35 bekannt, 22 durchgerutscht, 3 neu → L35; Liste befunde-woche-2026-11-03.md Abschnitt D):
+  - L35 neu (Währungs- und Zahlenformat-Neutralität), siehe oben.
+  - L20: jjmata verlangt bei jedem UI-PR Screenshots für Mobil, Desktop und Dark Mode und bei neuen Funktionen Beispieldaten im Demo-Generator (upstream PR 4600, 4615, eigener 4466). Prüffrage: Zeigen die Demo-Daten die neue Funktion, und liegen alle drei Screenshot-Varianten vor?
+  - L21 (häufigster Punkt, 9×): Gibt es die Funktion schon in einer eingebundenen Bibliothek (d3 `sankeyCenter`, upstream PR 4642), in einer Nachbardatei oder als dritte Kopie eines Controller-Musters (`clear_filter`, upstream PR 4663)?
+  - L9 (zu breit): Invalidiert ein Fingerprint mehr als nötig (ganze Familie statt gelesener Konten, globales `maximum(:updated_at)` über alle Familien, Zeitraum-Key statt Monats-Keys)? (upstream PR 4678, 4596)
+  - L1: Liefert der Standardzustand (nichts ausgewählt) etwas anderes als gedacht (alle Währungen statt Familienwährung)? (upstream PR 4531) Trägt ein Formular den aufgelösten Standard statt nur den expliziten Parameter weiter? (upstream PR 4514) Float-Gleichheit nach getrennter Rundung, gieriger Regex? (upstream PR 4666)
+  - L33: `nonzero?` verwechselt nil (nie gesetzt) mit bewusst 0. (upstream PR 4555) Eigener Zahl-Regex strenger als der Parser daneben (`to_d`)? (upstream PR 4651)
+  - L8: Fängt die rescue-Liste alle Geschwister der Fehlerhierarchie? Haben Socket-Writes zum Proxy einen Timeout? (upstream PR 4651, 4695)
+  - L6: Stimmen Breitenberechnungen in versteckten Dialogen (clientWidth 0)? Sendet ein Formular doppelt, weil DS::Select schon abschickt? textContent mit verschachtelten Badges? (upstream PR 4642, 4531, 4633)
+  - L2: Gilt eine Änderung in einem geteilten Helfer (Sanitizer) für alle Strategien, die ihn nutzen? (upstream PR 4558)
+  - L12: DS::Disclosure-Summary braucht einen w-full-Wrapper für justify-between. (upstream PR 4462)

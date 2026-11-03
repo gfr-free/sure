@@ -1714,3 +1714,140 @@ Cache, Frames und Kontoauswahl der Sparklines geändert, ohne das zu bemerken; d
   - L11 (Fork 202, 27.10.): Neuer UI-Key (`copied`) nur in en/de angelegt, obwohl alle 16 Locales den Nachbar-Key (`copy_button`) übersetzen; Nachbar-Key-Test in test/i18n_test.rb ergänzen.
   - L7 (Fork 202): Layout-Test prüfte nur `document.body.scrollWidth`; zusätzlich rechte Kanten von Inhalt und Button gegen den Container prüfen und alle betroffenen Zeilen (OIDC und SAML) abdecken.
   - L12 (Fork 202): Gleiche handgebaute Kopierzeile zweimal im Diff → gemeinsames Partial; DS::Button `:sm` mit Text ist nur 28 px hoch, Standardgröße nutzen.
+  - L1/L13 (Fork 203, 27.10.): Sperrt ein „Nutzer-Edit“ auch vorbefüllte Werte? Bearbeiten-Dialoge und PATCH-APIs senden jede Zeile vollständig zurück; nur geänderte Werte sperren (alte Sperrlage übernehmen), Vorbelegung bzw. API-Default (Eltern-Name) nicht als Edit werten.
+  - L12 (Fork 203): Gleiche Test-Hilfsmethode in Web- und API-Test kopiert → in test/support (EntriesTestHelper) teilen; Keyword-Argument nicht wie Fixture-Accessor nennen (`categories:` verdeckt `categories(:x)`).
+- 27.10. (Fork PR 206, Issue 3488 Trade-Republic-Login drosseln, vor dem PR behoben in 526d9e7): L3 (bekannte Art):
+  Drossel nur je IP und je Nutzer reicht nicht, wenn Registrierung offen ist und jeder neue Nutzer Familien-Admin wird;
+  mehrere Konten raten dann gegen dieselbe Ziel-Telefonnummer. Prüffrage geschärft: „Gibt es ein Ziel (E-Mail, Telefonnummer,
+  Konto beim Drittanbieter), gegen das mehrere eigene Konten zusammen raten können? Dann zusätzlich je Ziel drosseln (gehasht).“
+  L8: Poll-Budget nachgerechnet (QR ~90/min je Login, Settings und Accounts pollen parallel) und von 180 auf 300 erhöht.
+  L13: Kommentar behauptete, initiate_login sende die gespeicherte PIN; die PIN wird nie gespeichert (attr_accessor), im Code prüfen.
+  Auch: gemeinsamer Sitzungs-Lookup in Rack::Attack prüft jetzt den Inaktivitäts-Timeout wie Session.find_active_by_cookie.
+- Nachtrag 27.10.2026 (PR-Check, upstream 4468, Pending→Posted unter Sperre): Nach dem Row-Lock galt ein Pending-Treffer mit geänderter external_id als „von einem anderen Import übernommen“ und wurde übersprungen; zwei parallele Syncs derselben gebuchten Buchung endeten so in „External has already been taken“ (Unique-Index) oder im Übernehmen eines zweiten Pending-Eintrags. Fix: Trägt der Treffer nach dem Sperren schon die eingehende external_id, ihn unverändert zurückgeben. Prüffrage: „Deckt die Nachprüfung nach dem Lock auch den Fall ab, dass der Konkurrent genau dieselbe Arbeit erledigt hat?“ (L-Nebenläufigkeit). Gemeldet, nicht gefixt: 4474 Wechselkurs-Refresh ohne/mit unbekanntem Provider bricht DataCacheClearJob vor dem Löschen ab, obwohl die Seite genau diesen Zustand verspricht → Prüffrage: „Läuft die Aktion hinter einem konfigurationsabhängigen UI-Text in genau diesem Zustand durch?“
+- 27.10. (Fork PR 208, Issue 3360 Anfangssaldo beim Sure-Import, vor dem PR behoben): L1/L14 (bekannte Art):
+  Erster Ansatz lief Balance::ForwardCalculator im Import, um das Ergebnis des späteren Syncs vorwegzunehmen. Der Sync lädt aber
+  vorher Kurse und baut Holdings aus Trades neu (löscht Holdings ohne Trade) → Depotwerte verschwanden, eine unbekannte Währung brach
+  den ganzen Import ab. Prüffrage: „Sagt der Diff das Ergebnis eines späteren Jobs voraus, ohne dessen Vorbereitungsschritte
+  (Kurse laden, Holdings neu bauen, Purge)? Dann nur mit den Daten rechnen, die sicher feststehen, sonst altes Verhalten.“
+  L1: Rohwert vs. geparster Wert: Bedingung prüfte den rohen Datums-String, die Datierung den geparsten → bei „not a date“
+  widersprachen sich beide; eine gemeinsame Helper-Methode nutzen. L1: Flüsse müssen genau die Eintragstypen des Kalkulators
+  abdecken (Trades bewegen auch Girokonten). Chunked Import-Sessions: In-Memory-Stand stirbt mit dem Chunk.
+- 27.10. (Fork PR 207, Issues 3044+3392 PEM-Schlüssel Coinbase/Enable Banking, vor dem PR behoben in 8ea11d4): L14/L1/L13 (bekannte Art):
+  L14: Regex mit faulem `(.*?)` plus Rückverweis `\1` auf ungedeckelter Eingabe ist quadratisch (160 KB = 5 s, Rack erlaubt 4 MB);
+  Körper auf `[^-]*` begrenzen und Eingabe deckeln. Prüffrage: „Läuft eine neue Regex auf freier Nutzereingabe ohne Längengrenze,
+  mit Rückverweis oder verschachteltem `.*`?“ L1: Fehler, die nur im Hintergrund-Sync entstehen, sieht der Nutzer nicht, wenn die
+  Provider-Ansicht `sync_error` nicht zeigt → beim Speichern validieren (nur bei Änderung des Feldes, sonst blockieren Altdaten).
+  L13: Fehlermeldung für Ed25519-Secret riet, BEGIN/END-Zeilen einzufügen, die es dort nicht gibt; je Ursache eigene Meldung.
+  L14: Schlüssel wurde pro API-Request neu geparst → einmal je Provider-Instanz memoisieren.
+- **27.10.2026, Fork-Branch claude/project-thread-z5ijik (Issue 2119, Holding-Übernahme beim Sync), code-review max vor PR, behoben:**
+  L8/L21: Savepoint plus DebugLogEntry um einen vorhersehbaren Konflikt (external_id hält schon eine andere Zeile) hätte den ganzen
+  Provider-Snapshot verworfen und bei jedem Sync neu geloggt. Prüffrage: „Ist der Fehler, den der neue rescue/Savepoint auffängt,
+  aus lokalem Zustand vorhersehbar? Dann vorher prüfen (hier `external_id_taken?`) und den Rest der Änderung durchlassen; der
+  Savepoint bleibt nur Netz für Races.“ L13: Log-Text „adopt“ passte nicht zu allen Zweigen (auch eigene Zeilen), Testname versprach
+  Sicherheits-Sperre, die der Test nie berührt.
+- **27.10.2026, Fork PR 210 (Issue 3501, Dialog schließt bei Textauswahl), code-review max vor PR (zwei Runden), behoben:**
+  L5/L34: Ein Klick-außerhalb-Handler, der nur das Ziel des `click` prüft, schließt bei Zügen über die Inhaltskante (Druck innen,
+  Loslassen außen und umgekehrt) und bei Tastatur-Klicks auf Knöpfe, die sich selbst entfernen (Ziel ist dann abgehängt).
+  Zweite Runde: gemerkter Pointer-Zustand blieb nach `pointercancel`/Rechtsklick stehen und ließ einen späteren Tastatur-Klick
+  schließen. Prüffrage: „Gilt die Entscheidung für Maus, Touch UND Tastatur (`detail === 0`)? Wird jeder gemerkte Eingabezustand
+  auf jedem Endweg (click, cancel, kein click) zurückgesetzt?“ L6: Listener als `data-action` (mit `:capture`) statt
+  addEventListener (docs/llm-guides/ui.md). L13: Kommentare an Umgehungen (stopPropagation im Regel-Editor) nachziehen, wenn sich
+  das beschriebene Verhalten ändert.
+- **27.10.2026, Fork PR 211 (Issue 3223, Wertpapierwechsel per getipptem Ticker und API), code-review max vor PR, behoben:**
+  L5/L13: `name_when_new` an einer Such-Combobox macht jede nicht ausgewählte Eingabe zum Freitext („Apple“ statt Auswahl) und
+  der Resolver wählte dann still ein anderes Wertpapier, gesperrt gegen Syncs. Prüffrage: „Ändert ein neuer Freitext-Weg, was
+  bisher automatisch ausgewählt wurde? Kann ein Name statt Ticker durchrutschen?“ L2: Cash-Wertpapiere sind kontogebunden und
+  waren als Quelle UND Ziel möglich; eine Prüfung im Modell (`remappable_to?`) statt drei verstreuter Ziel-Prüfungen. L21: Nach
+  dem gespeicherten Umbau darf ein Nachschlagen (`find_by!`) nicht in einen 500er laufen; Rückfallwert wählen. L8: API-Params
+  vor `permit` auf Hash prüfen (`{"holding": "x"}` gab 500). L14: Neuberechnung bei unverändertem Ziel überspringen.
+- **27.10.2026, Fork PR 216 (Issue 3352, Split-Knopf ohne Recht), code-review max vor PR, behoben:**
+  L2: Wer einen Knopf nach Recht ausblendet, prüft alle Knöpfe derselben Ansicht mit demselben Muster („sichtbar, aber beim
+  Speichern verweigert“): im Kategorie-Dropdown auch „Transfer zuordnen“ und die Ausschluss-Checkbox; Dropdown suchte die Buchung
+  familienweit statt in `accessible_by`. L6: Eine Rechte-Prüfung auf einer Aktion, die im Modal-Frame lädt (new/edit), braucht
+  `frame_redirect_to`, sonst zeigt Turbo „Content missing“ statt der Meldung. Prüffrage: „Lädt die verweigerte Aktion in einem
+  Turbo-Frame?“
+- **27.10.2026, Fork-PR SSO-only-Registrierung (Issue 1430), code-review vor PR, behoben:**
+  L2: Wer einen Einstieg komplett sperrt (Registrierung bei SSO-only), prüft den Bootstrap: Auf einer frischen Instanz
+  leitet `self_hosted_first_login?` auf die Registrierung um, und bei JIT `link_only` kann SSO niemanden anlegen; ohne
+  Ausnahme „noch kein User“ wäre die Instanz ausgesperrt. Prüffrage: „Wie entsteht der erste Benutzer, wenn dieser Weg zu ist?“
+  L13: Eine neue Wirkung eines bestehenden ENV-Schalters (AUTH_LOCAL_LOGIN_ENABLED sperrt jetzt auch Registrierung) gehört in
+  die Hosting-Doku (docs/hosting/oidc.md), sonst wundern sich Self-Hoster nach dem Update.
+- **27.10.2026, Fork-PR IP-Adressen verschlüsseln (Issue 387), code-review max vor PR, behoben:**
+  L5: Wer eine Spalte verschlüsselt, prüft Nachbarspalten mit derselben Information: ein ungesalzener SHA-256-Digest einer
+  IPv4-Adresse ist in Minuten umkehrbar und macht die Verschlüsselung wertlos; Digest per HMAC mit Schlüssel aus
+  `key_generator`. Prüffrage: „Liegt der geschützte Wert noch in anderer Form (Hash, Kopie, Log) daneben?“ L5: Datenmigration
+  mit PII nicht über `execute`/`select_rows` der Migration (die schreibt jedes SQL samt Klartext in die Ausgabe), sondern über
+  `connection` direkt, nur Zähler ausgeben. L5: Zeilenweises Umschreiben einer heißen Tabelle (sessions) nicht in der einen
+  DDL-Transaktion; `disable_ddl_transaction!` plus Transaktion je Batch, ein UPDATE … FROM (VALUES …) je Batch.
+  L10: Backfill-Test deckt jede neu aufgenommene Tabelle ab (hier fehlten Impersonation-Logs).
+- **27.10.2026, Fork-PR OIDC-Cookie-Überlauf (upstream Issue 1571), code-review max vor PR, behoben:**
+  L4: Wer Zustand aus der Browser-Session (Cookie) in eine gemeinsam genutzte DB-Zeile verlegt (hier: id_token einer
+  wartenden MFA-Anmeldung auf `oidc_identities`), verliert die Bindung an den Browser; zwei parallele Anmeldungen
+  überschreiben oder vertauschen den Wert. Lösung: Zufalls-Nonce plus Datensatz-ID im Cookie, Abruf nur mit passender
+  Nonce (`secure_compare`). Prüffrage: „War der Wert vorher pro Browser? Was passiert bei zwei Geräten gleichzeitig?“
+- **27.10.2026, Fork-PR Kategorie bei Umbuchungen (Issue 1059), code-review max vor PR, behoben:**
+  L7: Vor dem PR nach bestehenden Tests suchen, die das alte Verhalten festschreiben (hier „confirming a transfer keeps
+  the outflow category“); erst der volle Testlauf fand ihn. Prüffrage: „rg nach dem Attribut im Testname, bevor die Suite läuft.“
+  L16: Wer ein Attribut sperrt, damit ein Sync es nicht zurückschreibt, prüft alle Schreibstellen im Import-Adapter, nicht nur
+  `enrich_attribute` (die Auto-Kategorie für „Contribution“ ignorierte die Sperre). L1: Eine Sperre, die eine Aktion setzt,
+  wird beim Rückgängigmachen (Transfer löschen) wieder gelöst, sonst bleibt die Buchung für Regeln und Syncs dauerhaft gesperrt.
+- **27.10.2026, Fork-PR Wechselkurs-Tests in Summen (upstream Issue 1607), code-review max vor PR, behoben:**
+  L7: Ein Test, der einen Fallback dokumentiert („fehlender Kurs → 1:1“), legt einen Kurs auf einen Nachbartag, sonst
+  unterscheidet er exakte Datumssuche nicht von „nächster Kurs“. Jede SQL-Spalte mit eigener Umrechnung (hier der
+  Zins-Zweig) braucht eine eigene Assertion mit Kurs ≠ 1. Assertions, die das Ergebnis nur so etikettieren, wie es
+  angefragt wurde (Währung der Serie), prüfen nichts; streichen. Prüffrage: „Würde der Test rot, wenn ich genau diese
+  Zeile kaputt mache?“ (Mutationsprobe je Spalte).
+- 27.10.2026, Fork 238 (KI-Probe-Cache-Dauer, upstream Issue 3279), Vor-PR-Review, behoben:
+  - L31 (Zeitbezug, bekannte Art): Aus dem Cache gelesene Zeitstempel behalten die Zone der schreibenden Anfrage; `l(..., format:)` rechnet nicht um, ein Admin sah die Ortszeit eines anderen. Prüffrage: Werden gecachte oder serialisierte TimeWithZone-Werte angezeigt, vorher `.in_time_zone` auf die Zone des Betrachters.
+  - L7 (Test, bekannte Art): `freeze_time` schneidet Mikrosekunden ab; Stubs aus `setup` (vor dem Einfrieren erzeugt) können über eine Sekundengrenze ein anderes Minimum liefern. Prüffrage: Alle zeitabhängigen Stubs innerhalb von `freeze_time` bauen. ENV-Variablen, die der Test liest, in die Reset-Liste der Testdatei aufnehmen.
+  - L1 (Randfall, bekannte Art): Berechnete „gültig bis“-Zeit kann schon vorbei sein (langsame Prüfungen > TTL) oder auf einem anderen Tag liegen (lange TTL). Prüffrage: Angezeigte Ablaufzeiten auf Vergangenheit und Tageswechsel prüfen.
+  - L12 (i18n): Deutsches „vor %{time_ago}“ ist mit Rails-Dauern im Nominativ ungrammatisch („vor weniger als eine Minute“). Satz so bauen, dass jede Dauer passt.
+- 27.10.2026, Fork 239 (eigener Zeitraum im Period-Picker, upstream Issue 22), Vor-PR-Review, behoben:
+  - L6 (UI-Zustand, bekannte Art): Ein Dialog mit vorbelegtem Formular muss beim erneuten Öffnen zurückgesetzt werden (Werte UND per JS geschriebene min/max), sonst kommen mit Abbrechen/Escape verworfene Eingaben zurück. Prüffrage: Öffnen → ändern → Abbrechen → wieder öffnen durchspielen.
+  - L6 (History, bekannte Art): Frame-Formular mit festem `turbo_action: advance` legt beim Übernehmen des unveränderten Werts einen doppelten History-Eintrag an; unverändert → replace. Prüffrage: Gibt es einen „nichts geändert“-Weg, und was macht Zurück danach?
+  - L1 (Randfall): Datumsbereich mit Start = Ende erzeugt eine Ein-Punkt-Serie, die der Chart als leer zeigt; die Felder brauchen Mindestabstand. Prüffrage: Kleinster und größter erlaubter Bereich, auch der Vorbelegung (MTD am Monatsersten).
+  - L10 (eine Regel, ein Ort): Serverseitige Kappung „Ende ≤ heute“ hätte bestehende Links mit vordatierten Buchungen verändert; Regel nur im Formular (max). Prüffrage: Ändert eine neue Server-Regel das Ergebnis bestehender URLs?
+  - L12 (Design-System): Ein `display: contents`-Wrapper macht den leeren Wrapper von `DS::Dialog(disable_frame: true)` zu einem zusätzlichen Flex-Element mit Gap. Prüffrage: Was rendert eine Komponente außer dem Sichtbaren in die Toolbar des Aufrufers?
+- 27.10. Fork PR 242 (upstream Issue 2422, Verschlüsselungs-Schlüssel nachträglich, /code-review vor PR, 7 Befunde behoben):
+  - L4: Backfill schrieb ohne Sperre über rotierende Tokens (Questrade/SnapTrade/Trade Republic) → nur Klartext-Felder umschreiben (encrypted_attribute?), Doku stoppt worker während der Umwandlung.
+  - L16/L3: handgepflegte Backfill-Liste (16 von 55 Tabellen) durch Discovery über ApplicationRecord.descendants ersetzt; Test vergleicht gegen alle Modelle mit encrypted_attributes. ActiveRecord::Base.descendants würde ActionText (Tabelle fehlt) einschließen.
+  - L18/L19: Doku-Anleitungen mit Docker-Stack Schritt für Schritt prüfen: compose.example.yml reichte ENV-Schlüssel gar nicht weiter; Rollback mit `latest` kann ein neueres (verschlüsseltes) Backup treffen; Bestands-.env mit nie aktiven Schlüsseln wird durch Compose-Update scharf geschaltet.
+  - L7: Kommentar nach Entfernen der Liste veraltet.
+- 30.10.2026, Review upstream PR 4598 und Fork PR 244 (Sidebar-Sparkline-Timeout), /code-review max + CodeRabbit, behoben in 6a83e1d1 und f68110a5:
+  - L22 (Ursache statt Symptom, neue Art): Ein flakiger Systemtest war ein echter Bug. Der Timer wurde erst bei `turbo:frame-load` gestoppt, Turbo fügt den Inhalt aber einige Repaints vorher ein; ein Ablauf in der Lücke überschreibt das fertige Diagramm dauerhaft. Prüffrage: Bevor ein flakiger Test gelockert wird, im Browser Ereignisse protokollieren und prüfen, ob die Flake einen echten Ablauf-Fehler zeigt. Turbo-Frames: Timer und Zustände am Ende der Anfrage (`before-fetch-response`) beenden, nicht an `frame-load`.
+  - L7 (bekannte Art, geschärft): Ein Regressionstest mit Pause vor `before-frame-render` war auch ohne Fix grün, weil der Render das Badge überschrieb und `assert_no_selector` 5 s wartete. Prüffrage: Timing-Tests mit Gegenprobe (Fix entfernen) mehrfach laufen lassen; Vorbedingung des Szenarios (hier: Antwort vor Fristablauf) im Test selbst messen und prüfen.
+  - L8 (bekannte Art): Erst stoppte jede Antwort den Timer, auch 404/500; der Warnhinweis für Fehler ging verloren. Prüffrage: Wer auf „Antwort angekommen“ umstellt, unterscheidet Erfolg (`fetchResponse.succeeded`) und Fehler.
+  - L9 (bekannte Art): Markup-Änderung im gecachten Sidebar-Fragment (`skip_digest`) ohne Hochzählen der Cache-Version. Prüffrage: Ändert ein Helper Markup in einem manuell versionierten Fragment, Version hochzählen.
+- Nachtrag 31.10.2026 (PR-Check): (1) upstream 4466: Textlich konfliktfreier Merge mit main brach den neuen main-Test des Demo-Generators, der alle Datenschritte stubbt, aber nicht den neuen Schritt `create_sample_rules!` des PR (NoMethodError auf nil-Kategorie). Fix: Schritt in die Stub-Liste. Prüffrage: „Ändert main dieselbe Datei wie der PR, die Tests dieser Datei auf dem Merge-Stand laufen lassen; ein sauberes merge-tree reicht nicht“ (L13). (2) upstream 3246: main machte die Sankey-Vorschau zusätzlich opt-in (cashflow_preview_enabled); der CSP-Test des PR aktivierte nur preview_features und fand das Element nicht mehr. Fix: Test setzt beide Präferenzen. Prüffrage: „Hängt ein Test an einem Feature-Gate, bei main-Änderungen am Gate (User-Präferenzen) mitprüfen.“
+- 31.10.2026, upstream PR 4604 (Sparkline-Timeout), Codex P2 + CodeRabbit-Nitpick, behoben in 7426ae96:
+  - L8 (bekannte Art, geschärft): `fetchResponse.succeeded` war zu grob. Eine abgelaufene Sitzung leitet auf die Anmeldeseite um, Fetch meldet 200, der Timer stoppte, Turbo meldet aber `frame-missing` und rendert nichts; das Badge kam nie. Fix: Timer bei `turbo:before-frame-render` stoppen, das nur für eine Antwort mit passendem Frame kommt. Prüffrage: „Erfolg“ an dem Ereignis messen, das den gewünschten Inhalt wirklich bestätigt (passender Frame wird gerendert), nicht am HTTP-Status; Umleitungen auf Login-Seiten mitdenken.
+  - L7 (bekannte Art): Der Fehler-Test konnte auch mit falscher Verdrahtung grün sein, wenn die 500-Antwort nach der 300-ms-Frist kam. Fix: Fehler- und Frame-fehlt-Test laufen mit 1,5-s-Frist und prüfen die Antwortzeit. Prüffrage: Jede Vorbedingung eines Timing-Tests (Antwort vor Frist) im Test messen, nicht nur im Render-Lücken-Test.
+  - Test-Falle: `mattr_accessor :response` in einem per `prepend` eingehängten Controller-Modul überschreibt `ActionController#response` (NoMethodError `committed?`). Prüffrage: Hilfsnamen in Controller-Prepends nie wie Controller-Methoden nennen.
+- Nachtrag 31.10.2026 (Nachlauf PR-Check): (1) upstream 4190: `with_defaults(password_challenge: "")` füllt nur fehlende Schlüssel; JSON null oder ein Formularfeld ohne Wert blieb nil, und die Modellprüfung `unless: -> { password_challenge.nil? }` sprang nicht an → Passwortänderung ohne altes Passwort (auch auf main). Fix: Wert mit `.to_s` erzwingen, Tests für null und leeres Feld. Prüffrage: „Kann ein Sicherheits-Parameter per JSON null/leerem Feld nil werden, und überspringt eine Validierung dann die Prüfung?“ (2) upstream 4206: Digest und Zahlen aus derselben lazy Relation → bei Zugriffsänderung im Lauf auseinander; IDs einmal materialisieren. (3) upstream 4466: Platzieren „direkt unter der Gruppe“ in einer Schleife dreht die Reihenfolge mehrerer Elemente um → Anker nach jedem Element weiterschieben, Test mit zwei Elementen. (4) Neue Locales aus main (id) brechen Locale-Vollständigkeitstests des PR auch ohne Textkonflikt → nach main-Merge immer i18n_test laufen lassen.
+- 31.10.2026, Fork-Branch claude/project-thread-3kr7ey (upstream Issue 1346, Anhänge beim Anlegen), /code-review vor dem PR:
+  - L6 (bekannte Art, geschärft): Bei 422-Re-Render des Anlege-Formulars waren die gewählten Dateien still weg (Browser füllen file-Inputs nie neu), das Feld lag zudem in einem zugeklappten Disclosure. Fix: Disclosure öffnen und DS::Alert „Dateien erneut wählen“, nur wenn Dateien gesendet wurden. Prüffrage: „Was passiert mit einem neuen file-Input bei Fehler-Re-Render und bfcache?“
+  - L6: Ein wiederverwendeter Stimulus-Controller ohne eigenen Submit-Knopf verwarf seine Limit-Prüfung (zu viele/zu große Dateien) → Upload lief bis zum Server. Fix: setCustomValidity auf dem Input plus Text im Dropzone. Prüffrage: „Verliert ein in ein anderes Formular verschobener Controller Funktionen, die an fehlenden Targets hingen?“
+
+**Nachtrag 31.10.2026 (Fork 247, upstream Issue 3245):**
+- L1/L7: SQL-Suche (ILIKE) auf verschlüsselten Spalten (User email deterministisch, Namen nicht-deterministisch) trifft nie; CI-Schritt „Encryption tests“ läuft Testdateien mit `encryption_ready?` erneut mit Schlüsseln. Prüffrage: Filtert/sortiert der Diff in SQL auf einer `encrypts`-Spalte? Dann beide Modi testen.
+- L3: Rohe Fehlertexte (Sync#error) können importierte Zeilenwerte enthalten („Failing row contains …“); nicht in Admin-Ansichten zeigen.
+- L6: Wird eine Liste paginiert/durchsuchbar, müssen Aktionen und Zurück-Links Suche, Filter und Seite behalten.
+- L8: Pagy wirft bei page=0; Seitenparameter vorher klemmen.
+- L14: String-Joins, die einen Tabellennamen enthalten, lassen Rails die Association-Joins aliasen (families → families_users) und brechen Bedingungen; Subquery als korrelierte SELECT-Spalte statt String-Join.
+- Nachtrag 01.11.2026 (PR-Check, neue CodeRabbit-Befunde nach den Pushes vom 31.10.): (1) upstream 4466: Der Merker „letzte Regel, die Gruppe X verlassen hat“ lebte nur im Importer; Session-Importe kommen in Chunks mit je neuem Importer, also Reihenfolge-Fehler an Chunk-Grenzen. Fix: Fallback aus der DB (Lauf der von dieser Session schon importierten Regeln direkt darunter). Prüffrage: „Lebt Zustand im Importer-Objekt, der über Session-Chunks reichen muss?“ (L13; dieselbe Falle hatte schon import_recurring_allocations). (2) upstream 4190: Der eigene Ersatz für Rails' password_challenge-Prüfung (validations: false) verlangte immer einen Digest; Rails überspringt Nutzer ohne Digest. SSO-Nutzer konnten kein erstes lokales Passwort mehr setzen. Prüffrage: „Wer eine Framework-Validierung nachbaut, vergleicht Zeile für Zeile mit dem Original, auch die Ausnahmen (nil-Digest).“ (3) upstream 4206: Ein Generator (Abo-Prüfung) schrieb kein account_id in die Metadaten, so griff der Lese-Filter für nicht mehr geteilte Konten nicht. Neuer Metadaten-Schlüssel darf bestätigte Insights nicht wiederbeleben: als Konto-Schlüssel wie accounts_digest behandeln. Prüffrage: „Deckt ein neuer Lese-Filter alle Erzeuger ab, und weckt ein neuer Metadaten-Schlüssel bestätigte Zeilen?“ (4) main selbst war am 01.11. rot (3 datumsabhängige Tests: Pages-Spending-Trend, Bills snoozed, Reports treemap), also vor jedem „PR rot“ main am selben Tag laufen lassen.
+- Nachtrag 02.11.2026 (upstream 4687, Kostenbasis-Editor lazy): (1) Codex P1: Eigener lazy turbo-frame je Zeile dupliziert die inzwischen gemergte Lazy-API von DS::Popover (frame_id/frame_src) und legt trotzdem pro Zeile einen Frame an. Fix: DS::Popover-API nutzen. Prüffrage: „Hat main seit dem Fork-PR eine Komponente bekommen, die genau das kann (vor Upstream-Gang main neu lesen)?“ (2) CodeRabbit: Ein fehlgeschlagener Frame-Load ließ den Platzhalter stehen, erneutes Öffnen lud nicht neu. Fix in DS::Popover: turbo:fetch-request-error und turbo:frame-missing zeigen einen Fehlertext, nächstes Öffnen lädt neu. Prüffrage: „Was zeigt ein Lazy-Frame bei Netzfehler/404/500, und gibt es einen Weg zum erneuten Laden?“
+  - (3) CodeRabbit-Nachtrag: `turbo:fetch-request-error` bubbelt; ein auf dem Frame registrierter Handler fing auch Fehler beim Absenden eines Formulars im Frame ab und ersetzte das Formular samt Eingaben. Fix: nur bei `event.target === event.currentTarget` reagieren. Prüffrage: „Bubbelt das Ereignis, und kann es aus Kind-Elementen (Formulare, verschachtelte Frames) kommen?“
+- 03.11.2026 Wochenauswertung (36 Befunde; Upstream 16 in 7 PRs, Fork 11 in 3 PRs, Bugfix-Rückblick 9; Liste befunde-woche-2026-11-03.md; 18 durchgerutscht, keine neue Lektion):
+  - L25: Wird die Sichtbarkeit abgeleiteter Daten (Insights, Audits) beim Lesen geprüft, nicht nur beim Erzeugen (Freigabe entzogen, Mitglied neu, Abo auf privates Konto verschoben)? Trägt jede abgeleitete Zeile die Konto-Kennung, die der Lese-Filter braucht, und ist sie kein veralteter Schnappschuss? Enthalten kontolose Zusammenfassungen Beträge privater Konten? (upstream PR 4206)
+  - L33: Kann ein Pflichtfeld als bloßer Key (nil) ankommen und `with_defaults`/`presence`-Prüfungen umgehen? (upstream PR 4190)
+  - L2: Haben reine SSO-Nutzer einen Weg, ein erstes lokales Passwort zu setzen? (upstream PR 4190) Verliert ein Re-Render-Weg (fehlendes Konto) Dateiauswahl und Hinweis? (Fork 246)
+  - L26: Lebt Reihenfolge-Zustand nur in einer Importer-Instanz und geht über Session-Chunks verloren? (upstream PR 4466)
+  - L8: Wird ein fehlgeschlagener Lazy-Load beim nächsten Öffnen wiederholt (Turbo beobachtet den Frame nur einmal)? (upstream PR 4687) Login-Redirect als Erfolg kam trotz Prüffrage vom 27.10. erneut (upstream PR 4604): bei jedem fetch/Frame-Erfolg `response.redirected` bzw. Ziel-URL prüfen.
+  - L6: Reagiert ein Handler auf blubbernde Ereignisse innerer Formulare (`event.target === event.currentTarget`)? (upstream PR 4687) Steht eine Fehlermeldung in einem geschlossenen Details-Panel? (Fork 246)
+  - L4: Laufen zusammengehörige Writes (Flag, Weitergabe, Zuteilung) in einer Transaktion, unter Sperre neu gelesen, und Klemmung im selben UPDATE wie das Flag, wenn ein CHECK-Constraint beide verbindet? (Fork 250)
+  - L12: Ist ein Datei-Picker per Tastatur bedienbar (kein `hidden` auf dem Input, Dropzone fokussierbar)? (Fork 246)
+  - L1: Zeigt eine Umrechnung eine Null, obwohl kein Ausgangswert existiert? (Fork 243)
+  - L7/L31: Hängen Tests vom heutigen Datum ab (scheitern am Monatsanfang)? `travel_to` auf Randtage. (Bugfix 4637)
+  - L10: Zählen Überweisungen zwischen eigenen Konten in kontobezogenen Flüssen (Sankey) gleich wie in der Gesamtsicht? (Bugfix 4180)
+  - L16: Werden Provider-Parameter gegen die echte API-Doku geprüft (ignorierte Parameter liefern still den ganzen Verlauf)? (Bugfix 4565)
+  - Review-Prompt (Teil D): Alle durchgerutschten Befunde fallen unter vorhandene Schritte; kein Vorschlag für Teil A.

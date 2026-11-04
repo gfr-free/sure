@@ -301,6 +301,42 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal "one_time", transfer.outflow_transaction.reload.kind
   end
 
+  test "confirming a transfer that is already confirmed records no origin" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.update!(status: "confirmed")
+    transfer.outflow_transaction.update!(kind: "cc_payment")
+    transfer.inflow_transaction.update!(kind: "funds_movement")
+
+    transfer.confirm!
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
+  test "confirming again after the user switched off the contribution still resets the kind on reject" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    transfer.update_investment_contribution!(false)
+
+    transfer.confirm!
+    transfer.reject!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "standard", outflow.kind
+    assert_not outflow.locked?(:kind)
+  end
+
+  test "a recorded origin without a previous kind falls back to the standard kind" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+    DataEnrichment.where(source: "transfer_match", attribute_name: "kind").update_all(metadata: {})
+
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+  end
+
   test "legacy confirmed transfers without a recorded origin still fall back to the standard kind" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
     transfer.confirm!

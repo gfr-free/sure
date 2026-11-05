@@ -71,6 +71,38 @@ class User < ApplicationRecord
     where("preferences @> ?", { preview_features_enabled: true }.to_json)
   }
 
+  # Super-admin user list search over email, names and family name. Callers
+  # join :family. With encryption on, email is deterministic ciphertext (exact
+  # match only) and names are non-deterministic, so only the family name can be
+  # matched partially.
+  def self.admin_search(term)
+    term = term.to_s.strip
+    return all if term.blank?
+
+    pattern = "%#{sanitize_sql_like(term)}%"
+
+    if encryption_ready?
+      email_ids = User.unscoped.where(email: term.downcase).pluck(:id)
+      where("users.id IN (:ids) OR families.name ILIKE :pattern", ids: email_ids, pattern: pattern)
+    else
+      where(
+        "users.email ILIKE :pattern OR users.first_name ILIKE :pattern OR users.last_name ILIKE :pattern " \
+        "OR CONCAT_WS(' ', users.first_name, users.last_name) ILIKE :pattern OR families.name ILIKE :pattern",
+        pattern: pattern
+      )
+    end
+  end
+
+  # Families with the most entries first, members of one family kept together.
+  # The correlated count only runs for users left after filtering, and is
+  # exposed as #family_entries_count.
+  def self.ordered_by_family_activity
+    entries_count = Entry.joins(:account).where("accounts.family_id = users.family_id").select("COUNT(*)").to_sql
+
+    select("users.*, (#{entries_count}) AS family_entries_count")
+      .order(Arel.sql("family_entries_count DESC, users.family_id ASC, users.email ASC, users.id ASC"))
+  end
+
   attribute :ui_layout, :string
   enum :ui_layout, { dashboard: "dashboard", intro: "intro" }, validate: true, prefix: true
 

@@ -737,4 +737,127 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
     assert User.exists?(target.id)
   end
+
+  test "index paginates users 25 per page and keeps families together across pages" do
+    family = Family.create!(name: "Paginated Family")
+    30.times { |i| family.users.create!(email: format("paged-%02d@example.com", i), password: "Password1!", role: :member) }
+
+    get admin_users_url
+    assert_response :success
+    first_page = user_detail_links
+    assert_equal 25, first_page.size
+
+    get admin_users_url(page: 2)
+    assert_response :success
+    second_page = user_detail_links
+    assert_equal User.count - 25, second_page.size
+
+    assert_empty first_page & second_page
+    assert_equal User.pluck(:id).sort, (first_page + second_page).map { |href| href.split("/").last }.sort
+    assert_includes response.body, I18n.t("admin.users.index.family_summary", members: 30, accounts: 0, transactions: 0)
+  end
+
+  test "index searches by email, name and family name" do
+    skip "names are encrypted, see the encrypted search test" if User.encryption_ready?
+
+    get admin_users_url(q: "BOBDYLAN.com")
+    assert_response :success
+    assert_includes response.body, users(:family_admin).email
+    assert_not_includes response.body, users(:family_member).email
+
+    get admin_users_url(q: "jakob")
+    assert_includes response.body, users(:family_member).email
+    assert_not_includes response.body, users(:family_admin).email
+
+    get admin_users_url(q: "Inactive Trial")
+    assert_includes response.body, users(:inactive_trial_user).email
+    assert_not_includes response.body, users(:family_admin).email
+  end
+
+  test "index search matches the full email and family name when user data is encrypted" do
+    skip "Encryption not configured" unless User.encryption_ready?
+
+    get admin_users_url(q: " BOB@bobdylan.com ")
+    assert_response :success
+    assert_includes response.body, users(:family_admin).email
+    assert_not_includes response.body, users(:family_member).email
+    assert_includes response.body, I18n.t("admin.users.index.filters.search_encrypted_hint")
+
+    get admin_users_url(q: "Inactive Trial")
+    assert_includes response.body, users(:inactive_trial_user).email
+    assert_not_includes response.body, users(:family_admin).email
+
+    get admin_users_url(q: "iv")
+    assert_not_includes response.body, users(:family_admin).email
+  end
+
+  test "index search treats like wildcards literally" do
+    get admin_users_url(q: "%")
+    assert_response :success
+    assert_includes response.body, I18n.t("admin.users.index.no_users")
+  end
+
+  test "index falls back to the first page for invalid page params" do
+    get admin_users_url(page: 0)
+    assert_response :success
+
+    get admin_users_url, params: { page: [ "1" ] }
+    assert_response :success
+  end
+
+  test "index detail links keep the list search and page" do
+    get admin_users_url(q: "dylan")
+    assert_select "a[href='#{admin_user_path(users(:family_admin), q: "dylan")}']"
+  end
+
+  test "index links each user to their detail page" do
+    get admin_users_url
+    assert_select "a[href='#{admin_user_path(users(:family_admin))}']", text: users(:family_admin).display_name
+  end
+
+  test "show renders counters for the user's family without balances or error texts" do
+    user = users(:family_admin)
+    family = user.family
+    Sync.create!(syncable: family, status: "failed", error: "Failing row contains (secret-row-value)", failed_at: 1.hour.ago)
+    Sync.create!(syncable: family, status: "completed", completed_at: 1.minute.from_now)
+    Sync.create!(syncable: family, status: "failed", failed_at: Time.current)
+
+    get admin_user_url(user)
+    assert_response :success
+
+    assert_includes response.body, user.email
+    assert_includes response.body, family.name
+    assert_select "dd", text: family.accounts.count.to_s
+    assert_select "dd", text: family.entries.count.to_s
+    assert_select "dd", text: Sync.for_family(family).failed.count.to_s
+    last_completed_at = Sync.for_family(family).maximum(:completed_at).in_time_zone(family.timezone)
+    assert_includes response.body, I18n.l(last_completed_at, format: :long)
+    assert_not_includes response.body, "secret-row-value"
+    family.accounts.each do |account|
+      assert_not_includes response.body, account.name
+      assert_not_includes response.body, account.balance_money.format
+    end
+  end
+
+  test "show back link returns to the same slice of the list" do
+    get admin_user_url(users(:family_admin), q: "dylan", page: 1)
+    assert_select "a[href='#{admin_users_path(q: "dylan", page: 1)}']"
+  end
+
+  test "show is denied for users who are not super admins" do
+    sign_in users(:family_admin)
+
+    get admin_user_url(users(:family_member))
+    assert_redirected_to root_path
+  end
+
+  test "show returns not found for an unknown user" do
+    get admin_user_url(SecureRandom.uuid)
+    assert_response :not_found
+  end
+
+  private
+    def user_detail_links
+      css_select("a[href^='/admin/users/']").map { |a| a["href"].split("?").first }.grep(%r{\A/admin/users/[0-9a-f-]{36}\z}).uniq
+    end
 end

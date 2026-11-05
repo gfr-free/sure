@@ -1,4 +1,7 @@
 class Category < ApplicationRecord
+  # Dropped in a later release, once no running release still writes it.
+  self.ignored_columns += [ "classification_unused" ]
+
   has_many :transactions, dependent: :nullify, class_name: "Transaction"
   has_many :import_mappings, as: :mappable, dependent: :destroy, class_name: "Import::Mapping"
 

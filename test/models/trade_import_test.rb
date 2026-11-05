@@ -137,4 +137,10 @@ class TradeImportTest < ActiveSupport::TestCase
     assert_equal "Buy", buy_trade.investment_activity_label, "Buy trade should have 'Buy' activity label"
     assert_equal "Sell", sell_trade.investment_activity_label, "Sell trade should have 'Sell' activity label"
   end
+
+  test "dry_run counts accounts that will be created when no account is selected" do
+    @import.mappings.create!(key: "New Brokerage", create_when_empty: true, type: "Import::AccountMapping")
+
+    assert_equal 1, @import.dry_run[:accounts]
+  end
 end

@@ -195,7 +195,10 @@ class Transfer < ApplicationRecord
       # Only the first confirmation records what the match replaced; confirming
       # an already confirmed transfer (e.g. one Transfer::Creator made) would
       # otherwise record the transfer's own kinds as the values to restore.
-      record_origin = !confirmed?
+      # The status is read under the row lock the update takes anyway, so a request
+      # that lost the race to a concurrent confirmation sees that confirmation
+      # instead of its own stale copy.
+      record_origin = Transfer.lock.where(id: id).pick(:status) != "confirmed"
       update!(status: "confirmed")
 
       # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic

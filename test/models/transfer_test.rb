@@ -301,6 +301,18 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal "one_time", transfer.outflow_transaction.reload.kind
   end
 
+  test "a stale copy confirmed after another confirmation keeps the kind from before the match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "one_time")
+    stale = Transfer.find(transfer.id)
+
+    transfer.confirm!
+    stale.confirm!
+    transfer.reload.reject!
+
+    assert_equal "one_time", transfer.outflow_transaction.reload.kind
+  end
+
   test "confirming a transfer that is already confirmed records no origin" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
     transfer.update!(status: "confirmed")

@@ -686,6 +686,8 @@ class Account::ProviderImportAdapter
     raise ArgumentError, "security is required" if security.nil?
     raise ArgumentError, "source is required" if source.blank?
 
+    security = remapped_security_for(security)
+
     Account.transaction do
       # Generate name if not provided
       trade_name = if name.present?
@@ -1100,6 +1102,25 @@ class Account::ProviderImportAdapter
         id: security.id
       ])
       scope.order(date: :desc).order(Arel.sql(match_rank)).order(:id).first
+    end
+
+    # The security a user remapped the provider's security to, or the provider's
+    # own when there is none. Holding#remap_security! moves the trades onto the
+    # chosen security and records the provider's on the locked holdings as
+    # provider_security_id. A re-imported trade has to follow that remap: put
+    # back on the provider's security, it splits the position across two
+    # securities, and the reverse calculator then reconstructs a history that
+    # is negative on one and wrong on the other. The latest locked row wins, so
+    # a remap of the chosen security onward (A onto B, then B onto C) is
+    # followed to its end.
+    def remapped_security_for(security)
+      chosen_id = account.holdings
+        .where(provider_security_id: security.id, security_locked: true)
+        .where.not(security_id: security.id)
+        .order(date: :desc, id: :asc)
+        .pick(:security_id)
+
+      chosen_id ? Security.find(chosen_id) : security
     end
 
     # Loads the transfer together with both legs, their entries and accounts in

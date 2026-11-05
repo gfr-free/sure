@@ -1111,6 +1111,74 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     end
   end
 
+  test "re-imported trade stays on the security the user remapped it to" do
+    account = accounts(:investment)
+    adapter = Account::ProviderImportAdapter.new(account)
+    reported = Security.create!(ticker: "RPTT", name: "Reported Fund")
+    chosen = Security.create!(ticker: "CHST", name: "Chosen Fund")
+
+    entry = import_remap_trade(adapter, reported, "remap_trade_1")
+    holding = account.holdings.create!(
+      security: reported, date: Date.current, currency: "USD", qty: 5, price: 100, amount: 500
+    )
+    holding.remap_security!(chosen)
+    assert_equal chosen.id, entry.reload.entryable.security_id
+
+    assert_no_difference "account.entries.count" do
+      reimported = import_remap_trade(adapter, reported, "remap_trade_1")
+      assert_equal entry.id, reimported.id
+      assert_equal chosen.id, reimported.entryable.security_id
+    end
+
+    new_trade = import_remap_trade(adapter, reported, "remap_trade_2")
+    assert_equal chosen.id, new_trade.entryable.security_id
+    assert_equal 0, account.trades.where(security: reported).count
+  end
+
+  test "trade follows a remap of the chosen security onward" do
+    account = accounts(:investment)
+    adapter = Account::ProviderImportAdapter.new(account)
+    reported = Security.create!(ticker: "CHN1", name: "Reported")
+    middle = Security.create!(ticker: "CHN2", name: "First choice")
+    last = Security.create!(ticker: "CHN3", name: "Second choice")
+
+    holding = account.holdings.create!(
+      security: reported, date: Date.current, currency: "USD", qty: 5, price: 100, amount: 500
+    )
+    holding.remap_security!(middle)
+    holding.reload.remap_security!(last)
+
+    assert_equal last.id, import_remap_trade(adapter, reported, "chain_trade").entryable.security_id
+  end
+
+  test "trade goes back to the provider security after a reset" do
+    account = accounts(:investment)
+    adapter = Account::ProviderImportAdapter.new(account)
+    reported = Security.create!(ticker: "RSTP", name: "Reported Fund")
+    chosen = Security.create!(ticker: "RSTC", name: "Chosen Fund")
+
+    holding = account.holdings.create!(
+      security: reported, date: Date.current, currency: "USD", qty: 5, price: 100, amount: 500
+    )
+    holding.remap_security!(chosen)
+    holding.reload.reset_security_to_provider!
+
+    assert_equal reported.id, import_remap_trade(adapter, reported, "reset_trade").entryable.security_id
+  end
+
+  test "an unlocked holding's provider security does not redirect trades" do
+    account = accounts(:investment)
+    adapter = Account::ProviderImportAdapter.new(account)
+    reported = Security.create!(ticker: "UNLP", name: "Reported Fund")
+    other = Security.create!(ticker: "UNLO", name: "Other Fund")
+    account.holdings.create!(
+      security: other, provider_security: reported, security_locked: false,
+      date: Date.current, currency: "USD", qty: 5, price: 100, amount: 500
+    )
+
+    assert_equal reported.id, import_remap_trade(adapter, reported, "unlocked_trade").entryable.security_id
+  end
+
   test "preserves existing exchange rate when reimport omits it" do
     investment_account = accounts(:investment)
     adapter = Account::ProviderImportAdapter.new(investment_account)
@@ -2499,6 +2567,19 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
         cost_basis: cost_basis,
         source: "plaid",
         account_provider_id: account_provider.id
+      )
+    end
+
+    def import_remap_trade(adapter, security, external_id)
+      adapter.import_trade(
+        external_id: external_id,
+        security: security,
+        quantity: 1,
+        price: 100,
+        amount: 100,
+        currency: "USD",
+        date: Date.current,
+        source: "plaid"
       )
     end
 end

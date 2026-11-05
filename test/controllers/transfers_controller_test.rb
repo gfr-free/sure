@@ -662,7 +662,7 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Test notes", transfer.reload.notes
   end
 
-  test "confirming a transfer keeps the outflow category" do
+  test "confirming a card payment clears the outflow category" do
     transfer = transfers(:one)
     transfer.outflow_transaction.update!(category: categories(:food_and_drink))
 
@@ -670,7 +670,7 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to transactions_url
     assert transfer.reload.confirmed?
-    assert_equal categories(:food_and_drink), transfer.outflow_transaction.reload.category
+    assert_nil transfer.outflow_transaction.reload.category
   end
 
   test "confirming a transfer keeps its notes" do

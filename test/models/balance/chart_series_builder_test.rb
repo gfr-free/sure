@@ -64,6 +64,24 @@ class Balance::ChartSeriesBuilderTest < ActiveSupport::TestCase
     assert_equal expected, builder.balance_series.map { |v| v.value.amount }
   end
 
+  # Documents the non-strict fallback: with no rate for the pair on any date,
+  # balances are summed 1:1 rather than refused.
+  test "converts 1:1 when no exchange rate exists for the currency pair" do
+    account = accounts(:depository)
+    account.balances.destroy_all
+    create_balance(account: account, date: 1.day.ago.to_date, balance: 1000)
+    create_balance(account: account, date: Date.current, balance: 1100)
+    ExchangeRate.where(from_currency: "USD", to_currency: "EUR").delete_all
+
+    builder = Balance::ChartSeriesBuilder.new(
+      account_ids: [ account.id ], currency: "EUR",
+      period: Period.custom(start_date: 1.day.ago.to_date, end_date: Date.current),
+      interval: "1 day"
+    )
+
+    assert_equal [ 1000, 1100 ], builder.balance_series.map { |v| v.value.amount }
+  end
+
   test "strict currency conversion refuses a missing rate instead of assuming one" do
     account = accounts(:depository)
     account.balances.destroy_all

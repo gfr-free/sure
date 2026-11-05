@@ -597,6 +597,45 @@ class InvestmentStatementTest < ActiveSupport::TestCase
     assert_equal Money.new(110, "USD"), totals.dividends
   end
 
+  test "totals convert foreign-currency contributions and withdrawals into family currency" do
+    period = Period.custom(start_date: Date.current.beginning_of_month, end_date: Date.current.end_of_month)
+    account = create_investment_account(balance: 500, currency: "EUR")
+
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: period.start_date, rate: 1.1)
+
+    create_trade(account: account, qty: 2, amount: 100, date: period.start_date)
+    create_trade(account: account, qty: -1, amount: -40, date: period.start_date)
+    create_income_trade(account: account, label: "Interest", amount: 5, date: period.start_date)
+
+    totals = @statement.totals(period: period)
+
+    assert_equal Money.new(110, "USD"), totals.contributions
+    assert_equal Money.new(44, "USD"), totals.withdrawals
+    assert_equal Money.new(5.5, "USD"), totals.interest
+  end
+
+  # Documents the current fallback: the rate join matches the entry's exact
+  # date only, so a day without a rate counts the amounts 1:1 even when a
+  # rate exists for another day.
+  test "totals count foreign-currency amounts 1:1 when their day has no exchange rate" do
+    period = Period.custom(start_date: Date.current.beginning_of_month, end_date: Date.current.end_of_month)
+    account = create_investment_account(balance: 500, currency: "EUR")
+
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: period.start_date - 1.day, rate: 1.1)
+
+    create_trade(account: account, qty: 2, amount: 100, date: period.start_date)
+    create_trade(account: account, qty: -1, amount: -40, date: period.start_date)
+    create_income_trade(account: account, label: "Dividend", amount: 30, date: period.start_date)
+    create_income_trade(account: account, label: "Interest", amount: 5, date: period.start_date)
+
+    totals = @statement.totals(period: period)
+
+    assert_equal Money.new(100, "USD"), totals.contributions
+    assert_equal Money.new(40, "USD"), totals.withdrawals
+    assert_equal Money.new(30, "USD"), totals.dividends
+    assert_equal Money.new(5, "USD"), totals.interest
+  end
+
   test "total_dividends and total_interest expose all-time income" do
     account = create_investment_account(balance: 500)
 

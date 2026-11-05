@@ -36,6 +36,34 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal 50000 - 1000, BalanceSheet.new(@family).net_worth
   end
 
+  test "converts foreign-currency balances at today's exchange rate" do
+    create_account(balance: 1000, accountable: Depository.new)
+    create_account(balance: 500, currency: "EUR", accountable: Depository.new)
+    create_account(balance: 200, currency: "EUR", accountable: CreditCard.new)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: Date.current, rate: 1.2)
+
+    balance_sheet = BalanceSheet.new(@family)
+
+    assert_equal 1000 + 600, balance_sheet.assets.total
+    assert_equal 240, balance_sheet.liabilities.total
+    assert_equal 1000 + 600 - 240, balance_sheet.net_worth
+  end
+
+  # Documents the current fallback: with no cached rate and no provider to
+  # fetch one, ExchangeRate.rates_for counts the balance 1:1.
+  test "counts foreign-currency balances 1:1 when no exchange rate is available" do
+    ExchangeRate.stubs(:provider).returns(nil)
+    create_account(balance: 1000, accountable: Depository.new)
+    create_account(balance: 500, currency: "EUR", accountable: Depository.new)
+    create_account(balance: 200, currency: "EUR", accountable: CreditCard.new)
+
+    balance_sheet = BalanceSheet.new(@family)
+
+    assert_equal 1000 + 500, balance_sheet.assets.total
+    assert_equal 200, balance_sheet.liabilities.total
+    assert_equal 1000 + 500 - 200, balance_sheet.net_worth
+  end
+
   test "disabled accounts do not affect totals" do
     create_account(balance: 1000, accountable: CreditCard.new)
     create_account(balance: 10000, accountable: Depository.new)

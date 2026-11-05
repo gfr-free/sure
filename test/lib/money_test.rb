@@ -111,8 +111,13 @@ class MoneyTest < ActiveSupport::TestCase
 
   test "operator order does not matter" do
     assert_equal Money.new(1000) + 1000, 1000 + Money.new(1000)
-    assert_equal Money.new(1000) - 1000, 1000 - Money.new(1000)
     assert_equal Money.new(1000) * 2, 2 * Money.new(1000)
+  end
+
+  test "subtracting money from a number keeps the operand order" do
+    assert_equal Money.new(500), 1500 - Money.new(1000)
+    assert_equal Money.new(-500), 1000 - Money.new(1500)
+    assert_equal Money.new(250, :eur), BigDecimal("1000") - Money.new(750, :eur)
   end
 
   test "can get absolute value" do

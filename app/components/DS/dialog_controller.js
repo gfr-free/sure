@@ -25,6 +25,7 @@ export default class extends Controller {
 
   connect() {
     this._priorFocus = null;
+    this._press = null;
     this._frame = this.element.closest("turbo-frame");
     this._onKeydown = this.#onKeydown.bind(this);
     this._onClose = this.#onClose.bind(this);
@@ -59,12 +60,32 @@ export default class extends Controller {
     }
   }
 
-  // If the user clicks anywhere outside of the visible content, close the dialog
+  // Close on a pointer click that both started and ended outside the visible
+  // content. A drag across the content's edge (selecting text) still ends in a
+  // click on the backdrop, and a keyboard click (detail 0) on a control that
+  // removes itself is no longer inside the content by the time it gets here.
   clickOutside(e) {
-    if (this.disableClickOutsideValue) return;
-    if (!this.contentTarget.contains(e.target)) {
-      this.close();
-    }
+    const press = this._press;
+    this._press = null;
+    if (this.disableClickOutsideValue || !press || e.detail === 0) return;
+    if (!press.downInside && !press.upInside) this.close();
+  }
+
+  trackPress(e) {
+    this._press =
+      e.button === 0
+        ? { downInside: this.#inContent(e), upInside: false }
+        : null;
+  }
+
+  trackRelease(e) {
+    if (this._press) this._press.upInside = this.#inContent(e);
+  }
+
+  // A press the browser took over (a touch turned into a scroll) ends in no
+  // click, so it must not count for the next one.
+  cancelPress() {
+    this._press = null;
   }
 
   close() {
@@ -113,6 +134,10 @@ export default class extends Controller {
       e.preventDefault();
       first.focus();
     }
+  }
+
+  #inContent(e) {
+    return this.contentTarget.contains(e.target);
   }
 
   #onClose() {

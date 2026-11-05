@@ -84,8 +84,8 @@ class Rule::Condition < ApplicationRecord
 
   def value_display
     if value.present?
-      if options
-        options.find { |option| option.last == value }&.first
+      if (labels = filter.display_options)
+        labels.find { |option| option.last == value }&.first
       else
         value
       end

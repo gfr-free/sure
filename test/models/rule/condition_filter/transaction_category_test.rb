@@ -17,11 +17,20 @@ class Rule::ConditionFilter::TransactionCategoryTest < ActiveSupport::TestCase
     assert_equal parent_index + 1, child_index
   end
 
-  test "options does not indent subcategory labels, since this array doubles as the value_display lookup" do
-    options = @filter.options
+  test "options indent subcategories below their parent" do
+    child_label, = @filter.options.find { |_label, id| id == categories(:subcategory).id }
 
-    child_label, = options.find { |_label, id| id == categories(:subcategory).id }
+    assert_equal "↳ #{categories(:subcategory).name}", child_label
+  end
 
-    assert_equal categories(:subcategory).name, child_label
+  test "value_display shows the subcategory name without the indent arrow" do
+    condition = Rule::Condition.new(
+      rule: @rule,
+      condition_type: "transaction_category",
+      operator: "=",
+      value: categories(:subcategory).id
+    )
+
+    assert_equal categories(:subcategory).name, condition.value_display
   end
 end

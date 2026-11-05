@@ -25,6 +25,7 @@ zh-TW:
       account_updated: 帳戶已更新
     update:
       account_updated: 帳戶已更新
+      balances_recalculating: "正在重新計算餘額，變更將在片刻後顯示。"
       entry_updated: 紀錄已更新
     errors:
       amount_required: 必須填寫金額

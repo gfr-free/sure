@@ -62,6 +62,7 @@ ru:
       update_value: Обновить стоимость
     update:
       account_updated: Счёт обновлён
+      balances_recalculating: "Пересчёт балансов. Изменения появятся через несколько секунд."
       entry_updated: Запись обновлена
     confirm_create:
       confirm: Подтвердить

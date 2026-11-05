@@ -66,4 +66,5 @@ pl:
       update_value: Zaktualizuj wartość
     update:
       account_updated: Konto zaktualizowane
+      balances_recalculating: "Trwa przeliczanie sald. Zmiany pojawią się za chwilę."
       entry_updated: Wpis zaktualizowany

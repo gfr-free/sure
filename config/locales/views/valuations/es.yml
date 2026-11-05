@@ -25,6 +25,7 @@ es:
       account_updated: Cuenta actualizada
     update:
       account_updated: Cuenta actualizada
+      balances_recalculating: "Recalculando saldos. Los cambios aparecerán en unos instantes."
       entry_updated: Registro actualizado
     errors:
       amount_required: El importe es obligatorio

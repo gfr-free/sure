@@ -25,6 +25,7 @@ hu:
       account_updated: Számla frissítve
     update:
       account_updated: Számla frissítve
+      balances_recalculating: "Egyenlegek újraszámítása folyamatban. A változások néhány pillanat múlva megjelennek."
       entry_updated: Bejegyzés frissítve
     errors:
       amount_required: Az összeg megadása kötelező

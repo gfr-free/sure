@@ -67,4 +67,5 @@ de:
       amount_required: Betrag ist erforderlich
     update:
       account_updated: Konto aktualisiert
+      balances_recalculating: "Salden werden neu berechnet. Die Änderungen erscheinen in wenigen Augenblicken."
       entry_updated: Eintrag aktualisiert

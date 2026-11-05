@@ -62,6 +62,7 @@ ca:
       update_value: Actualitza el valor
     update:
       account_updated: Compte actualitzat
+      balances_recalculating: "Saldos en recàlcul. Els canvis apareixeran en uns instants."
       entry_updated: Entrada actualitzada
     confirm_create:
       confirm: Confirma

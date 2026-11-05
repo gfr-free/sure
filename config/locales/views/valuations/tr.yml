@@ -62,6 +62,7 @@ tr:
       update_value: Değeri güncelle
     update:
       account_updated: Hesap güncellendi
+      balances_recalculating: "Bakiyeler yeniden hesaplanıyor. Değişiklikler birkaç saniye içinde görünecek."
       entry_updated: Kayıt güncellendi
     confirm_create:
       confirm: Onayla

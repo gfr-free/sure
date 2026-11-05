@@ -39,6 +39,7 @@ en:
       account_updated: Account updated
     update:
       account_updated: Account updated
+      balances_recalculating: "Recalculating balances. Changes will appear in a few moments."
       entry_updated: Entry updated
     errors:
       amount_required: Amount is required

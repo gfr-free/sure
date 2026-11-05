@@ -50,4 +50,29 @@ class Import::ConfirmsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to import_clean_path(import)
     assert_equal "You have invalid data, please edit until all errors are resolved", flash[:alert]
   end
+
+  test "account mapping step offers linked accounts the user can write to" do
+    import = imports(:transaction)
+    mapping = import.mappings.create!(key: "Checking", type: "Import::AccountMapping")
+    TransactionImport.any_instance.stubs(:cleaned?).returns(true)
+
+    get import_confirm_path(import, step: 3)
+
+    assert_response :success
+    assert_select "##{ActionView::RecordIdentifier.dom_id(mapping, :mappable_id)} option[value=?]", accounts(:connected).id
+  end
+
+  test "account mapping step leaves out accounts the user cannot write to" do
+    sign_in users(:family_member)
+    import = imports(:transaction)
+    mapping = import.mappings.create!(key: "Checking", type: "Import::AccountMapping")
+    TransactionImport.any_instance.stubs(:cleaned?).returns(true)
+
+    get import_confirm_path(import, step: 3)
+
+    assert_response :success
+    select = "##{ActionView::RecordIdentifier.dom_id(mapping, :mappable_id)}"
+    assert_select "#{select} option[value=?]", accounts(:depository).id
+    assert_select "#{select} option[value=?]", accounts(:credit_card).id, count: 0
+  end
 end

@@ -368,4 +368,32 @@ class SecurityTest < ActiveSupport::TestCase
 
     assert_nil security.crypto_base_asset
   end
+
+  test "from_combobox_selection! brings the picked security online" do
+    securities(:msft).update!(offline: true, failed_fetch_count: 3)
+
+    security = Security.from_combobox_selection!("MSFT|XNAS|")
+
+    assert_equal securities(:msft), security
+    assert_not security.reload.offline?
+    assert_equal 0, security.failed_fetch_count
+    assert_nil Security.from_combobox_selection!("")
+  end
+
+  test "from_combobox_selection! leaves a cash security untouched" do
+    cash = Security.cash_for(accounts(:investment))
+
+    assert_equal cash, Security.from_combobox_selection!(cash.ticker)
+    assert cash.reload.offline?
+  end
+
+  test "resolve_typed_ticker creates an offline security for an unknown ticker" do
+    Security.stubs(:providers).returns([])
+
+    assert_nil Security.resolve_typed_ticker(" ")
+    security = Security.resolve_typed_ticker(123)
+
+    assert_equal "123", security.ticker
+    assert security.offline?
+  end
 end

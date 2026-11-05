@@ -107,6 +107,33 @@ class Security < ApplicationRecord
     { ticker: parts[0].presence, exchange_operating_mic: parts[1].presence, price_provider: parts[2].presence }
   end
 
+  # A result the user picked from the provider search ("TICKER|EXCHANGE|PROVIDER").
+  # The provider found it, so it is used as given and brought online.
+  def self.from_combobox_selection!(value)
+    parsed = parse_combobox_id(value)
+    return nil if parsed[:ticker].blank?
+
+    security = find_or_initialize_by(ticker: parsed[:ticker], exchange_operating_mic: parsed[:exchange_operating_mic])
+    # Cash securities are internal to one account; never bring one online.
+    return security if security.cash?
+
+    # Honor the user's provider choice (validated by model inclusion check on save)
+    security.price_provider = parsed[:price_provider] if parsed[:price_provider].present?
+    security.offline = false
+    security.failed_fetch_count = 0
+    security.failed_fetch_at = nil
+    security.save!
+    security
+  end
+
+  # Resolves a ticker the user typed: looked up through the providers, or
+  # created offline when none knows it, like a manual trade ticker.
+  def self.resolve_typed_ticker(ticker, exchange_operating_mic: nil)
+    return nil if ticker.blank?
+
+    Security::Resolver.new(ticker.to_s, exchange_operating_mic: exchange_operating_mic.presence&.to_s).resolve
+  end
+
   # Lazily finds or creates a synthetic cash security for an account.
   # Used as fallback when creating an interest Trade without a user-selected
   # security, and to represent non-primary-currency cash positions as holdings

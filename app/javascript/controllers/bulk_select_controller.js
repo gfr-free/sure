@@ -9,7 +9,6 @@ export default class extends Controller {
     "selectionBarText",
     "bulkEditDrawerHeader",
     "duplicateLink",
-    "standardAction",
     "transferAction",
   ];
   static values = {
@@ -32,19 +31,20 @@ export default class extends Controller {
 
   bulkEditDrawerHeaderTargetConnected(element) {
     const headingTextEl = element.querySelector("h2");
-    const count = this._standardIds().length;
-    headingTextEl.innerText = `${this.editLabelValue} ${count} ${this._pluralizedResourceName(count)}`;
+    headingTextEl.innerText = `${this.editLabelValue} ${
+      this.selectedIdsValue.length
+    } ${this._pluralizedResourceName()}`;
   }
 
   submitBulkRequest(e) {
     const form = e.target.closest("form");
     const scope = e.params.scope;
-    // Transfer legs only go to the transfer action; edit, delete and the
-    // other bulk actions never receive them.
+    // The unlink action only takes transfer legs; edit and delete take every
+    // selected row and handle transfers server-side.
     const ids =
       scope === "bulk_transfer_unlink"
         ? this._transferIds()
-        : this._standardIds();
+        : this.selectedIdsValue;
     this._addHiddenFormInputsForSelectedIds(form, `${scope}[entry_ids][]`, ids);
     form.requestSubmit();
   }
@@ -143,9 +143,6 @@ export default class extends Controller {
       count > 0;
 
     const transferCount = this._transferIds().length;
-    this.standardActionTargets.forEach((el) => {
-      el.classList.toggle("hidden", count > 0 && transferCount === count);
-    });
     this.transferActionTargets.forEach((el) => {
       el.classList.toggle("hidden", transferCount === 0);
     });
@@ -153,15 +150,19 @@ export default class extends Controller {
     if (this.hasDuplicateLinkTarget) {
       const selectedRow = this._selectedRow();
       const canDuplicate =
-        count === 1 &&
-        selectedRow?.dataset.entryType === "Transaction" &&
-        selectedRow?.dataset.transfer !== "true";
+        count === 1 && selectedRow?.dataset.entryType === "Transaction";
 
       this.duplicateLinkTarget.classList.toggle("hidden", !canDuplicate);
 
       if (canDuplicate) {
+        // A transfer leg is duplicated as a new transfer, not as a one-sided transaction.
+        const link = this.duplicateLinkTarget.dataset;
+        const baseUrl =
+          selectedRow.dataset.transfer === "true"
+            ? link.transferUrl
+            : link.transactionUrl;
         const url = new URL(
-          this.duplicateLinkTarget.href,
+          baseUrl || this.duplicateLinkTarget.href,
           window.location.origin,
         );
         url.searchParams.set("duplicate_entry_id", this.selectedIdsValue[0]);
@@ -170,8 +171,8 @@ export default class extends Controller {
     }
   }
 
-  _pluralizedResourceName(count = this.selectedIdsValue.length) {
-    if (count === 1) {
+  _pluralizedResourceName() {
+    if (this.selectedIdsValue.length === 1) {
       return this.singularLabelValue;
     }
 
@@ -185,11 +186,6 @@ export default class extends Controller {
         .map((row) => row.dataset.id),
     );
     return this.selectedIdsValue.filter((id) => transferIds.has(id));
-  }
-
-  _standardIds() {
-    const transferIds = new Set(this._transferIds());
-    return this.selectedIdsValue.filter((id) => !transferIds.has(id));
   }
 
   _selectedRow() {

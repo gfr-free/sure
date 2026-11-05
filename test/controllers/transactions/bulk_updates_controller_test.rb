@@ -8,7 +8,8 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update" do
-    transactions = @user.family.entries.transactions
+    # Transfer legs are edited as transfers, see the transfer tests below
+    transactions = @user.family.entries.transactions.where.not(id: [ entries(:transfer_out).id, entries(:transfer_in).id ])
 
     assert_difference [ "Entry.count", "Transaction.count" ], 0 do
       post transactions_bulk_update_url, params: {
@@ -36,7 +37,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update preloads transaction records" do
-    transaction_ids = @user.family.entries.transactions.limit(4).pluck(:id)
+    transaction_ids = Array.new(4) { |i| create_transaction(name: "Preload #{i}").id }
 
     queries = capture_sql_queries do
       post transactions_bulk_update_url, params: {
@@ -54,7 +55,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update preserves tags when tag_ids not provided" do
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     original_tags = [ Tag.first, Tag.second ]
     transaction_entry.transaction.tags = original_tags
     transaction_entry.transaction.save!
@@ -76,7 +77,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update clears tags when tag_ids is blank string array (web multi-select None)" do
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     original_tags = [ Tag.first, Tag.second ]
     transaction_entry.transaction.tags = original_tags
     transaction_entry.transaction.save!
@@ -98,7 +99,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update clears tags when empty tag_ids explicitly provided (JSON)" do
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     transaction_entry.transaction.tags = [ Tag.first, Tag.second ]
     transaction_entry.transaction.save!
 
@@ -120,7 +121,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "bulk update replaces tags when tag_ids explicitly provided" do
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     transaction_entry.transaction.tags = [ Tag.first ]
     transaction_entry.transaction.save!
 
@@ -145,7 +146,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     foreign_merchant = FamilyMerchant.create!(family: other_family, name: "Foreign merchant")
     foreign_tag = other_family.tags.create!(name: "Foreign tag")
 
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     transaction_entry.transaction.update!(category: categories(:food_and_drink), merchant: merchants(:netflix))
     transaction_entry.transaction.tags = [ tags(:one) ]
     transaction_entry.transaction.save!
@@ -170,7 +171,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
 
   test "bulk update keeps existing tags when every requested tag belongs to another family" do
     foreign_tag = families(:empty).tags.create!(name: "Foreign tag")
-    transaction_entry = @user.family.entries.transactions.first
+    transaction_entry = entries(:transaction)
     transaction_entry.transaction.tags = [ tags(:one) ]
     transaction_entry.transaction.save!
 
@@ -268,5 +269,76 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Renamed", "bulk note" ], [ full_entry.reload.name, full_entry.notes ]
     assert_equal [ "Annotate", "bulk note" ], [ annotate_entry.reload.name, annotate_entry.notes ]
     assert_equal [ "Private", nil ], [ private_entry.reload.name, private_entry.notes ]
+  end
+
+  test "bulk update edits a selected transfer like its drawer does" do
+    outflow = create_transaction(account: accounts(:depository), name: "Loan payment", amount: 300, date: Date.new(2026, 1, 5))
+    inflow = create_transaction(account: accounts(:loan), name: "Loan payment received", amount: -300, date: Date.new(2026, 1, 5))
+    transfer = Transfer.create!(outflow_transaction: outflow.transaction, inflow_transaction: inflow.transaction).tap(&:confirm!)
+    regular = create_transaction(account: accounts(:depository), name: "Regular")
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: {
+        entry_ids: [ outflow.id, regular.id ],
+        name: "Renamed", date: "2026-02-10", merchant_id: merchants(:netflix).id,
+        category_id: categories(:food_and_drink).id, notes: "bulk note", tag_ids: [ tags(:one).id ]
+      }
+    }
+
+    assert_equal "2 transactions updated", flash[:notice]
+    assert_equal categories(:food_and_drink), outflow.transaction.reload.category
+    assert_nil inflow.transaction.reload.category
+    assert_equal "bulk note", transfer.reload.notes
+    assert_equal [ tags(:one).id ], outflow.transaction.tag_ids
+    assert_equal [ tags(:one).id ], inflow.transaction.tag_ids
+
+    # Name, date and merchant stay: they would break the pair or make no sense on a transfer
+    [ outflow, inflow ].each(&:reload)
+    assert_equal "Loan payment", outflow.name
+    assert_equal Date.new(2026, 1, 5), outflow.date
+    assert_equal Date.new(2026, 1, 5), inflow.date
+    assert_nil outflow.transaction.merchant_id
+    assert_nil outflow.notes
+
+    assert_equal "Renamed", regular.reload.name
+  end
+
+  test "bulk update leaves the category of a transfer that has none alone" do
+    transfer = transfers(:one) # credit card payment: not categorizable
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ transfer.outflow_transaction.entry.id ], category_id: categories(:food_and_drink).id }
+    }
+
+    assert_equal "0 transactions updated", flash[:notice]
+    assert_nil transfer.outflow_transaction.reload.category_id
+  end
+
+  test "bulk update lets a read_write share tag a transfer but not change its category or notes" do
+    accounts(:credit_card).account_shares.find_by!(user: users(:family_member)).update!(permission: "read_write")
+    transfer = transfers(:one) # depository (full_control) -> credit card (read_write)
+
+    sign_in users(:family_member)
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ transfer.inflow_transaction.entry.id ], notes: "member note", tag_ids: [ tags(:one).id ] }
+    }
+
+    assert_equal "1 transactions updated", flash[:notice]
+    assert_nil transfer.reload.notes
+    assert_equal [ tags(:one).id ], transfer.outflow_transaction.reload.tag_ids
+    assert_equal [ tags(:one).id ], transfer.inflow_transaction.reload.tag_ids
+  end
+
+  test "bulk update skips a transfer with a read-only side" do
+    transfer = transfers(:one) # credit card is shared read_only with family_member
+
+    sign_in users(:family_member)
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ transfer.outflow_transaction.entry.id ], notes: "member note", tag_ids: [ tags(:one).id ] }
+    }
+
+    assert_equal "0 transactions updated", flash[:notice]
+    assert_nil transfer.reload.notes
+    assert_empty transfer.outflow_transaction.reload.tag_ids
   end
 end

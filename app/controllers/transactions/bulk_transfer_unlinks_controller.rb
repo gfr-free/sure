@@ -23,15 +23,8 @@ class Transactions::BulkTransferUnlinksController < ApplicationController
 
     # Transfers with at least one selected leg in an account the user can see.
     def selected_transfers
-      @selected_transfers ||= begin
-        transaction_ids = Current.accessible_entries
-                                 .where(id: bulk_transfer_unlink_params[:entry_ids], entryable_type: "Transaction")
-                                 .select(:entryable_id)
-
-        Transfer.where(inflow_transaction_id: transaction_ids)
-                .or(Transfer.where(outflow_transaction_id: transaction_ids))
-                .includes(inflow_transaction: { entry: :account }, outflow_transaction: { entry: :account }, fee_transactions: :entry)
-                .to_a
-      end
+      @selected_transfers ||= Transfer.with_legs_in(
+        Current.accessible_entries.where(id: bulk_transfer_unlink_params[:entry_ids])
+      ).to_a
     end
 end

@@ -22,6 +22,15 @@ class Transfer < ApplicationRecord
   before_destroy :release_transactions
 
   class << self
+    # Transfers with at least one leg among the given entries.
+    def with_legs_in(entries)
+      transaction_ids = entries.where(entryable_type: "Transaction").select(:entryable_id)
+
+      where(inflow_transaction_id: transaction_ids)
+        .or(where(outflow_transaction_id: transaction_ids))
+        .includes(inflow_transaction: { entry: :account }, outflow_transaction: { entry: :account }, fee_transactions: :entry)
+    end
+
     # The outflow leg's kind for a transfer into this account. Transfer::Creator,
     # Family::DataImporter, auto-matching, rules and manual matches all call
     # it (the inflow leg is always funds_movement, see kind_for_leg).
@@ -180,10 +189,59 @@ class Transfer < ApplicationRecord
   # account holding a fee transaction, since destroying the transfer deletes
   # those fees (same rule as TransfersController#unlink_permission_account).
   def unlinkable_with?(writable_account_ids)
-    endpoint_ids = [ from_account&.id, to_account&.id ].compact
+    endpoint_account_ids.any? { |id| writable_account_ids.include?(id) } && fees_within?(writable_account_ids)
+  end
 
-    endpoint_ids.any? { |id| writable_account_ids.include?(id) } &&
-      fee_transactions.all? { |fee| fee.entry.nil? || writable_account_ids.include?(fee.entry.account_id) }
+  # Deleting removes both legs and every fee, so it needs write access to all
+  # of those accounts.
+  def deletable_with?(writable_account_ids)
+    endpoint_account_ids.size == 2 &&
+      endpoint_account_ids.all? { |id| writable_account_ids.include?(id) } &&
+      fees_within?(writable_account_ids)
+  end
+
+  # Deletes both legs; the outflow entry's cascade destroys this transfer and
+  # its fee transactions. Returns the destroyed entries.
+  def destroy_with_transactions!
+    leg_entries = [ outflow_transaction.entry, inflow_transaction.entry ].compact
+    fee_entries = fee_transactions.filter_map(&:entry)
+
+    Transfer.transaction { leg_entries.each(&:destroy!) }
+
+    leg_entries + fee_entries
+  end
+
+  # Bulk edit of a transfer, with the same rules as editing it in its drawer:
+  # the category goes on the outflow leg (when the transfer has one), notes on
+  # the transfer, tags on both legs. Category and notes need full access to
+  # both endpoints, tags only annotate access. Returns whether anything changed.
+  def apply_bulk_update!(attributes, full_access:, update_tags:)
+    changed = false
+
+    Transfer.transaction do
+      if full_access
+        if attributes[:category_id].present? && categorizable?
+          outflow_transaction.update!(category_id: attributes[:category_id])
+          changed = true
+        end
+
+        if attributes[:notes].present?
+          update!(notes: attributes[:notes])
+          changed = true
+        end
+      end
+
+      if update_tags
+        tag_ids = Array.wrap(attributes[:tag_ids]).reject(&:blank?)
+        [ outflow_transaction, inflow_transaction ].each do |transaction|
+          transaction.tag_ids = tag_ids
+          transaction.lock_attr!(:tag_ids)
+        end
+        changed = true
+      end
+    end
+
+    changed
   end
 
   def reject!
@@ -234,6 +292,14 @@ class Transfer < ApplicationRecord
   end
 
   private
+    def endpoint_account_ids
+      [ from_account&.id, to_account&.id ].compact
+    end
+
+    def fees_within?(account_ids)
+      fee_transactions.all? { |fee| fee.entry.nil? || account_ids.include?(fee.entry.account_id) }
+    end
+
     def contribution_by_default?
       to_account.present? && Transfer.kind_for_account(to_account, from_account: from_account) == "investment_contribution"
     end

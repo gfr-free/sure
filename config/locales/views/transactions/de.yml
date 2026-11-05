@@ -284,6 +284,11 @@ de:
       upload_failed: Der Anhang ließ sich nicht hochladen. Versuch es noch einmal oder wende dich an den Support.
       uploaded_many: "%{count} Anhänge hochgeladen"
       uploaded_one: Anhang hochgeladen
+    bulk_deletions:
+      create:
+        transfers_kept:
+          one: 1 Überweisung bleibt bestehen, weil zum Löschen Schreibrechte für beide Konten und ihre Gebühren nötig sind
+          other: "%{count} Überweisungen bleiben bestehen, weil zum Löschen Schreibrechte für beide Konten und ihre Gebühren nötig sind"
     bulk_transfer_unlinks:
       create:
         skipped:

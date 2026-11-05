@@ -116,7 +116,7 @@
   <% if accessible_accounts.any? %>
     <% @dashboard_sections.each do |section| %>
       <section
-        class="bg-container rounded-xl shadow-border-xs transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 [-webkit-touch-callout:none]<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
+        class="bg-container rounded-xl shadow-border-xs transition-all group focus-ring [-webkit-touch-callout:none]<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
         style="<%= "--dash-widget-h: #{section[:layout][:height_px]}px;" if section[:layout][:grow] %>"
         data-sortable-list-target="item"
         data-sortable-list-id="<%= section[:key] %>"

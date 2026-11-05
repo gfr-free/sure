@@ -71,7 +71,7 @@
                 <span class="hidden items-center gap-1" data-categorize-target="filterEditArea">
                   <input type="text" value="<%= @group.grouping_key %>"
                          autocomplete="off"
-                         class="text-sm border border-primary rounded-lg px-2 py-0.5 bg-container focus:outline-none focus:ring-1 focus:ring-offset-0 w-36 shadow-md"
+                         class="text-sm border border-primary rounded-lg px-2 py-0.5 bg-container focus:ring-0 focus-ring w-36 shadow-md"
                          data-categorize-target="filterInput"
                          data-action="keydown.enter->categorize#confirmFilterEdit keydown.escape->categorize#cancelFilterEdit">
                   <button type="button"
@@ -101,7 +101,7 @@
 
           <div data-controller="list-filter" class="space-y-3">
             <%# Search field %>
-            <div class="relative flex items-center bg-container border border-primary rounded-lg">
+            <div class="relative flex items-center bg-container border border-primary rounded-lg focus-ring-within">
               <%= icon("search", class: "absolute left-3 text-secondary") %>
               <input type="text"
                      placeholder="<%= t(".filter_placeholder") %>"
@@ -126,7 +126,7 @@
                   <button type="submit"
                           name="category_id"
                           value="<%= category.id %>"
-                          class="filterable-item flex items-center gap-1 text-sm font-medium rounded-full px-2.5 py-1 border cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-1"
+                          class="filterable-item flex items-center gap-1 text-sm font-medium rounded-full px-2.5 py-1 border cursor-pointer hover:opacity-80 transition-opacity focus-ring"
                           style="background-color: color-mix(in oklab, <%= category.color %> 10%, transparent);
                                  border-color: color-mix(in oklab, <%= category.color %> 20%, transparent);
                                  color: <%= category.color %>;"

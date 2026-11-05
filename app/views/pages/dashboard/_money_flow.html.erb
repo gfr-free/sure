@@ -1,6 +1,6 @@
 <%# locals: (money_flow_data:, accounts:, accessible_account_ids:, view_params:, col_span: "single") %>
 <%
-  pill_button_class = "inline-flex items-center gap-1.5 bg-container border border-secondary font-medium rounded-lg pl-3 pr-2 py-2 text-sm cursor-pointer text-primary hover:bg-container-inset-hover focus:outline-hidden focus:ring-0 whitespace-nowrap"
+  pill_button_class = "inline-flex items-center gap-1.5 bg-container border border-secondary font-medium rounded-lg pl-3 pr-2 py-2 text-sm cursor-pointer text-primary hover:bg-container-inset-hover focus-ring whitespace-nowrap"
   selected_account_ids = money_flow_data[:account_ids] || accounts.map { |a| a.id.to_s }
   all_accounts_selected = selected_account_ids.size == accounts.size
   # TransactionsController falls back to the user's full accessible-accounts

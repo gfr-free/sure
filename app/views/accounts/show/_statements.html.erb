@@ -14,7 +14,7 @@
           <%= form.select :statement_year,
                           coverage.available_years.map { |year| [ year, year ] },
                           { selected: coverage.selected_year },
-                          class: "bg-container border border-secondary rounded-lg px-3 py-2 text-sm pr-7 cursor-pointer text-primary focus:outline-hidden focus:ring-0",
+                          class: "bg-container border border-secondary rounded-lg px-3 py-2 text-sm pr-7 cursor-pointer text-primary focus:border-secondary focus:ring-0 focus-ring",
                           data: { "auto-submit-form-target": "auto" },
                           aria: { label: t("account_statements.account_tab.year_label") } %>
         <% end %>

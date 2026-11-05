@@ -12,7 +12,7 @@
        data-category-quick-create-parent-picker-label-value="<%= t(".choose_parent", name: "__NAME__") %>"
        data-category-quick-create-existing-names-value="<%= @categories.map(&:name).to_json %>">
     <div class="grow p-1.5">
-      <div class="relative flex items-center bg-container border border-secondary rounded-lg">
+      <div class="relative flex items-center bg-container border border-secondary rounded-lg focus-ring-within">
         <input
           placeholder="<%= t(".search_placeholder") %>"
           autocomplete="nope"

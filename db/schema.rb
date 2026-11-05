@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_31_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -364,6 +364,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_120000) do
   create_table "budget_categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "budget_id", null: false
     t.decimal "budgeted_spending", precision: 19, scale: 4, null: false
+    t.boolean "carry_overspend", default: false, null: false
     t.uuid "category_id", null: false
     t.datetime "created_at", null: false
     t.string "currency", null: false
@@ -373,7 +374,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_120000) do
     t.index ["budget_id", "category_id"], name: "index_budget_categories_on_budget_id_and_category_id", unique: true
     t.index ["budget_id"], name: "index_budget_categories_on_budget_id"
     t.index ["category_id"], name: "index_budget_categories_on_category_id"
-    t.check_constraint "rolled_over_amount >= 0::numeric", name: "chk_budget_categories_rolled_over_amount_non_negative"
+    t.check_constraint "rolled_over_amount >= 0::numeric OR carry_overspend", name: "chk_budget_categories_rolled_over_amount_non_negative"
   end
 
   create_table "budget_shares", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

@@ -1041,6 +1041,160 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
            "an earlier month keeps the choice it was given"
   end
 
+  test "an envelope that carries its overspend starts the next month in debt" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(150, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, carry_overspend: true)
+
+    recompute!
+    budget_category = budget_category_for(second)
+
+    assert_equal(-50, stored_rollover(second))
+    assert_equal 50, budget_category.available_to_spend
+    assert budget_category.rolled_over?
+  end
+
+  test "a carried overspend keeps accumulating until a surplus pays it off" do
+    first = initialized_budget(3.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(150, budget: first)
+
+    second = initialized_budget(2.months.ago)
+    allocate(second, 100, carry_overspend: true)
+    spend(120, budget: second)
+
+    third = initialized_budget(1.month.ago)
+    allocate(third, 100, carry_overspend: true)
+
+    recompute!
+
+    # -50 from the first month, then 100 - 50 - 120 = -70: no month forgives it.
+    assert_equal(-50, stored_rollover(second))
+    assert_equal(-70, stored_rollover(third))
+
+    fourth = initialized_budget(0.months.ago)
+    allocate(fourth, 100, carry_overspend: true)
+
+    recompute!
+
+    # Nothing spent in the third month: 100 - 70 = 30 left over.
+    assert_equal 30, stored_rollover(fourth)
+  end
+
+  test "a month that does not carry overspend refuses a debt handed to it" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(150, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, carry_overspend: false)
+
+    recompute!
+
+    assert_equal 0, stored_rollover(second)
+    assert_equal 100, budget_category_for(second).available_to_spend
+  end
+
+  test "a new month inherits the choice to carry overspend" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, carry_overspend: true)
+
+    second = initialized_budget(1.month.ago)
+
+    assert budget_category_for(second).carry_overspend?
+  end
+
+  test "an envelope whose debt exceeds its allocation is over budget before any spending" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(250, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, carry_overspend: true)
+
+    recompute!
+    budget_category = budget_category_for(second)
+
+    assert_equal(-150, stored_rollover(second))
+    assert_equal(-50, budget_category.available_to_spend)
+    assert budget_category.budgeted?
+    assert budget_category.over_budget_with_budget?
+    assert_equal 100, budget_category.percent_of_budget_spent
+    assert_equal 100, budget_category.bar_width_percent
+  end
+
+  test "switching overspend off forfeits the debt in this and every later month" do
+    first = initialized_budget(3.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(150, budget: first)
+
+    second = initialized_budget(2.months.ago)
+    allocate(second, 100, carry_overspend: true)
+    spend(150, budget: second)
+
+    third = initialized_budget(1.month.ago)
+    allocate(third, 100, carry_overspend: true)
+
+    recompute!
+    assert_equal(-50, stored_rollover(second))
+    assert_equal(-100, stored_rollover(third))
+
+    budget_category = budget_category_for(second)
+    budget_category.update!(carry_overspend: false)
+    budget_category.propagate_rollover_choice_forward!
+
+    assert_equal 0, stored_rollover(second)
+    assert_not budget_category_for(third).carry_overspend?
+    assert_equal 0, stored_rollover(third)
+    assert budget_category_for(first).carry_overspend?, "an earlier month keeps the choice it was given"
+  end
+
+  test "switching rollover on in an earlier month leaves later overspend choices alone" do
+    first = initialized_budget(2.months.ago)
+    second = initialized_budget(1.month.ago)
+    allocate(first, 100, rollover: false)
+    allocate(second, 100, carry_overspend: true)
+
+    budget_category = budget_category_for(first)
+    budget_category.update!(rollover_enabled: true)
+    budget_category.propagate_rollover_choice_forward!(%i[rollover_enabled])
+
+    assert budget_category_for(second).carry_overspend?
+  end
+
+  test "a debt computed before overspend was switched off is not written back" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, carry_overspend: true)
+    spend(150, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, carry_overspend: true)
+
+    # Another request switches overspend off after this recompute has loaded
+    # the chain but before it writes.
+    second_category = budget_category_for(second)
+    Budget::RolloverCalculator.any_instance.stubs(:ring_fenced_children_by_parent).with do |_budget|
+      second_category.update!(carry_overspend: false) if second_category.carry_overspend?
+      true
+    end.returns({})
+
+    recompute!
+
+    assert_equal 0, stored_rollover(second)
+  end
+
+  test "the database still refuses a negative carry without the overspend choice" do
+    first = initialized_budget(1.month.ago)
+    budget_category = allocate(first, 100)
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      budget_category.update_column(:rolled_over_amount, -10)
+    end
+  end
+
   private
     def capture_sql
       statements = []
@@ -1071,9 +1225,9 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
       end
     end
 
-    def allocate(budget, amount, rollover: true)
+    def allocate(budget, amount, rollover: true, carry_overspend: false)
       budget.budget_categories.find_by!(category: @category).tap do |budget_category|
-        budget_category.update!(budgeted_spending: amount, rollover_enabled: rollover)
+        budget_category.update!(budgeted_spending: amount, rollover_enabled: rollover, carry_overspend: carry_overspend)
       end
     end
 

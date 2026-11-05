@@ -109,9 +109,20 @@ class Budget::RolloverCalculator
       # (budget_id, category_id and currency are NOT NULL), but only the two
       # rollover columns may be written on conflict: a concurrent request that
       # changed an allocation between our read and this write must not have it
-      # clobbered by the stale value we loaded.
+      # clobbered by the stale value we loaded. The same goes for the overspend
+      # toggle, which is switched outside this lock: a debt computed while it
+      # was on is floored at zero if it has been switched off since.
       if updates.any?
-        BudgetCategory.upsert_all(updates, unique_by: :id, update_only: %w[rolled_over_amount updated_at])
+        BudgetCategory.upsert_all(
+          updates,
+          unique_by: :id,
+          on_duplicate: Arel.sql(<<~SQL.squish)
+            rolled_over_amount = CASE WHEN budget_categories.carry_overspend
+              THEN EXCLUDED.rolled_over_amount
+              ELSE GREATEST(EXCLUDED.rolled_over_amount, 0) END,
+            updated_at = EXCLUDED.updated_at
+          SQL
+        )
       end
     end
 
@@ -150,11 +161,14 @@ class Budget::RolloverCalculator
         .where.not(budgeted_spending: nil)
     end
 
+    # A debt is only accepted by a month that also opted into carrying it,
+    # so a stored negative always matches the flag on its own row.
     def incoming_carry(carry, budget_category)
       return 0 unless budget_category.rollover_enabled?
 
       amount, currency = carry[budget_category.category_id]
       return 0 if amount.nil? || currency != budget_category.currency
+      return 0 if amount.negative? && !budget_category.carry_overspend?
 
       amount
     end
@@ -174,8 +188,9 @@ class Budget::RolloverCalculator
         .group_by { |bc| bc.category.parent_id }
     end
 
-    # max(0, budgeted + rolled_over − actual): v1 only carries a surplus, a
-    # negative balance stops at the month it happened in.
+    # budgeted + rolled_over − actual. A negative balance stops at the month
+    # it happened in unless the envelope carries its overspend, in which case
+    # it keeps accumulating month after month until a surplus pays it off.
     def leftover_for(budget, budget_category, incoming, ring_fenced_children)
       budgeted = (budget_category[:budgeted_spending] || 0) + incoming
       actual = budget.budget_category_actual_spending(budget_category)
@@ -189,6 +204,7 @@ class Budget::RolloverCalculator
         actual -= budget.budget_category_actual_spending(child)
       end
 
-      [ budgeted - actual, 0 ].max
+      leftover = budgeted - actual
+      budget_category.carry_overspend? ? leftover : [ leftover, 0 ].max
     end
 end

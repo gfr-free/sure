@@ -473,7 +473,7 @@ RSpec.configure do |config|
           },
           BudgetCategorySummary: {
             type: :object,
-            required: %w[id budget_id currency subcategory inherits_parent_budget rollover_enabled category created_at updated_at],
+            required: %w[id budget_id currency subcategory inherits_parent_budget rollover_enabled carry_overspend category created_at updated_at],
             properties: {
               id: { type: :string, format: :uuid },
               budget_id: { type: :string, format: :uuid },
@@ -481,6 +481,7 @@ RSpec.configure do |config|
               subcategory: { type: :boolean },
               inherits_parent_budget: { type: :boolean },
               rollover_enabled: { type: :boolean },
+              carry_overspend: { type: :boolean, description: 'Whether overspending is carried into the next month as a negative rolled_over_amount' },
               budgeted_spending: { type: :string },
               budgeted_spending_cents: { type: :integer },
               display_budgeted_spending: { type: :string },
@@ -502,7 +503,7 @@ RSpec.configure do |config|
           },
           BudgetCategory: {
             type: :object,
-            required: %w[id budget_id currency subcategory inherits_parent_budget rollover_enabled category created_at updated_at],
+            required: %w[id budget_id currency subcategory inherits_parent_budget rollover_enabled carry_overspend category created_at updated_at],
             properties: {
               id: { type: :string, format: :uuid },
               budget_id: { type: :string, format: :uuid },
@@ -510,13 +511,14 @@ RSpec.configure do |config|
               subcategory: { type: :boolean },
               inherits_parent_budget: { type: :boolean },
               rollover_enabled: { type: :boolean },
+              carry_overspend: { type: :boolean, description: 'Whether overspending is carried into the next month as a negative rolled_over_amount' },
               budgeted_spending: { type: :string },
               budgeted_spending_cents: { type: :integer },
               display_budgeted_spending: { type: :string },
               display_budgeted_spending_cents: { type: :integer },
               actual_spending: { type: :string },
               actual_spending_cents: { type: :integer },
-              rolled_over_amount: { type: :string },
+              rolled_over_amount: { type: :string, description: 'Carried from the previous month; negative when the category carries its overspend' },
               rolled_over_amount_cents: { type: :integer },
               available_to_spend: { type: :string },
               available_to_spend_cents: { type: :integer },

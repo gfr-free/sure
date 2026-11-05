@@ -792,6 +792,7 @@ components:
       - subcategory
       - inherits_parent_budget
       - rollover_enabled
+      - carry_overspend
       - category
       - created_at
       - updated_at
@@ -810,6 +811,10 @@ components:
           type: boolean
         rollover_enabled:
           type: boolean
+        carry_overspend:
+          type: boolean
+          description: Whether overspending is carried into the next month as a negative
+            rolled_over_amount
         budgeted_spending:
           type: string
         budgeted_spending_cents:
@@ -854,6 +859,7 @@ components:
       - subcategory
       - inherits_parent_budget
       - rollover_enabled
+      - carry_overspend
       - category
       - created_at
       - updated_at
@@ -872,6 +878,10 @@ components:
           type: boolean
         rollover_enabled:
           type: boolean
+        carry_overspend:
+          type: boolean
+          description: Whether overspending is carried into the next month as a negative
+            rolled_over_amount
         budgeted_spending:
           type: string
         budgeted_spending_cents:
@@ -886,6 +896,8 @@ components:
           type: integer
         rolled_over_amount:
           type: string
+          description: Carried from the previous month; negative when the category
+            carries its overspend
         rolled_over_amount_cents:
           type: integer
         available_to_spend:

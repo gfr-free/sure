@@ -461,6 +461,23 @@ class BudgetTest < ActiveSupport::TestCase
     assert_equal derived, target_bc.reload[:rolled_over_amount]
   end
 
+  test "copy_from copies the choice to carry overspend" do
+    family = families(:dylan_family)
+
+    source_budget = Budget.find_or_bootstrap(family, start_date: 2.months.ago)
+    source_budget.update!(budgeted_spending: 4000, expected_income: 6000)
+    source_bc = source_budget.budget_categories.find_by(category: categories(:food_and_drink))
+    source_bc.update!(budgeted_spending: 500, rollover_enabled: true)
+
+    target_budget = Budget.find_or_bootstrap(family, start_date: 1.month.ago)
+    assert_not target_budget.budget_categories.find_by(category: categories(:food_and_drink)).carry_overspend?
+
+    source_bc.update!(carry_overspend: true)
+    target_budget.copy_from!(Budget.find(source_budget.id))
+
+    assert target_budget.budget_categories.find_by(category: categories(:food_and_drink)).reload.carry_overspend?
+  end
+
   test "rollover leaves allocated_spending and available_to_allocate alone" do
     family = families(:dylan_family)
 

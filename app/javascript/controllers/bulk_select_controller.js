@@ -9,6 +9,7 @@ export default class extends Controller {
     "selectionBarText",
     "bulkEditDrawerHeader",
     "duplicateLink",
+    "transferAction",
   ];
   static values = {
     singularLabel: String,
@@ -38,11 +39,13 @@ export default class extends Controller {
   submitBulkRequest(e) {
     const form = e.target.closest("form");
     const scope = e.params.scope;
-    this._addHiddenFormInputsForSelectedIds(
-      form,
-      `${scope}[entry_ids][]`,
-      this.selectedIdsValue,
-    );
+    // The unlink action only takes transfer legs; edit and delete take every
+    // selected row and handle transfers server-side.
+    const ids =
+      scope === "bulk_transfer_unlink"
+        ? this._transferIds()
+        : this.selectedIdsValue;
+    this._addHiddenFormInputsForSelectedIds(form, `${scope}[entry_ids][]`, ids);
     form.requestSubmit();
   }
 
@@ -139,6 +142,11 @@ export default class extends Controller {
     this.selectionBarTarget.querySelector("input[type='checkbox']").checked =
       count > 0;
 
+    const transferCount = this._transferIds().length;
+    this.transferActionTargets.forEach((el) => {
+      el.classList.toggle("hidden", transferCount === 0);
+    });
+
     if (this.hasDuplicateLinkTarget) {
       const selectedRow = this._selectedRow();
       const canDuplicate =
@@ -147,8 +155,14 @@ export default class extends Controller {
       this.duplicateLinkTarget.classList.toggle("hidden", !canDuplicate);
 
       if (canDuplicate) {
+        // A transfer leg is duplicated as a new transfer, not as a one-sided transaction.
+        const link = this.duplicateLinkTarget.dataset;
+        const baseUrl =
+          selectedRow.dataset.transfer === "true"
+            ? link.transferUrl
+            : link.transactionUrl;
         const url = new URL(
-          this.duplicateLinkTarget.href,
+          baseUrl || this.duplicateLinkTarget.href,
           window.location.origin,
         );
         url.searchParams.set("duplicate_entry_id", this.selectedIdsValue[0]);
@@ -163,6 +177,15 @@ export default class extends Controller {
     }
 
     return this.pluralLabelValue;
+  }
+
+  _transferIds() {
+    const transferIds = new Set(
+      this.rowTargets
+        .filter((row) => row.dataset.transfer === "true")
+        .map((row) => row.dataset.id),
+    );
+    return this.selectedIdsValue.filter((id) => transferIds.has(id));
   }
 
   _selectedRow() {

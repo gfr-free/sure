@@ -13,7 +13,9 @@
                 title: t("transactions.selection_bar.duplicate"),
                 data: {
                   turbo_frame: "modal",
-                  bulk_select_target: "duplicateLink"
+                  bulk_select_target: "duplicateLink",
+                  transaction_url: new_transaction_path,
+                  transfer_url: new_transfer_path
                 } do %>
       <%= icon "copy", class: "group-hover/duplicate:text-inverse" %>
     <% end %>
@@ -30,5 +32,7 @@
         <%= icon "trash-2", class: "group-hover/delete:text-inverse" %>
       </button>
     <% end %>
+
+    <%= render "transactions/bulk_transfer_unlink" %>
   </div>
 </div>

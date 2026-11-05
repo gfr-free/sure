@@ -10,6 +10,7 @@ class TransfersController < ApplicationController
     @transfer = Transfer.new
     @from_account_id = params[:from_account_id]
     @tags = Current.family.tags.alphabetically
+    prefill_from_duplicate_source
   end
 
   def show
@@ -200,6 +201,26 @@ class TransfersController < ApplicationController
   end
 
   private
+    # "Duplicate" in the selection bar opens this form with one leg of an
+    # existing transfer, so the copy is a new transfer between the same accounts.
+    def prefill_from_duplicate_source
+      return if params[:duplicate_entry_id].blank?
+
+      entry = Current.accessible_entries.find_by(id: params[:duplicate_entry_id], entryable_type: "Transaction")
+      source = entry&.transaction&.transfer
+      return unless source
+
+      # Only prefill accounts the form offers, so a leg in an account the user
+      # cannot see stays unselected.
+      offered_ids = @accounts.map(&:id)
+      @from_account_id = source.from_account&.id if offered_ids.include?(source.from_account&.id)
+      @to_account_id = source.to_account&.id if offered_ids.include?(source.to_account&.id)
+      @transfer.amount = source.outflow_transaction.entry&.amount&.abs
+      @transfer.source_fee_amount = source.derived_source_fee_amount.nonzero?
+      @transfer.destination_fee_amount = source.derived_destination_fee_amount.nonzero?
+      @transfer.tag_ids = source.outflow_transaction.tag_ids
+    end
+
     def set_transfer
       # Finds the transfer and ensures the user has access to it. Unlinking
       # (reject/destroy) only needs access to one side, so a user can undo a

@@ -12,6 +12,45 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "duplicating a transfer leg prefills the new transfer form" do
+    transfer = transfers(:one)
+    transfer.outflow_transaction.update!(tag_ids: [ tags(:one).id ])
+
+    get new_transfer_url(duplicate_entry_id: transfer.inflow_transaction.entry.id)
+
+    assert_response :success
+    assert_select "input[type=hidden][name='transfer[from_account_id]'][value='#{accounts(:depository).id}']"
+    assert_select "input[type=hidden][name='transfer[to_account_id]'][value='#{accounts(:credit_card).id}']"
+    assert_select "input[name='transfer[amount]'][value='100.0']"
+    assert_select "[role=option][data-tag-id='#{tags(:one).id}'][aria-selected=true]"
+  end
+
+  test "duplicating ignores entries the user cannot see" do
+    sign_in users(:family_member)
+    outflow = create_transaction(account: accounts(:other_asset), amount: 50)
+    inflow = create_transaction(account: accounts(:loan), amount: -50)
+    Transfer.create!(outflow_transaction: outflow.transaction, inflow_transaction: inflow.transaction)
+
+    get new_transfer_url(duplicate_entry_id: outflow.id)
+
+    assert_response :success
+    assert_select "input[name='transfer[amount]'][value='50.0']", count: 0
+    assert_select "input[type=hidden][name='transfer[to_account_id]'][value]", count: 0
+  end
+
+  test "duplicating leaves out the side the user cannot see" do
+    sign_in users(:family_member)
+    outflow = create_transaction(account: accounts(:depository), amount: 50)
+    inflow = create_transaction(account: accounts(:loan), amount: -50)
+    Transfer.create!(outflow_transaction: outflow.transaction, inflow_transaction: inflow.transaction)
+
+    get new_transfer_url(duplicate_entry_id: outflow.id)
+
+    assert_response :success
+    assert_select "input[type=hidden][name='transfer[from_account_id]'][value='#{accounts(:depository).id}']"
+    assert_select "input[type=hidden][name='transfer[to_account_id]'][value]", count: 0
+  end
+
   test "excludes disabled accounts from the new transfer form" do
     disabled_account = accounts(:depository)
     disabled_account.update!(status: "disabled")

@@ -19,6 +19,7 @@
   <% account_ids << @from_account_id if defined?(@from_account_id) && @from_account_id.present? %>
   <% account_ids << params[:from_account_id] if params[:from_account_id].present? %>
   <% account_ids << params[:to_account_id] if params[:to_account_id].present? %>
+  <% account_ids << @to_account_id if defined?(@to_account_id) && @to_account_id.present? %>
   <% account_ids << transfer.from_account_id if transfer.respond_to?(:from_account_id) && transfer.from_account_id.present? %>
   <% account_ids << transfer.to_account_id if transfer.respond_to?(:to_account_id) && transfer.to_account_id.present? %>
   <% selected_accounts = @accounts.select { |a| account_ids.include?(a.id) } %>
@@ -35,7 +36,7 @@
 
   <section class="space-y-2">
     <%= f.collection_select :from_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".from"), selected: @from_account_id, variant: :logo, searchable: true }, { required: true, data: { transfer_form_target: "fromAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
-    <%= f.collection_select :to_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".to"), variant: :logo, searchable: true }, { required: true, data: { transfer_form_target: "toAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
+    <%= f.collection_select :to_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".to"), selected: @to_account_id, variant: :logo, searchable: true }, { required: true, data: { transfer_form_target: "toAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
 
     <%= f.date_field :date, value: transfer.inflow_transaction&.entry&.date || Date.current, label: t(".date"), required: true, max: Date.current, data: { transfer_form_target: "date", action: "change->transfer-form#checkCurrencyDifference" } %>
 

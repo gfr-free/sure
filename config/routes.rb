@@ -579,6 +579,7 @@ Rails.application.routes.draw do
     resource :bulk_deletion, only: :create
     resource :merchant_filter, only: :show
     resource :bulk_update, only: %i[new create]
+    resource :bulk_transfer_unlink, only: :create
     resource :categorize, only: %i[show create] do
       patch :assign_entry, on: :collection
       get :preview_rule, on: :collection

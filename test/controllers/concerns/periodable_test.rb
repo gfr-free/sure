@@ -55,4 +55,25 @@ class PeriodableTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "button[aria-label='Time period: #{@custom_label}']"
   end
+
+  test "empty start_date and end_date are ignored like missing ones" do
+    @user.update!(default_period: "last_7_days")
+
+    get root_path, params: { start_date: "", end_date: "" }
+
+    assert_response :success
+    assert_select "button[aria-label='Time period: #{Period.last_7_days.label_short}']"
+  end
+
+  test "the dashboard offers a custom range form that keeps its view params" do
+    get root_path, params: { period: "last_90_days", spending_month: "2026-06-01" }
+
+    assert_response :success
+    assert_select "form[method='get'][action='#{root_path}'][data-turbo-frame='dashboard_sections']" do
+      assert_select "input[type='date'][name='start_date'][required]"
+      assert_select "input[type='date'][name='end_date'][max='#{Date.current}']"
+      assert_select "input[type='hidden'][name='spending_month'][value='2026-06-01']"
+      assert_select "input[name='period']", count: 0
+    end
+  end
 end

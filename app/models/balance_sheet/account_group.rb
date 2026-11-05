@@ -80,9 +80,14 @@ class BalanceSheet::AccountGroup
     return [] unless AccountGrouping.valid_dimension?(dimension)
     return [] if type_group? && (dimension.to_s == AccountGrouping::DEFAULT_PRIMARY || !AccountGrouping.applies_to?(dimension, accountable_type))
 
-    AccountGrouping.new(dimension, user: user).group(accounts).map do |group|
+    subgroups = AccountGrouping.new(dimension, user: user).group(accounts).map do |group|
       BalanceSheet::AccountSubgroup.new(key: group.key, name: group.name, accounts: group.accounts, account_group: self)
     end
+    return subgroups unless user&.account_order&.manual?
+
+    # With the manual order, subgroups follow the order the user saved for
+    # this group's subgroups by this dimension.
+    BalanceSheet::ManualOrder.sort(subgroups, user.manual_list_positions("subgroups", dimension, scope: key), &:token)
   end
 
   # "asset" or "liability"

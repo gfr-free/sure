@@ -164,7 +164,7 @@ class AccountManualOrderTest < ApplicationSystemTestCase
       handle.send_keys(:enter)
     end
 
-    lists = all("[data-sortable-list-url-value='#{reorder_accounts_path(group: "depository")}']", visible: :all)
+    lists = all("[data-sortable-list-url-value='#{reorder_accounts_path(dimension: "account_type", group: "depository")}']", visible: :all)
     assert_operator lists.size, :>, 1
     lists.each do |list|
       ids = list.all("[data-sortable-list-target='item']", visible: :all).map { |item| item["data-sortable-list-id"] }
@@ -254,13 +254,130 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     assert_nil @user.reload.manual_account_order["depository"]
   end
 
+  test "a group moves with the keyboard and keeps its place in every tab" do
+    visit account_path(accounts(:depository))
+
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+
+      handle = find_group_handle("investment")
+      handle.send_keys(:enter)
+      handle.send_keys(:up)
+      handle.send_keys(:enter)
+    end
+
+    assert_eventually { @user.reload.manual_list_order("groups", "account_type").first(2) == %w[investment depository] }
+
+    lists = all("[data-sortable-group-list-url-value='#{reorder_groups_accounts_path(level: "groups", dimension: "account_type", classification: "asset")}']", visible: :all)
+    assert_operator lists.size, :>, 1
+    lists.each { |list| assert_equal %w[investment depository], group_keys_in(list).first(2) }
+
+    visit account_path(accounts(:depository))
+    within_testid("account-sidebar-tabs") do
+      assert_equal %w[investment depository], group_keys_in(find("[data-controller~='sortable-group-list']", visible: true, match: :first)).first(2)
+    end
+  end
+
+  test "a group dragged with the mouse lands over another group's accounts" do
+    visit account_path(accounts(:depository))
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+    end
+
+    # Dropped at the top of the cash group's account list, which sits inside
+    # the outer group list: the drop has to reach that list.
+    page.execute_script(<<~JS)
+      const groups = [...document.querySelectorAll("[data-sortable-group-list-target='item'][data-sortable-list-id='investment']")].find((item) => item.offsetParent);
+      const list = groups.closest("[data-controller~='sortable-group-list']");
+      const target = list.querySelector(":scope > [data-sortable-list-id='depository'] [data-controller~='sortable-list']");
+      const top = list.querySelector(":scope > [data-sortable-list-id='depository']").getBoundingClientRect().top;
+      const dataTransfer = new DataTransfer();
+      groups.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+      target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer, clientY: top }));
+      target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer, clientY: top }));
+      groups.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+    JS
+
+    assert_eventually { @user.reload.manual_list_order("groups", "account_type").first(2) == %w[investment depository] }
+    assert_empty @user.manual_account_order, "no account moved"
+  end
+
+  test "dragging an account leaves the group around it in place" do
+    checking = accounts(:depository)
+    plaid = accounts(:connected)
+
+    visit account_path(checking)
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+    end
+
+    grabbed_group = page.evaluate_script(<<~JS, plaid.id)
+      (function(id) {
+        const row = [...document.querySelectorAll(`[data-sortable-list-target='item'][data-sortable-list-id='${id}']`)].find((item) => item.offsetParent);
+        const list = row.closest("[data-controller~='sortable-list']");
+        const dataTransfer = new DataTransfer();
+        row.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+        const group = row.closest("[data-sortable-group-list-target='item']");
+        const grabbed = group.classList.contains("opacity-50");
+        list.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer, clientY: 0 }));
+        list.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer, clientY: 0 }));
+        row.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+        return grabbed;
+      })(arguments[0])
+    JS
+
+    assert_not grabbed_group, "the group list took the account's drag"
+    assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ plaid.id, checking.id ] }
+    assert_nil @user.preferences["manual_list_order"]
+  end
+
+  test "another grouping saves its own account and subgroup order" do
+    @user.update!(preferences: @user.preferences.merge(
+      "preview_features_enabled" => true,
+      "account_grouping_primary" => { "sidebar" => "currency" },
+      "account_grouping" => { "sidebar" => "account_type" }
+    ))
+    checking = accounts(:depository)
+    plaid = accounts(:connected)
+
+    visit account_path(checking)
+
+    within_testid("account-sidebar-tabs") do
+      find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+
+      handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{plaid.id}'] button", match: :first)
+      handle.send_keys(:enter)
+      handle.send_keys(:up)
+      handle.send_keys(:enter)
+
+      investment = Digest::SHA256.hexdigest("Investment").first(12)
+      handle = find("[data-sortable-subgroup-list-target='item'][data-sortable-list-id='#{investment}'] > div:first-child button", match: :first)
+      handle.send_keys(:enter)
+      handle.send_keys(:up)
+      handle.send_keys(:enter)
+    end
+
+    assert_eventually { @user.reload.manual_list_order("accounts", "currency").first(2) == [ plaid.id, checking.id ] }
+    group_key = "asset_#{AccountGrouping.group_key("currency", "USD")}"
+    assert_eventually { @user.reload.manual_list_order("subgroups", "account_type", scope: group_key).first == Digest::SHA256.hexdigest("Investment").first(12) }
+    assert_empty @user.manual_account_order, "the account type order stays as it was"
+  end
+
   private
+    def find_group_handle(key)
+      find("[data-sortable-group-list-target='item'][data-sortable-list-id='#{key}'] > button", match: :first)
+    end
+
+    def group_keys_in(list)
+      list.all(":scope > [data-sortable-group-list-target='item']", visible: :all).map { |item| item["data-sortable-list-id"] }
+    end
+
     def open_group_count
       evaluate_script("document.querySelectorAll(\"[data-testid='account-sidebar-tabs'] details[open]\").length")
     end
 
     def visible_depository_ids
-      list = all("[data-sortable-list-url-value='#{reorder_accounts_path(group: "depository")}']", visible: true).first
+      list = all("[data-sortable-list-url-value='#{reorder_accounts_path(dimension: "account_type", group: "depository")}']", visible: true).first
       list.all("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
     end
 

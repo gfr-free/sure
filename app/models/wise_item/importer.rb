@@ -58,12 +58,12 @@ class WiseItem::Importer
         return []
       end
       mark_requires_update_if_credentials_error(e)
-      Rails.logger.error "WiseItem::Importer - Failed to fetch balances: #{e.message}"
+      trace_wise_fetch(operation: "balances", status: "failed", level: "error", error: e)
       # A rejected token fails the sync instead of completing it with nothing imported
       raise if credentials_error?(e)
       nil
     rescue => e
-      Rails.logger.error "WiseItem::Importer - Unexpected error fetching balances: #{e.class} - #{e.message}"
+      trace_wise_fetch(operation: "balances", status: "failed", level: "error", error: e)
       nil
     end
 
@@ -469,7 +469,7 @@ class WiseItem::Importer
         }.compact.merge(metadata)
       )
     rescue => trace_error
-      Rails.logger.warn "WiseItem::Importer - Failed to capture statement trace: #{trace_error.message}"
+      Rails.logger.warn "WiseItem::Importer - Failed to capture fetch trace: #{trace_error.message}"
     end
 
     # Routes an activity to the given WiseAccount.

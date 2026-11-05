@@ -7,9 +7,26 @@ class Rule::ActionExecutor::SetTransactionMerchant < Rule::ActionExecutor
     family.assignable_merchants_for(Current.user).alphabetically.pluck(:name, :id)
   end
 
+  # A saved merchant that has since left the family's transactions (unlinked,
+  # or its transactions deleted) stays selected and is marked instead of the
+  # form silently switching to another merchant. Its name is only shown while
+  # the family still has a record of the unlink, so a hand-crafted id never
+  # reveals another family's merchant.
   def option_for(value)
+    return if value.blank?
+
     merchant = assignable_merchant(value)
-    [ merchant.name, merchant.id ] if merchant
+    return [ merchant.name, merchant.id ] if merchant
+
+    merchant = Merchant.find_by(id: value)
+    return unless merchant
+
+    label = if FamilyMerchantAssociation.exists?(family: family, merchant: merchant)
+      I18n.t("rule.actions.set_transaction_merchant.unassigned", name: merchant.name)
+    else
+      I18n.t("rule.actions.set_transaction_merchant.unavailable")
+    end
+    [ label, merchant.id ]
   end
 
   def claimed_attributes

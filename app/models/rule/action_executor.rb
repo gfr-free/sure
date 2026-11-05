@@ -26,9 +26,9 @@ class Rule::ActionExecutor
   end
 
   # The option for a saved value that options leaves out (e.g. a merchant only
-  # on accounts the current user can't see), so editing the rule keeps the
-  # value instead of silently switching to the first option. nil if the value
-  # isn't valid at all.
+  # on accounts the current user can't see, or one no longer assigned), so
+  # editing the rule keeps the value instead of silently switching to the
+  # first option. nil if the value doesn't refer to a record at all.
   def option_for(value)
     nil
   end

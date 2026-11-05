@@ -265,6 +265,38 @@ class Rule::ActionTest < ActiveSupport::TestCase
     assert_equal "Hidden provider merchant", action.value_display
   end
 
+  test "set_transaction_merchant keeps an unlinked provider merchant in the options, marked as no longer assigned" do
+    unlinked = ProviderMerchant.create!(name: "Unlinked provider merchant", source: "plaid")
+    @txn1.update!(merchant: unlinked)
+    unlinked.unlink_from_family(@family)
+
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_transaction_merchant", value: unlinked.id)
+    Current.stubs(:user).returns(users(:family_admin))
+
+    assert_not action.reserves_claimed_attributes?
+    assert_includes action.options.map(&:last), unlinked.id
+    assert_equal I18n.t("rule.actions.set_transaction_merchant.unassigned", name: "Unlinked provider merchant"), action.value_display
+  end
+
+  test "set_transaction_merchant keeps a saved merchant the family no longer knows without revealing its name" do
+    foreign = ProviderMerchant.create!(name: "Foreign provider merchant", source: "plaid")
+    other_account = families(:empty).accounts.create!(name: "Other", balance: 0, currency: "USD", accountable: Depository.new)
+    create_transaction(account: other_account, merchant: foreign)
+
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_transaction_merchant", value: foreign.id)
+    Current.stubs(:user).returns(users(:family_admin))
+
+    assert_includes action.options.map(&:last), foreign.id
+    assert_equal I18n.t("rule.actions.set_transaction_merchant.unavailable"), action.value_display
+  end
+
+  test "set_transaction_merchant leaves a value that is not a merchant out of the options" do
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_transaction_merchant", value: SecureRandom.uuid)
+    Current.stubs(:user).returns(users(:family_admin))
+
+    assert_equal action.executor.options, action.options
+  end
+
   test "set_transaction_name" do
     new_name = "Renamed Transaction"
 

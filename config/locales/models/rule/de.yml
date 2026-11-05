@@ -8,5 +8,9 @@ de:
           min_actions: braucht mindestens eine Aktion
           nested_conditions: Zusammengesetzte Bedingungen lassen sich nicht verschachteln
   rule:
+    actions:
+      set_transaction_merchant:
+        unassigned: "%{name} (nicht mehr zugeordnet)"
+        unavailable: "Händler nicht mehr verfügbar"
     conditions:
       unsupported_label: "Nicht unterstützt (%{type})"

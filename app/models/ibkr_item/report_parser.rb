@@ -129,12 +129,17 @@ class IbkrItem::ReportParser
       parse_decimal(row&.fetch("ending_cash", nil)) || BigDecimal("0")
     end
 
+    # Flex reports emit one ChangeInPositionValue row per asset category, so the
+    # position value is the sum of those rows. A row without asset category next
+    # to categorized rows is already the total and is used alone to avoid double
+    # counting.
     def extract_current_balance(position_values, account_currency)
-      base_summary = position_values.find { |row| row["currency"] == "BASE_SUMMARY" }
-      account_row = position_values.find { |row| row["currency"] == account_currency }
-      row = base_summary || account_row
+      base_summary_rows = position_values.select { |row| row["currency"] == "BASE_SUMMARY" }
+      rows = base_summary_rows.presence || position_values.select { |row| row["currency"] == account_currency }
+      total_rows, category_rows = rows.partition { |row| row["asset_category"].blank? }
+      rows = total_rows.first(1) if total_rows.any? && category_rows.any?
 
-      parse_decimal(row&.fetch("end_of_period_value", nil)) || BigDecimal("0")
+      rows.sum(BigDecimal("0")) { |row| parse_decimal(row["end_of_period_value"]) || BigDecimal("0") }
     end
 
     def extract_total_balance(position_values, cash_rows, account_currency)

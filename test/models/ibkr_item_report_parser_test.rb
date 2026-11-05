@@ -55,4 +55,52 @@ class IbkrItemReportParserTest < ActiveSupport::TestCase
 
     assert_equal "Invalid IBKR Flex XML: missing account identifier in FlexStatement.", error.message
   end
+
+  test "sums BASE_SUMMARY position values across asset categories" do
+    parsed = IbkrItem::ReportParser.new(position_values_xml(<<~ROWS)).parse
+      <ChangeInPositionValue assetCategory="STK" currency="BASE_SUMMARY" endOfPeriodValue="2000.00" />
+      <ChangeInPositionValue assetCategory="OPT" currency="BASE_SUMMARY" endOfPeriodValue="350.50" />
+      <ChangeInPositionValue assetCategory="STK" currency="CHF" endOfPeriodValue="2000.00" />
+    ROWS
+
+    assert_equal BigDecimal("3351.00"), parsed[:accounts].first[:current_balance]
+  end
+
+  test "uses only the BASE_SUMMARY total row when one without asset category is present" do
+    parsed = IbkrItem::ReportParser.new(position_values_xml(<<~ROWS)).parse
+      <ChangeInPositionValue assetCategory="STK" currency="BASE_SUMMARY" endOfPeriodValue="2000.00" />
+      <ChangeInPositionValue assetCategory="OPT" currency="BASE_SUMMARY" endOfPeriodValue="350.50" />
+      <ChangeInPositionValue assetCategory="" currency="BASE_SUMMARY" endOfPeriodValue="2350.50" />
+    ROWS
+
+    assert_equal BigDecimal("3351.00"), parsed[:accounts].first[:current_balance]
+  end
+
+  test "sums account currency position values across asset categories without BASE_SUMMARY" do
+    parsed = IbkrItem::ReportParser.new(position_values_xml(<<~ROWS)).parse
+      <ChangeInPositionValue assetCategory="STK" currency="CHF" endOfPeriodValue="2000.00" />
+      <ChangeInPositionValue assetCategory="OPT" currency="CHF" endOfPeriodValue="350.50" />
+      <ChangeInPositionValue assetCategory="STK" currency="USD" endOfPeriodValue="999.00" />
+    ROWS
+
+    assert_equal BigDecimal("3351.00"), parsed[:accounts].first[:current_balance]
+  end
+
+  private
+
+    def position_values_xml(rows)
+      <<~XML
+        <FlexQueryResponse queryName="Sure Test">
+          <FlexStatement accountId="U1234567" toDate="2026-05-07">
+            <AccountInformation accountId="U1234567" currency="CHF" />
+            <ChangeInPositionValues>
+              #{rows}
+            </ChangeInPositionValues>
+            <CashReport>
+              <CashReportCurrency currency="BASE_SUMMARY" endingCash="1000.50" />
+            </CashReport>
+          </FlexStatement>
+        </FlexQueryResponse>
+      XML
+    end
 end

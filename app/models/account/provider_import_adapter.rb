@@ -618,16 +618,39 @@ class Account::ProviderImportAdapter
               updates[:account_provider_id] = account_provider_id
             end
 
-            # Attach external_id if provided and missing
-            if external_id.present? && existing.external_id.blank?
+            # Attach external_id if provided and missing. When the lookup found
+            # another row by this external_id, that row keeps it: moving it here
+            # would hit the unique index and drop the whole snapshot.
+            if external_id.present? && existing.external_id.blank? && !external_id_taken?(external_id)
               updates[:external_id] = external_id
             end
 
             begin
-              # Use update_columns to avoid validations and keep this collision handler best-effort.
-              existing.update_columns(updates.compact)
-            rescue => _
-              # Best-effort only; avoid raising in collision handler
+              # Best-effort: skip validations, and isolate a failed write in a
+              # savepoint so the surrounding sync transaction stays usable.
+              Holding.transaction(requires_new: true) do
+                existing.update_columns(updates.compact)
+              end
+            rescue ActiveRecord::ActiveRecordError => update_error
+              existing.reload
+              DebugLogEntry.capture(
+                category: "provider_sync_warning",
+                level: "warn",
+                message: "Could not apply provider snapshot to colliding holding: #{update_error.class}",
+                source: self.class.name,
+                provider_key: source,
+                account: account,
+                account_provider_id: account_provider_id,
+                metadata: {
+                  holding_id: existing.id,
+                  holding_account_provider_id: existing.account_provider_id,
+                  security_id: security.id,
+                  date: date,
+                  currency: currency,
+                  external_id: external_id,
+                  error: update_error.message.truncate(500)
+                }
+              )
             end
 
             holding = existing
@@ -1070,6 +1093,10 @@ class Account::ProviderImportAdapter
   end
 
   private
+
+    def external_id_taken?(external_id)
+      account.holdings.where(external_id: external_id).exists?
+    end
 
     # The latest earlier holding of the security the provider reports. A
     # remapped row records that security in provider_security_id; an

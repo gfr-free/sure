@@ -333,6 +333,7 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_includes response.body, "Attachments file 1 has unsupported format (text/plain)"
     assert_includes response.body, "Please select your files again before submitting."
+    assert_select "details[open] summary", text: /Attachments/
   end
 
   test "a form re-rendered without picked files does not ask to reselect them" do

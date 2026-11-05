@@ -111,7 +111,7 @@
       destination_input: destination_input %>
   </section>
 
-  <%= render DS::Disclosure.new(title: t(".details"), open: @reselect_attachments) do %>
+  <%= render DS::Disclosure.new(title: t(".details")) do %>
     <section class="space-y-2">
       <%= f.fields_for :entryable do |ef| %>
         <%= render DS::MerchantSelect.new(
@@ -133,18 +133,20 @@
                       placeholder: t(".note_placeholder"),
                       rows: 5,
                       "data-auto-submit-form-target": "auto" %>
+    </section>
+  <% end %>
 
-      <div data-controller="attachment-upload"
-           data-attachment-upload-max-files-value="<%= Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>"
-           data-attachment-upload-max-size-value="<%= Transaction::MAX_ATTACHMENT_SIZE %>">
-        <%= f.label :attachments, t(".attachments_label"), class: "block text-sm text-secondary mb-1" %>
-        <% if @reselect_attachments %>
-          <div class="mb-2">
-            <%= render DS::Alert.new(message: t(".attachments_reselect"), variant: :warning) %>
-          </div>
-        <% end %>
-        <%= render "transactions/attachment_dropzone", form: f %>
-      </div>
+  <%= render DS::Disclosure.new(title: t(".attachments_label"), open: @reselect_attachments) do %>
+    <section data-controller="attachment-upload"
+             data-attachment-upload-max-files-value="<%= Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>"
+             data-attachment-upload-max-size-value="<%= Transaction::MAX_ATTACHMENT_SIZE %>">
+      <%= f.label :attachments, t(".attachments_label"), class: "sr-only" %>
+      <% if @reselect_attachments %>
+        <div class="mb-2">
+          <%= render DS::Alert.new(message: t(".attachments_reselect"), variant: :warning) %>
+        </div>
+      <% end %>
+      <%= render "transactions/attachment_dropzone", form: f %>
     </section>
   <% end %>
 

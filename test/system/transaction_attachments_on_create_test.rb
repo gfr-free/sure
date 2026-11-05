@@ -14,7 +14,7 @@ class TransactionAttachmentsOnCreateTest < ApplicationSystemTestCase
 
     find("input[name='entry[amount]']").set("42.00")
     select_ds("Category", categories(:food_and_drink))
-    find("summary", text: /details/i).click
+    find("summary", text: /attachments/i).click
     attach_file "entry_attachments", file_fixture("profile_image.png"), make_visible: true
     assert_text "profile_image.png"
 
@@ -34,7 +34,7 @@ class TransactionAttachmentsOnCreateTest < ApplicationSystemTestCase
     visit new_transaction_url(account_id: accounts(:depository).id)
     find("input[name='entry[amount]']").set("42.00")
     select_ds("Category", categories(:food_and_drink))
-    find("summary", text: /details/i).click
+    find("summary", text: /attachments/i).click
     attach_file "entry_attachments", big_file.path, make_visible: true
     assert_text "File too large (max 10MB)"
 

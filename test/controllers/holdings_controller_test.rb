@@ -12,6 +12,13 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "holdings list draws portfolio weights with the design system progress ring" do
+    get holdings_url(account_id: @account.id)
+
+    assert_select "svg[width='16'] circle[stroke='var(--color-info)']", minimum: 2
+    assert_select "svg circle.text-gray-300", count: 0
+  end
+
   test "gets holding" do
     get holding_path(@holding)
 

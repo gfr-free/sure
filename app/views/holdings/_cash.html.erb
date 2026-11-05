@@ -20,7 +20,7 @@
   <div class="col-span-2 flex justify-end items-center gap-2">
     <% cash_weight = account.balance.zero? ? 0 : account.cash_balance / account.balance * 100 %>
 
-    <%= render "shared/progress_circle", progress: cash_weight %>
+    <%= render DS::ProgressRing.new(percent: cash_weight, size: 16, stroke_width: 2, tone: :info, show_percent: false) %>
     <%= tag.p number_to_percentage(cash_weight, precision: 1) %>
   </div>
 

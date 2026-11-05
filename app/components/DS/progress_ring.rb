@@ -14,6 +14,7 @@ class DS::ProgressRing < DesignSystemComponent
     success: "var(--color-success)",
     warning: "var(--color-warning)",
     destructive: "var(--color-destructive)",
+    info: "var(--color-info)",
     neutral: "var(--color-gray-400)"
   }.freeze
 

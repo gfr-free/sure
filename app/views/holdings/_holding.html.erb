@@ -21,7 +21,7 @@
 
     <div class="col-span-2 flex justify-end items-center gap-2">
       <% if holding.weight %>
-        <%= render "shared/progress_circle", progress: holding.weight %>
+        <%= render DS::ProgressRing.new(percent: holding.weight, size: 16, stroke_width: 2, tone: :info, show_percent: false) %>
         <%= tag.p number_to_percentage(holding.weight, precision: 1) %>
       <% else %>
         <%= tag.p "--", class: "text-secondary mb-5" %>

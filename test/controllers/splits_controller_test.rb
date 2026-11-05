@@ -268,6 +268,30 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 3, @entry.child_entries.count
   end
 
+  test "create and update keep split names and chosen categories when rules run" do
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Groceries", amount: "-70", category_id: categories(:food_and_drink).id },
+          { name: "Household", amount: "-30", category_id: "" }
+        ]
+      }
+    }
+    assert_split_edits_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Groceries Household])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Food", amount: "-60", category_id: categories(:food_and_drink).id },
+          { name: "Other", amount: "-40", category_id: "" }
+        ]
+      }
+    }
+    assert_split_edits_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Food Other])
+  end
+
   test "update with mismatched amounts rejects" do
     @entry.split!([
       { name: "Part 1", amount: 60, category_id: nil },

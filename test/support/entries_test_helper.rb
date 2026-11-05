@@ -108,4 +108,23 @@ module EntriesTestHelper
 
     transfer
   end
+
+  # Runs a rule that recategorises and renames every split row, then checks which values held.
+  # Expects the parent's rows ordered by amount, largest first.
+  def assert_split_edits_survive_rules(parent, expected_categories:, expected_names:)
+    rule = parent.account.family.rules.create!(
+      resource_type: "transaction",
+      conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 0) ],
+      actions: [
+        Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id),
+        Rule::Action.new(action_type: "set_transaction_name", value: "Renamed by rule")
+      ]
+    )
+    rule.apply
+    rule.destroy!
+
+    children = parent.reload.child_entries.order(amount: :desc).includes(:entryable).to_a
+    assert_equal expected_categories, children.map { |child| child.transaction.category }
+    assert_equal expected_names, children.map(&:name)
+  end
 end

@@ -2,6 +2,7 @@
 en:
   invitations:
     accept_choice:
+      continue_with_sso: Continue with single sign-on
       create_account: Create new account
       joined_household: You have joined the household.
       message: "%{inviter} has invited you to join as %{role}."

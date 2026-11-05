@@ -185,4 +185,70 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil created_user
     assert_equal 0, AccountShare.where(user: created_user).count
   end
+
+  test "new redirects to sign in when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+
+    get new_registration_url
+
+    assert_redirected_to new_session_path
+    assert_equal I18n.t("registrations.local_signup_disabled"), flash[:alert]
+  end
+
+  test "create does not register a user when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+
+    assert_no_difference [ "User.count", "Family.count" ] do
+      post registration_url, params: { user: {
+        email: "sso-only@example.com",
+        password: "Password1!" } }
+    end
+
+    assert_redirected_to new_session_path
+  end
+
+  # The emergency override only lets an existing super admin sign in with a
+  # password; it never reopens local registration.
+  test "create does not register a user when only the admin override is enabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+    AuthConfig.stubs(:local_admin_override_enabled?).returns(true)
+
+    assert_no_difference "User.count" do
+      post registration_url, params: { user: {
+        email: "override@example.com",
+        password: "Password1!" } }
+    end
+
+    assert_redirected_to new_session_path
+  end
+
+  test "first user of a fresh instance can still register when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+    User.connection.disable_referential_integrity { User.delete_all }
+
+    assert_difference "User.count", +1 do
+      post registration_url, params: { user: {
+        email: "bootstrap@example.com",
+        password: "Password1!" } }
+    end
+
+    assert User.find_by(email: "bootstrap@example.com").super_admin?
+  end
+
+  # Invitees join through SSO instead; the invitation stays pending for that.
+  test "create does not register an invited user when local login is disabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+    invitation = invitations(:one)
+
+    assert_no_difference "User.count" do
+      post registration_url, params: { user: {
+        email: invitation.email,
+        password: "Password1!",
+        invitation: invitation.token
+      } }
+    end
+
+    assert_redirected_to new_session_path
+    assert_nil invitation.reload.accepted_at
+  end
 end

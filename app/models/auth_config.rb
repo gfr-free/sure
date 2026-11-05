@@ -34,6 +34,21 @@ class AuthConfig
       local_login_enabled?
     end
 
+    # Whether new accounts may be created with an email and password. SSO-only
+    # mode closes local registration for everyone, invitees included: they join
+    # through SSO, which honors pending invitations. The emergency admin
+    # override only covers signing in, so it does not reopen registration.
+    def local_registration_enabled?
+      local_login_enabled?
+    end
+
+    # Gate for the web and API signup endpoints. The first account of an
+    # instance may still register locally, so an SSO-only instance whose SSO
+    # cannot create users (JIT link_only) is not locked out before anyone exists.
+    def local_registration_allowed?
+      local_registration_enabled? || !User.exists?
+    end
+
     # Backend check to determine if a given user is allowed to authenticate via
     # local email/password credentials.
     #

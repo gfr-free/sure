@@ -83,6 +83,15 @@ class AiHealth
       seconds.positive? ? seconds : DEFAULT_TIMEOUT
     end
 
+    # How long a probe result is served from cache before the next page load
+    # re-runs that check. AI_HEALTH_PROBE_CACHE_TTL overrides the default,
+    # with non-positive values treated as unset. System Health reports this
+    # same value so the page states the bound the probes actually use.
+    def self.cache_ttl
+      seconds = ENV.fetch("AI_HEALTH_PROBE_CACHE_TTL", DEFAULT_CACHE_TTL.to_i).to_i
+      seconds.positive? ? seconds.seconds : DEFAULT_CACHE_TTL
+    end
+
     def initialize(force: false, cache: Rails.cache)
       @force = force
       @cache = cache
@@ -477,8 +486,7 @@ class AiHealth
       end
 
       def cache_ttl
-        seconds = ENV.fetch("AI_HEALTH_PROBE_CACHE_TTL", DEFAULT_CACHE_TTL.to_i).to_i
-        seconds.positive? ? seconds.seconds : DEFAULT_CACHE_TTL
+        self.class.cache_ttl
       end
 
       def timeout

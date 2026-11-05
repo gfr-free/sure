@@ -5,7 +5,7 @@ class AiHealthTest < ActiveSupport::TestCase
     OPENAI_ACCESS_TOKEN OPENAI_URI_BASE OPENAI_MODEL
     ANTHROPIC_ACCESS_TOKEN ANTHROPIC_API_KEY VECTOR_STORE_PROVIDER
     OPENAI_SUPPORTS_RESPONSES_ENDPOINT EMBEDDING_URI_BASE EMBEDDING_MODEL
-    EMBEDDING_DIMENSIONS EMBEDDING_ACCESS_TOKEN
+    EMBEDDING_DIMENSIONS EMBEDDING_ACCESS_TOKEN AI_HEALTH_PROBE_CACHE_TTL
   ].index_with(nil).freeze
 
   setup do
@@ -146,6 +146,52 @@ class AiHealthTest < ActiveSupport::TestCase
 
     assert_equal :failing, health.vector_store_status
     assert_equal :pgvector_probe_failed, health.vector_store_failure_kind
+  end
+
+  test "cached results expire one cache TTL after the oldest check" do
+    freeze_time do
+      oldest = Time.current - 20.seconds
+      AiHealth::Probe.any_instance.stubs(:llm).returns(result(:passing).with(checked_at: oldest))
+      AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(result(:passing))
+
+      health = ClimateControl.modify(
+        AI_ENVIRONMENT.merge("OPENAI_ACCESS_TOKEN" => "test-token", "AI_HEALTH_PROBE_CACHE_TTL" => "90")
+      ) { AiHealth.new }
+
+      assert_equal 90.seconds, health.probe_cache_ttl
+      assert_equal Time.current, health.last_checked_at
+      assert_equal oldest + 90.seconds, health.cache_expires_at
+    end
+  end
+
+  test "cache expiry is reported in the viewer's zone and only while it lies ahead" do
+    freeze_time do
+      written_in_berlin = result(:passing).with(checked_at: Time.current.in_time_zone("Europe/Berlin") - 30.seconds)
+      AiHealth::Probe.any_instance.stubs(:llm).returns(written_in_berlin)
+      AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(result(:passing))
+      AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(result(:passing))
+
+      Time.use_zone("America/New_York") do
+        health = ClimateControl.modify(AI_ENVIRONMENT.merge("OPENAI_ACCESS_TOKEN" => "test-token")) { AiHealth.new }
+        assert_equal "America/New_York", health.cache_expires_at.time_zone.name
+
+        expired = ClimateControl.modify(
+          AI_ENVIRONMENT.merge("OPENAI_ACCESS_TOKEN" => "test-token", "AI_HEALTH_PROBE_CACHE_TTL" => "30")
+        ) { AiHealth.new }
+        assert_nil expired.cache_expires_at
+        assert_equal Time.current, expired.last_checked_at
+      end
+    end
+  end
+
+  test "cache expiry is unknown until a live check has run" do
+    health = ClimateControl.modify(AI_ENVIRONMENT) { AiHealth.new(run_probes: false) }
+
+    assert_equal AiHealth::Probe::DEFAULT_CACHE_TTL, health.probe_cache_ttl
+    assert_nil health.cache_expires_at
   end
 
   private

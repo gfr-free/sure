@@ -64,6 +64,20 @@ class Transactions::BulkDeletionsControllerTest < ActionDispatch::IntegrationTes
     assert_not Transaction.exists?(fee.id)
   end
 
+  test "selecting a transfer and its fee deletes the fee once" do
+    transfer = transfers(:one)
+    fee_entry = create_transaction(account: accounts(:depository), amount: 5, name: "Transfer fee")
+    fee_entry.transaction.update!(transfer: transfer)
+
+    assert_difference -> { Transfer.count } => -1, -> { Entry.count } => -3 do
+      post transactions_bulk_deletion_url, params: {
+        bulk_delete: { entry_ids: [ transfer.outflow_transaction.entry.id, fee_entry.id ] }
+      }
+    end
+
+    assert_equal "3 transactions deleted", flash[:notice]
+  end
+
   test "selecting both legs of a transfer deletes it once" do
     assert_difference -> { Transfer.count } => -1, -> { Entry.count } => -2 do
       post transactions_bulk_deletion_url, params: {

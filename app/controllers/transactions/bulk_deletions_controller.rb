@@ -9,7 +9,11 @@ class Transactions::BulkDeletionsController < ApplicationController
     # which needs write access to every account involved; otherwise it is kept.
     transfers = Transfer.with_legs_in(Current.accessible_entries.where(id: entry_ids)).to_a
     deletable, kept = transfers.partition { |transfer| transfer.deletable_with?(writable_account_ids.to_set) }
-    transfer_entry_ids = transfers.flat_map { |transfer| [ transfer.inflow_transaction.entry&.id, transfer.outflow_transaction.entry&.id ] }.compact
+    # Legs (and the fees of deleted transfers) never go through the per-entry
+    # delete, so nothing is destroyed or counted twice.
+    transfer_entry_ids = transfers.flat_map { |transfer| [ transfer.inflow_transaction.entry&.id, transfer.outflow_transaction.entry&.id ] } +
+      deletable.flat_map { |transfer| transfer.fee_transactions.map { |fee| fee.entry&.id } }
+    transfer_entry_ids.compact!
 
     entries_scope = Current.family.entries
                       .where(account_id: writable_account_ids)

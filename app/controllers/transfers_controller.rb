@@ -215,7 +215,7 @@ class TransfersController < ApplicationController
       offered_ids = @accounts.map(&:id)
       @from_account_id = source.from_account&.id if offered_ids.include?(source.from_account&.id)
       @to_account_id = source.to_account&.id if offered_ids.include?(source.to_account&.id)
-      @transfer.amount = source.outflow_transaction.entry.amount.abs
+      @transfer.amount = source.outflow_transaction.entry&.amount&.abs
       @transfer.source_fee_amount = source.derived_source_fee_amount.nonzero?
       @transfer.destination_fee_amount = source.derived_destination_fee_amount.nonzero?
       @transfer.tag_ids = source.outflow_transaction.tag_ids

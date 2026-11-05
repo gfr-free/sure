@@ -26,25 +26,41 @@
 # passed as `true` so Rails renders a bare `data-...` attribute; a `nil`
 # value would be dropped by the tag helper and break the selector.
 class DS::ExpandToggle < DesignSystemComponent
-  # Shared icon-only outline style. The button is a compact square: centered
-  # icon, 8px padding (32px total with the 16px icon), the same border and
-  # background as the previous labelled button. The sidebar call site appends
-  # `shrink-0` so the button does not compress next to the flex-1 "New" link.
-  DEFAULT_CLASSES = "inline-flex items-center justify-center rounded-lg border border-primary bg-container p-2 text-primary hover:bg-surface-inset transition-colors"
+  # :outline is the bordered 32px square used in the account sidebar next to
+  # the "New" link. :ghost is the borderless 24px icon used in hover clusters
+  # such as the dashboard section headers, matching the neighbouring
+  # section-header icons. Call sites append layout classes (`shrink-0`,
+  # hover-reveal opacity) via `class_name:`.
+  VARIANTS = {
+    outline: {
+      container_classes: "inline-flex items-center justify-center rounded-lg border border-primary bg-container p-2 text-primary hover:bg-surface-inset transition-colors",
+      icon_classes: nil
+    },
+    ghost: {
+      container_classes: "flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-primary hover:bg-container-inset-hover transition-colors",
+      icon_classes: "!w-3.5 !h-3.5"
+    }
+  }.freeze
 
-  attr_reader :expand_label, :collapse_label, :data, :extra_classes
+  attr_reader :expand_label, :collapse_label, :data, :extra_classes, :variant
 
-  def initialize(expand_label:, collapse_label:, data:, class_name: nil)
+  def initialize(expand_label:, collapse_label:, data:, class_name: nil, variant: :outline)
     @expand_label = expand_label
     @collapse_label = collapse_label
     @data = data
     @extra_classes = class_name
+    @variant = (variant.presence || :outline).to_sym
+    raise ArgumentError, "Unknown variant: #{variant}" unless VARIANTS.key?(@variant)
+  end
+
+  def icon_classes
+    VARIANTS.dig(variant, :icon_classes)
   end
 
   def merged_opts
     {
       type: "button",
-      class: class_names(DEFAULT_CLASSES, extra_classes),
+      class: class_names(VARIANTS.dig(variant, :container_classes), extra_classes),
       data: data.merge(expand_label: expand_label, collapse_label: collapse_label),
       aria: { expanded: false, label: expand_label }
     }

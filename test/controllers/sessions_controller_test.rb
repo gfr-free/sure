@@ -300,6 +300,29 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil Session.find_by(id: session_record.id)
   end
 
+  test "sign out redirects to the IdP logout of the provider the login page offers" do
+    oidc_identity = oidc_identities(:bob_google)
+    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
+      provider: oidc_identity.provider,
+      uid: oidc_identity.uid,
+      info: { email: @user.email, name: "Bob Dylan" },
+      credentials: { id_token: "test-id-token" }
+    })
+    get "/auth/openid_connect/callback"
+    assert_redirected_to root_path
+
+    AuthConfig.stubs(:sso_providers).returns([
+      { name: "openid_connect", strategy: "openid_connect", issuer: "https://idp.example.com" }
+    ])
+    stub_request(:get, "https://idp.example.com/.well-known/openid-configuration")
+      .to_return(status: 200, body: { end_session_endpoint: "https://idp.example.com/logout" }.to_json)
+
+    delete session_url(@user.sessions.last)
+
+    assert_redirected_to %r{\Ahttps://idp\.example\.com/logout\?}
+    assert_includes response.location, "id_token_hint=test-id-token"
+  end
+
   test "rejects a deactivated MFA-enabled user before starting the MFA challenge" do
     @user.setup_mfa!
     @user.enable_mfa!

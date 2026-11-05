@@ -554,10 +554,8 @@ class SessionsController < ApplicationController
     end
 
     def build_idp_logout_url(oidc_identity, id_token)
-      # Find the provider configuration using unified loader (supports both YAML and DB providers)
-      provider_config = ProviderLoader.load_providers.find do |p|
-        p[:name] == oidc_identity.provider
-      end
+      # Same provider list as the login page: only registered providers, with resolved issuers
+      provider_config = oidc_identity.provider_config
 
       return nil unless provider_config
 

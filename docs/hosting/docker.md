@@ -264,6 +264,30 @@ BINDING=::       bin/dev  # IPv6 dual-stack
 
 The bundled devcontainer at `.devcontainer/docker-compose.yml` already pins `BINDING: "0.0.0.0"` so Docker port forwarding reaches the app — no manual override needed when using the devcontainer.
 
+#### Outbound HTTP proxy (optional)
+
+If your server can only reach the internet through a forward proxy, set the standard proxy variables on **both** the `web` and the `worker` service. Most outbound calls (bank and market data syncs, exchange rates, AI providers) run in the worker.
+
+```yaml
+x-rails-env: &rails_env
+  # ...existing variables...
+  http_proxy: "http://proxy.example.com:3128"
+  https_proxy: "http://proxy.example.com:3128"
+  no_proxy: "localhost,127.0.0.1,db,redis"
+```
+
+No code change or extra setting is needed. Sure's HTTP clients read these variables from the environment: Net::HTTP, Faraday, HTTParty and the libraries built on them (OpenAI, Anthropic, Plaid, S3 storage and OpenID Connect discovery). HTTPS requests go through the proxy as a `CONNECT` tunnel, so the proxy does not see request bodies or need its own certificate.
+
+Things to know:
+
+- **Lowercase or uppercase both work.** Prefer the lowercase names. Ruby accepts `HTTP_PROXY` too but logs a warning that it is discouraged.
+- **List internal HTTP services in `no_proxy`.** Anything Sure reaches over HTTP inside your own network must bypass the proxy, for example a local LLM (`ollama`), a self-hosted OpenID Connect provider, MinIO or a SimpleFIN bridge on your LAN. Postgres and Redis don't use HTTP, so `db` and `redis` are only there for tools that read the same variable.
+- **`no_proxy` format.** Comma-separated host names (`ollama`) and domain suffixes (`.lan` or `lan`, both match `nas.lan`). IP ranges such as `192.168.0.0/16` only match URLs that use an IP address. A bare `*` is not supported.
+- **Plain `http://` SimpleFIN bridges always connect directly.** Sure checks the bridge address before connecting, and a proxy would resolve the host name again, so plain HTTP requests to SimpleFIN skip the proxy. HTTPS requests to SimpleFIN use the proxy.
+- **Email (SMTP) does not use the proxy.** These variables only cover HTTP and HTTPS.
+
+The AI compose file uses the same variables to route traffic through Pipelock; see [Pipelock security proxy](#pipelock-security-proxy).
+
 ### Step 4: Run the app
 
 You are now ready to run the app. Start with the following command to make sure everything is working:

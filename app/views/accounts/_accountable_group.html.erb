@@ -15,10 +15,12 @@
         <%= tag.p format_money(account_group.total_money), class: "text-sm font-medium text-primary privacy-sensitive" %>
         <% if account_group.type_group? %>
           <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key), loading: "lazy", data: sparkline_frame_data do %>
-            <div class="flex items-center w-8 h-4 ml-auto">
-              <div class="w-6 h-px bg-loader"></div>
-            </div>
+            <%= render "accounts/sparkline_loader" %>
           <% end %>
+        <% else %>
+          <%= render "accounts/group_sparkline_frame",
+                frame_id: "#{account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile)}_sparkline",
+                account_group: account_group %>
         <% end %>
       </div>
     <% end %>
@@ -28,9 +30,16 @@
       <div class="space-y-1">
         <% subgroups.each do |subgroup| %>
           <div id="<%= subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>" class="space-y-1" data-subgroup-key="<%= subgroup.key %>">
-            <div class="flex items-center justify-between gap-2 px-3 pt-2">
+            <%# Total above its sparkline, right-aligned like the account rows below. %>
+            <div class="flex items-start justify-between gap-2 px-3 pt-2">
               <%= tag.p subgroup.name, class: class_names("text-xs font-medium text-secondary truncate", "animate-pulse" => subgroup.syncing?) %>
-              <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
+              <div class="text-right shrink-0">
+                <%= tag.p format_money(subgroup.total_money), class: "text-xs font-medium text-secondary whitespace-nowrap privacy-sensitive" %>
+                <%= render "accounts/group_sparkline_frame",
+                      frame_id: "#{subgroup.dom_id(tab: all_tab ? :all : nil, mobile: mobile)}_sparkline",
+                      account_group: account_group,
+                      subgroup: subgroup %>
+              </div>
             </div>
             <%= render "accounts/sidebar_account_list", accounts: subgroup.accounts, account_group: account_group, sortable: sortable, subgroup: subgroup %>
           </div>

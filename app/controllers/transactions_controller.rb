@@ -137,6 +137,7 @@ class TransactionsController < ApplicationController
       @entry.valid?
       clear_stale_auto_generated_name!(@entry)
       set_new_transaction_form_options
+      @reselect_attachments = Array(params.dig(:entry, :attachments)).any?(ActionDispatch::Http::UploadedFile)
       render :new, status: :unprocessable_entity
       return
     end

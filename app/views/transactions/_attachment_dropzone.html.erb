@@ -1,8 +1,12 @@
 <%# locals: (form:, used: 0) %>
 <%# Must sit inside an element carrying the attachment-upload controller. %>
 <div>
+  <%# The file input is hidden, so the dropzone itself is the keyboard-reachable control. %>
   <div class="flex flex-col items-center justify-center w-full py-8 border border-secondary border-dashed rounded-xl cursor-pointer bg-surface-inset hover:bg-surface-inset-hover transition-colors text-center px-4"
-       data-action="click->attachment-upload#triggerFileInput">
+       role="button"
+       tabindex="0"
+       aria-label="<%= t("transactions.attachments.browse_to_add") %>"
+       data-action="click->attachment-upload#triggerFileInput keydown.enter->attachment-upload#triggerFileInput keydown.space->attachment-upload#triggerFileInput:prevent">
 
     <div data-attachment-upload-target="uploadText" class="flex flex-col items-center">
       <%= icon "plus", size: "lg", class: "mb-2 text-secondary" %>
@@ -20,6 +24,8 @@
           class: "hidden",
           data: {
             attachment_upload_target: "fileInput",
+            too_many_message: t("transactions.attachments.too_many_files", max: "%{max}"),
+            too_large_message: t("transactions.attachments.file_too_large", max: "%{max}"),
             action: "change->attachment-upload#updateSubmitButton"
           } %>
   </div>

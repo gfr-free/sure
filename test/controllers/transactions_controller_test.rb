@@ -384,6 +384,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "create without an account asks to reselect picked files" do
+    post transactions_url, params: new_transaction_params(
+      account_id: "",
+      attachments: [ fixture_file_upload("profile_image.png", "image/png") ]
+    )
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Please select your files again before submitting."
+    assert_select "[role=button][tabindex='0'][data-action~='keydown.enter->attachment-upload#triggerFileInput']"
+    assert_select "input[type=file][data-too-many-message='Too many files (max %{max})']"
+  end
+
   test "a blank auto-generated name is not silently kept when another field fails validation" do
     @entry.account.family.update!(auto_generate_transaction_names: true)
 

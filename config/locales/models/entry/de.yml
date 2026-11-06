@@ -1,6 +1,9 @@
 ---
 de:
   activerecord:
+    attributes:
+      entry/entryable:
+        attachments: Anhänge
     errors:
       models:
         entry:

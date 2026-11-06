@@ -340,6 +340,65 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create attaches files picked in the new-transaction form" do
+    assert_difference "Entry.count" => 1, "ActiveStorage::Attachment.count" => 2 do
+      post transactions_url, params: new_transaction_params(attachments: [
+        fixture_file_upload("profile_image.png", "image/png"),
+        fixture_file_upload("square-placeholder.png", "image/png")
+      ])
+    end
+
+    transaction = Entry.order(:created_at).last.transaction
+    assert_equal %w[profile_image.png square-placeholder.png], transaction.attachments.map { |a| a.filename.to_s }.sort
+  end
+
+  test "resubmitting the form with files does not attach them a second time" do
+    params = new_transaction_params(idempotency_key: SecureRandom.uuid, attachments: [ fixture_file_upload("profile_image.png", "image/png") ])
+
+    assert_difference [ "Entry.count", "ActiveStorage::Attachment.count", "ActiveStorage::Blob.count" ], 1 do
+      2.times { post transactions_url, params: params }
+    end
+    assert_equal 1, Entry.order(:created_at).last.transaction.attachments.count
+  end
+
+  test "create rejects files the attachment validation does not allow" do
+    assert_no_difference [ "Entry.count", "ActiveStorage::Attachment.count", "ActiveStorage::Blob.count" ] do
+      post transactions_url, params: new_transaction_params(attachments: [ fixture_file_upload("test.txt", "text/plain") ])
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Attachments file 1 has unsupported format (text/plain)"
+    assert_includes response.body, "Please select your files again before submitting."
+    assert_select "details[open] summary", text: /Attachments/
+  end
+
+  test "a form re-rendered without picked files does not ask to reselect them" do
+    post transactions_url, params: new_transaction_params(amount: "")
+
+    assert_response :unprocessable_entity
+    assert_not_includes response.body, "Please select your files again before submitting."
+  end
+
+  test "create rejects more files than a transaction may hold" do
+    files = Array.new(Transaction::MAX_ATTACHMENTS_PER_TRANSACTION + 1) { fixture_file_upload("profile_image.png", "image/png") }
+
+    assert_no_difference [ "Entry.count", "ActiveStorage::Attachment.count" ] do
+      post transactions_url, params: new_transaction_params(attachments: files)
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "create does not attach existing blobs passed by signed id" do
+    blob = ActiveStorage::Blob.create_and_upload!(io: StringIO.new("receipt"), filename: "other.pdf", content_type: "application/pdf")
+
+    assert_difference "Entry.count", 1 do
+      assert_no_difference "ActiveStorage::Attachment.count" do
+        post transactions_url, params: new_transaction_params(attachments: [ blob.signed_id ])
+      end
+    end
+  end
+
   test "create without an account re-renders the form instead of raising" do
     assert_no_difference [ "Entry.count", "Transaction.count" ] do
       post transactions_url, params: {
@@ -359,6 +418,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_entity
+  end
+
+  test "create without an account asks to reselect picked files" do
+    post transactions_url, params: new_transaction_params(
+      account_id: "",
+      attachments: [ fixture_file_upload("profile_image.png", "image/png") ]
+    )
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Please select your files again before submitting."
+    assert_select "[role=button][tabindex='0'][data-action~='keydown.enter->attachment-upload#triggerFileInput']"
+    assert_select "input[type=file][data-too-many-message='Too many files (max %{max})']"
   end
 
   test "a blank auto-generated name is not silently kept when another field fails validation" do
@@ -2328,6 +2399,21 @@ end
             AND classid = ? AND objid = ? AND objsubid = 2
         )
       SQL
+    end
+
+    def new_transaction_params(**extra)
+      {
+        entry: {
+          account_id: @entry.account_id,
+          name: "New transaction",
+          date: Date.current,
+          currency: "USD",
+          amount: 100,
+          nature: "outflow",
+          entryable_type: "Transaction",
+          entryable_attributes: { category_id: Category.first.id }
+        }.merge(extra)
+      }
     end
 
     def rendered_entry_ids

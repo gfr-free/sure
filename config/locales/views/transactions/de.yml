@@ -6,6 +6,8 @@ de:
       account: Konto
       account_prompt: Konto auswählen
       amount: Betrag
+      attachments_label: Anhänge
+      attachments_reselect: Bitte wähle deine Dateien vor dem Absenden erneut aus.
       category: Kategorie
       category_search_placeholder: Kategorien suchen
       category_prompt: Kategorie auswählen
@@ -269,6 +271,8 @@ de:
     attachments:
       attachment_deleted: Anhang gelöscht
       browse_to_add: Dateien auswählen
+      too_many_files: "Zu viele Dateien (max. %{max})"
+      file_too_large: "Datei zu groß (max. %{max} MB)"
       cannot_exceed: Maximal %{count} Anhänge pro Transaktion
       delete_failed: Der Anhang ließ sich nicht löschen. Versuch es noch einmal oder wende dich an den Support.
       failed_delete: 'Anhang konnte nicht gelöscht werden: %{error}'

@@ -29,6 +29,8 @@ en:
       account: Account
       account_prompt: Select an Account
       amount: Amount
+      attachments_label: Attachments
+      attachments_reselect: Please select your files again before submitting.
       category: Category
       category_label: Category
       category_prompt: Select a Category
@@ -405,4 +407,6 @@ en:
         one: "File (1)"
         other: "Files (%{count})"
       browse_to_add: "Browse to add files"
+      too_many_files: "Too many files (max %{max})"
+      file_too_large: "File too large (max %{max}MB)"
       max_reached: "Maximum file limit reached (%{count}/%{max}). Delete an existing file to upload another."

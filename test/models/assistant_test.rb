@@ -29,6 +29,20 @@ class AssistantTest < ActiveSupport::TestCase
     assert_includes guest_classes, Assistant::Function::GetCategories
   end
 
+  test "registry drops budget and goal tools when the family switches those features off" do
+    admin = users(:family_admin)
+    assert_includes Assistant.function_classes(admin), Assistant::Function::GetBudget
+    assert_includes Assistant.function_classes(admin), Assistant::Function::CreateGoal
+
+    admin.family.update!(budgets_enabled: false, plan_enabled: false)
+    classes = Assistant.function_classes(admin.reload)
+
+    (Assistant::BUDGET_FUNCTION_CLASSES + Assistant::PLAN_FUNCTION_CLASSES).each do |fn_class|
+      assert_not_includes classes, fn_class
+    end
+    assert_includes classes, Assistant::Function::GetTransactions
+  end
+
   setup do
     @chat = chats(:two)
     @message = @chat.messages.create!(

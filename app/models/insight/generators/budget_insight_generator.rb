@@ -10,6 +10,8 @@ class Insight::Generators::BudgetInsightGenerator < Insight::Generator
   MAX_LISTED_CATEGORIES = 3
 
   def generate
+    return [] unless family.budgets_enabled?
+
     budget = current_budget
     return [] unless budget&.initialized?
 

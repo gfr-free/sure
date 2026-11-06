@@ -1,5 +1,8 @@
 ---
 de:
+  planning_features:
+    budgets_disabled: Budgets sind ausgeschaltet. Ein Admin kann sie unter Einstellungen → Präferenzen wieder einschalten.
+    plan_disabled: Plan ist ausgeschaltet. Ein Admin kann ihn unter Einstellungen → Präferenzen wieder einschalten.
   plans:
     show:
       title: Plan

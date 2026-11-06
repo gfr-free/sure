@@ -5,13 +5,16 @@ class PlansController < ApplicationController
   # replaces the Budgets entry for preview users (see
   # ApplicationHelper#plan_nav_item). Without the flag, fall through to the
   # budgets flow so a shared /plan link still lands somewhere sensible.
-  before_action :redirect_to_budgets_unless_preview
+  # The same fall-through applies when the family switched Plan off.
+  before_action :redirect_to_budgets_unless_plan_hub_visible
 
   def show
-    @budget = resolve_budget(Date.current)
-    @editable = @budget.editable_by?(Current.user)
-    @switch_options = budget_switch_options(@budget)
-    @top_budget_categories = @budget.initialized? ? @budget.top_spending_categories : []
+    if Current.family.budgets_enabled?
+      @budget = resolve_budget(Date.current)
+      @editable = @budget.editable_by?(Current.user)
+      @switch_options = budget_switch_options(@budget)
+      @top_budget_categories = @budget.initialized? ? @budget.top_spending_categories : []
+    end
 
     @goals = Goal.active_prepared_for(Current.family)
     @goals_summary = Goal.summary_for(@goals, currency: Current.family.primary_currency_code)
@@ -28,7 +31,9 @@ class PlansController < ApplicationController
   end
 
   private
-    def redirect_to_budgets_unless_preview
-      redirect_to budgets_path unless preview_features_enabled?
+    def redirect_to_budgets_unless_plan_hub_visible
+      return if plan_hub_visible?
+
+      redirect_to Current.family.budgets_enabled? ? budgets_path : root_path
     end
 end

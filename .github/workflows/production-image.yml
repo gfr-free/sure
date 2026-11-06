@@ -40,6 +40,13 @@ jobs:
           printf 'CMD ["./bin/rails", "server"]\n' >> Dockerfile
           tail -3 Dockerfile
 
+      # Production only: render the first pages once after boot so the first
+      # visitor after the daily image update does not hit cold templates.
+      - name: Warm the web process after boot
+        run: |
+          test -f production/warmup.rb
+          cp production/warmup.rb config/initializers/zz_prod_warmup.rb
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 

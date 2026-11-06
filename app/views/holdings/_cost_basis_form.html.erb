@@ -35,7 +35,7 @@
   <%# Laid out like an invoice line: per share x quantity = total. Only the
       per-share cost is submitted; the total field just helps to fill it in. %>
   <%= f.money_field :per_share_cost_basis,
-        label: t("holdings.cost_basis_cell.per_share_label"),
+        label: t(holding_unit_key(holding, "holdings.cost_basis_cell.per_share_label")),
         name: f.field_name(:per_share_cost_basis),
         hide_currency: true,
         currency_value_override: holding.currency,
@@ -50,7 +50,7 @@
 
   <p class="flex items-center gap-2 px-3 text-sm">
     <span class="text-secondary">&times;</span>
-    <span class="text-primary privacy-sensitive"><%= t("holdings.holding.shares", qty: format_quantity(holding.qty, exact: true)) %></span>
+    <span class="text-primary privacy-sensitive"><%= t(holding_unit_key(holding, "holdings.holding.shares"), qty: format_quantity(holding.qty, exact: true)) %></span>
   </p>
 
   <%# The holding stores the per-share cost, so neither field is bound to it. %>

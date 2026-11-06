@@ -1,0 +1,18 @@
+<%# locals: (groups:, classification:, mobile: false, all_tab: false, sortable: false) %>
+
+<% if sortable %>
+  <%# First-level groups of one side, saved per grouping dimension. Its own
+      controller name, as a sortable list ignores events from a nested list
+      of the same name (the account lists inside the groups). %>
+  <%= tag.div data: sidebar_sortable_list_data("sortable-group-list",
+        url: reorder_groups_accounts_path(level: "groups", dimension: account_grouping_primary(:sidebar), classification: classification),
+        param: "keys") do %>
+    <% groups.each do |group| %>
+      <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab, sortable: true %>
+    <% end %>
+  <% end %>
+<% else %>
+  <% groups.each do |group| %>
+    <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab %>
+  <% end %>
+<% end %>

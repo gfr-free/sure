@@ -1,0 +1,19 @@
+<%# locals: (list:, label:, class_name: nil) %>
+
+<%# Grip of a row in one of the sidebar's sortable lists (list: the list's
+    controller name). Hidden until the sidebar is in sort mode
+    (account-sort-mode). %>
+<%= render DS::Button.new(
+  variant: :icon,
+  icon: "grip-vertical",
+  size: :sm,
+  style: "display:none",
+  class: class_names("shrink-0 cursor-grab active:cursor-grabbing touch-none [-webkit-touch-callout:none]", class_name),
+  aria_label: label,
+  title: t("accounts.sidebar.reorder_hint"),
+  data: {
+    account_sort_mode_target: "handle",
+    action: %w[touchstart->#touchStart touchmove->#touchMove touchend->#touchEnd touchcancel->#touchCancel contextmenu->#suppressContextMenu keydown->#handleKeyDown]
+      .map { |action| action.sub("->#", "->#{list}#") }.join(" ")
+  }
+) %>

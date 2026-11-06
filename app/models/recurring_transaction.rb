@@ -58,10 +58,15 @@ class RecurringTransaction < ApplicationRecord
   validate :anchor_required_for_intervals
   validate :end_mode_fields_consistent
   validate :bill_type_matches_shape
+  validate :auto_post_requirements, if: :auto_post_requirements_changed?
 
   normalizes :payment_url, with: ->(url) { normalize_payment_url(url) }
 
   before_validation :derive_transfer_bill_type
+  before_save :start_auto_posting_today, if: -> { auto_post? && will_save_change_to_auto_post? }
+  # Switching it off by hand forgets the start, so a stop is only reported
+  # (auto_post_stop_reason) when Sure made it.
+  before_save :forget_auto_post_start, if: -> { !auto_post? && will_save_change_to_auto_post? && !@stopping_auto_post }
 
   # Columns whose change reshapes the occurrence stream. Amount is absent on
   # purpose: open occurrences inherit it at read time.
@@ -349,6 +354,146 @@ class RecurringTransaction < ApplicationRecord
     destination_account_id.present?
   end
 
+  # Why Sure stopped auto-posting this bill on its own, or nil.
+  def auto_post_stop_reason
+    return if auto_post? || auto_post_from.blank?
+    return :linked unless auto_post_accounts_manual?
+
+    :currency if account.present? && currency != account.currency
+  end
+
+  # The bill no longer meets the requirements; keeps auto_post_from as the
+  # marker for auto_post_stop_reason.
+  def stop_auto_posting_automatically!
+    @stopping_auto_post = true
+    update!(auto_post: false)
+  ensure
+    @stopping_auto_post = false
+  end
+
+  # Auto-posting writes real entries, so it is limited to accounts no bank
+  # feeds: on a linked account the posted entry would sit beside the bank's
+  # own copy of the same payment. A transfer needs both ends manual.
+  def auto_post_accounts_manual?
+    account.present? && account.manual? && (!transfer? || destination_account&.manual?)
+  end
+
+  # Open dates from the start date through `today` that have not posted yet.
+  # A date that already posted never qualifies again, even after its entry is
+  # deleted and the occurrence reopens. A snoozed date waits for its snooze.
+  def auto_postable_occurrences(today)
+    return recurring_occurrences.none if auto_post_from.blank?
+
+    recurring_occurrences
+      .open_status
+      .where(auto_posted_at: nil)
+      .where("recurring_occurrences.due_on >= ?", auto_post_from)
+      .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
+      .order(:due_on)
+  end
+
+  # A date the user decides on instead of the nightly run: one that appeared
+  # only after it was due (a resume, a backfill), or that sits less than most
+  # of a cycle away from a date already settled, as when a schedule edit
+  # moves the day inside a period that already posted. Compared on the raw
+  # schedule dates, so weekend adjustment does not shorten a cycle.
+  def auto_post_needs_decision?(occurrence)
+    return true if occurrence.created_at.in_time_zone(family.local_time_zone).to_date > occurrence.due_on
+
+    min_gap = (365.25 / schedule.occurrences_per_year * 0.75).floor
+    settled_original_due_dates.any? do |date|
+      date != occurrence.original_due_on && (occurrence.original_due_on - date).abs < min_gap
+    end
+  end
+
+  # Due dates of the given user's writable auto-posting bills that wait for
+  # that decision. The Bills review queue asks whether to post or skip each.
+  def self.late_auto_post_occurrences(family, user, today)
+    writable_ids = Account.writable_by(user).select(:id)
+    series = family.recurring_transactions.auto_posting
+                   .where(account_id: writable_ids)
+                   .where(destination_account_id: nil).or(
+                     family.recurring_transactions.auto_posting
+                           .where(account_id: writable_ids, destination_account_id: writable_ids)
+                   )
+
+    family.recurring_occurrences
+          .open_status
+          .where(auto_posted_at: nil)
+          .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
+          .where("recurring_occurrences.due_on >= recurring_transactions.auto_post_from")
+          .where.missing(:allocations)
+          .joins(:recurring_transaction)
+          .merge(series)
+          .includes(recurring_transaction: %i[merchant account destination_account])
+          .order(:due_on)
+          .select do |occurrence|
+            # Only what "Post on due date" can actually post, as in the drawer.
+            occurrence.recurring_transaction.postable_now? &&
+              occurrence.resolved_expected_amount.positive? &&
+              occurrence.recurring_transaction.auto_post_needs_decision?(occurrence)
+          end
+  end
+
+  # The account an auto-posting transfer writes into besides its own. Edits
+  # that change what or when it posts need write access there too.
+  def auto_post_destination_account_id
+    destination_account_id if auto_post? && transfer?
+  end
+
+  def auto_post_destination_writable_by?(user)
+    destination_id = auto_post_destination_account_id
+    destination_id.nil? || Account.writable_by(user).where(id: destination_id).exists?
+  end
+
+  # Disabled accounts and ones being deleted take no new entries; the series
+  # simply waits instead of switching itself off.
+  def auto_post_accounts_active?
+    account&.active? && (!transfer? || destination_account&.active?)
+  end
+
+  # "Post now" in an occurrence's drawer writes the same entry the nightly
+  # poster would, so it asks for what auto-posting asks for, without the
+  # switch: manual and active accounts, a fixed amount in the account's
+  # currency.
+  def postable_now?
+    auto_post_available? && auto_post_accounts_active?
+  end
+
+  # Whether this series meets what auto-posting needs at all, regardless of
+  # the switch: manual accounts, a fixed amount in the account's currency.
+  # The same rules auto_post_requirements validates.
+  def auto_post_available?
+    auto_post_accounts_manual? && amount_fixed? && currency == account.currency
+  end
+
+  # Checked when auto-posting is switched on or what it depends on is edited,
+  # not on every save: linking a bank to the account changes no column here,
+  # and background updates to such a series (matcher hints, cleanup) must not
+  # start failing validation. The Poster switches it off on its next run.
+  def auto_post_requirements_changed?
+    auto_post? && (%w[auto_post account_id destination_account_id amount_strategy currency] & changes_to_save.keys).any?
+  end
+
+  def auto_post_requirements
+    errors.add(:auto_post, :manual_account_required) unless auto_post_accounts_manual?
+    errors.add(:auto_post, :fixed_amount_required) unless amount_fixed?
+    if account.present? && currency != account.currency
+      errors.add(:auto_post, :account_currency_required)
+    end
+  end
+
+  def forget_auto_post_start
+    self.auto_post_from = nil
+  end
+
+  # Switching auto-posting on never backfills the past: only dates from today
+  # on post. Re-enabling restarts from the new day.
+  def start_auto_posting_today
+    # The family's calendar day, the same one the poster uses.
+    self.auto_post_from = family.today_in_timezone
+  end
+
   scope :for_family, ->(family) { where(family: family) }
   scope :expected_soon, -> { active.where("next_expected_date <= ?", 1.month.from_now) }
 
@@ -377,6 +522,8 @@ class RecurringTransaction < ApplicationRecord
   # The bills that want an action from you. Autopay bills still belong on the
   # list, but they are not tasks.
   scope :needs_action, -> { where(autopay: false) }
+
+  scope :auto_posting, -> { active.where(auto_post: true) }
 
   # Derived rather than read from the stored `next_expected_date`, which can sit
   # a cycle too far out when a payment posts earlier than the expected day.
@@ -908,6 +1055,13 @@ class RecurringTransaction < ApplicationRecord
   end
 
   private
+    # Raw dates of this bill's settled occurrences: closed, or posted once.
+    def settled_original_due_dates
+      @settled_original_due_dates ||= recurring_occurrences
+                                        .where.not(status: :scheduled).or(recurring_occurrences.where.not(auto_posted_at: nil))
+                                        .pluck(:original_due_on)
+    end
+
     # Issue #1590: a recurring transfer's future occurrences rarely share the
     # seed's name (user free-text, importer wording, the auto-matcher's
     # "Transfer to ..."), so name-based matching returns [] and the Cleaner

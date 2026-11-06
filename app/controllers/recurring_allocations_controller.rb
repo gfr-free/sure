@@ -29,6 +29,7 @@ class RecurringAllocationsController < ApplicationController
     allocation = find_allocation
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
+    ensure_auto_post_destination_writable(occurrence)
 
     RecurringTransaction::Allocator.new(occurrence).unallocate!(allocation)
 
@@ -40,19 +41,40 @@ class RecurringAllocationsController < ApplicationController
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
 
-    RecurringTransaction::Allocator.new(occurrence).confirm_suggestion!(allocation)
-
-    redirect_with_return notice: t(".success")
+    # By source, not by the review flag: a second click on a post the user
+    # already confirmed must not turn it into a user-confirmed payment.
+    if allocation.from_auto_posted?
+      RecurringTransaction::Allocator.new(occurrence).confirm_posted!(allocation)
+      redirect_with_return notice: t("recurring_allocations.confirm_posted.success")
+    else
+      RecurringTransaction::Allocator.new(occurrence).confirm_suggestion!(allocation)
+      redirect_with_return notice: t(".success")
+    end
   end
 
+  # For an entry Sure posted overnight, "not this one" means the payment was
+  # not needed: the entry is deleted and the date skipped, rather than the
+  # pair being remembered as a bad match.
   def reject
     allocation = find_allocation
     occurrence = allocation.recurring_occurrence
     ensure_series_writable(occurrence)
 
-    RecurringTransaction::Allocator.new(occurrence).reject_suggestion!(allocation)
-
-    redirect_with_return notice: t(".success")
+    # By source as well: a stale Discard on a post confirmed meanwhile is
+    # refused under the lock below, never treated as a rejected match.
+    if allocation.from_auto_posted?
+      ensure_posted_entries_writable(allocation)
+      resync = RecurringTransaction::Allocator.new(occurrence).discard_posted!(allocation)
+      resync.each { |account, date| account.sync_later(window_start_date: date) }
+      redirect_with_return notice: t("recurring_allocations.discard.success")
+    else
+      ensure_auto_post_destination_writable(occurrence)
+      RecurringTransaction::Allocator.new(occurrence).reject_suggestion!(allocation)
+      redirect_with_return notice: t(".success")
+    end
+  rescue RecurringTransaction::Allocator::NotPendingReviewError
+    # Confirmed already, here or in another tab: the entry stays.
+    redirect_with alert: t("recurring_allocations.invalid")
   end
 
   private
@@ -72,6 +94,24 @@ class RecurringAllocationsController < ApplicationController
       series = occurrence.recurring_transaction
       return if series.account_id.nil?
       return if Account.writable_by(Current.user).where(id: series.account_id).exists?
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # Removing a payment or a suggestion reopens the date for an auto-posting
+    # transfer, whose next post books into the destination.
+    def ensure_auto_post_destination_writable(occurrence)
+      return if occurrence.recurring_transaction.auto_post_destination_writable_by?(Current.user)
+
+      raise ActiveRecord::RecordNotFound
+    end
+
+    # Discarding deletes entries, on both accounts of a transfer, so the user
+    # must be able to write every account involved, not just the bill's.
+    def ensure_posted_entries_writable(allocation)
+      series = allocation.recurring_occurrence.recurring_transaction
+      account_ids = [ allocation.entry&.account_id, series.destination_account_id ].compact.uniq
+      return if Account.writable_by(Current.user).where(id: account_ids).count == account_ids.size
 
       raise ActiveRecord::RecordNotFound
     end

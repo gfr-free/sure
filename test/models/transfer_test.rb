@@ -227,6 +227,165 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal "standard", transfer.inflow_transaction.reload.kind
   end
 
+  test "reject! after confirm! restores the kinds the transactions had before the match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "one_time")
+    transfer.inflow_transaction.update!(kind: "funds_movement")
+    transfer.confirm!
+    assert_equal "cc_payment", transfer.outflow_transaction.reload.kind
+
+    transfer.reject!
+
+    assert_equal "one_time", transfer.outflow_transaction.reload.kind
+    assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
+  end
+
+  test "deleting a leg restores the kind the other leg had before the match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:loan))
+    transfer.outflow_transaction.update!(kind: "loan_payment")
+    transfer.confirm!
+
+    transfer.inflow_transaction.entry.destroy!
+
+    assert_equal "loan_payment", transfer.outflow_transaction.reload.kind
+  end
+
+  test "reject! after confirm! removes the investment contributions category the match assigned" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    assert_equal families(:dylan_family).investment_contributions_category, transfer.outflow_transaction.reload.category
+
+    transfer.reject!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_nil outflow.category
+    assert_equal "standard", outflow.kind
+  end
+
+  test "reject! keeps a category the user picked after the match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    transfer.outflow_transaction.update!(category: categories(:food_and_drink))
+
+    transfer.reject!
+
+    assert_equal categories(:food_and_drink), transfer.outflow_transaction.reload.category
+  end
+
+  test "reject! on a stale pending copy reverts a confirmation made meanwhile" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    stale = Transfer.find(transfer.id)
+
+    transfer.confirm!
+    stale.reject!
+
+    outflow = Transaction.find(transfer.outflow_transaction_id)
+    assert_equal "standard", outflow.kind
+    assert_nil outflow.category
+    assert_empty outflow.data_enrichments.where(source: "transfer_match")
+  end
+
+  test "confirm! on a transfer rejected meanwhile raises and changes nothing" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    stale = Transfer.find(transfer.id)
+    transfer.reject!
+
+    assert_raises(ActiveRecord::RecordNotFound) { stale.confirm! }
+
+    outflow = Transaction.find(transfer.outflow_transaction_id)
+    assert_equal "standard", outflow.kind
+    assert_empty outflow.data_enrichments.where(source: "transfer_match")
+  end
+
+  test "confirm! records what it changed and release removes the record" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    outflow = transfer.outflow_transaction
+
+    transfer.confirm!
+
+    kind = outflow.data_enrichments.find_by!(source: "transfer_match", attribute_name: "kind")
+    assert_equal "investment_contribution", kind.value
+    assert_equal({ "previous" => "standard" }, kind.metadata)
+    category = outflow.data_enrichments.find_by!(source: "transfer_match", attribute_name: "category_id")
+    assert_equal families(:dylan_family).investment_contributions_category.id, category.value
+    assert_equal({ "previous" => nil }, category.metadata)
+
+    transfer.reject!
+
+    assert_not DataEnrichment.exists?(enrichable: [ outflow, transfer.inflow_transaction ], source: "transfer_match")
+  end
+
+  test "confirming twice keeps the kind from before the first confirmation" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "one_time")
+    transfer.confirm!
+
+    transfer.confirm!
+    transfer.reject!
+
+    assert_equal "one_time", transfer.outflow_transaction.reload.kind
+  end
+
+  test "a stale copy confirmed after another confirmation keeps the kind from before the match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "one_time")
+    stale = Transfer.find(transfer.id)
+
+    transfer.confirm!
+    stale.confirm!
+    transfer.reload.reject!
+
+    assert_equal "one_time", transfer.outflow_transaction.reload.kind
+  end
+
+  test "confirming a transfer that is already confirmed records no origin" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.update!(status: "confirmed")
+    transfer.outflow_transaction.update!(kind: "cc_payment")
+    transfer.inflow_transaction.update!(kind: "funds_movement")
+
+    transfer.confirm!
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
+  test "confirming again after the user switched off the contribution still resets the kind on reject" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    transfer.update_investment_contribution!(false)
+
+    transfer.confirm!
+    transfer.reject!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "standard", outflow.kind
+    assert_not outflow.locked?(:kind)
+  end
+
+  test "a recorded origin without a previous kind falls back to the standard kind" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+    DataEnrichment.where(source: "transfer_match", attribute_name: "kind").update_all(metadata: {})
+
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+  end
+
+  test "legacy confirmed transfers without a recorded origin still fall back to the standard kind" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+    DataEnrichment.where(source: "transfer_match").delete_all
+    transfer.outflow_transaction.reload.update!(category: nil)
+
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
   test "update_investment_contribution! turns a contribution into a plain transfer and back" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
     transfer.confirm!

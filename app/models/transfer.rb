@@ -8,6 +8,9 @@ class Transfer < ApplicationRecord
 
   enum :status, { pending: "pending", confirmed: "confirmed" }
 
+  # DataEnrichment source for the kind and category a confirmed match assigns.
+  MATCH_ENRICHMENT_SOURCE = "transfer_match"
+
   validates :inflow_transaction_id, uniqueness: true
   validates :outflow_transaction_id, uniqueness: true
 
@@ -189,6 +192,14 @@ class Transfer < ApplicationRecord
   # once the user confirms the match.
   def confirm!
     Transfer.transaction do
+      # Only the first confirmation records what the match replaced; confirming
+      # an already confirmed transfer (e.g. one Transfer::Creator made) would
+      # otherwise record the transfer's own kinds as the values to restore.
+      # The status is read under the row lock the update takes anyway, so a request
+      # that lost the race to a concurrent confirmation sees that confirmation
+      # instead of its own stale copy. A transfer rejected meanwhile raises
+      # RecordNotFound rather than leaving match data on legs with no transfer.
+      record_origin = Transfer.lock.find(id).status != "confirmed"
       update!(status: "confirmed")
 
       # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic
@@ -197,11 +208,11 @@ class Transfer < ApplicationRecord
 
       if outflow_kind == "investment_contribution" && outflow_transaction.category_id.blank?
         category = to_account.family.investment_contributions_category
-        outflow_attrs[:category] = category if category.present?
+        outflow_attrs[:category_id] = category.id if category.present?
       end
 
-      inflow_transaction.update!(kind: "funds_movement")
-      outflow_transaction.update!(outflow_attrs)
+      apply_match_attributes!(inflow_transaction, { kind: "funds_movement" }, record_origin:)
+      apply_match_attributes!(outflow_transaction, outflow_attrs, record_origin:)
     end
   end
 
@@ -235,11 +246,61 @@ class Transfer < ApplicationRecord
         contribution_by_default?
     end
 
+    # Sets the values a confirmed match gives a leg. On the first confirmation
+    # it records each one, with the value it replaced, as a transfer_match
+    # enrichment, so that revert_match_attributes! can undo only what the match
+    # set. The record is written even when the value doesn't change, so a kind
+    # that predates the match is kept.
+    def apply_match_attributes!(transaction, attrs, record_origin:)
+      previous = attrs.to_h { |attr, _value| [ attr.to_s, transaction.public_send(attr) ] }
+
+      transaction.update!(attrs)
+      return unless record_origin
+
+      attrs.each do |attr, value|
+        enrichment = transaction.data_enrichments.find_or_initialize_by(attribute_name: attr.to_s, source: MATCH_ENRICHMENT_SOURCE)
+        enrichment.update!(value: value, metadata: { "previous" => previous[attr.to_s] })
+      end
+    end
+
+    # Puts back the kind and category a confirmed match set, as long as the
+    # transaction still has the value the match gave it; a value changed since
+    # then belongs to the user and stays. Transfers confirmed without a record
+    # (made by Transfer::Creator, imported, or confirmed before the origin was
+    # recorded) and kinds the user changed (update_investment_contribution!)
+    # fall back to the standard kind.
+    def revert_match_attributes!(transaction)
+      recorded = transaction.data_enrichments.where(source: MATCH_ENRICHMENT_SOURCE).index_by(&:attribute_name)
+      attrs = {}
+
+      if transaction.transfer?
+        previous_kind = recorded["kind"].metadata["previous"] if set_by_match?(transaction, recorded["kind"])
+        attrs[:kind] = previous_kind.presence || "standard"
+        # A kind locked by update_investment_contribution! belonged to this transfer.
+        attrs[:locked_attributes] = transaction.locked_attributes.except("kind") if transaction.locked?(:kind)
+      end
+
+      if set_by_match?(transaction, recorded["category_id"])
+        attrs[:category_id] = recorded["category_id"].metadata["previous"]
+      end
+
+      transaction.update!(attrs) if attrs.any?
+      DataEnrichment.where(id: recorded.values.map(&:id)).delete_all if recorded.any?
+    end
+
+    def set_by_match?(transaction, enrichment)
+      enrichment.present? && enrichment.metadata.is_a?(Hash) && enrichment.metadata.key?("previous") &&
+        enrichment.value == transaction.public_send(enrichment.attribute_name)
+    end
+
     # Gives each surviving transaction back its standalone state. When the
     # transfer goes because one leg is being deleted (dependent: :destroy on
     # Transaction), that leg is skipped.
     def release_transactions
       deleted_leg_key = destroyed_by_association&.foreign_key&.to_s
+      # Read under lock: a stale copy that missed a concurrent confirmation
+      # would otherwise leave the match's kinds and categories on the legs.
+      confirmed_now = Transfer.lock.where(id: id).pick(:status) == "confirmed"
 
       { "inflow_transaction_id" => inflow_transaction, "outflow_transaction_id" => outflow_transaction }.each do |key, transaction|
         next if transaction.nil? || key == deleted_leg_key
@@ -247,11 +308,7 @@ class Transfer < ApplicationRecord
         begin
           # A pending auto-match never changed the kind (see #confirm!), so a
           # transfer kind on its transactions predates the match and stays.
-          if transaction.transfer? && !pending?
-            transaction.update!(kind: "standard")
-            # A kind locked by update_investment_contribution! belonged to this transfer.
-            transaction.unlock_attr!(:kind) if transaction.locked?(:kind)
-          end
+          revert_match_attributes!(transaction) if confirmed_now
           # The entry survives this destroy (only the Transfer join row and
           # fee transactions go away), but its idempotency_key must not: a
           # later retry of the original create request looks up that key,

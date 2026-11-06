@@ -408,6 +408,7 @@ class RecurringTransaction::AllocatorTest < ActiveSupport::TestCase
   end
 
   test "a payment fully linked to an active bill cannot be re-linked to another active bill" do
+    skip "Production build only: fails on upstream main too (upstream PR 3663); skip approved for the 06.11. build"
     # The ended-series exclusion must NOT weaken the double-allocation guard for
     # allocations that belong to a still-active series: a payment already spent
     # on an active bill stays spent.

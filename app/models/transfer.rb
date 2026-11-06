@@ -197,8 +197,9 @@ class Transfer < ApplicationRecord
       # otherwise record the transfer's own kinds as the values to restore.
       # The status is read under the row lock the update takes anyway, so a request
       # that lost the race to a concurrent confirmation sees that confirmation
-      # instead of its own stale copy.
-      record_origin = Transfer.lock.where(id: id).pick(:status) != "confirmed"
+      # instead of its own stale copy. A transfer rejected meanwhile raises
+      # RecordNotFound rather than leaving match data on legs with no transfer.
+      record_origin = Transfer.lock.find(id).status != "confirmed"
       update!(status: "confirmed")
 
       # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic
@@ -297,6 +298,9 @@ class Transfer < ApplicationRecord
     # Transaction), that leg is skipped.
     def release_transactions
       deleted_leg_key = destroyed_by_association&.foreign_key&.to_s
+      # Read under lock: a stale copy that missed a concurrent confirmation
+      # would otherwise leave the match's kinds and categories on the legs.
+      confirmed_now = Transfer.lock.where(id: id).pick(:status) == "confirmed"
 
       { "inflow_transaction_id" => inflow_transaction, "outflow_transaction_id" => outflow_transaction }.each do |key, transaction|
         next if transaction.nil? || key == deleted_leg_key
@@ -304,7 +308,7 @@ class Transfer < ApplicationRecord
         begin
           # A pending auto-match never changed the kind (see #confirm!), so a
           # transfer kind on its transactions predates the match and stays.
-          revert_match_attributes!(transaction) unless pending?
+          revert_match_attributes!(transaction) if confirmed_now
           # The entry survives this destroy (only the Transfer join row and
           # fee transactions go away), but its idempotency_key must not: a
           # later retry of the original create request looks up that key,

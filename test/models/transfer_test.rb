@@ -272,6 +272,31 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal categories(:food_and_drink), transfer.outflow_transaction.reload.category
   end
 
+  test "reject! on a stale pending copy reverts a confirmation made meanwhile" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    stale = Transfer.find(transfer.id)
+
+    transfer.confirm!
+    stale.reject!
+
+    outflow = Transaction.find(transfer.outflow_transaction_id)
+    assert_equal "standard", outflow.kind
+    assert_nil outflow.category
+    assert_empty outflow.data_enrichments.where(source: "transfer_match")
+  end
+
+  test "confirm! on a transfer rejected meanwhile raises and changes nothing" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    stale = Transfer.find(transfer.id)
+    transfer.reject!
+
+    assert_raises(ActiveRecord::RecordNotFound) { stale.confirm! }
+
+    outflow = Transaction.find(transfer.outflow_transaction_id)
+    assert_equal "standard", outflow.kind
+    assert_empty outflow.data_enrichments.where(source: "transfer_match")
+  end
+
   test "confirm! records what it changed and release removes the record" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
     outflow = transfer.outflow_transaction

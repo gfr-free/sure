@@ -1069,7 +1069,7 @@ Rails.application.routes.draw do
         post :test_connection
       end
     end
-    resources :users, only: [ :index, :update, :destroy ] do
+    resources :users, only: [ :index, :show, :update, :destroy ] do
       get :deletion, on: :member
     end
     resources :sso_identity_blocks, only: [ :destroy ]

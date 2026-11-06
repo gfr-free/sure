@@ -2,39 +2,31 @@
 
 module Admin
   class UsersController < Admin::BaseController
-    before_action :set_user, only: %i[update deletion destroy]
+    PER_PAGE = 25
+
+    before_action :set_user, only: %i[show update deletion destroy]
 
     def index
       authorize User
       scope = policy_scope(User)
         .left_joins(family: :subscription)
-        .includes(:oidc_identities, family: :subscription)
+        .preload(:oidc_identities, family: :subscription)
         .with_attached_profile_image
 
       scope = scope.where(role: params[:role]) if params[:role].present?
       scope = apply_trial_filter(scope) if params[:trial_status].present?
+      scope = scope.admin_search(params[:q]) if params[:q].present?
 
-      users = scope.order(
-        Arel.sql(
-          "CASE " \
-          "WHEN subscriptions.status = 'trialing' THEN 0 " \
-          "WHEN subscriptions.id IS NULL THEN 1 " \
-          "ELSE 2 END, " \
-          "subscriptions.trial_ends_at ASC NULLS LAST, users.email ASC"
-        )
-      )
+      @pagy, users = pagy(scope.ordered_by_family_activity, limit: PER_PAGE, page: safe_page)
 
       family_ids = users.map(&:family_id).uniq
       @accounts_count_by_family = Account.where(family_id: family_ids).group(:family_id).count
-      @entries_count_by_family = Entry.joins(:account).where(accounts: { family_id: family_ids }).group("accounts.family_id").count
+      @entries_count_by_family = users.to_h { |user| [ user.family_id, user.family_entries_count ] }
+      # Counted over the filtered scope, not the page, so a family split by a
+      # page break still shows its full number of matching members.
+      @members_count_by_family = scope.where(family_id: family_ids).group(:family_id).count
 
-      user_ids = users.map(&:id).uniq
-      @last_login_by_user = User.where(id: user_ids).pluck(:id, :last_login_at).to_h
-      @sessions_count_by_user = User.where(id: user_ids).pluck(:id, :sessions_count).to_h
-
-      @families_with_users = users.group_by(&:family).sort_by do |family, _users|
-        -(@entries_count_by_family[family.id] || 0)
-      end
+      @families_with_users = users.group_by(&:family)
 
       @invitations_by_family = Invitation.pending
         .where(family_id: family_ids)
@@ -48,30 +40,51 @@ module Admin
       # Used by the view to hide the "remove" action for the sole remaining
       # active super admin, computed once here instead of per-row.
       @active_super_admin_count = User.where(role: :super_admin, active: true).count
+      @super_admin_count = User.where(role: :super_admin).count
+    end
+
+    # Counters only: an operator sees how much a user's family stores and
+    # whether its syncs fail, never balances, account names, entries or raw
+    # sync error text (it can echo imported row values).
+    def show
+      authorize @user
+
+      family = @user.family
+      family_syncs = Sync.for_family(family)
+
+      @members_count = family.users.count
+      @accounts_count = family.accounts.count
+      @entries_count = family.entries.count
+      @syncs_count, @failed_syncs_count, @last_completed_sync_at = family_syncs.pick(
+        Arel.sql("COUNT(*)"),
+        Arel.sql("COUNT(*) FILTER (WHERE syncs.status = 'failed')"),
+        Arel.sql("MAX(syncs.completed_at)")
+      )
+      @recent_failed_syncs = family_syncs.failed.ordered.limit(5).to_a
     end
 
     def update
       authorize @user
 
       if demoting_last_super_admin?
-        redirect_to admin_users_path, alert: t(".last_super_admin_error")
+        redirect_back_or_to admin_users_path, alert: t(".last_super_admin_error")
         return
       end
 
       if membership_change_requested? && password_change_requested?
-        redirect_to admin_users_path, alert: t(".password_and_family_conflict")
+        redirect_back_or_to admin_users_path, alert: t(".password_and_family_conflict")
         return
       end
 
       if password_change_requested? && !password_change_allowed_for?(@user)
-        redirect_to admin_users_path, alert: t(".password_disabled")
+        redirect_back_or_to admin_users_path, alert: t(".password_disabled")
         return
       end
 
       if password_change_requested?
         errors = validate_password_criteria(user_params[:password])
         if errors.any?
-          redirect_to admin_users_path, alert: errors.join(" ")
+          redirect_back_or_to admin_users_path, alert: errors.join(" ")
           return
         end
       end
@@ -90,7 +103,7 @@ module Admin
         end
 
         if target_family.nil?
-          redirect_to admin_users_path, alert: t(".family_required")
+          redirect_back_or_to admin_users_path, alert: t(".family_required")
           return
         end
 
@@ -102,7 +115,7 @@ module Admin
           "new_role=#{@user.role}"
         )
 
-        redirect_to admin_users_path, notice: t(".success_family")
+        redirect_back_or_to admin_users_path, notice: t(".success_family")
       elsif @user.update(user_update_attributes)
         changes = []
         changes << :role if @user.saved_change_to_role?
@@ -121,14 +134,14 @@ module Admin
           "new_role=#{@user.role}"
         )
 
-        redirect_to admin_users_path, notice: t(success_key)
+        redirect_back_or_to admin_users_path, notice: t(success_key)
       else
-        redirect_to admin_users_path, alert: @user.errors.full_messages.to_sentence.presence || t(".failure")
+        redirect_back_or_to admin_users_path, alert: @user.errors.full_messages.to_sentence.presence || t(".failure")
       end
     rescue ActiveRecord::RecordInvalid => e
-      redirect_to admin_users_path, alert: e.record.errors.full_messages.to_sentence
+      redirect_back_or_to admin_users_path, alert: e.record.errors.full_messages.to_sentence
     rescue ActiveRecord::RecordNotFound
-      redirect_to admin_users_path, alert: t(".failure")
+      redirect_back_or_to admin_users_path, alert: t(".failure")
     end
 
 
@@ -139,7 +152,7 @@ module Admin
       # app, so opening the confirmation modal for yourself (the index view hides
       # the button, but the URL is guessable) would 500 instead of redirecting.
       if @user.id == Current.user.id
-        redirect_to admin_users_path, alert: t("admin.users.destroy.cannot_remove_self")
+        redirect_back_or_to admin_users_path, alert: t("admin.users.destroy.cannot_remove_self")
         return
       end
 
@@ -152,14 +165,14 @@ module Admin
       # first turns it into a friendly redirect instead of an unhandled
       # Pundit::NotAuthorizedError (there is no rescue_from for it in this app).
       if @user.id == Current.user.id
-        redirect_to admin_users_path, alert: t(".cannot_remove_self")
+        redirect_back_or_to admin_users_path, alert: t(".cannot_remove_self")
         return
       end
 
       authorize @user
 
       unless ActiveSupport::SecurityUtils.secure_compare(params[:confirmation_email].to_s, @user.email)
-        redirect_to admin_users_path, alert: t(".confirmation_mismatch")
+        redirect_back_or_to admin_users_path, alert: t(".confirmation_mismatch")
         return
       end
 
@@ -171,15 +184,21 @@ module Admin
       end
 
       if removed
-        redirect_to admin_users_path, notice: t(".success")
+        redirect_back_or_to admin_users_path, notice: t(".success")
       else
-        redirect_to admin_users_path, alert: @user.errors.full_messages.to_sentence.presence || t(".failure")
+        redirect_back_or_to admin_users_path, alert: @user.errors.full_messages.to_sentence.presence || t(".failure")
       end
     end
 
     private
 
-      helper_method :family_label_for, :password_change_allowed_for?
+      helper_method :family_label_for, :password_change_allowed_for?, :list_params
+
+      # Search, filter and page of the user list, carried to the detail page
+      # and back so the admin returns to the same slice of the list.
+      def list_params
+        request.query_parameters.slice("q", "page", "role", "trial_status").compact_blank
+      end
 
       def set_user
         @user = User.find(params[:id])
@@ -248,6 +267,11 @@ module Admin
           @user.super_admin? &&
           user_params[:role] != "super_admin" &&
           User.where(role: :super_admin).where.not(id: @user.id).none?
+      end
+
+      # Pagy raises on a page below 1; the overflow setting only covers pages past the end.
+      def safe_page
+        [ params[:page].to_s.to_i, 1 ].max
       end
 
       def apply_trial_filter(scope)

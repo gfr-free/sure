@@ -8,6 +8,10 @@
   <!-- Filters -->
   <div>
     <%= form_with url: admin_users_path, method: :get, class: "flex gap-4 items-end flex-wrap" do |f| %>
+      <div class="w-full md:w-72">
+        <%= f.label :q, t(".filters.search"), class: "block text-sm font-medium text-primary mb-1" %>
+        <%= render DS::SearchInput.new(name: "q", id: "q", value: params[:q], placeholder: t(".filters.search_placeholder"), aria_label: t(".filters.search")) %>
+      </div>
       <div class="w-full md:w-auto">
         <%= f.label :role, t(".filters.role"), class: "block text-sm font-medium text-primary mb-1" %>
         <%= f.select :role,
@@ -31,6 +35,10 @@
       <%= render DS::Button.new(variant: :primary, size: :md, type: "submit", text: t(".filters.submit"), class: "md:w-auto w-full justify-center") %>
     <% end %>
   </div>
+
+  <% if params[:q].present? && User.encryption_ready? %>
+    <p class="text-sm text-secondary"><%= t(".filters.search_encrypted_hint") %></p>
+  <% end %>
 
   <!-- Families/Groups & Users -->
   <div>
@@ -56,7 +64,7 @@
                   <p class="font-semibold text-primary"><%= family.name.presence || t(".unnamed_family") %></p>
                   <p class="text-xs text-secondary">
                     <%= t(".family_summary",
-                          members: users.size,
+                          members: @members_count_by_family[family.id] || users.size,
                           accounts: number_with_delimiter(@accounts_count_by_family[family.id] || 0),
                           transactions: number_with_delimiter(@entries_count_by_family[family.id] || 0)) %>
                   </p>
@@ -97,7 +105,7 @@
                           </div>
                           <div>
                             <div class="flex items-center gap-2">
-                              <p class="font-medium text-primary"><%= user.display_name %></p>
+                              <%= link_to user.display_name, admin_user_path(user, list_params), class: "font-medium text-primary hover:underline" %>
                               <% if user.id == Current.user.id %>
                                 <span class="text-xs font-medium text-secondary"><%= t(".you") %></span>
                               <% end %>
@@ -121,15 +129,15 @@
                         </div>
                       </td>
                       <td class="px-4 py-3 text-sm text-primary whitespace-nowrap">
-                        <%= @last_login_by_user[user.id]&.to_fs(:long) || t(".table.never") %>
+                        <%= user.last_login_at&.to_fs(:long) || t(".table.never") %>
                       </td>
                       <td class="px-4 py-3 text-sm text-primary text-right whitespace-nowrap">
-                        <%= number_with_delimiter(@sessions_count_by_user[user.id] || 0) %>
+                        <%= number_with_delimiter(user.sessions_count) %>
                       </td>
                       <td class="px-4 py-3 text-right whitespace-nowrap">
                         <%= render DS::Popover.new(variant: :icon, icon: "ellipsis-vertical", placement: "bottom-end", aria_label: t(".actions.manage_user")) do |popover| %>
                           <% popover.with_custom_content do %>
-                            <% is_last_super_admin = user.super_admin? && User.where(role: :super_admin).where.not(id: user.id).none? %>
+                            <% is_last_super_admin = user.super_admin? && @super_admin_count <= 1 %>
                             <div class="p-4 w-80 space-y-4 text-left whitespace-normal">
                               <div class="border-b border-primary pb-2">
                                 <p class="font-medium text-sm text-primary"><%= user.display_name %></p>
@@ -291,6 +299,11 @@
           <% end %>
         <% end %>
       </div>
+      <% if @pagy.pages > 1 %>
+        <div class="mt-4">
+          <%= render "shared/pagination", pagy: @pagy, per_page_select: false %>
+        </div>
+      <% end %>
     <% else %>
       <div class="bg-container-inset rounded-lg p-8 text-center">
         <%= icon "users", class: "w-12 h-12 mx-auto text-secondary mb-3" %>

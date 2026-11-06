@@ -38,6 +38,9 @@
       <p class="text-secondary">
         <%= t("holdings.show.last_price_update") %>: <%= @last_price_updated ? l(@last_price_updated, format: :long) : t("holdings.show.never") %>
       </p>
+      <% if (spec = @holding.security.bullion_spec) %>
+        <p class="text-xs text-secondary"><%= bullion_price_source(spec) %></p>
+      <% end %>
       <% if @provider_error %>
         <p class="text-xs text-red-500"><%= @provider_error %></p>
       <% end %>

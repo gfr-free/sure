@@ -1,6 +1,17 @@
 ---
 de:
   holdings:
+    edit_bullion:
+      description: "Falsch erfasst? Wähle das richtige Stück. Alle Käufe und Verkäufe von %{name} ziehen mit um."
+      submit: Ändern
+      title: Münze oder Barren ändern
+    remap_bullion:
+      not_found: Bitte eine Münze oder einen Barren wählen.
+      success: Position geändert. Die Kurse werden neu berechnet.
+    kinds:
+      bar: Barren
+      coin: Münze
+      custom_coin: Eigene Münze
     cash:
       brokerage_cash: Depotguthaben
     destroy:
@@ -23,6 +34,9 @@ de:
       calculated: Aus Trades
       provider: Vom Provider
     cost_basis_cell:
+      or_per_piece_label: "Oder pro Stück eingeben:"
+      per_piece: pro Stück
+      set_cost_basis_header_pieces: "Einstandspreis für %{ticker} setzen (%{qty} Stück)"
       unknown: "--"
       set_cost_basis_header: "Einstandspreis für %{ticker} setzen"
       total_cost_basis_label: Gesamter Einstandspreis
@@ -33,6 +47,8 @@ de:
       overwrite_confirm_body: "Dies ersetzt den aktuellen Einstandspreis von %{current}."
       set: Setzen
     holding:
+      per_piece: pro Stück
+      pieces: "%{qty} Stück"
       per_share: pro Anteil
       shares: "%{qty} Anteile"
       unknown: "--"
@@ -53,11 +69,16 @@ de:
       missing_data: Fehlende Daten
     show:
       price_source_label: "Kursquelle"
+      bullion_price_source: "Abgeleitet aus %{metal} (%{source}) × %{ounces} oz Feingewicht"
+      bullion_face_value: "Nennwert %{value}: Die Münze wird nie darunter bewertet."
+      pieces_label: Stück
+      trade_history_entry_pieces: "%{qty} Stück %{security} zu %{price}"
       avg_cost_label: Durchschnittlicher Einstandspreis
       current_market_price_label: Aktueller Marktpreis
       delete: Löschen
       delete_subtitle: Dadurch wird die Position und alle zugehörigen Trades auf diesem Konto gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
       delete_title: Position löschen
+      edit_bullion: Münze oder Barren ändern
       edit_security: Wertpapier bearbeiten
       history: Verlauf
       no_trade_history: Für diese Position ist keine Trade-Historie verfügbar.

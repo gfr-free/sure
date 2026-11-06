@@ -88,6 +88,7 @@ class Security < ApplicationRecord
 
   has_many :trades, dependent: :nullify, class_name: "Trade"
   has_many :prices, dependent: :destroy
+  has_one :bullion_spec
   has_many :splits, dependent: :destroy
 
   validates :ticker, presence: true
@@ -243,6 +244,12 @@ class Security < ApplicationRecord
       ticker: ticker,
       exchange_operating_mic: canonical_exchange_operating_mic(exchange_operating_mic)
     )
+  end
+
+  # Catalogue bullion is shared by every family, so its stored name is the
+  # English one; read it back in the viewer's language.
+  def name
+    BullionCatalog.localized_name(ticker) || super
   end
 
   def exchange_name

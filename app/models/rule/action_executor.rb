@@ -25,10 +25,11 @@ class Rule::ActionExecutor
     nil
   end
 
-  # The options for an action that already stores value. Executors whose
-  # stored values can outlive their option list override this to keep value
-  # selectable, so editing the rule does not silently replace it.
-  def options_for(_value)
+  # options (as #options returns them) for an action that already stores
+  # value. Executors whose stored values can outlive their option list
+  # override this to keep value selectable, so editing the rule does not
+  # silently replace it.
+  def options_including(options, _value)
     options
   end
 

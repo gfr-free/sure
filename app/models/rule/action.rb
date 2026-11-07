@@ -94,7 +94,10 @@ class Rule::Action < ApplicationRecord
   end
 
   def options
-    executor.options_for(value)
+    executor.options_including(
+      rule.option_list([ :action, action_type ]) { executor.options },
+      value
+    )
   end
 
   def claimed_attributes

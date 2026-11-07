@@ -26,19 +26,40 @@ module Family::AutoTransferMatchable
   # instead of raising inside every sync: Family::Syncer and Account::Syncer both call
   # auto_match_transfers! without a tolerance of their own.
   def self.exchange_rate_tolerance
-    tolerance = Float(ENV["TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE"], exception: false)
-    return DEFAULT_EXCHANGE_RATE_TOLERANCE if tolerance.nil? || !tolerance.finite? || tolerance.negative?
+    tolerance_from_env("TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE") || DEFAULT_EXCHANGE_RATE_TOLERANCE
+  end
+
+  # Real conversions almost always deliver less than the market rate (spread and fees
+  # only go one way), so the automatic path can take a separate width for each side of
+  # the band. "Lower" is how far the received amount may fall short of
+  # sent × rate, "upper" how far it may exceed it. Each falls back to the symmetric
+  # TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE when unset or unusable.
+  def self.lower_exchange_rate_tolerance
+    tolerance_from_env("TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE") || exchange_rate_tolerance
+  end
+
+  def self.upper_exchange_rate_tolerance
+    tolerance_from_env("TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE") || exchange_rate_tolerance
+  end
+
+  # The dialog stays symmetric and covers whichever automatic side is wider.
+  def self.manual_match_exchange_rate_tolerance
+    [ MANUAL_MATCH_EXCHANGE_RATE_TOLERANCE, lower_exchange_rate_tolerance, upper_exchange_rate_tolerance ].max
+  end
+
+  def self.tolerance_from_env(name)
+    tolerance = Float(ENV[name], exception: false)
+    return if tolerance.nil? || !tolerance.finite? || tolerance.negative?
 
     [ tolerance, MAX_EXCHANGE_RATE_TOLERANCE ].min
   end
-
-  def self.manual_match_exchange_rate_tolerance
-    [ MANUAL_MATCH_EXCHANGE_RATE_TOLERANCE, exchange_rate_tolerance ].max
-  end
+  private_class_method :tolerance_from_env
 
   def transfer_match_candidates(
     date_window: 4,
     exchange_rate_tolerance: Family::AutoTransferMatchable.exchange_rate_tolerance,
+    lower_exchange_rate_tolerance: exchange_rate_tolerance,
+    upper_exchange_rate_tolerance: exchange_rate_tolerance,
     inflow_transaction_id: nil,
     outflow_transaction_id: nil,
     account_id: nil,
@@ -48,7 +69,8 @@ module Family::AutoTransferMatchable
     require_common_writer: false
   )
     date_window = coerce_transfer_match_date_window!(date_window)
-    exchange_rate_tolerance = coerce_transfer_match_exchange_rate_tolerance!(exchange_rate_tolerance)
+    lower_exchange_rate_tolerance = coerce_transfer_match_exchange_rate_tolerance!(lower_exchange_rate_tolerance)
+    upper_exchange_rate_tolerance = coerce_transfer_match_exchange_rate_tolerance!(upper_exchange_rate_tolerance)
 
     Entry.find_by_sql([
       transfer_match_candidates_sql,
@@ -65,8 +87,8 @@ module Family::AutoTransferMatchable
         include_rejected:,
         restrict_cross_currency_to_linked_accounts:,
         require_common_writer:,
-        lower_exchange_rate_bound: 1 - exchange_rate_tolerance,
-        upper_exchange_rate_bound: 1 + exchange_rate_tolerance
+        lower_exchange_rate_bound: 1 - lower_exchange_rate_tolerance,
+        upper_exchange_rate_bound: 1 + upper_exchange_rate_tolerance
       }
     ])
   end
@@ -98,7 +120,14 @@ module Family::AutoTransferMatchable
     end
   end
 
-  def auto_match_transfers!(account: nil, exchange_rate_tolerance: Family::AutoTransferMatchable.exchange_rate_tolerance)
+  # An explicit exchange_rate_tolerance applies symmetrically; without one the
+  # operator's lower/upper tolerances apply.
+  def auto_match_transfers!(
+    account: nil,
+    exchange_rate_tolerance: nil,
+    lower_exchange_rate_tolerance: exchange_rate_tolerance || Family::AutoTransferMatchable.lower_exchange_rate_tolerance,
+    upper_exchange_rate_tolerance: exchange_rate_tolerance || Family::AutoTransferMatchable.upper_exchange_rate_tolerance
+  )
     return if auto_match_transfers_disabled?
 
     # Exclude already matched transfers. Cross-currency FX-tolerance matching is
@@ -111,7 +140,8 @@ module Family::AutoTransferMatchable
     candidates_scope = transfer_match_candidates(
       account_id: account&.id,
       include_rejected: false,
-      exchange_rate_tolerance:,
+      lower_exchange_rate_tolerance:,
+      upper_exchange_rate_tolerance:,
       restrict_cross_currency_to_linked_accounts: true,
       # Only pair accounts that at least one member can write to on both sides, so
       # someone can always confirm or reject the match.

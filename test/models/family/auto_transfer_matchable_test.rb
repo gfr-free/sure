@@ -435,6 +435,128 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     end
   end
 
+  test "lower and upper tolerances set each side of the automatic band" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    with_env_overrides(
+      "TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE" => nil,
+      "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "0.08",
+      "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => "0.02"
+    ) do
+      # 5% above the cached 1.40 rate: outside a 2% upper tolerance.
+      create_transaction(date: Date.current, account: @depository, amount: 1000)
+      above = create_transaction(date: Date.current, account: @credit_card, amount: -1470, currency: "CAD")
+
+      assert_no_difference -> { Transfer.count } do
+        @family.auto_match_transfers!
+      end
+
+      # 5% below it: inside an 8% lower tolerance.
+      below = create_transaction(date: Date.current, account: @credit_card, amount: -1330, currency: "CAD")
+
+      assert_difference -> { Transfer.count } => 1 do
+        @family.auto_match_transfers!
+      end
+
+      assert below.transaction.reload.transfer.present?
+      assert_nil above.transaction.reload.transfer
+    end
+  end
+
+  test "an unset side falls back to the symmetric tolerance" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    # 5% above the cached 1.40 rate: only the 2% lower side is set, so the upper
+    # side keeps the 10% default.
+    create_transaction(date: Date.current, account: @depository, amount: 1000)
+    create_transaction(date: Date.current, account: @credit_card, amount: -1470, currency: "CAD")
+
+    with_env_overrides(
+      "TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE" => nil,
+      "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "0.02",
+      "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => nil
+    ) do
+      assert_in_delta 0.02, Family::AutoTransferMatchable.lower_exchange_rate_tolerance, 1e-9
+      assert_in_delta 0.1, Family::AutoTransferMatchable.upper_exchange_rate_tolerance, 1e-9
+
+      assert_difference -> { Transfer.count } => 1 do
+        @family.auto_match_transfers!
+      end
+    end
+  end
+
+  test "unusable lower and upper tolerances fall back to the symmetric one and are capped" do
+    with_env_overrides("TRANSFER_MATCH_EXCHANGE_RATE_TOLERANCE" => "0.04") do
+      [ "wide", "", "-0.1", "Infinity", "NaN" ].each do |value|
+        with_env_overrides(
+          "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => value,
+          "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => value
+        ) do
+          assert_in_delta 0.04, Family::AutoTransferMatchable.lower_exchange_rate_tolerance, 1e-9, "for #{value.inspect}"
+          assert_in_delta 0.04, Family::AutoTransferMatchable.upper_exchange_rate_tolerance, 1e-9, "for #{value.inspect}"
+        end
+      end
+
+      with_env_overrides(
+        "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "5",
+        "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => "5"
+      ) do
+        assert_in_delta 0.5, Family::AutoTransferMatchable.lower_exchange_rate_tolerance, 1e-9
+        assert_in_delta 0.5, Family::AutoTransferMatchable.upper_exchange_rate_tolerance, 1e-9
+      end
+    end
+  end
+
+  test "an explicit tolerance overrides the lower and upper tolerances" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    # 5% above the cached 1.40 rate: outside the 2% upper tolerance, inside an explicit 10%.
+    create_transaction(date: Date.current, account: @depository, amount: 1000)
+    create_transaction(date: Date.current, account: @credit_card, amount: -1470, currency: "CAD")
+
+    with_env_overrides(
+      "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "0.08",
+      "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => "0.02"
+    ) do
+      assert_difference -> { Transfer.count } => 1 do
+        @family.auto_match_transfers!(exchange_rate_tolerance: 0.1)
+      end
+    end
+  end
+
+  test "the manual match dialog stays symmetric and covers the wider automatic side" do
+    load_exchange_prices
+
+    # 5% above the cached 1.40 rate: outside a 2% automatic upper tolerance.
+    outflow = create_transaction(date: Date.current, account: @depository, amount: 1000)
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -1470, currency: "CAD")
+
+    # 15% above it: outside the dialog's own 10%.
+    wide_inflow = create_transaction(date: Date.current, account: @credit_card, amount: -1610, currency: "CAD")
+
+    with_env_overrides(
+      "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "0.08",
+      "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => "0.02"
+    ) do
+      candidates = inflow.transaction.transfer_match_candidates
+      assert_includes candidates.map(&:outflow_transaction_id), outflow.entryable_id
+    end
+
+    with_env_overrides(
+      "TRANSFER_MATCH_EXCHANGE_RATE_LOWER_TOLERANCE" => "0.2",
+      "TRANSFER_MATCH_EXCHANGE_RATE_UPPER_TOLERANCE" => "0.02"
+    ) do
+      candidates = wide_inflow.transaction.transfer_match_candidates
+      assert_includes candidates.map(&:outflow_transaction_id), outflow.entryable_id
+    end
+  end
+
   test "the manual match dialog is never narrower than the automatic tolerance" do
     load_exchange_prices
 

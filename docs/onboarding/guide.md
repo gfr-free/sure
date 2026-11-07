@@ -283,6 +283,8 @@ Sure supports these investment activity labels:
 | **Transfer** | Transfers between accounts |
 | **Other** | Miscellaneous transactions |
 
+Entries saved with the older **Exchange** label keep it and are treated as before. New entries use **Currency Exchange** or **Security Exchange** instead.
+
 #### Setting Activity Labels
 
 You can set activity labels in two ways:

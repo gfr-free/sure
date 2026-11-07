@@ -254,7 +254,7 @@ module Assistant::Function::RuleSupport
       when "transaction_merchant" then family.available_merchants_for(user).pluck(:id).map(&:to_s)
       when "set_transaction_merchant" then family.merchants.pluck(:id).map(&:to_s)
       when "transaction_type" then %w[income expense transfer]
-      when "set_investment_activity_label" then Transaction::ACTIVITY_LABELS
+      when "set_investment_activity_label" then Transaction::SELECTABLE_ACTIVITY_LABELS
       end
     end
 

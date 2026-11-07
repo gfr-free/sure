@@ -162,4 +162,16 @@ class TransactionsHelperTest < ActionView::TestCase
   test "investment_activity_label_name falls back to the stored label when it has no translation" do
     assert_equal "Legacy Label", investment_activity_label_name("Legacy Label")
   end
+
+  test "selectable_activity_labels uses the picker list for each entryable" do
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, selectable_activity_labels(Transaction.new)
+    assert_equal Trade::SELECTABLE_ACTIVITY_LABELS, selectable_activity_labels(Trade.new(investment_activity_label: "Buy"))
+  end
+
+  test "selectable_activity_labels keeps a stored label the picker no longer offers" do
+    labels = selectable_activity_labels(Transaction.new(investment_activity_label: "Exchange"))
+
+    assert_equal "Exchange", labels.last
+    assert_includes labels, "Currency Exchange"
+  end
 end

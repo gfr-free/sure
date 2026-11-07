@@ -307,6 +307,28 @@ class TradeTest < ActiveSupport::TestCase
       assert_not_includes Trade::INTERNAL_MOVEMENT_LABELS, "Exchange"
     end
 
+    test "a security exchange is not an internal movement on a trade" do
+      assert_not Trade.new(investment_activity_label: "Security Exchange").internal_movement?
+    end
+
+    test "the trade picker offers the security exchange, not the ambiguous or cash ones" do
+      assert_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Security Exchange"
+      assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Exchange"
+      assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Currency Exchange"
+      assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Contribution"
+      assert (Trade::SELECTABLE_ACTIVITY_LABELS - Trade::ACTIVITY_LABELS).empty?
+    end
+
+    # Providers such as Plaid write cash labels onto trades, and existing rows
+    # carry the old "Exchange"; narrowing the picker must not reject them.
+    test "a trade still validates with legacy and cash labels" do
+      %w[Exchange Contribution Interest].each do |label|
+        trade = trades(:one)
+        trade.investment_activity_label = label
+        assert trade.valid?, label
+      end
+    end
+
   private
     # A USD account holding a EUR-listed security, with one disposal in it.
     def cross_currency_disposal(rate:, rate_date: Date.new(2026, 3, 10), fee: 0)

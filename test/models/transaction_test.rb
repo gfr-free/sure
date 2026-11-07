@@ -292,7 +292,23 @@ class TransactionTest < ActiveSupport::TestCase
     assert_includes Transaction::ACTIVITY_LABELS, "Contribution"
     assert_includes Transaction::ACTIVITY_LABELS, "Withdrawal"
     assert_includes Transaction::ACTIVITY_LABELS, "Exchange"
+    assert_includes Transaction::ACTIVITY_LABELS, "Currency Exchange"
+    assert_includes Transaction::ACTIVITY_LABELS, "Security Exchange"
     assert_includes Transaction::ACTIVITY_LABELS, "Other"
+  end
+
+  test "the cash picker offers the currency exchange, not the ambiguous or security ones" do
+    assert_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Currency Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Security Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Reinvestment"
+    assert (Transaction::SELECTABLE_ACTIVITY_LABELS - Transaction::ACTIVITY_LABELS).empty?
+  end
+
+  test "a currency exchange is an internal movement like the legacy exchange" do
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Currency Exchange"
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Exchange"
+    assert_not_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Security Exchange"
   end
 
   test "exchange_rate getter returns nil when extra is nil" do

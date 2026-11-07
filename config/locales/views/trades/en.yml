@@ -33,6 +33,8 @@ en:
       interest: Interest
       contribution: Contribution
       exchange: Exchange
+      currency_exchange: Currency exchange
+      security_exchange: Security exchange
       fee: Fee
       other: Other
       reinvestment: Reinvestment

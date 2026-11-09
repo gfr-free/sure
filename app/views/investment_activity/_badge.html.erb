@@ -7,8 +7,7 @@
          when "Dividend", "Interest"                               then :green
          when "Contribution"                                       then :violet  # was raw purple
          when "Withdrawal"                                         then :amber   # was raw orange
-         when "Fee", "Transfer", "Sweep In", "Sweep Out", "Exchange",
-              "Currency Exchange", "Security Exchange"                  then :gray
+         when "Fee", "Transfer", "Sweep In", "Sweep Out", "Exchange" then :gray
          else                                                           :gray
          end
 %>

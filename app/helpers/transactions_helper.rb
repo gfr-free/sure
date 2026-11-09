@@ -27,13 +27,12 @@ module TransactionsHelper
   end
 
   # @param entryable [Transaction, Trade]
-  # @return [Array<String>] the labels its picker offers, plus its stored label
-  #   when that is no longer offered (e.g. a legacy "Exchange"), so editing
-  #   the entry never silently drops it
+  # @return [Array<String>] the labels its activity picker offers
   def selectable_activity_labels(entryable)
-    labels = entryable.class::SELECTABLE_ACTIVITY_LABELS
-    current = entryable.investment_activity_label
-    current.present? && labels.exclude?(current) ? labels + [ current ] : labels
+    Transaction.selectable_activity_labels_with(
+      entryable.investment_activity_label,
+      selectable: entryable.class::SELECTABLE_ACTIVITY_LABELS
+    )
   end
 
   # @param filter [Hash] one entry from transaction_search_filters

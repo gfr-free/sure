@@ -316,6 +316,8 @@ class TradeTest < ActiveSupport::TestCase
       assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Exchange"
       assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Currency Exchange"
       assert_not_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Contribution"
+      # Trade::CreateForm creates Fee trades, so their label stays pickable.
+      assert_includes Trade::SELECTABLE_ACTIVITY_LABELS, "Fee"
       assert (Trade::SELECTABLE_ACTIVITY_LABELS - Trade::ACTIVITY_LABELS).empty?
     end
 

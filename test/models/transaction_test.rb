@@ -305,10 +305,18 @@ class TransactionTest < ActiveSupport::TestCase
     assert (Transaction::SELECTABLE_ACTIVITY_LABELS - Transaction::ACTIVITY_LABELS).empty?
   end
 
-  test "a currency exchange is an internal movement like the legacy exchange" do
+  test "both exchange labels are internal on cash, like the legacy exchange" do
     assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Currency Exchange"
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Security Exchange"
     assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Exchange"
-    assert_not_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Security Exchange"
+  end
+
+  test "selectable_activity_labels_with keeps a valid stored label the picker no longer offers" do
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS + [ "Exchange" ],
+                 Transaction.selectable_activity_labels_with("Exchange")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with("Fee")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with("Bogus")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with(nil)
   end
 
   test "exchange_rate getter returns nil when extra is nil" do

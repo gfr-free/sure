@@ -119,8 +119,23 @@ class Transaction < ApplicationRecord
     "Transfer", "Contribution", "Withdrawal", "Currency Exchange", "Other"
   ].freeze
 
-  # Internal movement labels that should be excluded from budget (auto cash management)
-  INTERNAL_MOVEMENT_LABELS = [ "Transfer", "Sweep In", "Sweep Out", "Exchange", "Currency Exchange" ].freeze
+  # Internal movement labels that should be excluded from budget (auto cash
+  # management). Both exchange labels stay here, as the legacy "Exchange"
+  # covering either meaning always was; Trade keeps its own list.
+  INTERNAL_MOVEMENT_LABELS = [
+    "Transfer", "Sweep In", "Sweep Out", "Exchange", "Currency Exchange", "Security Exchange"
+  ].freeze
+
+  # @param current [String, nil] the entry's stored label
+  # @param selectable [Array<String>] the picker list for the entry's type
+  # @return [Array<String>] selectable, plus current when it is a valid label
+  #   the picker no longer offers (e.g. a legacy "Exchange"), so editing the
+  #   entry or rule never silently replaces it
+  def self.selectable_activity_labels_with(current, selectable: SELECTABLE_ACTIVITY_LABELS)
+    return selectable if current.blank? || selectable.include?(current) || ACTIVITY_LABELS.exclude?(current)
+
+    selectable + [ current ]
+  end
 
   # Providers that support pending transaction flags
   # sorted

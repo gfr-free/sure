@@ -106,9 +106,12 @@ class Rule::ListFilter
       end
     end
 
+    # The list is read once per type; the action's own stored value is added
+    # per action, since it can differ between rules of the same type.
     def action_options_for(action)
-      @action_options.fetch(action.action_type) do
-        @action_options[action.action_type] = action.options
+      options = @action_options.fetch(action.action_type) do
+        @action_options[action.action_type] = action.executor.options
       end
+      action.executor.options_including(options, action.value)
     end
 end

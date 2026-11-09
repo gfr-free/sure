@@ -15,7 +15,7 @@ class Trade < ApplicationRecord
   # The labels a user can pick for a security trade.
   SELECTABLE_ACTIVITY_LABELS = [
     "Buy", "Sell", "Reinvestment", "Sweep In", "Sweep Out", "Transfer",
-    "Security Exchange", "Other"
+    "Security Exchange", "Fee", "Other"
   ].freeze
 
   # The labels that mean the asset went somewhere else you own rather than

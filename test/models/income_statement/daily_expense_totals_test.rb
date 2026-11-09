@@ -36,14 +36,13 @@ class IncomeStatement::DailyExpenseTotalsTest < ActiveSupport::TestCase
     assert_equal 10, series.first.total
   end
 
-  test "excludes currency exchanges like the legacy exchange label, but not security exchanges" do
-    [ "Exchange", "Currency Exchange" ].each do |label|
+  test "excludes both exchange labels like the legacy exchange label" do
+    [ "Exchange", "Currency Exchange", "Security Exchange" ].each do |label|
       create_transaction(account: @checking, amount: 100, date: Date.current).entryable.update!(investment_activity_label: label)
     end
-    create_transaction(account: @checking, amount: 7, date: Date.current).entryable.update!(investment_activity_label: "Security Exchange")
     create_transaction(account: @checking, amount: 10, date: Date.current)
 
-    assert_equal 17, daily_series.first.total
+    assert_equal 10, daily_series.first.total
   end
 
   test "excludes entries marked as excluded" do

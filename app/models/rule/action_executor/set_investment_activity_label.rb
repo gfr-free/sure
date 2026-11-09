@@ -16,10 +16,8 @@ class Rule::ActionExecutor::SetInvestmentActivityLabel < Rule::ActionExecutor
   # A rule saved with a label the picker no longer offers (e.g. "Exchange")
   # keeps showing it.
   def options_including(options, value)
-    return options if value.blank? || Transaction::SELECTABLE_ACTIVITY_LABELS.include?(value)
-    return options unless Transaction::ACTIVITY_LABELS.include?(value)
-
-    options + [ [ value, value ] ]
+    extra = Transaction.selectable_activity_labels_with(value) - Transaction::SELECTABLE_ACTIVITY_LABELS
+    options + extra.map { |l| [ l, l ] }
   end
 
   def claimed_attributes

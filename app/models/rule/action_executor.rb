@@ -25,12 +25,12 @@ class Rule::ActionExecutor
     nil
   end
 
-  # options (as #options returns them) for an action that already stores
-  # value. Executors whose stored values can outlive their option list
-  # override this to keep value selectable, so editing the rule does not
-  # silently replace it.
-  def options_including(options, _value)
-    options
+  # The option for a saved value that options leaves out (e.g. a merchant only
+  # on accounts the current user can't see, or one no longer assigned), so
+  # editing the rule keeps the value instead of silently switching to the
+  # first option. nil if the value doesn't refer to a record at all.
+  def option_for(value)
+    nil
   end
 
   # Attributes this action sets. When several rules set the same attribute on

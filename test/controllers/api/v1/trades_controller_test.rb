@@ -677,6 +677,49 @@ class Api::V1::TradesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Sweep Out", body["investment_activity_label"]
   end
 
+  test "update with a new price saves the price and keeps the fee in the amount" do
+    trade = create_trade_with_fee("UPDPRICE", qty: 5, price: 100, fee: 5)
+
+    patch api_v1_trade_url(trade.id),
+      params: { trade: { price: 120 } },
+      headers: api_headers(read_write_api_key)
+
+    assert_response :success
+    trade.reload
+    assert_equal 120, trade.price
+    assert_equal 5, trade.fee
+    assert_equal 605, trade.entry.amount
+    assert_equal trade.price_money.format, JSON.parse(response.body)["price"]
+  end
+
+  test "update with a new quantity keeps the fee in the amount" do
+    trade = create_trade_with_fee("UPDQTYFEE", qty: 5, price: 100, fee: 5)
+
+    patch api_v1_trade_url(trade.id),
+      params: { trade: { qty: 6 } },
+      headers: api_headers(read_write_api_key)
+
+    assert_response :success
+    trade.reload
+    assert_equal 6, trade.qty
+    assert_equal 100, trade.price
+    assert_equal 605, trade.entry.amount
+  end
+
+  test "update of a sell keeps the fee in the amount" do
+    trade = create_trade_with_fee("UPDSELLFEE", qty: -5, price: 100, fee: 5)
+
+    patch api_v1_trade_url(trade.id),
+      params: { trade: { price: 110 } },
+      headers: api_headers(read_write_api_key)
+
+    assert_response :success
+    trade.reload
+    assert_equal(-5, trade.qty)
+    assert_equal 110, trade.price
+    assert_equal(-545, trade.entry.amount)
+  end
+
   test "rejects unsupported cash trade types on update" do
     trade = @investment_account.trades.first
 
@@ -1028,5 +1071,17 @@ class Api::V1::TradesControllerTest < ActionDispatch::IntegrationTest
 
     def api_headers(api_key)
       { "X-Api-Key" => api_key.plain_key }
+    end
+
+    def create_trade_with_fee(ticker, qty:, price:, fee:)
+      security = Security.create!(ticker: ticker, name: "#{ticker} Security", country_code: "US")
+      label = qty.negative? ? "Sell" : "Buy"
+      @investment_account.entries.create!(
+        name: Trade.build_name(label.downcase, qty.abs, ticker),
+        date: Date.current,
+        amount: qty * price + fee,
+        currency: "USD",
+        entryable: Trade.new(qty: qty, price: price, fee: fee, currency: "USD", security: security, investment_activity_label: label)
+      ).trade
     end
 end

@@ -78,4 +78,58 @@ class MerchantsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  test "leaves out another merchant with the same name" do
+    create_transaction(account: accounts(:depository), name: "Own Netflix", merchant: @merchant, amount: 100)
+    namesake = ProviderMerchant.create!(name: @merchant.name, source: "plaid")
+    create_transaction(account: accounts(:depository), name: "Bank Netflix", merchant: namesake, amount: 500)
+
+    get merchant_url(@merchant)
+
+    assert_response :success
+    assert_match "Own Netflix", response.body
+    assert_no_match "Bank Netflix", response.body
+    assert_equal "1", summary_value("Total transactions")
+    assert_equal "$100.00", summary_value("Total spending")
+  end
+
+  test "leaves zero-amount entries out of the average" do
+    create_transaction(account: accounts(:depository), merchant: @merchant, amount: 100)
+    create_transaction(account: accounts(:depository), merchant: @merchant, amount: 0)
+
+    get merchant_url(@merchant)
+
+    assert_equal "$100.00", summary_value("Average transaction")
+  end
+
+  test "counts a split with the same merchant in every part as one purchase" do
+    parent = create_transaction(account: accounts(:depository), merchant: @merchant, amount: 100)
+    parent.split!([ { name: "Plan", amount: 60 }, { name: "Extra screen", amount: 40 } ])
+
+    get merchant_url(@merchant)
+
+    assert_equal "$100.00", summary_value("Total spending")
+    assert_equal "$100.00", summary_value("Average transaction")
+  end
+
+  test "leaves pending purchases out of spending and the average" do
+    create_transaction(account: accounts(:depository), merchant: @merchant, amount: 100)
+    pending = create_transaction(account: accounts(:depository), merchant: @merchant, amount: 300)
+    pending.entryable.update!(extra: { "simplefin" => { "pending" => true } })
+
+    get merchant_url(@merchant)
+
+    assert_equal "2", summary_value("Total transactions")
+    assert_equal "$100.00", summary_value("Total spending")
+    assert_equal "$100.00", summary_value("Average transaction")
+  end
+
+  private
+    def summary_value(label)
+      value = nil
+      assert_select "dt", text: label do |dt|
+        value = dt.first.next_element.text.strip
+      end
+      value
+    end
 end

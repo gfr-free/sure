@@ -14,7 +14,7 @@
       <div class="ml-auto text-right grow">
         <%= tag.p format_money(account_group.total_money), class: "text-sm font-medium text-primary privacy-sensitive" %>
         <% if account_group.type_group? %>
-          <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key), loading: "lazy", data: sparkline_frame_data do %>
+          <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key, v: sidebar_sparkline_versions(Current.family)[account_group.accountable_type]), loading: "lazy", data: sparkline_frame_data do %>
             <%= render "accounts/sparkline_loader" %>
           <% end %>
         <% else %>

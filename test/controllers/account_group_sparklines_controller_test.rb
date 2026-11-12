@@ -125,6 +125,62 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_modified
   end
 
+  test "sidebar group sparkline URLs carry a version the browser may reuse" do
+    stub_builder
+    get root_path
+
+    frames = css_select("turbo-frame[src^='#{account_group_sparkline_path}']")
+    assert frames.size >= 2
+    frames.each do |frame|
+      assert_match(/[?&]v=\h{16}\z/, frame["src"])
+      get frame["src"], headers: frame_header(frame["id"])
+      assert_response :success
+      assert_select "turbo-frame##{frame["id"]}"
+      assert_includes response.headers["Cache-Control"], "max-age=86400"
+    end
+  end
+
+  test "each copy of a group gets its own URL" do
+    get root_path
+
+    srcs = css_select("turbo-frame[src^='#{account_group_sparkline_path}']").map { |frame| frame["src"] }
+    assert_equal srcs.uniq, srcs, "the browser caches by URL, so frames must not share one"
+  end
+
+  test "a version for another frame or an outdated one must be revalidated" do
+    stub_builder
+    get root_path
+    frame = css_select("turbo-frame[src^='#{account_group_sparkline_path}']").first
+
+    get frame["src"], headers: frame_header("another_sparkline")
+    assert_response :success
+    assert_includes response.headers["Cache-Control"], "max-age=0"
+
+    get group_sparkline_url(group_key, v: "outdated"), headers: frame_header(frame["id"])
+    assert_response :success
+    assert_includes response.headers["Cache-Control"], "max-age=0"
+  end
+
+  test "the sidebar version changes after a sync and when a counted account leaves the group" do
+    get root_path
+    frame_id = css_select("turbo-frame[src^='#{account_group_sparkline_path}']").first["id"]
+    before = sidebar_src(frame_id)
+
+    travel 1.minute do
+      @user.family.touch(:latest_sync_completed_at)
+      get root_path
+    end
+    assert_not_equal before, sidebar_src(frame_id)
+
+    before = sidebar_src(frame_id)
+    travel 2.minutes do
+      accounts(:depository).update!(exclude_from_reports: true)
+      get root_path
+    end
+
+    assert_not_equal before, sidebar_src(frame_id)
+  end
+
   private
     def group_sidebar_by(primary, then_by: nil, user: @user)
       user.update!(preferences: user.preferences.merge(
@@ -143,8 +199,12 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
       asset_group(user).key
     end
 
-    def group_sparkline_url(key, classification: "asset", subgroup: nil)
-      account_group_sparkline_url(classification: classification, group: key, subgroup: subgroup)
+    def group_sparkline_url(key, classification: "asset", subgroup: nil, v: nil)
+      account_group_sparkline_url(classification: classification, group: key, subgroup: subgroup, v: v)
+    end
+
+    def sidebar_src(frame_id)
+      css_select("turbo-frame##{frame_id}").first["src"]
     end
 
     def frame_header(id)

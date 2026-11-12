@@ -4,20 +4,32 @@
 # grouping, so the line sums exactly the accounts the group total next to it
 # counts.
 class AccountGroupSparklinesController < ApplicationController
-  include AccountSetSparkline
-
   FRAME_ID_FORMAT = /\A[\w-]+\z/
 
   def show
     @frame_id = turbo_frame_request_id.to_s
     return head(:bad_request) unless @frame_id.match?(FRAME_ID_FORMAT)
 
-    if sparkline_account_ids.empty?
+    sparkline = AccountGroupSparkline.new(
+      account_ids: counted_account_ids,
+      favorable_direction: params[:classification] == "liability" ? "down" : "up"
+    )
+
+    if sparkline.empty?
       @series = nil
       return render(layout: false)
     end
 
-    render_account_set_sparkline
+    # A URL carrying the current version can't go stale, so the browser may reuse it.
+    expires_in 1.day if params[:v] == sparkline.version(@frame_id)
+
+    # ETag only: the family sync time misses access changes, so a client
+    # sending just If-Modified-Since could keep another account set. The body
+    # is addressed to the requesting frame, so the ETag varies by frame.
+    if stale?(etag: [ sparkline.cache_key, @frame_id ])
+      @series = sparkline.series
+      render layout: false
+    end
   end
 
   private
@@ -46,29 +58,5 @@ class AccountGroupSparklinesController < ApplicationController
       return [] unless account_group
 
       BalanceSheet::ClassificationGroup.counted_accounts(account_group.accounts).map(&:id)
-    end
-
-    # The group's counted accounts, narrowed again by the same rules the type
-    # sparkline uses, so both read their rows the same way.
-    def account_scope
-      Current.accessible_accounts
-        .visible
-        .included_in_reports
-        .included_in_finances_for(Current.user)
-        .where(id: counted_account_ids)
-    end
-
-    def sparkline_favorable_direction
-      params[:classification] == "liability" ? "down" : "up"
-    end
-
-    def sparkline_cache_name
-      "account_group_sparkline"
-    end
-
-    # The body is addressed to the requesting frame, and desktop, mobile and
-    # each tab load the same URL into frames with different ids.
-    def sparkline_response_variant
-      @frame_id
     end
 end

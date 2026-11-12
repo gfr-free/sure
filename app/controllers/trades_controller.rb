@@ -50,9 +50,11 @@ class TradesController < ApplicationController
     return unless require_account_permission!(@entry.account)
 
     if @entry.update(update_entry_params)
-      @entry.lock_saved_attributes!
-      @entry.mark_user_modified!
-      @entry.sync_account_later
+      if saved_any_change?
+        @entry.lock_saved_attributes!
+        @entry.mark_user_modified!
+        @entry.sync_account_later
+      end
 
       # Reload to ensure fresh state for turbo stream rendering
       @entry.reload
@@ -98,6 +100,20 @@ class TradesController < ApplicationController
       @entry = trade.entry
     end
 
+    # The drawer's notes field submits on blur even when nothing was typed.
+    # An unchanged submit must not lock the trade or mark it user-modified,
+    # or provider syncs would skip it from then on.
+    def saved_any_change?
+      @entry.saved_changes.any? || @entry.entryable.saved_changes.any?
+    end
+
+    # Browsers send a textarea's line breaks as CRLF and an empty textarea as
+    # "", so an untouched notes field would otherwise differ from stored notes.
+    def unchanged_notes?(submitted)
+      normalize = ->(text) { text.to_s.gsub("\r\n", "\n") }
+      normalize.call(submitted) == normalize.call(@entry.notes)
+    end
+
     def entry_params
       params.require(:entry).permit(
         :name, :date, :amount, :currency, :excluded, :notes, :nature,
@@ -113,6 +129,8 @@ class TradesController < ApplicationController
 
     def update_entry_params
       update_params = entry_params
+
+      update_params = update_params.except(:notes) if update_params.key?(:notes) && unchanged_notes?(update_params[:notes])
 
       # Income trades (Dividend/Interest) store amounts as negative (inflow convention).
       # The form displays the absolute value, so we re-negate before saving.

@@ -102,6 +102,38 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "only linked investment accounts decide where a mixed group's line starts" do
+    AccountProvider.create!(account: accounts(:investment), provider: snaptrade_accounts(:fidelity_401k))
+    full = Series.new(
+      start_date: 3.days.ago.to_date, end_date: Date.current, interval: "1 day",
+      values: (0..3).map { |n| Series::Value.new(date: n.days.ago.to_date, date_formatted: "", value: Money.new(100, "USD")) }.reverse
+    )
+    Balance::ChartSeriesBuilder.stubs(:new).returns(stub(balance_series: full))
+    trimmed_ids = nil
+    Balance::LinkedInvestmentSeriesNormalizer.expects(:aggregate_account_ids)
+      .with { |args| trimmed_ids = args[:account_ids]; true }
+      .returns(Series.new(start_date: 1.day.ago.to_date, end_date: Date.current, interval: "1 day", values: full.values.last(2)))
+
+    get group_sparkline_url(group_key), headers: frame_header("asset_sparkline")
+
+    assert_response :success
+    assert_equal [ accounts(:investment).id ], trimmed_ids
+    assert_includes requested_group_account_ids, accounts(:depository).id
+  end
+
+  test "a conditional request in another language is not answered with a 304" do
+    stub_builder
+    url = group_sparkline_url(group_key)
+
+    get url, headers: frame_header("asset_sparkline")
+    etag = response.headers["ETag"]
+
+    @user.update!(locale: "de")
+    get url, headers: frame_header("asset_sparkline").merge("If-None-Match" => etag)
+
+    assert_response :success
+  end
+
   test "a client sending only If-Modified-Since still gets the current series" do
     stub_builder
 
@@ -201,6 +233,10 @@ class AccountGroupSparklinesControllerTest < ActionDispatch::IntegrationTest
 
     def group_sparkline_url(key, classification: "asset", subgroup: nil, v: nil)
       account_group_sparkline_url(classification: classification, group: key, subgroup: subgroup, v: v)
+    end
+
+    def requested_group_account_ids
+      AccountGroupSparkline.counted_account_ids(asset_group)
     end
 
     def sidebar_src(frame_id)

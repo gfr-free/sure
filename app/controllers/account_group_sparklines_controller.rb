@@ -11,8 +11,8 @@ class AccountGroupSparklinesController < ApplicationController
     return head(:bad_request) unless @frame_id.match?(FRAME_ID_FORMAT)
 
     sparkline = AccountGroupSparkline.new(
-      account_ids: counted_account_ids,
-      favorable_direction: params[:classification] == "liability" ? "down" : "up"
+      account_ids: account_group ? AccountGroupSparkline.counted_account_ids(account_group) : [],
+      classification: classification_group.classification
     )
 
     if sparkline.empty?
@@ -25,8 +25,9 @@ class AccountGroupSparklinesController < ApplicationController
 
     # ETag only: the family sync time misses access changes, so a client
     # sending just If-Modified-Since could keep another account set. The body
-    # is addressed to the requesting frame, so the ETag varies by frame.
-    if stale?(etag: [ sparkline.cache_key, @frame_id ])
+    # is addressed to the requesting frame and formatted in the user's locale,
+    # so the ETag varies by both.
+    if stale?(etag: [ sparkline.cache_key, @frame_id, I18n.locale ])
       @series = sparkline.series
       render layout: false
     end
@@ -34,8 +35,10 @@ class AccountGroupSparklinesController < ApplicationController
 
   private
     def classification_group
-      balance_sheet = Current.family.balance_sheet
-      params[:classification] == "liability" ? balance_sheet.liabilities : balance_sheet.assets
+      @classification_group ||= begin
+        balance_sheet = Current.family.balance_sheet
+        params[:classification] == "liability" ? balance_sheet.liabilities : balance_sheet.assets
+      end
     end
 
     # The group or subgroup as the sidebar renders it, or nil when it no
@@ -52,11 +55,5 @@ class AccountGroupSparklinesController < ApplicationController
           group
         end
       end
-    end
-
-    def counted_account_ids
-      return [] unless account_group
-
-      BalanceSheet::ClassificationGroup.counted_accounts(account_group.accounts).map(&:id)
     end
 end

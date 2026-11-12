@@ -57,15 +57,18 @@ module AccountsHelper
   end
 
   # Version for the sparkline URL of a group or subgroup frame that is not a
-  # single account type. The account rows of all groups come from one query.
+  # single account type. All groups share one query for their account rows
+  # and one for the family part of the key.
   def sidebar_group_sparkline_version(account_group, subgroup: nil, frame_id:)
     @sidebar_group_sparkline_rows ||= AccountGroupSparkline.identity_rows_by_account_id
-    account_ids = BalanceSheet::ClassificationGroup.counted_accounts((subgroup || account_group).accounts).map(&:id)
+    @sidebar_group_sparkline_key_prefix ||= AccountGroupSparkline.cache_key_prefix
+    account_ids = AccountGroupSparkline.counted_account_ids(subgroup || account_group)
 
     AccountGroupSparkline.new(
       account_ids: account_ids,
-      favorable_direction: account_group.classification == "liability" ? "down" : "up",
-      account_identity_rows: account_ids.flat_map { |id| @sidebar_group_sparkline_rows.fetch(id, []) }
+      classification: account_group.classification,
+      account_identity_rows: account_ids.flat_map { |id| @sidebar_group_sparkline_rows.fetch(id, []) },
+      cache_key_prefix: @sidebar_group_sparkline_key_prefix
     ).version(frame_id)
   end
 

@@ -32,7 +32,7 @@
     "var(--color-gray-400)" # slightly lighter for empty state
   end
 
-  activity_labels = entryable.is_a?(Trade) ? Trade::ACTIVITY_LABELS : Transaction::ACTIVITY_LABELS
+  activity_labels = selectable_activity_labels(entryable)
   entryable_type = entryable.is_a?(Trade) ? "Trade" : "Transaction"
   convert_url = entryable.is_a?(Transaction) ? convert_to_trade_transaction_path(entryable) : nil
   income_trade = entryable.is_a?(Trade) && %w[Dividend Interest].include?(label)

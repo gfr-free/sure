@@ -51,9 +51,13 @@ module IncomeStatement::ScopedTransactionsQuery
       <<~SQL.chomp
         AND (
           #{t}.investment_activity_label IS NULL
-          OR #{t}.investment_activity_label NOT IN ('Transfer', 'Sweep In', 'Sweep Out', 'Exchange')
+          OR #{t}.investment_activity_label NOT IN (#{internal_movement_labels_sql})
         )
       SQL
+    end
+
+    def internal_movement_labels_sql
+      @internal_movement_labels_sql ||= Transaction::INTERNAL_MOVEMENT_LABELS.map { |l| ActiveRecord::Base.connection.quote(l) }.join(", ")
     end
 
     def budget_excluded_kinds_sql

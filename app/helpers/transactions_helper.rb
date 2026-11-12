@@ -26,6 +26,15 @@ module TransactionsHelper
     t("transactions.activity_labels.#{label.parameterize(separator: "_")}", default: label)
   end
 
+  # @param entryable [Transaction, Trade]
+  # @return [Array<String>] the labels its activity picker offers
+  def selectable_activity_labels(entryable)
+    Transaction.selectable_activity_labels_with(
+      entryable.investment_activity_label,
+      selectable: entryable.class::SELECTABLE_ACTIVITY_LABELS
+    )
+  end
+
   # @param filter [Hash] one entry from transaction_search_filters
   # @return [String] the partial that renders that filter's controls
   def get_transaction_search_filter_partial_path(filter)

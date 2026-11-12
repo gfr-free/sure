@@ -292,7 +292,31 @@ class TransactionTest < ActiveSupport::TestCase
     assert_includes Transaction::ACTIVITY_LABELS, "Contribution"
     assert_includes Transaction::ACTIVITY_LABELS, "Withdrawal"
     assert_includes Transaction::ACTIVITY_LABELS, "Exchange"
+    assert_includes Transaction::ACTIVITY_LABELS, "Currency Exchange"
+    assert_includes Transaction::ACTIVITY_LABELS, "Security Exchange"
     assert_includes Transaction::ACTIVITY_LABELS, "Other"
+  end
+
+  test "the cash picker offers the currency exchange, not the ambiguous or security ones" do
+    assert_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Currency Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Security Exchange"
+    assert_not_includes Transaction::SELECTABLE_ACTIVITY_LABELS, "Reinvestment"
+    assert (Transaction::SELECTABLE_ACTIVITY_LABELS - Transaction::ACTIVITY_LABELS).empty?
+  end
+
+  test "both exchange labels are internal on cash, like the legacy exchange" do
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Currency Exchange"
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Security Exchange"
+    assert_includes Transaction::INTERNAL_MOVEMENT_LABELS, "Exchange"
+  end
+
+  test "selectable_activity_labels_with keeps a valid stored label the picker no longer offers" do
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS + [ "Exchange" ],
+                 Transaction.selectable_activity_labels_with("Exchange")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with("Fee")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with("Bogus")
+    assert_equal Transaction::SELECTABLE_ACTIVITY_LABELS, Transaction.selectable_activity_labels_with(nil)
   end
 
   test "exchange_rate getter returns nil when extra is nil" do

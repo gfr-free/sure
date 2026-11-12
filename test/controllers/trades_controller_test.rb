@@ -536,6 +536,88 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert @entry.protected_from_sync?, "Entry should be protected from sync"
   end
 
+  # The drawer's notes field submits its form on blur, so clicking into the
+  # notes of a synced trade and back out sends the unchanged value. That must
+  # not take the trade away from the provider.
+  test "submitting unchanged notes leaves the trade unprotected and unsynced" do
+    @entry.update!(notes: "Bought on the dip")
+
+    assert_no_enqueued_jobs only: SyncJob do
+      patch trade_url(@entry), params: { entry: { notes: "Bought on the dip" } }, as: :turbo_stream
+    end
+
+    assert_response :success
+    @entry.reload
+    assert_not @entry.user_modified?
+    assert_empty @entry.locked_attributes
+    assert_empty @entry.trade.locked_attributes
+    assert_not @entry.protected_from_sync?
+  end
+
+  test "submitting an empty notes field on a trade without notes changes nothing" do
+    assert_nil @entry.notes
+
+    assert_no_enqueued_jobs only: SyncJob do
+      patch trade_url(@entry), params: { entry: { notes: "" } }, as: :turbo_stream
+    end
+
+    assert_response :success
+    @entry.reload
+    assert_nil @entry.notes
+    assert_not @entry.user_modified?
+    assert_empty @entry.locked_attributes
+  end
+
+  test "a real notes change still locks the notes and protects the trade" do
+    assert_enqueued_with job: SyncJob do
+      patch trade_url(@entry), params: { entry: { notes: "Long-term hold" } }, as: :turbo_stream
+    end
+
+    assert_response :success
+    @entry.reload
+    assert_equal "Long-term hold", @entry.notes
+    assert @entry.user_modified?
+    assert @entry.locked_attributes.key?("notes")
+  end
+
+  test "clearing existing notes is still a change" do
+    @entry.update!(notes: "Old note")
+
+    patch trade_url(@entry), params: { entry: { notes: "" } }, as: :turbo_stream
+
+    @entry.reload
+    assert_predicate @entry.notes, :blank?
+    assert @entry.user_modified?
+    assert @entry.locked_attributes.key?("notes")
+  end
+
+  # Browsers submit a textarea's line breaks as CRLF, while provider imports
+  # store plain LF.
+  test "submitting unchanged multi-line notes is not a change" do
+    @entry.update!(notes: "Savings plan\nMonthly")
+
+    assert_no_enqueued_jobs only: SyncJob do
+      patch trade_url(@entry), params: { entry: { notes: "Savings plan\r\nMonthly" } }, as: :turbo_stream
+    end
+
+    @entry.reload
+    assert_equal "Savings plan\nMonthly", @entry.notes
+    assert_not @entry.user_modified?
+    assert_empty @entry.locked_attributes
+  end
+
+  test "submitting an empty notes field over stored empty notes is not a change" do
+    @entry.update!(notes: "")
+
+    assert_no_enqueued_jobs only: SyncJob do
+      patch trade_url(@entry), params: { entry: { notes: "" } }, as: :turbo_stream
+    end
+
+    @entry.reload
+    assert_equal "", @entry.notes
+    assert_not @entry.user_modified?
+  end
+
   private
     # family_member gets the investment account with full control; fixtures
     # already share depository with full control and credit_card read-only,

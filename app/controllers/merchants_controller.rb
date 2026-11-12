@@ -10,8 +10,10 @@ class MerchantsController < ApplicationController
 
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id)
     @search = merchant_search
-    @expense_totals = merchant_search(types: [ "expense" ]).totals
-    @average_expense_money = @expense_totals.expense_money / @expense_totals.count if @expense_totals.count.positive?
+    expense_search = merchant_search(types: [ "expense" ], status: [ "confirmed" ])
+    @expense_totals = expense_search.totals
+    purchase_count = expense_search.purchase_count
+    @average_expense_money = @expense_totals.expense_money / purchase_count if purchase_count.positive?
     @first_date, @last_date = @search.transactions_scope.pick(Arel.sql("MIN(entries.date)"), Arel.sql("MAX(entries.date)"))
 
     @pagy, @transactions = pagy(
@@ -38,7 +40,7 @@ class MerchantsController < ApplicationController
     def merchant_search(**filters)
       Transaction::Search.new(
         Current.family,
-        filters: { merchants: [ @merchant.name ], **filters },
+        filters: { merchant_ids: [ @merchant.id ], **filters },
         accessible_account_ids: @accessible_account_ids
       )
     end

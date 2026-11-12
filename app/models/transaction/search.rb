@@ -159,6 +159,7 @@ class Transaction::Search
   attribute :end_date, :string
   attribute :categories, array: true
   attribute :merchants, array: true
+  attribute :merchant_ids, array: true
   attribute :tags, array: true
   attribute :ai_status, array: true
   attribute :attachment_status, array: true
@@ -187,6 +188,7 @@ class Transaction::Search
       query = self.class.apply_type_filter(query, types)
       query = apply_status_filter(query, status)
       query = self.class.apply_merchant_filter(query, merchants)
+      query = query.where(transactions: { merchant_id: merchant_ids }) unless merchant_ids.nil?
       query = self.class.apply_tag_filter(query, tags)
       query = apply_ai_status_filter(query, ai_status)
       query = apply_attachment_status_filter(query, attachment_status)
@@ -209,7 +211,6 @@ class Transaction::Search
       # until entries_cache_version next changes for that family.
       # v4: Totals gained excluded_scheduled_count.
       Rails.cache.fetch("transaction_search_totals/v4/#{cache_key_base}") do
-        scope = transactions_scope
         excluded_scheduled_count = 0
 
         # Exclude scheduled (future-dated) entries from totals by default -- they
@@ -224,15 +225,10 @@ class Transaction::Search
         # (Tax-advantaged accounts, filtered below, also stay out of the
         # money figures; this count deliberately ignores that.)
         unless look_ahead?
-          excluded_scheduled_count = scope.where("entries.date > ?", Date.current).count
-          scope = scope.where("entries.date <= ?", Date.current)
+          excluded_scheduled_count = transactions_scope.where("entries.date > ?", Date.current).count
         end
 
-        # Exclude tax-advantaged accounts from totals calculation
-        tax_advantaged_ids = family.tax_advantaged_account_ids
-        scope = scope.where.not(accounts: { id: tax_advantaged_ids }) if tax_advantaged_ids.present?
-
-        result = scope
+        result = totals_scope
                   .select(
                     ActiveRecord::Base.sanitize_sql_array([
                       "COALESCE(SUM(CASE WHEN entries.amount >= 0 AND transactions.kind NOT IN (?) THEN ABS(entries.amount * COALESCE(er.rate, 1)) ELSE 0 END), 0) as expense_total",
@@ -272,6 +268,16 @@ class Transaction::Search
     end
   end
 
+  # Number of purchases behind expense_money: zero amounts are skipped, and
+  # the parts of a split count as one purchase.
+  def purchase_count
+    totals_scope
+      .where("entries.amount > 0")
+      .where.not(transactions: { kind: Transaction::TRANSFER_KINDS })
+      .distinct
+      .count(Arel.sql("COALESCE(entries.parent_entry_id, entries.id)"))
+  end
+
   # Generate cache key based on search filters and family state
   def cache_key_base
     [
@@ -287,6 +293,17 @@ class Transaction::Search
 
   private
     Totals = Data.define(:count, :excluded_scheduled_count, :income_money, :expense_money, :transfer_inflow_money, :transfer_outflow_money)
+
+    # The rows the money figures cover: scheduled entries (unless looking
+    # ahead) and tax-advantaged accounts stay out.
+    def totals_scope
+      scope = transactions_scope
+      scope = scope.where("entries.date <= ?", Date.current) unless look_ahead?
+
+      tax_advantaged_ids = family.tax_advantaged_account_ids
+      scope = scope.where.not(accounts: { id: tax_advantaged_ids }) if tax_advantaged_ids.present?
+      scope
+    end
 
     def look_ahead?
       return true if end_date.present?

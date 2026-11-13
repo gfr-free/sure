@@ -1,0 +1,16 @@
+---
+en:
+  activerecord:
+    attributes:
+      bullion_spec:
+        face_value: Face value
+        face_value_currency: Face value currency
+        fine_weight_grams: Fine weight
+        metal: Metal
+        name: Name
+    errors:
+      models:
+        bullion_spec:
+          attributes:
+            base:
+              in_use: is still used by trades or holdings

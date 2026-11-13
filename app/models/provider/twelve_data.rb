@@ -240,7 +240,7 @@ class Provider::TwelveData < Provider
           symbol: symbol,
           date: date.to_date,
           price: price,
-          currency: parsed.dig("meta", "currency") || parsed.dig("currency"),
+          currency: parsed.dig("meta", "currency") || parsed.dig("currency") || pair_quote_currency(symbol),
           exchange_operating_mic: exchange_operating_mic
         )
       end.compact
@@ -322,6 +322,12 @@ class Provider::TwelveData < Provider
 
     def max_requests_per_minute
       ENV.fetch("TWELVE_DATA_MAX_REQUESTS_PER_MINUTE", 7).to_i
+    end
+
+    # A currency or metal pair such as XAU/USD has no "currency" in its meta;
+    # it is quoted in the pair's second code.
+    def pair_quote_currency(symbol)
+      symbol.to_s[%r{\A[A-Z]{3}/([A-Z]{3})\z}, 1]
     end
 
     def check_api_error!(parsed)

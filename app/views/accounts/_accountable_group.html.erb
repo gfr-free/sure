@@ -64,7 +64,7 @@
           <% end %>
         <% end %>
       <% else %>
-        <%= render "accounts/sidebar_account_list", accounts: account_group.accounts, account_group: account_group, sortable: sortable %>
+        <%= render "accounts/sidebar_account_list", accounts: account_group.accounts, account_group: account_group, sortable: sortable, reconciliation_indicators: reconciliation_indicators %>
       <% end %>
 
       <% if account_group.type_group? %>

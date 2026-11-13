@@ -127,7 +127,7 @@
               <% if headings %>
                 <%= tag.p classification_group.name, class: "px-3 pb-1 text-xs font-medium text-secondary uppercase" %>
               <% end %>
-              <%= render "accounts/sidebar_group_list", groups: groups, classification: classification_group.classification, mobile: mobile, all_tab: true, sortable: sortable %>
+              <%= render "accounts/sidebar_group_list", groups: groups, classification: classification_group.classification, mobile: mobile, all_tab: true, sortable: sortable, reconciliation_indicators: reconciliation_indicators %>
             <% end %>
           <% end %>
         </div>

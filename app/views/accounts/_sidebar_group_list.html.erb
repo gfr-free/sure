@@ -1,4 +1,4 @@
-<%# locals: (groups:, classification:, mobile: false, all_tab: false, sortable: false) %>
+<%# locals: (groups:, classification:, mobile: false, all_tab: false, sortable: false, reconciliation_indicators: {}) %>
 
 <% if sortable %>
   <%# First-level groups of one side, saved per grouping dimension. Its own
@@ -8,11 +8,11 @@
         url: reorder_groups_accounts_path(level: "groups", dimension: account_grouping_primary(:sidebar), classification: classification),
         param: "keys") do %>
     <% groups.each do |group| %>
-      <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab, sortable: true %>
+      <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab, sortable: true, reconciliation_indicators: reconciliation_indicators %>
     <% end %>
   <% end %>
 <% else %>
   <% groups.each do |group| %>
-    <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab %>
+    <%= render "accounts/accountable_group", account_group: group, mobile: mobile, all_tab: all_tab, reconciliation_indicators: reconciliation_indicators %>
   <% end %>
 <% end %>

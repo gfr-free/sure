@@ -12,11 +12,11 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
   # Bills has always linked out to transactions. Until now nothing linked back,
   # so a transaction that settled a bill was a dead end. The link-back is part
   # of the preview-gated bills surface, so the viewer needs the flag.
-  test "index loads the merchant list on demand and keeps selected merchants in the form" do
-    get transactions_url(q: { merchants: [ "Amazon" ] })
+  test "filter menu loads the merchant list on demand and keeps selected merchants in the form" do
+    get transactions_search_filters_url(q: { merchants: [ "Amazon" ] })
 
     assert_response :success
-    assert_select "#transactions-search turbo-frame#merchant_filter_options[loading=lazy][data-action=?]", "turbo:frame-load->list-filter#filter" do
+    assert_select "turbo-frame#transaction-filters turbo-frame#merchant_filter_options[loading=lazy][data-action=?]", "turbo:frame-load->list-filter#filter" do
       assert_select "input[type=hidden][name='q[merchants][]'][value=?]", "Amazon"
     end
     assert_select "input[type=checkbox][name='q[merchants][]']", count: 0

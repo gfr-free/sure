@@ -605,8 +605,10 @@ export default class extends Controller {
       ...document.querySelectorAll(`[data-controller~='${this.identifier}']`),
     ].filter(
       (list) =>
-        list.dataset.sortableListUrlValue === this.urlValue &&
-        list.dataset.sortableListParamValue === this.paramValue,
+        list.getAttribute(`data-${this.identifier}-url-value`) ===
+          this.urlValue &&
+        list.getAttribute(`data-${this.identifier}-param-value`) ===
+          this.paramValue,
     );
   }
 

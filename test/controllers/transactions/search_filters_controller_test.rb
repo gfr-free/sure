@@ -13,7 +13,7 @@ class Transactions::SearchFiltersControllerTest < ActionDispatch::IntegrationTes
       assert_select "#transaction-filters-menu"
       assert_select "input[name='q[accounts][]'][value=?]", accounts(:depository).name
       assert_select "input[name='q[categories][]'][value=?]", categories(:food_and_drink).name
-      assert_select "input[name='q[merchants][]'][value=?]", merchants(:amazon).name
+      assert_select "turbo-frame#merchant_filter_options[loading=lazy]"
       assert_select "input#q_start_date[name='q[start_date]']"
       assert_select "input#q_amount[name='q[amount]']"
       assert_select "form", count: 0

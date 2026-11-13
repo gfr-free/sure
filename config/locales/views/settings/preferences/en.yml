@@ -3,6 +3,12 @@ en:
   settings:
     preferences:
       show:
+        planning_features_title: "Budgets and Plan"
+        planning_features_subtitle: "Turn planning features on or off for everyone in your %{moniker}"
+        budgets_enabled: "Budgets"
+        budgets_enabled_hint: "Show budgets in the navigation, reports, insights, the assistant and the API. Turning this off keeps your budget data."
+        plan_enabled: "Plan"
+        plan_enabled_hint: "Show the Plan hub and goals. Turning this off keeps your goals."
         country: Country
         currency: Currency
         date_format: Date format

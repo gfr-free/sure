@@ -139,6 +139,7 @@ module Family::AutoTransferMatchable
 
     # Track which transactions we've already matched to avoid duplicates
     used_transaction_ids = Set.new
+    created_transfers = []
 
     Transfer.transaction do
       # Among otherwise equally plausible candidates, a confirmed IBAN match is
@@ -151,12 +152,16 @@ module Family::AutoTransferMatchable
         # (a concurrent sync claimed one of the transactions for a different pairing).
         # A created transfer stays pending and leaves the transaction kinds untouched
         # until the user confirms it (Transfer#confirm!).
-        next unless find_or_create_transfer!(match)
+        transfer = find_or_create_transfer!(match)
+        next unless transfer
 
+        created_transfers << transfer if transfer.previously_new_record?
         used_transaction_ids << match.inflow_transaction_id
         used_transaction_ids << match.outflow_transaction_id
       end
     end
+
+    sync_principal_only_loan_accounts(created_transfers)
   end
 
   # An outflow entry whose counterparty IBAN matches another of this
@@ -398,6 +403,23 @@ module Family::AutoTransferMatchable
 
     def normalize_iban(value)
       IbanNormalizable.normalize(value).to_s
+    end
+
+    # A principal-only loan replays a linked transfer as principal. The balance
+    # was materialized before this match existed, so re-sync from the transfer's
+    # entry dates.
+    def sync_principal_only_loan_accounts(transfers)
+      transfers.each do |transfer|
+        next unless principal_only_loan_transfer?(transfer)
+
+        transfer.sync_account_later
+      end
+    end
+
+    def principal_only_loan_transfer?(transfer)
+      [ transfer.from_account, transfer.to_account ].compact.any? do |account|
+        account.loan? && account.loan.amortizable? && account.loan.principal_only_transfers?
+      end
     end
 
     # The hint's candidate pairs for `transactions`: the narrower hint window and

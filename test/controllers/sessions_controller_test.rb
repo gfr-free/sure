@@ -305,14 +305,38 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Invalid email or password.", flash[:alert]
   end
 
-  test "blocks non-super-admin local login when override enabled" do
+  test "redirects without checking the password when local login is fully disabled" do
     AuthConfig.stubs(:local_login_enabled?).returns(false)
-    AuthConfig.stubs(:local_admin_override_enabled?).returns(true)
+    AuthConfig.stubs(:local_admin_override_enabled?).returns(false)
+    User.expects(:authenticate_by_email).never
 
     post sessions_url, params: { email: @user.email, password: user_password_test }
 
     assert_redirected_to new_session_path
-    assert_equal "Local password login is disabled. Please use single sign-on.", flash[:alert]
+  end
+
+  test "rejects a non-super-admin with the right password like a wrong password when override enabled" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+    AuthConfig.stubs(:local_admin_override_enabled?).returns(true)
+
+    assert_no_difference "Session.count" do
+      post sessions_url, params: { email: @user.email, password: user_password_test }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Invalid email or password.", flash[:alert]
+  end
+
+  test "override mode answers every failed attempt the same, whether or not the email is a super admin" do
+    AuthConfig.stubs(:local_login_enabled?).returns(false)
+    AuthConfig.stubs(:local_admin_override_enabled?).returns(true)
+
+    results = [ users(:sure_support_staff).email, @user.email, "nobody@example.com" ].map do |email|
+      post sessions_url, params: { email: email, password: "wrong-password" }
+      [ response.status, flash[:alert] ]
+    end
+
+    assert_equal [ [ 422, "Invalid email or password." ] ], results.uniq
   end
 
   test "renders multiple SSO provider buttons" do

@@ -6,11 +6,13 @@ import { Controller } from "@hotwired/stimulus";
 // the ids are sent as JSON to urlValue, nested under paramValue
 // ("a.b" sends { a: { b: [...] } }).
 //
-// A list can hold another list (rule groups inside the rules list). The inner
-// one uses this controller as "sortable-sublist": Stimulus does not pass a
-// controller events from inside a nested controller of the same name, and
-// the outer list needs the dragover and drop events over the inner one to
-// move a whole group. Each list handles only drags of its own items.
+// A list can hold another list (the account sidebar's groups hold account
+// lists). Each nesting level uses this controller under its own name:
+// Stimulus does not pass a controller events from inside a nested controller
+// of the same name, and the outer list needs the dragover and drop events
+// over the inner one to move a whole group. Items of every level carry their
+// id in data-sortable-list-id. Each list handles only drags of its own items.
+//
 // A second finger anywhere on the page means a pinch zoom, not a reorder,
 // also when it lands outside the items. One document listener serves every
 // connected list.
@@ -128,6 +130,10 @@ export default class extends Controller {
   }
 
   dragEnd(event) {
+    // The end of a nested list's drag also bubbles up to this list's item
+    // around it, which may be held with the keyboard.
+    if (event.currentTarget !== this.draggedElement) return;
+
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();

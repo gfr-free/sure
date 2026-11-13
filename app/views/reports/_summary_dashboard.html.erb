@@ -1,4 +1,4 @@
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="grid grid-cols-1 md:grid-cols-2 <%= metrics[:show_budget] ? "lg:grid-cols-4" : "lg:grid-cols-3" %> gap-4">
   <%# Total Income Card %>
   <div class="bg-container rounded-xl shadow-border-xs p-6">
     <div class="flex items-start justify-between mb-3">
@@ -96,6 +96,7 @@
   </div>
 
   <%# Budget Performance Card %>
+  <% if metrics[:show_budget] %>
   <div class="bg-container rounded-xl shadow-border-xs p-6">
     <div class="flex items-start justify-between mb-3">
       <div class="flex items-center gap-2">
@@ -129,4 +130,5 @@
       <% end %>
     </div>
   </div>
+  <% end %>
 </div>

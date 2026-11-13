@@ -270,4 +270,13 @@ class Api::V1::BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 500, later.budget_categories.find_by!(category: @category).reload[:rolled_over_amount]
   end
+
+  test "rejects budget category reads while the family has budgets switched off" do
+    @family.update!(budgets_enabled: false)
+
+    get api_v1_budget_categories_url, headers: api_headers(@api_key)
+
+    assert_response :forbidden
+    assert_equal "feature_disabled", JSON.parse(response.body)["error"]
+  end
 end

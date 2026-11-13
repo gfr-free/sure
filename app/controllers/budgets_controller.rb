@@ -1,6 +1,7 @@
 class BudgetsController < ApplicationController
   include BudgetOwnership
 
+  before_action :ensure_budgets_enabled
   before_action :set_budget, only: %i[show edit update copy_previous]
   before_action :ensure_budget_editable!, only: %i[edit update copy_previous]
 

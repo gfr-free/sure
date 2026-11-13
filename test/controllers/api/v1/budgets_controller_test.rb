@@ -179,4 +179,15 @@ class Api::V1::BudgetsControllerTest < ActionDispatch::IntegrationTest
   ensure
     api_key_without_read&.destroy
   end
+
+  test "rejects budget reads while the family has budgets switched off" do
+    @family.update!(budgets_enabled: false)
+
+    get api_v1_budgets_url, headers: api_headers(@api_key)
+    assert_response :forbidden
+    assert_equal "feature_disabled", JSON.parse(response.body)["error"]
+
+    get api_v1_budget_url(@budget.id), headers: api_headers(@api_key)
+    assert_response :forbidden
+  end
 end

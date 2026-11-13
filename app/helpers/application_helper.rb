@@ -124,9 +124,13 @@ module ApplicationHelper
   # page_active? is a path-prefix match and /budgets · /goals don't share
   # the /plan prefix). Everyone else gets exactly the pre-Plan Budgets
   # entry — Goals was already hidden without the flag, so their nav is
-  # unchanged.
+  # unchanged. A family admin can switch either feature off; the slot falls
+  # back to whatever is still on, and drops out of the `Array#compact` nav
+  # list once neither is.
   def plan_nav_item
-    if preview_features_enabled?
+    return nil if Current.family.nil?
+
+    if plan_hub_visible?
       {
         name: t("layouts.application.nav.plan"),
         path: plan_path,
@@ -135,7 +139,7 @@ module ApplicationHelper
         active: page_active?(plan_path) || page_active?(budgets_path) || page_active?(goals_path),
         preview: true
       }
-    else
+    elsif Current.family.budgets_enabled?
       {
         name: t("layouts.application.nav.budgets"),
         path: budgets_path,

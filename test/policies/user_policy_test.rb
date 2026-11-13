@@ -26,6 +26,12 @@ class UserPolicyTest < ActiveSupport::TestCase
     assert_not UserPolicy.new(nil, User).index?
   end
 
+  test "only super admin can view a user's details" do
+    assert UserPolicy.new(@super_admin, @regular_user).show?
+    assert_not UserPolicy.new(@regular_user, @other_user).show?
+    assert_not UserPolicy.new(nil, @regular_user).show?
+  end
+
   test "super admin can update another user" do
     assert UserPolicy.new(@super_admin, @regular_user).update?
   end

@@ -1,0 +1,75 @@
+<%= content_for :page_title, t(".title") %>
+
+<div class="space-y-4">
+  <div>
+    <%= render DS::Link.new(text: t(".back"), href: admin_users_path(list_params), variant: :ghost, icon: "arrow-left", size: :sm) %>
+  </div>
+
+  <%= render DS::Card.new(class: "gap-4") do %>
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 shrink-0">
+        <%= render "settings/user_avatar", avatar_url: @user.profile_image&.variant(:small)&.url, initials: @user.initials, lazy: true %>
+      </div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <h2 class="text-lg font-semibold text-primary"><%= @user.display_name %></h2>
+          <%= render DS::Pill.new(label: t("admin.users.index.roles.#{@user.role}"), tone: @user.super_admin? ? :success : :neutral) %>
+          <% unless @user.active? %>
+            <%= render DS::Pill.new(label: t(".inactive"), tone: :warning) %>
+          <% end %>
+        </div>
+        <p class="text-sm text-secondary break-all"><%= @user.email %></p>
+      </div>
+    </div>
+
+    <% subscription = @user.family.subscription %>
+    <dl class="space-y-2">
+      <%= render DS::DetailRow.new(label: t(".family"), value: @user.family.name.presence || t("admin.users.index.unnamed_family")) %>
+      <%= render DS::DetailRow.new(label: t(".members"), value: number_with_delimiter(@members_count)) %>
+      <%= render DS::DetailRow.new(label: t(".created_at"), value: l(@user.created_at, format: :long)) %>
+      <%= render DS::DetailRow.new(label: t(".last_login"), value: @user.last_login_at ? l(@user.last_login_at, format: :long) : t("admin.users.index.table.never")) %>
+      <%= render DS::DetailRow.new(label: t(".session_count"), value: number_with_delimiter(@user.sessions_count)) %>
+      <%= render DS::DetailRow.new(label: t(".subscription"), value: subscription ? t(".subscription_statuses.#{subscription.status}", default: subscription.status.humanize) : t("admin.users.index.no_subscription")) %>
+    </dl>
+  <% end %>
+
+  <%= render DS::Card.new(class: "gap-4") do %>
+    <div>
+      <h2 class="text-lg font-semibold text-primary"><%= t(".counters.title") %></h2>
+      <p class="mt-1 text-sm text-secondary"><%= t(".counters.description") %></p>
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <% { accounts: @accounts_count, entries: @entries_count, syncs: @syncs_count, failed_syncs: @failed_syncs_count }.each do |key, count| %>
+        <div>
+          <dt class="text-secondary"><%= t(".counters.#{key}") %></dt>
+          <dd class="text-primary font-medium"><%= number_with_delimiter(count) %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <p class="text-sm text-secondary">
+      <%= t(".counters.last_successful_sync", time: @last_completed_sync_at ? l(@last_completed_sync_at, format: :long) : t("admin.users.index.table.never")) %>
+    </p>
+  <% end %>
+
+  <%= render DS::Card.new(class: "gap-4") do %>
+    <div>
+      <h2 class="text-lg font-semibold text-primary"><%= t(".recent_errors.title") %></h2>
+      <p class="mt-1 text-sm text-secondary"><%= t(".recent_errors.description") %></p>
+    </div>
+
+    <% if @recent_failed_syncs.any? %>
+      <ul class="divide-y divide-subdued">
+        <% @recent_failed_syncs.each do |sync| %>
+          <li class="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3 text-sm">
+            <span class="font-medium text-primary"><%= sync.syncable_type.safe_constantize&.model_name&.human || sync.syncable_type.titleize %></span>
+            <span class="text-secondary whitespace-nowrap"><%= l(sync.failed_at || sync.created_at, format: :long) %></span>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-sm text-secondary"><%= t(".recent_errors.empty") %></p>
+    <% end %>
+  <% end %>
+</div>

@@ -1743,4 +1743,19 @@ class UserTest < ActiveSupport::TestCase
 
     assert_not user.show_counterparty_account?
   end
+
+  test "ordered_by_family_activity puts busier families first and keeps members together" do
+    quiet = Family.create!(name: "Quiet Family")
+    3.times { |i| quiet.users.create!(email: "quiet-#{i}@example.com", password: "Password1!", role: :member) }
+
+    ordered = User.ordered_by_family_activity.to_a
+    family_ids = ordered.map(&:family_id)
+    runs = family_ids.chunk_while { |left, right| left == right }.map(&:first)
+
+    assert_equal runs.uniq, runs, "a family's members must be contiguous"
+    busiest = Family.all.max_by { |family| family.entries.count }
+    assert_equal busiest.id, family_ids.first
+    assert_equal busiest.entries.count, ordered.first.family_entries_count
+    assert_equal 0, ordered.find { |user| user.family_id == quiet.id }.family_entries_count
+  end
 end

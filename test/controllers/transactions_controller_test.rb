@@ -2363,6 +2363,16 @@ end
     assert_no_match(/ai_status/, response.location)
   end
 
+  test "index says which currencies are left out of its totals" do
+    family = @user.family
+    family.accounts.create!(name: "KRW Savings", balance: 1_000_000, currency: "KRW", accountable: Depository.new)
+
+    get transactions_path
+    assert_response :ok
+
+    assert_select "[data-testid='missing-exchange-rates']", text: /No exchange rate from KRW to USD is stored yet, so some totals may leave out amounts in KRW/
+  end
+
   test "index with attachment_status=with lists only transactions that have a file" do
     @entry.entryable.attachments.attach(io: StringIO.new("invoice"), filename: "invoice.pdf", content_type: "application/pdf")
 
@@ -2533,9 +2543,9 @@ end
     # account identifier is more sensitive than the user's own account IBAN
     # (elsewhere shown the same way), so the dedicated row doesn't show it in
     # full just because Privacy Mode happens to be off.
-    assert_match "•3000", response.body
+    assert_match "•••3000", response.body
     assert_select "dl dt", text: I18n.t("transactions.show.counterparty_iban_label")
-    assert_select "dl dd.privacy-sensitive", text: "•3000"
+    assert_select "dl dd.privacy-sensitive", text: "•••3000"
     # The full IBAN must never appear anywhere in the response, including
     # the raw "Additional Details" debug dump further down the page -- that
     # surface strips these keys unconditionally, regardless of this setting.
@@ -2571,7 +2581,7 @@ end
 
     assert_response :success
     assert_no_match I18n.t("transactions.show.counterparty_account_label"), response.body
-    assert_no_match "•8877", response.body
+    assert_no_match "•••8877", response.body
   end
 
   test "falls back to counterparty_account_id when no iban is present" do
@@ -2583,7 +2593,7 @@ end
     # A non-IBAN account id must not be presented as an IBAN.
     assert_match I18n.t("transactions.show.counterparty_account_label"), response.body
     assert_no_match I18n.t("transactions.show.counterparty_iban_label"), response.body
-    assert_match "•8877", response.body
+    assert_match "•••8877", response.body
   end
 
   private

@@ -447,5 +447,4 @@ class Transaction::MergeWithDuplicateTest < ActiveSupport::TestCase
 
     assert_equal "DE89370400440532013000", @posted_entry.transaction.reload.counterparty_iban # pipelock:ignore IBAN
   end
-
 end

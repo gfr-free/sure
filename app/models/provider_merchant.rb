@@ -88,7 +88,7 @@ class ProviderMerchant < Merchant
         family,
         attributes[:name].presence || name,
         color: attributes[:color].presence || FamilyMerchant::COLORS.sample,
-        # A submitted blank website or iban clears it; only an omitted one is inherited.
+        # A submitted blank website clears it; only an omitted one is inherited.
         website_url: attributes.key?(:website_url) ? attributes[:website_url].presence : website_url,
         # Never inherit this record's own iban: a ProviderMerchant is shared
         # by every family, so an iban on it may stem from another family.
@@ -154,15 +154,6 @@ class ProviderMerchant < Merchant
   end
 
   private
-    # The family's IBAN-unique index would reject an inherited IBAN that one of
-    # its merchants already holds, failing a name- or website-only edit on a
-    # field the user never touched; leave it off the converted merchant then.
-    def inheritable_iban_for(family)
-      return nil if iban.blank?
-
-      family.merchants.exists?(iban: iban) ? nil : iban
-    end
-
     def should_generate_logo?
       website_url.present? && logo_url.blank?
     end

@@ -337,5 +337,4 @@ class EnableBankingItem::ImporterPdngTest < ActiveSupport::TestCase
 
     assert result[:success]
   end
-
 end

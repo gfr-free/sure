@@ -1,6 +1,6 @@
 # Einheitlicher Review-Prompt für Sure
 
-Stand: 16.10.2026, vom Owner freigegebene Fassung (Entscheidungen 15./16.10.). Gilt für alle Jobs und Threads, die PRs prüfen:
+Stand: 17.11.2026, vom Owner freigegebene Fassung (Entscheidungen 15./16.10., Ergänzungen 06.11. und 17.11.). Gilt für alle Jobs und Threads, die PRs prüfen:
 PR-Check vor jedem PR (Fork und Upstream), Fork-PR-Job (04:20), 05:27-Upstream-Review-Job,
 Review-Lern-Job (Di 07:10, nur Teil D) und einzelne PR-Threads.
 Aufbau: Teil A ist der eigentliche Prompt (Platzhalter in `{{…}}`), Teil B bis D sind Bausteine,
@@ -76,6 +76,10 @@ Spalten: Weg | betroffen ja/nein | Schutz vorhanden (Datei:Zeile) | Test (Datei:
 Rechte-Dimensionen: Current.family, accessible_by/writable_by (Kontofreigaben, nur lesen),
 Rolle (Gast, Mitglied, Admin, Super-Admin, Impersonation), Feature-Flags. Nebenwirkungen
 (angelegte Kategorien, Tags, Händler, Konten) brauchen dieselbe Prüfung.
+Pflichtzeilen bei jeder Aktion, die Daten eines anderen Kontos verändert oder löscht (Owner 06.11.,
+Anlass upstream 4757: vier Review-Runden auf derselben Rechtefrage): Einzel-Aktion, Sammelaktion
+(bulk), Regel-Aktion, Split-Eltern und Split-Kinder, Kaskade (dependent: :destroy, Fee-/Kind-
+Datensätze anderer Konten), API v1. Jede Zeile ausgefüllt, bevor ein Upstream-PR eingereicht wird.
 
 SCHRITT 3  PRÜFDIMENSIONEN
 Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnummer in Klammern.
@@ -101,6 +105,10 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
       unverändertes Absenden ändert nichts (upstream 4184), Summen aus gerundeten Einzelwerten stimmen.
   Dazu Zahlen in wissenschaftlicher Schreibweise ("1e5"), führende Nullen, Plus-Zeichen, Währungssymbole
   im Feld ("5 €"), sehr große Werte (Overflow der Spalte, precision/scale in schema.rb).
+- Datei- und Textformate (Owner 06.11., Anlass upstream 4754): BOM, Leerzeilen am Anfang,
+  Felder in Anführungszeichen über mehrere Zeilen, Groß-/Kleinschreibung und Leerzeichen in
+  Kopfzeilen, Einstellungen aus einem früheren Schritt (rows_to_skip, Trennzeichen), die das
+  Lesen verschieben. Kopfzeilen mit dem CSV-Parser lesen, nicht als erste physische Zeile.
 - "nicht gesendet" vs. "bewusst geleert" vs. "ungültig": Update/Re-Import überschreibt nichts
   ungewollt (`key?` statt Truthiness).
 - Geld: Decimal, Vorzeichen-Konvention, Währung Konto vs. Familie, Umrechnung nur mit vorhandenem
@@ -177,7 +185,11 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
   Codeänderungen bedenken (lieber SQL oder lokale Klassen).
 - schema.rb enthält nur eigene Änderungen. Keine fremden Migrationen aus alten Branches.
 - Verschlüsselung: Reihenfolge `encrypts` vs. Backfill, deterministisch vs. nicht,
-  Zusammenspiel mit anderen offenen PRs, die dieselbe Spalte verschlüsseln.
+  Zusammenspiel mit anderen offenen PRs, die dieselbe Spalte verschlüsseln. Schlüsselrotation:
+  deterministische Attribute werden unter dem ältesten Schema geschrieben, ein Backfill rotiert sie
+  nicht (upstream PR 3189, 3190). Startet die App mit jeder erlaubten Konfigurationskombination
+  (vollständige ENV plus veraltete Credentials)? Hat ein gezieltes `db:migrate:down` einen sicheren
+  Zwischenzustand, solange Folgemigrationen angewendet sind?
 
 3.5 Nebenläufigkeit und Transaktionen (L4)
 - find-or-create und Check-then-write: Lock, Unique-Index oder atomares Update;
@@ -187,6 +199,15 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
 - Sperr-Reihenfolge mehrerer Tabellen wie bei normalen Saves; jede Sperre hat Timeout/Freigabe.
 - Dedup/Anhängen an wartende Jobs: gehen Laufzeit-Flags verloren?
 - Jobs sind idempotent und retry-sicher; Eindeutigkeit über DB-Constraint, nicht nur Validierung.
+- Job-Sperren und Einreihungs-Guards (Owner 06.11., Anlass upstream 4760: vier Runden):
+  (1) Gilt die Sperre über alle Web- und Worker-Prozesse (Redis/DB, nicht Rails.cache oder
+      Speicher)? Dedupliziert sie wirklich (sidekiq-unique-jobs greift bei ActiveJob nicht, jede
+      Einreichung hat eine neue job_id)?
+  (2) Wird der Guard freigegeben, wenn das Einreihen scheitert (perform_later wirft oder gibt false)?
+  (3) Wird er im ensure freigegeben, und erst NACH dem Lock (sonst findet ein dazwischen
+      eingereihter Lauf den Lock belegt und lässt seinen Guard liegen)?
+  (4) Was passiert, wenn der Lock nicht zu bekommen ist oder die Prüfung selbst wirft? Wer gibt
+      den Guard dann frei, und hat er ein Ablaufdatum?
 
 3.6 Provider-Sync und Importe (L16, L27, L30)
 - Teilantwort, fehlende Seite, Timeout/Retry (Idempotenz), wechselnde externe IDs,
@@ -199,6 +220,13 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
 - Ungültige Eingaben (fehlender Param, falsche UUID, Enum, Datum) → 422/Validierungsfehler,
   nie 500; keine rohen DB-Fehler beim Nutzer; rescue weder zu breit noch zu eng;
   Retries nur für vorübergehende Fehler.
+- Health-Checks, Probes und Diagnosepfade (Owner-Ok 17.11., upstream PR 4773, 4879): Nutzen sie
+  denselben Code bzw. dieselbe URL-Regel, dieselben Optionen und Limits wie der Produktionsaufruf?
+  Sonst melden sie grün, während Produktion scheitert (oder umgekehrt).
+- Nach einem gefangenen Fehler: Fällt ein Element dauerhaft aus (nicht zurückgestellt, nie
+  wiederholt)? Wird ein Zeitplan/Cursor erst nach erfolgreichem Einreihen weitergeschoben? Rollt ein
+  Neben-Write (Audit) die Transaktion zurück, sieht der Nutzer eine Meldung? Bricht ein unlesbares
+  Credential nur den einen Provider, nicht die ganze Seite? (upstream PR 4889, 4873, 4894; Fork 263)
 
 3.8 Performance, Caching und Code-Effizienz (L14, L9, L21; Owner-Vorgabe 16.10.)
 - N+1: Schleifen in Views/Serializern/Jobs über Associations ohne includes/preload;
@@ -249,6 +277,14 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
   keine neue Abhängigkeit ohne starken Grund.
 - PR-Text, Testplan und UI-Hinweise stimmen mit dem Code überein; keine fremden Änderungen;
   Preview-Gating bei neuen Features; große Features vorher mit Maintainern abgestimmt.
+  Ändert der PR gespeicherte Daten aller Nutzer (Umklassifizierung), dann Preview-Gate oder
+  abtrennen (upstream PR 4017).
+- Kopierbare Befehle in Doku und Warnungen selbst ausführen: Dry-Run-Standard, expliziter
+  Vorschau-Parameter, Berichtsprüfung vor Schreib- und Neustartschritt, Dienste vor dem Backup
+  stoppen, Weg auch für reine Docker-Installationen (upstream PR 3189, 4936, 4945).
+- Menschlicher Testnachweis (jjmata 11.11., upstream PR 4317, 4894): Der PR-Text belegt einen
+  eigenen manuellen Test mit realistischen Daten (z. B. Docker-Instanz, Schritte, Ergebnis), nicht
+  nur Bot-Reviews. Bot-Einschätzungen nicht als Kommentar auf fremde PRs posten.
 
 SCHRITT 4  WERKZEUGE (bei vor-pr, fork-job, upstream Pflicht; bei fremd soweit möglich)
 - `/code-review` (Stufe max bei vor-pr und upstream-Freigabe im Thread, high in den Nachtjobs
@@ -329,6 +365,10 @@ Stufe und Modell (Owner 16.10.): /code-review max vor jedem neuen PR und vor der
 (PR-Threads), high in den Nachtjobs (Fork-PR-Job, 05:27, PR-Check); Review-Modell Opus 5.5;
 Reviews nur bei neuem Head-SHA, keine Komplett-Durchläufe über bestehende PRs;
 SCHRITT 5 mit Prüf-Subagenten überall gleich.
+Fix-Commits (Owner 06.11.): Jeder Commit, der Review-Befunde behebt, bekommt vor dem Push
+/code-review high auf den Fix-Diff (Ziel `<alter Head>...<neuer Head>`) samt der zutreffenden
+Pflichtzeilen aus SCHRITT 2 und 3.5. Erst dann pushen und antworten. Anlass upstream 4754–4760:
+zwei von vier Befundrunden betrafen nur ungeprüfte Fixes.
 
 ## Teil C: GitHub-Ausgabe (Englisch)
 

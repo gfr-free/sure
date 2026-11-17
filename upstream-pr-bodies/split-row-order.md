@@ -26,6 +26,10 @@ The same thing affects users: the rows of a split can appear in a different orde
 - Only the display order of split rows changes. Balances, rules, the API and the export output stay the same.
 - The ordering lives in an explicit scope rather than on the `has_many`. Existing callers chain their own `order(...)`, and an association-level order would take precedence over it.
 
+## Overlap with #4467
+
+#4467, a larger feature PR, already orders the edit dialog the same way and has a test of the same name. This PR is the small standalone fix, so the flaky system test stops failing on `main` before that feature lands. It also covers the drawer and the export. Whichever PR merges second will get a trivial conflict in `SplitsController#edit`, and I will resolve it there.
+
 ## Validation
 
 - Full `bin/rails test` is green.

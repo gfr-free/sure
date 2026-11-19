@@ -208,9 +208,10 @@ class BudgetCategory < ApplicationRecord
     later = BudgetCategory.where(budget_id: later_budgets.select(:id), category_id: category_id)
 
     # Same rule as forfeit_carried_overspend, in SQL: update_all skips
-    # callbacks. Cleared first, while the rows still allow a negative carry.
-    later.where("rolled_over_amount < 0").update_all(rolled_over_amount: 0) if changes[:carry_overspend] == false
-    later.update_all(changes.merge(updated_at: Time.current))
+    # callbacks. Flag and carry change in the same UPDATE, so no row is ever
+    # left with a negative carry and the flag off.
+    clamp = changes[:carry_overspend] == false ? { rolled_over_amount: Arel.sql("GREATEST(rolled_over_amount, 0)") } : {}
+    later.update_all(changes.merge(clamp, updated_at: Time.current))
   end
 
   def update_budgeted_spending!(new_budgeted_spending)

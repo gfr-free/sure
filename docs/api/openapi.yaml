@@ -1032,7 +1032,7 @@ components:
         rolled_over_amount:
           type: string
           description: Carried from the previous month; negative when the category
-            carries its overspend
+            or its ring-fenced subcategories carry overspend
         rolled_over_amount_cents:
           type: integer
         available_to_spend:

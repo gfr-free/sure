@@ -594,7 +594,7 @@ RSpec.configure do |config|
               display_budgeted_spending_cents: { type: :integer },
               actual_spending: { type: :string },
               actual_spending_cents: { type: :integer },
-              rolled_over_amount: { type: :string, description: 'Carried from the previous month; negative when the category carries its overspend' },
+              rolled_over_amount: { type: :string, description: 'Carried from the previous month; negative when the category or its ring-fenced subcategories carry overspend' },
               rolled_over_amount_cents: { type: :integer },
               available_to_spend: { type: :string },
               available_to_spend_cents: { type: :integer },

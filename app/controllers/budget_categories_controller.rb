@@ -36,18 +36,23 @@ class BudgetCategoriesController < ApplicationController
 
   def update
     @budget_category = @budget.budget_categories.find(params[:id])
-    if rollover_choice_params.any?
-      @budget_category.update!(rollover_choice_params)
-      # The overspend toggle only shows while rollover is on, so the row has
-      # to be redrawn when that flips.
-      @rollover_toggled = @budget_category.saved_change_to_rollover_enabled?
-      # A month the user opened before making this choice was created with the
-      # flag off and had nothing to inherit, so the chain stopped there.
-      @budget_category.propagate_rollover_choice_forward!(
-        %i[rollover_enabled carry_overspend].select { |toggle| @budget_category.saved_change_to_attribute?(toggle) }
-      )
+    # One transaction, so a failed allocation save also undoes the choice.
+    # The lock reloads the row, so clearing the overspend flag sees a carry a
+    # concurrent recompute has just committed.
+    @budget_category.with_lock do
+      if rollover_choice_params.any?
+        @budget_category.update!(rollover_choice_params)
+        # The overspend toggle only shows while rollover is on, so the row has
+        # to be redrawn when that flips.
+        @rollover_toggled = @budget_category.saved_change_to_rollover_enabled?
+        # A month the user opened before making this choice was created with the
+        # flag off and had nothing to inherit, so the chain stopped there.
+        @budget_category.propagate_rollover_choice_forward!(
+          %i[rollover_enabled carry_overspend].select { |toggle| @budget_category.saved_change_to_attribute?(toggle) }
+        )
+      end
+      @budget_category.update_budgeted_spending!(budgeted_spending_param)
     end
-    @budget_category.update_budgeted_spending!(budgeted_spending_param)
 
     # Allocations and the rollover toggle both feed the chain, so recompute
     # it here rather than on every transaction change: the budget page is

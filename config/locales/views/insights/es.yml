@@ -49,6 +49,10 @@ es:
       bill_not_covered: Recibos
       loan_payment_change: Cuota del préstamo
       bank_fees: Comisiones
+      contract_notice_deadline: Contrato
+      contract_price_increase: Contrato
+      contract_charges_after_end: Contrato
+      contract_price_guarantee_ending: Contrato
     meta:
       next_n_days:
         one: Próximo día
@@ -59,6 +63,13 @@ es:
       date_range: "%{from} a %{to}"
     figures:
       vs_previous_three_months: frente a los tres meses anteriores
+      days_left:
+        one: "Queda %{count} día"
+        other: "Quedan %{count} días"
+      was: "antes %{amount}"
+      payments:
+        one: "%{count} pago"
+        other: "%{count} pagos"
       today: hoy
       on_pace: al ritmo previsto
       of_budget: del presupuesto
@@ -85,6 +96,7 @@ es:
       bill_not_covered: Ir a la cuenta
       loan_payment_change: Ver préstamo
       bank_fees: Ver comisiones
+      contract: Ver contrato
     titles:
       spending_anomaly:
         above: El gasto en %{category} va en aumento
@@ -108,6 +120,10 @@ es:
         up: La cuota de %{account} va a subir
         down: La cuota de %{account} va a bajar
       bank_fees: Comisiones en %{account}
+      contract_notice_deadline: "Plazo de baja de %{name}"
+      contract_price_increase: "%{name} es más caro"
+      contract_charges_after_end: "%{name} te sigue cobrando"
+      contract_price_guarantee_ending: "La garantía de precio de %{name} termina"
     templates:
       spending_anomaly:
         above: Vas camino de gastar %{projected_spend} en %{category} este mes, aproximadamente un %{deviation_pct}% más que tu promedio mensual reciente de %{baseline_spend}.
@@ -134,3 +150,9 @@ es:
       bank_fees:
         recurring: "%{account} acumula %{amount} en comisiones en los últimos %{days} días."
         new: "%{account} acumula %{amount} en comisiones en los últimos %{days} días, y ninguna en los %{days} días anteriores."
+      contract_notice_deadline: "Para que %{name} termine el %{term_ends_on}, tu aviso de baja debe llegar antes del %{deadline}. Si no, el contrato sigue."
+      contract_price_increase:
+        special: "%{name} pasó de %{previous_amount} a %{new_amount} el %{effective_on}. Una subida de precio suele darte un derecho especial de baja; revisa la carta que la anunciaba."
+        plain: "%{name} pasó de %{previous_amount} a %{new_amount} el %{effective_on}."
+      contract_charges_after_end: "%{name} terminó el %{ends_on}, pero aún se hicieron %{count} pagos por un total de %{amount}, el último el %{latest_on}. Puede que te deban un reembolso."
+      contract_price_guarantee_ending: "La garantía de precio de %{name} termina el %{guarantee_until}. Después el proveedor puede subir el precio, así que es buen momento para comparar ofertas."

@@ -49,7 +49,6 @@ en:
       bill_not_covered: Bills
       loan_payment_change: Loan payment
       bank_fees: Fees
-      account_shortfall: Account forecast
     meta:
       next_n_days:
         one: Next day
@@ -86,7 +85,6 @@ en:
       bill_not_covered: Go to account
       loan_payment_change: View loan
       bank_fees: View fees
-      account_shortfall: View account forecast
     titles:
       spending_anomaly:
         above: "%{category} spending is trending up"
@@ -96,7 +94,6 @@ en:
         negative: Your cash balance may go negative
       net_worth_milestone: "Net worth milestone: %{milestone}"
       maintained_goal_depleted: "%{goal} has dropped below its level"
-      account_shortfall: "%{account} may go negative"
       subscription_audit: "Is %{name} still active?"
       savings_rate_change:
         up: Your savings rate improved over the last three months
@@ -120,9 +117,6 @@ en:
         negative: Based on your upcoming recurring transactions and typical spending, your cash balance could fall to %{projected_low} around %{projected_low_date}.
       net_worth_milestone: Your net worth crossed %{milestone} and now stands at %{net_worth}.
       maintained_goal_depleted: "%{goal} holds %{saved} of the %{target} it is meant to keep. It is %{missing} short."
-      account_shortfall:
-        with_cause: "After its expected payments, %{account} could fall to %{projected_low} on %{projected_low_date} (%{cause}, %{cause_amount}). Move at least %{shortfall} into it by %{top_up_by}."
-        plain: "After its expected payments, %{account} could fall to %{projected_low} on %{projected_low_date}. Move at least %{shortfall} into it by %{top_up_by}."
       subscription_audit: "%{name} (%{amount}) hasn't appeared since it was expected on %{expected_on}. It may have been cancelled, or the charge may have moved."
       savings_rate_change:
         up: From %{from_month} to %{to_month} your savings rate against your typical monthly income was %{current_rate}%, up %{change_pp} percentage points from %{previous_rate}% in the three months before.

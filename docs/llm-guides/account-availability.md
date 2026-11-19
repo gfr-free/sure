@@ -99,8 +99,6 @@ into it (`destination_account_id`).
   counts but is marked `restricted` (generic name, no link or ids).
 
 It feeds the account page's Forecast tab, the Bills page's account coverage
-card, `Insight::Generators::AccountShortfallGenerator` (family-wide, so only
-accounts every active member can access; it also silences the family-wide
-cash-flow warning while such an account warning stands),
-`GET /api/v1/accounts/:id/forecast` and the assistant's
-`get_account_forecast`.
+card, `GET /api/v1/accounts/:id/forecast` and the assistant's
+`get_account_forecast`. It raises no insight of its own: the per-account
+warning is `Insight::Generators::BillNotCoveredGenerator`.

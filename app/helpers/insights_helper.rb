@@ -13,8 +13,7 @@ module InsightsHelper
     "maintained_goal_depleted" => "shield-alert",
     "bill_not_covered" => "calendar-x",
     "loan_payment_change" => "landmark",
-    "bank_fees" => "receipt",
-    "account_shortfall" => "alert-triangle"
+    "bank_fees" => "receipt"
   }.freeze
 
   def insight_icon_key(insight)
@@ -70,7 +69,7 @@ module InsightsHelper
       facts["net_worth"] && [ facts["net_worth"], t("insights.figures.today") ]
     when "spending_anomaly"
       facts["projected_spend"] && [ facts["projected_spend"], t("insights.figures.on_pace") ]
-    when "cash_flow_warning", "account_shortfall"
+    when "cash_flow_warning"
       facts["projected_low"] && [ facts["projected_low"], facts["projected_low_date"] ]
     when "subscription_audit"
       facts["amount"] && [ facts["amount"], t("insights.figures.days_overdue", count: facts["days_overdue"].to_i) ]
@@ -122,12 +121,6 @@ module InsightsHelper
       { text: t("insights.actions.subscription_audit"), href: recurring_transactions_path }
     when "cash_flow_warning"
       { text: t("insights.actions.cash_flow_warning"), href: recurring_transactions_path }
-    when "account_shortfall"
-      # The generator only names accounts every member can access; a page
-      # render still checks the viewer's own access. Broadcasts have no viewer.
-      accounts = Current.user ? Current.user.accessible_accounts : insight.family.accounts
-      account = accounts.visible.find_by(id: metadata["account_id"])
-      account && { text: t("insights.actions.account_shortfall"), href: account_path(account, tab: "forecast") }
     when "savings_rate_change"
       return nil unless insight.period_start && insight.period_end
       { text: t("insights.actions.savings_rate_change"),
@@ -204,8 +197,6 @@ module InsightsHelper
       metadata["direction"] == "below" ? :positive : :warning
     when "cash_flow_warning"
       metadata["negative"] ? :negative : :warning
-    when "account_shortfall"
-      :negative
     when "bill_not_covered"
       # Paying the bill would take the account below zero.
       :negative
@@ -260,6 +251,6 @@ module InsightsHelper
     end
 
     def rolling_period_insight?(insight)
-      insight.insight_type.in?(%w[cash_flow_warning net_worth_milestone account_shortfall])
+      insight.insight_type.in?(%w[cash_flow_warning net_worth_milestone])
     end
 end

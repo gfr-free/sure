@@ -91,6 +91,7 @@ id:
         saml_sp_callback_url_label: "URL Callback SP (URL ACS)"
         saml_sp_callback_url_help: "Konfigurasikan URL ini sebagai Assertion Consumer Service URL di IdP Anda"
         copy_button: "Salin"
+        copied: "Disalin!"
         cancel: "Batal"
         submit: "Simpan Penyedia"
         create_provider: "Buat Penyedia"

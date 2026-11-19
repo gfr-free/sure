@@ -192,5 +192,4 @@ class Assistant::Function::SearchFamilyFiles < Assistant::Function
         contract_files.include?(result[:file_id])
       end
     end
-
 end

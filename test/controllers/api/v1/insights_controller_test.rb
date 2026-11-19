@@ -97,6 +97,20 @@ class Api::V1::InsightsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.parsed_body.fetch("insights").pluck("id"), @insight.id
   end
 
+  test "cannot acknowledge an insight addressed to another member" do
+    @api_key.update!(scopes: [ "read_write" ])
+    foreign = @user.family.insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Member's insurance deadline", body: "Private", user: users(:family_member),
+      generated_at: Time.current, dedup_key: "api-acknowledge-foreign"
+    )
+
+    patch acknowledge_api_v1_insight_url(foreign), headers: api_headers(@api_key)
+
+    assert_response :not_found
+    assert foreign.reload.active?
+  end
+
   test "acknowledgment is idempotent and does not revive expired insights" do
     @api_key.update!(scopes: [ "read_write" ])
     patch acknowledge_api_v1_insight_url(@insight), headers: api_headers(@api_key)

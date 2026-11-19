@@ -118,6 +118,7 @@ class PdfImportTest < ActiveSupport::TestCase
         error: nil
       )
     )
+    Ai.stubs(:availability).returns(Ai::Availability.available(:extract_pdf))
     Provider::Registry.stubs(:preferred_llm_provider).returns(provider)
     @import.stubs(:pdf_file_content).returns("%PDF-1.4")
 

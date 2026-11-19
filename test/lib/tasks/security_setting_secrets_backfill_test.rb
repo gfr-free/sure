@@ -84,7 +84,9 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
     assert_equal "sk-old", Setting.openai_access_token
   end
 
-  test "leaves a value no key decrypts untouched, fails the run and does not switch" do
+  # A key already lost to an earlier SECRET_KEY_BASE change must not hold
+  # back the backfill (and its completion flag) for every other model.
+  test "lists a value no key decrypts, leaves it untouched and still completes" do
     lost = legacy("sk-lost", OLD_SECRET_KEY_BASE)
     store_raw("openai_access_token", lost)
     store_raw("anthropic_access_token", "sk-plain")
@@ -92,13 +94,19 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
     report = run_task("security:backfill_encryption", "500", "0")
     result = report["results"]["settings_secrets"]
 
-    assert_not report["ok"]
-    assert_equal 1, result["failed_count"]
-    assert_equal "not_decryptable", result["failed_samples"].first["error"]
-    assert_equal "openai_access_token", result["failed_samples"].first["var"]
+    assert report["ok"]
+    assert_equal 0, result["failed_count"]
+    assert_equal [ "openai_access_token" ], result["not_decryptable"]
     assert_not_includes report.to_json, "sk-lost"
     assert_equal lost, Setting.find_by(var: "openai_access_token").value
-    assert_equal Setting::SECRETS_FORMAT_LEGACY, Setting.settings_secrets_format
+    assert_equal Setting::SECRETS_FORMAT_ACTIVE_RECORD, Setting.settings_secrets_format
+    assert_equal ActiveRecordEncryptionConfig::CURRENT_BACKFILL_VERSION, Setting.encryption_backfill_completed_version
+    assert_nil Setting.openai_access_token
+
+    with_env_overrides("OLD_SECRET_KEY_BASE" => OLD_SECRET_KEY_BASE) do
+      run_task("security:backfill_encryption", "500", "0")
+    end
+    assert_equal "sk-lost", Setting.openai_access_token
   end
 
   test "does not overwrite a value that changed while the task ran" do

@@ -259,13 +259,15 @@ namespace :security do
   # SECRET_KEY_BASE, or OLD_SECRET_KEY_BASE after a change) and values under
   # a `previous` Active Record key. Each new value is decrypted again and
   # compared before it is written, and only replaces the exact value that was
-  # read. A clean write pass switches new writes to the Active Record format
+  # read. Values no key opens are listed under not_decryptable and left
+  # as they are. A clean write pass switches new writes to the Active Record format
   # (Setting.settings_secrets_format); this setting is not covered by
   # CURRENT_BACKFILL_VERSION because the settings code reads every format
   # itself, independently of support_unencrypted_data.
   def backfill_setting_secrets(dry_run)
     counts = Hash.new(0)
     failed = []
+    not_decryptable = []
     # Legacy values were keyed from SECRET_KEY_BASE: the current one, the one
     # before a change (OLD_SECRET_KEY_BASE), or the one the rotation guide
     # passes for the Active Record keys derived from it.
@@ -293,13 +295,12 @@ namespace :security do
       else
         failed << { var: row.var, error: "changed_concurrently", message: "#{row.var} changed while the backfill ran; run the task again" }
       end
-    rescue Setting::SecretCodec::Undecryptable, ActiveRecord::Encryption::Errors::Base => e
-      counts[:not_decryptable] += 1
-      failed << {
-        var: row.var,
-        error: "not_decryptable",
-        message: "No configured key decrypts #{row.var} (#{e.class.name}). Re-enter it, or pass the old key in OLD_SECRET_KEY_BASE or ACTIVE_RECORD_ENCRYPTION_PREVIOUS_*."
-      }
+    rescue Setting::SecretCodec::Undecryptable, ActiveRecord::Encryption::Errors::Base
+      # Already unreadable before this run (the app reads it as empty), and
+      # left untouched, so a later run with the old key can still convert
+      # it. Not a failure: a key lost to an earlier SECRET_KEY_BASE change
+      # must not hold back the backfill of every other model.
+      not_decryptable << row.var
     end
 
     unless dry_run
@@ -315,6 +316,8 @@ namespace :security do
       previous_key: counts[:previous_key],
       current: counts[:current],
       secrets_format: Setting.settings_secrets_format,
+      not_decryptable: not_decryptable,
+      not_decryptable_message: ("Re-enter these on the settings page, or run again with the old key in OLD_SECRET_KEY_BASE or ACTIVE_RECORD_ENCRYPTION_PREVIOUS_*." if not_decryptable.any?),
       unused_plaintext_settings: Setting.where(var: legacy_plaintext_setting_vars)
         .where.not(value: Setting::SecretCodec::EMPTY_STORED_VALUES).pluck(:var),
       failed_count: failed.size,

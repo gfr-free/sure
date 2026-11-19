@@ -75,7 +75,7 @@ bin/rails "security:backfill_encryption[100,0]"     # writes
 unset OLD_SECRET_KEY_BASE
 ```
 
-Re-enter any setting the report lists under `settings_secrets.failed_samples`.
+Re-enter any setting the report lists under `settings_secrets.not_decryptable`.
 
 ## Settings secrets
 
@@ -97,7 +97,8 @@ bin/rails "security:backfill_encryption[100,0]"     # writes
 Each value is decrypted, encrypted again, checked to decrypt back to the
 same value, and only then written, and only if nobody changed it in the
 meantime. Values no configured key opens are left untouched and listed by
-name. After a write pass without failures, new values are written with
+name under `settings_secrets.not_decryptable`; they do not fail the run, and
+a later run with the old key still converts them. After a write pass without failures, new values are written with
 Active Record Encryption too. A fresh install without any saved settings
 does that from the start for the keys on the self-hosting page. Plaid
 secrets saved on the bank sync page stay plaintext until the first backfill

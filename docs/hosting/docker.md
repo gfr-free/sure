@@ -516,7 +516,7 @@ docker compose run --rm -e OLD_SECRET_KEY_BASE web bin/rails "security:backfill_
 unset OLD_SECRET_KEY_BASE
 ```
 
-The report's `settings_secrets` entry counts the settings by where they came from (`plaintext`, `legacy`, `previous_key`) and lists any that no key opens under `failed_samples`, by name only. Those are left unchanged; re-enter them on the settings page. A setting that no key opens reads as empty in the app instead of being sent to the provider. See [Settings secrets](encryption.md#settings-secrets) for going back to an older release.
+The report's `settings_secrets` entry counts the settings by where they came from (`plaintext`, `legacy`, `previous_key`) and lists any that no key opens under `not_decryptable`, by name only. Those are left unchanged and do not fail the run; re-enter them on the settings page, or run the command again with the old value in `OLD_SECRET_KEY_BASE`. A setting that no key opens reads as empty in the app instead of being sent to the provider. See [Settings secrets](encryption.md#settings-secrets) for going back to an older release.
 
 ### Re-encrypting data after an encryption-related update
 

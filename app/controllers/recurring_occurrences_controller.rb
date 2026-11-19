@@ -20,6 +20,12 @@ class RecurringOccurrencesController < ApplicationController
     # ranked list promoted. The extra fetch keeps it full after subtraction.
     @other_entries = candidate_entries.reject { |entry| ranked_ids.include?(entry.id) }.first(FALLBACK_SHOWN)
     @can_post_now = can_post_now?
+    @remaining_by_entry = RecurringTransaction::Allocator.remaining_by_entry(
+      @ranked_candidates.map(&:first) + @other_entries,
+      # A bill hidden from this user must not show through what it took.
+      allocations: RecurringAllocation.joins(recurring_occurrence: :recurring_transaction)
+                                      .merge(RecurringTransaction.accessible_by(Current.user))
+    )
 
     render layout: dialog_layout
   end
@@ -184,7 +190,7 @@ class RecurringOccurrencesController < ApplicationController
 
       scope = candidate_scope
         .where(date: candidate_window)
-        .where(excluded: false)
+        .not_excluded_or_split_parent
         .where.not(id: RecurringMatchRejection.where(recurring_transaction: series).select(:entry_id))
         # preload, not includes: entryable is polymorphic so it can never be
         # joined, and naming it keeps the raw transactions join above out of

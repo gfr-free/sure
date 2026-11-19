@@ -29,6 +29,18 @@ de:
       calendar: Kalender
       paycheck: Einkommensplan
       all: Alle Rechnungen
+    all:
+      current_bills: Aktuelle Rechnungen
+      dismissed_hidden_description: Verworfene Rechnungen sind ausgeblendet.
+      no_matches_title: Keine Treffer
+      no_matches_description: Entferne einen Filter oder die Suche.
+      status_filters:
+        overdue: Überfällig
+        due: Bald fällig
+        partial: Teilweise bezahlt
+        paid: Bezahlt
+        paused: Pausiert
+        ended: Verworfen
     index:
       auto_posted_line: "Sure hat %{entry} für %{bill} gebucht. Behalten?"
       auto_posted_confirm: Bestätigen
@@ -41,3 +53,4 @@ de:
       add_income: Neues Einkommen
       review_with_ai: Mit KI prüfen
       notices_heading: Änderungen
+      dormant: Pausiert

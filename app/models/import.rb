@@ -366,9 +366,7 @@ class Import < ApplicationRecord
       tags: Import::TagMapping.for_import(self).creational.count
     }
 
-    mappings.merge(
-      accounts: Import::AccountMapping.for_import(self).creational.count,
-    ) if account.nil?
+    mappings[:accounts] = Import::AccountMapping.for_import(self).creational.count if account.nil?
 
     mappings
   end
@@ -435,6 +433,12 @@ class Import < ApplicationRecord
 
   def mapping_steps
     []
+  end
+
+  # A re-upload that picks a fixed account keeps the account mappings of an
+  # earlier upload; their rows all go to that account, so none may be created.
+  def mappings_to_create
+    account ? mappings.where.not(type: "Import::AccountMapping") : mappings
   end
 
   def rows_ordered

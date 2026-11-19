@@ -15,7 +15,7 @@ class TransactionImport < Import
 
   def import!
     transaction do
-      mappings.each(&:create_mappable!)
+      mappings_to_create.each(&:create_mappable!)
 
       new_transactions = []
       updated_entries = []

@@ -234,6 +234,21 @@ class ImportTest < ActiveSupport::TestCase
     assert_equal Date.new(2024, 5, 15), Date.strptime("15/05/24", import.date_format)
   end
 
+  test "dry_run counts accounts that will be created when no account is selected" do
+    import = imports(:transaction)
+    import.mappings.create!(key: "New Account", create_when_empty: true, type: "Import::AccountMapping")
+    import.mappings.create!(key: "Checking", mappable: accounts(:depository), type: "Import::AccountMapping")
+
+    assert_equal 1, import.dry_run[:accounts]
+  end
+
+  test "dry_run omits account count when the import targets an existing account" do
+    import = imports(:transaction)
+    import.update!(account: accounts(:depository))
+
+    assert_not import.dry_run.key?(:accounts)
+  end
+
   test "parse_csv_str keeps a quote that is part of the value" do
     csv = Import.parse_csv_str("name\nO'Brien\n")
 

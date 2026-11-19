@@ -20,10 +20,15 @@ class BalanceSheet::ClassificationGroup
     classification == "asset" ? "plus" : "minus"
   end
 
-  def total
+  # Accounts that count towards totals: included in the viewer's finances and
+  # not excluded from reports. Account groups use the same rule.
+  def self.counted_accounts(accounts)
     accounts.select { |a| a.respond_to?(:included_in_finances?) ? a.included_in_finances? : true }
             .reject { |a| a.respond_to?(:exclude_from_reports?) && a.exclude_from_reports? }
-            .sum(&:converted_balance)
+  end
+
+  def total
+    self.class.counted_accounts(accounts).sum(&:converted_balance)
   end
 
   def syncing?
@@ -36,16 +41,7 @@ class BalanceSheet::ClassificationGroup
     return dimension_groups(by, user: user) if by.present? && by.to_s != AccountGrouping::DEFAULT_PRIMARY
 
     groups = accounts.group_by(&:accountable_type)
-                     .transform_keys { |at| Accountable.from_type(at) }
-                     .map do |accountable, account_rows|
-                       BalanceSheet::AccountGroup.new(
-                         name: accountable.display_name,
-                         color: accountable.color,
-                         accountable_type: accountable,
-                         accounts: account_rows,
-                         classification_group: self
-                       )
-                     end
+                     .map { |accountable_type, account_rows| type_group(accountable_type, account_rows) }
 
     # Sort the groups using the manual order defined by Accountable::TYPES so that
     # the UI displays account groups in a predictable, domain-specific sequence.
@@ -59,8 +55,22 @@ class BalanceSheet::ClassificationGroup
   private
     attr_reader :accounts
 
+    def type_group(accountable_type, account_rows)
+      accountable = Accountable.from_type(accountable_type)
+
+      BalanceSheet::AccountGroup.new(
+        name: accountable.display_name,
+        color: accountable.color,
+        accountable_type: accountable,
+        accounts: account_rows,
+        classification_group: self
+      )
+    end
+
     def dimension_groups(dimension, user:)
       AccountGrouping.new(dimension, user: user).group(accounts).map do |group|
+        next type_group(group.key.accountable_type, group.accounts) if group.key.is_a?(AccountGrouping::TypeFallback)
+
         key = AccountGrouping.classified_group_key(classification, dimension, group.key)
 
         BalanceSheet::AccountGroup.new(

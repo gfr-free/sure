@@ -149,13 +149,16 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
       end
     end
 
-    def cache_key(period, group_by)
+    def cache_key(period, group_by = AccountGrouping::DEFAULT_PRIMARY)
       shares_version = user ? AccountShare.where(user: user).maximum(:updated_at)&.to_i : nil
       # Owner groups are named after users, so a renamed user must refresh them.
       owner_names_version = family.users.maximum(:updated_at)&.to_f if group_by == "owner"
       key = [
         "balance_sheet_net_worth_breakdown_series",
         CACHE_VERSION,
+        ExchangeRate::CONVERSION_CACHE_VERSION,
+        # A rate stored later can bring back an account the series left out.
+        ExchangeRate.updated_at_version,
         user&.id,
         shares_version,
         owner_names_version,

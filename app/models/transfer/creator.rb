@@ -63,8 +63,12 @@ class Transfer::Creator
       apply_tags!(transfer) if tag_ids.any?
     end
 
-    source_account.sync_later
-    destination_account.sync_later
+    transfer.sync_account_later
+
+    # After commit, including a caller's own transaction, so a reconcile
+    # error can never roll back the transfer. Only the inflow can resolve a
+    # transfer pledge.
+    GoalPledge::Reconciler.run_after_commit(transfer.inflow_transaction.entry)
 
     transfer
   rescue ActiveRecord::RecordNotUnique
@@ -244,7 +248,7 @@ class Transfer::Creator
     end
 
     def outflow_transaction_kind
-      Transfer.kind_for_account(destination_account, from_account: source_account, date: date)
+      Transfer.kind_for_account(destination_account, from_account: source_account)
     end
 
     def name_prefix

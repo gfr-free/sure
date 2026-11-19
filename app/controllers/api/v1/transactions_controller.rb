@@ -2,11 +2,13 @@
 
 class Api::V1::TransactionsController < Api::V1::BaseController
   include Pagy::Backend
+  include Api::V1::TransactionLookup
 
   # Ensure proper scope authorization for read vs write access
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :create, :update, :destroy ]
   before_action :set_transaction, only: [ :show, :update, :destroy ]
+  before_action :ensure_write_permission, only: [ :update, :destroy ]
 
   def index
     family = current_resource_owner.family
@@ -40,6 +42,8 @@ class Api::V1::TransactionsController < Api::V1::BaseController
 
     # Make per_page available to the template
     @per_page = safe_per_page_param
+
+    @split_parent_entry_ids = split_parent_entry_ids_for(@transactions)
 
     # Rails will automatically use app/views/api/v1/transactions/index.json.jbuilder
     render :index
@@ -96,6 +100,11 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       return render_existing_idempotent_entry(existing_entry)
     end
 
+    return render_validation_error("tag_ids must be an array of tag ids") if malformed_tag_ids?
+    return render_validation_error("Unknown tag id") if unknown_tag_ids?
+    return render_validation_error("Unknown category id") if unknown_category_id?
+    return render_validation_error("Unknown merchant id") if unknown_merchant_id?
+
     @entry = account.entries.new(entry_params_for_create)
 
     if @entry.save
@@ -141,17 +150,24 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       return
     end
 
+    return render_validation_error("tag_ids must be an array of tag ids") if malformed_tag_ids?
+    return render_validation_error("Unknown tag id") if tags_provided? && unknown_tag_ids?
+    return render_validation_error("Unknown category id") if unknown_category_id?
+    return render_validation_error("Unknown merchant id") if unknown_merchant_id?
+
     Entry.transaction do
       if @entry.update(entry_params_for_update)
+        sync_needed = @entry.saved_changes_affect_balances?
+
         # Handle tags separately - only when explicitly provided in the request
         # This allows clearing tags with tag_ids: [] while preserving tags when not specified
         if tags_provided?
-          @entry.transaction.tag_ids = transaction_params[:tag_ids] || []
+          @entry.transaction.tag_ids = requested_tag_ids
           @entry.transaction.save!
           @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
         end
 
-        @entry.sync_account_later
+        @entry.sync_account_later if sync_needed
         @entry.lock_saved_attributes!
         @entry.mark_user_modified! if user_modified_requested?
 
@@ -203,19 +219,28 @@ class Api::V1::TransactionsController < Api::V1::BaseController
   private
 
     def set_transaction
-      raise ActiveRecord::RecordNotFound unless valid_uuid?(params[:id])
+      load_accessible_transaction(params[:id])
+    end
 
-      family = current_resource_owner.family
-      @transaction = family.transactions
-        .joins(entry: :account)
-        .merge(Account.accessible_by(current_resource_owner))
-        .find(params[:id])
-      @entry = @transaction.entry
-    rescue ActiveRecord::RecordNotFound
-      render json: {
-        error: "not_found",
-        message: "Transaction not found"
-      }, status: :not_found
+    # Reading needs access to the account. Deleting, or changing anything
+    # outside the annotate fields, needs the write tier (AccountPolicy#update?);
+    # a member in the annotate tier may only change the AccountShare annotate
+    # fields (notes, category, merchant, tags), the same split the web UI
+    # applies in TransactionsController#permitted_entry_params. A refused request is a 403,
+    # not a silently trimmed update, so the client learns nothing was applied.
+    def ensure_write_permission
+      level = action_name == "update" && annotate_only_update? ? :annotate : :write
+
+      require_api_account_permission!(@entry.account, level, resource: "transaction")
+    end
+
+    # Judged on the permitted params, not raw params: keys outside
+    # transaction_params are ignored on update for every role (account_id
+    # included), so they cannot widen what an annotate-tier member changes.
+    def annotate_only_update?
+      transaction_params.except(
+        *AccountShare::ANNOTATE_ENTRY_ATTRIBUTES, *AccountShare::ANNOTATE_TRANSACTION_ATTRIBUTES
+      ).empty?
     end
 
     def ensure_read_scope
@@ -341,7 +366,7 @@ class Api::V1::TransactionsController < Api::V1::BaseController
         entryable_attributes: {
           category_id: transaction_params[:category_id],
           merchant_id: transaction_params[:merchant_id],
-          tag_ids: transaction_params[:tag_ids] || []
+          tag_ids: requested_tag_ids
         }
       }
       if idempotency_key_requested?
@@ -378,6 +403,69 @@ class Api::V1::TransactionsController < Api::V1::BaseController
     # This distinguishes between "user wants to update tags" vs "user didn't specify tags".
     def tags_provided?
       params[:transaction].key?(:tag_ids)
+    end
+
+    # Strong parameters drops a tag_ids of any other shape, which would read as
+    # "no tags" and clear them on update.
+    def malformed_tag_ids?
+      tag_ids = params.require(:transaction)[:tag_ids]
+      !(tag_ids.nil? || (tag_ids.is_a?(Array) && tag_ids.all?(String)))
+    end
+
+    # Tags belong to a family: ids are resolved through the caller's own, so
+    # another family's tag is refused like one that does not exist.
+    # An id that is not a UUID casts to nil and is unknown. It has to be refused
+    # here: with only such ids the list is [nil], and the collection writer
+    # would drop the nil and clear every tag.
+    def unknown_tag_ids?
+      ids = requested_tag_ids
+      return true if ids.include?(nil)
+
+      ids.any? && current_resource_owner.family.tags.where(id: ids).count != ids.size
+    end
+
+    # A client re-sends the ids it read back, so the category or merchant a
+    # transaction already holds is not refused: no new link is made.
+    def unknown_category_id?
+      raw = transaction_params[:category_id].presence
+      return false if raw.nil?
+
+      id = canonical_uuid(raw)
+      return true if id.nil?
+      return false if id == @entry&.transaction&.category_id
+
+      !current_resource_owner.family.categories.exists?(id: id)
+    end
+
+    # The family's own merchants, and provider merchants the caller can reach.
+    # A family merchant on a reachable transaction isn't enough: it may be
+    # another family's, linked before this check.
+    def unknown_merchant_id?
+      raw = transaction_params[:merchant_id].presence
+      return false if raw.nil?
+
+      id = canonical_uuid(raw)
+      return true if id.nil?
+      return false if id == @entry&.transaction&.merchant_id
+
+      family = current_resource_owner.family
+      !family.merchants.exists?(id: id) &&
+        !family.available_merchants_for(current_resource_owner).where(type: "ProviderMerchant").exists?(id: id)
+    end
+
+    # The lowercase hyphenated form Postgres stores, so an id resent in another
+    # case still matches the one a transaction holds. Nil for a non-UUID.
+    def canonical_uuid(value)
+      Category.type_for_attribute(:id).cast(value)
+    end
+
+    # The request's tag ids in canonical UUID form, each once. Postgres matches
+    # a UUID in any case, so one tag spelled two ways is one tag, and writing
+    # the raw list would store it twice.
+    def requested_tag_ids
+      @requested_tag_ids ||= Array(transaction_params[:tag_ids]).compact_blank
+        .map { |id| Tag.type_for_attribute(:id).cast(id) }
+        .uniq
     end
 
     def split_financial_fields_changed?

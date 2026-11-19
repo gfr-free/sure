@@ -64,6 +64,13 @@ module Accountable
       "immediate"
     end
 
+    # Whether the availability can be chosen per account. A vehicle stays at
+    # its default ("long_term"): a level or a release date means nothing for
+    # a car.
+    def liquidity_selectable?
+      true
+    end
+
     # Tax treatment a subtype brings with it, nil when the type has none.
     def default_tax_treatment_for(_subtype)
       nil
@@ -125,7 +132,9 @@ module Accountable
         if account.currency == family.currency
           account.balance
         else
-          account.balance * (rates[account.currency] || 1)
+          # No rate at all: left out, not counted at 1.
+          rate = rates[account.currency]
+          rate ? account.balance * rate : 0
         end
       }
     end

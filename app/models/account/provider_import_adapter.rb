@@ -432,6 +432,19 @@ class Account::ProviderImportAdapter
     # If not found by provider_merchant_id, try by exact name match (backwards compatibility)
     merchant ||= ProviderMerchant.find_by(source: source, name: name)
 
+    # Only when no provider merchant matches the id or name: a FamilyMerchant whose IBAN the family
+    # entered itself (see FamilyMerchantsController) catches a counterparty
+    # whose provider name varies. The exact name match runs first so that two
+    # payers sharing one account (e.g. a joint account) keep their own
+    # merchants. The IBAN is never written onto the ProviderMerchant: that
+    # record is shared by every family, so a counterparty IBAN seen in one
+    # family's sync must not become visible to another.
+    unless merchant
+      normalized_iban = IbanNormalizable.normalize(iban)
+      family_merchant = family_merchants_by_iban[normalized_iban] if normalized_iban.present?
+      return family_merchant if family_merchant
+    end
+
     if merchant
       # Update logo if provided and merchant doesn't have one (or has a different one)
       # Best-effort: don't fail transaction import if logo update fails
@@ -1174,6 +1187,15 @@ class Account::ProviderImportAdapter
         counterparty_reference_last4: reference.to_s.strip.last(COUNTERPARTY_LAST_CHARACTERS).presence,
         counterparty_own_account_id: iban && Account.own_account_id_for(own_accounts_by_iban[iban], currency: currency)
       }
+    end
+
+    # Merchant#iban is encrypted without determinism, like Account#iban. An
+    # IBAN the family entered on two of its merchants identifies neither.
+    def family_merchants_by_iban
+      @family_merchants_by_iban ||= account.family.merchants.where.not(iban: nil).to_a
+        .group_by(&:iban)
+        .filter_map { |iban, merchants| [ iban, merchants.first ] if merchants.one? }
+        .to_h
     end
 
     # Account#iban is encrypted without determinism, so it cannot be looked up

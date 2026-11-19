@@ -40,7 +40,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
       { type: "Account", data: { id: "old-account-1", name: "Member Checking", balance: "10", currency: "USD", accountable_type: "Depository" } }
     ])
 
-    account = Family::DataImporter.new(@family, ndjson, import: import).import![:accounts].sole
+    account = Account.find(Family::DataImporter.new(@family, ndjson, import: import).import![:account_ids].sole)
 
     assert_equal member, account.owner
   end

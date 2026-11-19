@@ -39,6 +39,21 @@ class Admin::SsoProvidersTest < ApplicationSystemTestCase
     within(callback_row("samlCallbackUrl")) { assert_button "Copied!" }
   end
 
+  test "callback copy button says so when the clipboard refuses the write" do
+    visit new_admin_sso_provider_path
+    page.execute_script(<<~JS)
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new Error("denied")) }
+      })
+    JS
+
+    within(callback_row("callbackUrl")) do
+      click_on "Copy"
+      assert_button "Copy failed"
+    end
+  end
+
   private
     def assert_callback_row_fits(target)
       # The body clips overflow, so a too-wide form shows up as body scroll width

@@ -86,6 +86,7 @@ de:
         redirect_uri_help: "Callback-URL, die beim Identitätsanbieter eingetragen werden muss"
         copy_button: "Kopieren"
         copied: "Kopiert!"
+        copy_failed: "Kopieren fehlgeschlagen"
         cancel: "Abbrechen"
         submit: "Provider speichern"
         errors_title:

@@ -230,13 +230,14 @@ module ExchangeRate::Provided
         .select { |_, date| date < as_of - NEAREST_RATE_LOOKBACK_DAYS }
     end
 
-    # @return [Integer] The number of exchange rates synced
+    # Returns the importer's result (0 when no import ran) and why the
+    # provider gave no usable rates, or nil when it did.
     def import_provider_rates(from:, to:, start_date:, end_date:, clear_cache: false)
       name = provider_name
       exchange_rate_provider = provider(name)
       unless exchange_rate_provider.present?
         Rails.logger.warn("No provider configured for ExchangeRate.import_provider_rates")
-        return 0
+        return [ 0, nil ]
       end
 
       # Prevent concurrent syncs from fetching the same currency pair for overlapping
@@ -253,11 +254,11 @@ module ExchangeRate::Provided
 
       unless acquired
         Rails.logger.info("Skipping exchange rate import for #{from}/#{to} from #{start_date} — already in progress")
-        return 0
+        return [ 0, nil ]
       end
 
       begin
-        ExchangeRate::Importer.new(
+        importer = ExchangeRate::Importer.new(
           exchange_rate_provider: exchange_rate_provider,
           provider_name: name,
           from: from,
@@ -265,7 +266,8 @@ module ExchangeRate::Provided
           start_date: start_date,
           end_date: end_date,
           clear_cache: clear_cache
-        ).import_provider_rates
+        )
+        [ importer.import_provider_rates, importer.provider_error ]
       ensure
         # Only delete the lock if we still own it (it hasn't expired and been
         # re-acquired by another worker).

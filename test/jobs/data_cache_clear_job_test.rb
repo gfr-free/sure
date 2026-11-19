@@ -3,6 +3,7 @@ require "ostruct"
 
 class DataCacheClearJobTest < ActiveJob::TestCase
   include ProviderTestHelper
+  include EntriesTestHelper
 
   setup do
     @provider = mock("provider")
@@ -70,6 +71,98 @@ class DataCacheClearJobTest < ActiveJob::TestCase
 
     assert_empty @account.balances.reload
     assert_empty @account.holdings.reload
+  end
+
+  test "keeps a cost basis the user entered through the rebuild of the holdings" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage = @family.accounts.create!(name: "Brokerage", currency: "USD", balance: 400, cash_balance: 0, accountable: Investment.new)
+    create_trade(securities(:aapl), account: brokerage, qty: 2, price: 200, date: Date.current)
+    Holding::Materializer.new(brokerage, strategy: :forward).materialize_holdings
+    brokerage.holdings.find_by!(security: securities(:aapl), date: Date.current).set_manual_cost_basis!(150)
+
+    DataCacheClearJob.perform_now(@family)
+    Holding::Materializer.new(brokerage, strategy: :forward).materialize_holdings
+
+    holding = brokerage.holdings.find_by!(security: securities(:aapl), date: Date.current)
+    assert_equal 150, holding.cost_basis
+    assert_equal "manual", holding.cost_basis_source
+    assert holding.cost_basis_locked?
+  end
+
+  test "keeps a security the user remapped through the next provider import" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage, account_provider = linked_brokerage
+    import_provider_holding(brokerage, account_provider, securities(:aapl), 1.day.ago.to_date).remap_security!(securities(:msft))
+
+    DataCacheClearJob.perform_now(@family)
+    import_provider_holding(brokerage, account_provider, securities(:aapl), Date.current)
+
+    assert_equal securities(:msft), brokerage.holdings.find_by!(date: Date.current).security
+  end
+
+  test "keeps the rest of the latest provider snapshot with a corrected row" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage, account_provider = linked_brokerage
+    old_snapshot = import_provider_holding(brokerage, account_provider, securities(:aapl), 2.days.ago.to_date)
+    import_provider_holding(brokerage, account_provider, securities(:aapl), 1.day.ago.to_date).set_manual_cost_basis!(150)
+    msft = import_provider_holding(brokerage, account_provider, securities(:msft), 1.day.ago.to_date)
+
+    DataCacheClearJob.perform_now(@family)
+
+    assert Holding.exists?(msft.id), "the snapshot must still list every security it held"
+    assert_not Holding.exists?(old_snapshot.id)
+    assert_equal [ securities(:aapl), securities(:msft) ].map(&:id).sort, brokerage.current_holdings.map(&:security_id).sort
+  end
+
+  test "does not revive a cost basis the user unlocked on the latest row" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage, account_provider = linked_brokerage
+    import_provider_holding(brokerage, account_provider, securities(:aapl), 2.days.ago.to_date).set_manual_cost_basis!(150)
+    import_provider_holding(brokerage, account_provider, securities(:aapl), 1.day.ago.to_date).unlock_cost_basis!
+
+    DataCacheClearJob.perform_now(@family)
+    holding = import_provider_holding(brokerage, account_provider, securities(:aapl), Date.current, cost_basis: 190)
+
+    assert_not holding.cost_basis_locked?
+    assert_equal 190, holding.cost_basis
+  end
+
+  test "drops a cost basis the user entered on a row that is no longer the position's latest" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    older = @account.holdings.create!(security: securities(:aapl), date: 2.days.ago.to_date, qty: 1, price: 200, amount: 200, currency: "CAD")
+    older.set_manual_cost_basis!(150)
+    @account.holdings.create!(security: securities(:aapl), date: 1.day.ago.to_date, qty: 1, price: 200, amount: 200, currency: "CAD")
+
+    DataCacheClearJob.perform_now(@family)
+
+    assert_empty @account.holdings.reload
+  end
+
+  test "drops a provider's corrected row that is not on its latest snapshot" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage, account_provider = linked_brokerage
+    import_provider_holding(brokerage, account_provider, securities(:aapl), 2.days.ago.to_date).set_manual_cost_basis!(150)
+    import_provider_holding(brokerage, account_provider, securities(:msft), 1.day.ago.to_date)
+
+    DataCacheClearJob.perform_now(@family)
+
+    assert_empty brokerage.holdings.reload
+  end
+
+  test "keeps each provider's corrected snapshot on an account linked to two providers" do
+    Family::MarketDataRefresher.any_instance.stubs(:refresh)
+    brokerage, first_provider = linked_brokerage
+    simplefin_item = SimplefinItem.create!(family: @family, name: "SimpleFin", access_url: "https://example.com/access")
+    simplefin_account = simplefin_item.simplefin_accounts.create!(name: "SimpleFin", account_id: "sf_1", account_type: "investment", currency: "USD", current_balance: 200)
+    second_provider = AccountProvider.create!(account: brokerage, provider: simplefin_account)
+    corrected = import_provider_holding(brokerage, first_provider, securities(:aapl), 2.days.ago.to_date)
+    corrected.set_manual_cost_basis!(150)
+    other = import_provider_holding(brokerage, second_provider, securities(:msft), 1.day.ago.to_date)
+
+    DataCacheClearJob.perform_now(@family)
+
+    assert Holding.exists?(corrected.id)
+    assert_not Holding.exists?(other.id)
   end
 
   test "rolls the delete back when the sync cannot be scheduled" do
@@ -147,4 +240,19 @@ class DataCacheClearJobTest < ActiveJob::TestCase
     assert_not Balance.exists?(balance.id)
     assert_enqueued_jobs 1, only: SyncJob
   end
+
+  private
+    def linked_brokerage
+      brokerage = @family.accounts.create!(name: "Linked brokerage", currency: "USD", balance: 400, cash_balance: 0, accountable: Investment.new)
+      coinstats_item = @family.coinstats_items.create!(name: "CoinStats", api_key: "test-key")
+      coinstats_account = coinstats_item.coinstats_accounts.create!(name: "Provider", currency: "USD")
+      [ brokerage, AccountProvider.create!(account: brokerage, provider: coinstats_account) ]
+    end
+
+    def import_provider_holding(account, account_provider, security, date, cost_basis: nil)
+      Account::ProviderImportAdapter.new(account).import_holding(
+        security: security, quantity: 1, amount: 200, price: 200, currency: "USD", date: date,
+        cost_basis: cost_basis, source: "coinstats", account_provider_id: account_provider.id
+      )
+    end
 end

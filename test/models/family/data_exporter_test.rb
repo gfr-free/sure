@@ -229,7 +229,7 @@ class Family::DataExporterTest < ActiveSupport::TestCase
     target = families(:empty)
     account_lines = records.select { |record| record["type"].in?(%w[CustomAccountSubtype Account]) }
     result = Family::DataImporter.new(target, account_lines.map(&:to_json).join("\n")).import!
-    imported = result[:accounts].find { |account| account.name == "Test Account" }
+    imported = Account.where(id: result[:account_ids]).find { |account| account.name == "Test Account" }
 
     assert_equal "Fixed 2y", imported.custom_account_subtype.name
     assert_equal target, imported.custom_account_subtype.family

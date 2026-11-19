@@ -228,8 +228,18 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name='account[custom_account_subtype_id]'] option", text: "Pension", count: 0
   end
 
+  test "update ignores an own subtype without preview features" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    set_preview(false)
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: custom.id } }
+
+    assert_nil @account.reload.custom_account_subtype
+  end
+
   test "update assigns an own subtype and takes its default availability" do
     custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    set_preview(true)
 
     patch depository_path(@account), params: { account: { custom_account_subtype_id: custom.id, available_on: "2030-03-31" } }
 

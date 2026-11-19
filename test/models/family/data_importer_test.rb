@@ -418,8 +418,8 @@ class Family::DataImporterTest < ActiveSupport::TestCase
 
     result = Family::DataImporter.new(@family, ndjson).import!
     custom = @family.custom_account_subtypes.find_by!(name: "Company pension")
-    pension = result[:accounts].find { |account| account.name == "Pension" }
-    savings = result[:accounts].find { |account| account.name == "Savings" }
+    pension = Account.where(id: result[:account_ids]).find { |account| account.name == "Pension" }
+    savings = Account.where(id: result[:account_ids]).find { |account| account.name == "Savings" }
 
     assert_equal "long_term", custom.liquidity
     assert_equal :tax_deferred, custom.tax_treatment
@@ -446,7 +446,7 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     ])
 
     Family::DataImporter.new(@family, first, import_session: session).import!
-    account = Family::DataImporter.new(@family, second, import_session: session).import![:accounts].first
+    account = Family::DataImporter.new(@family, second, import_session: session).import![:account_ids].then { |ids| Account.find(ids.first) }
 
     assert_equal "Fixed 2y", account.custom_account_subtype.name
     assert_equal "locked", account.liquidity

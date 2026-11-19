@@ -130,7 +130,6 @@
             <% end %>
           <% end %>
         <% end %>
-        <%= render "transactions/counterparty", entry: @entry if preview_features_enabled? && can_edit_entry? %>
       </div>
     <% end %>
     <% dialog.with_section(title: t(".details")) do %>
@@ -162,6 +161,8 @@
             <% end %>
           <% end %>
         <% end %>
+        <%# Same order as a split row: category, merchant, person, tags. %>
+        <%= render "transactions/counterparty", entry: @entry if preview_features_enabled? && can_edit_entry? %>
         <% unless @entry.transaction.transfer? %>
           <%= styled_form_with model: @entry,
                 url: transaction_path(@entry),

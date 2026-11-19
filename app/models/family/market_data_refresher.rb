@@ -51,7 +51,8 @@ class Family::MarketDataRefresher
       end
 
       pair_dates.each do |(from, to), start_date|
-        ExchangeRate.import_provider_rates(from: from, to: to, start_date: start_date, end_date: Date.current, clear_cache: true)
+        _, provider_error = ExchangeRate.import_provider_rates(from: from, to: to, start_date: start_date, end_date: Date.current, clear_cache: true)
+        report_provider_error(provider_error, provider: provider, from_currency: from, to_currency: to) if provider_error.present?
       rescue => e
         report_failure(e, provider: provider, from_currency: from, to_currency: to)
       end

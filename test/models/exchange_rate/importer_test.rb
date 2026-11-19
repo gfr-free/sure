@@ -21,18 +21,20 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
              .with(from: "USD", to: "EUR", start_date: get_provider_fetch_start_date(2.days.ago.to_date), end_date: Date.current)
              .returns(provider_response)
 
-    ExchangeRate::Importer.new(
+    importer = ExchangeRate::Importer.new(
       exchange_rate_provider: @provider,
       from: "USD",
       to: "EUR",
       start_date: 2.days.ago.to_date,
       end_date: Date.current
-    ).import_provider_rates
+    )
+    importer.import_provider_rates
 
     db_rates = ExchangeRate.where(from_currency: "USD", to_currency: "EUR", date: 2.days.ago.to_date..Date.current)
                            .order(:date)
 
     assert_equal 3, db_rates.count
+    assert_nil importer.provider_error
     assert_equal 1.3, db_rates[0].rate
     assert_equal 1.4, db_rates[1].rate
     assert_equal 1.5, db_rates[2].rate
@@ -306,15 +308,38 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
 
     @provider.expects(:fetch_exchange_rates).returns(provider_response)
 
-    ExchangeRate::Importer.new(
+    importer = ExchangeRate::Importer.new(
       exchange_rate_provider: @provider,
       from: "USD",
       to: "EUR",
       start_date: 2.days.ago.to_date,
       end_date: Date.current
-    ).import_provider_rates
+    )
+    importer.import_provider_rates
 
     assert_equal 0, ExchangeRate.where(from_currency: "USD", to_currency: "EUR").count
+    assert_match "Provider returned no usable rates for USD to EUR", importer.provider_error
+  end
+
+  test "reports a provider that returns only zero rates even when a stored start rate exists" do
+    ExchangeRate.delete_all
+    ExchangeRate.create!(from_currency: "USD", to_currency: "EUR", date: 3.days.ago.to_date, rate: 0.9)
+
+    @provider.expects(:fetch_exchange_rates).returns(provider_success_response([
+      OpenStruct.new(from: "USD", to: "EUR", date: Date.current, rate: 0)
+    ]))
+
+    importer = ExchangeRate::Importer.new(
+      exchange_rate_provider: @provider,
+      from: "USD",
+      to: "EUR",
+      start_date: 2.days.ago.to_date,
+      end_date: Date.current,
+      clear_cache: true
+    )
+    importer.import_provider_rates
+
+    assert_match "Provider returned no usable rates for USD to EUR", importer.provider_error
   end
 
   test "skips inverse rates that would round to zero" do
@@ -348,15 +373,34 @@ class ExchangeRate::ImporterTest < ActiveSupport::TestCase
     )
 
     # Should not raise — logs warning and returns without importing
-    ExchangeRate::Importer.new(
+    importer = ExchangeRate::Importer.new(
       exchange_rate_provider: @provider,
       from: "USD",
       to: "EUR",
       start_date: Date.current,
       end_date: Date.current
-    ).import_provider_rates
+    )
+    importer.import_provider_rates
 
     assert_equal 0, ExchangeRate.count, "No rates should be imported on rate limit error"
+    assert_equal "Rate limit exceeded", importer.provider_error
+  end
+
+  test "reports that the provider returned no rates" do
+    ExchangeRate.delete_all
+
+    @provider.expects(:fetch_exchange_rates).returns(provider_success_response([]))
+
+    importer = ExchangeRate::Importer.new(
+      exchange_rate_provider: @provider,
+      from: "USD",
+      to: "EUR",
+      start_date: Date.current,
+      end_date: Date.current
+    )
+    importer.import_provider_rates
+
+    assert_match "Provider returned no rates for USD to EUR", importer.provider_error
   end
 
   # === Clamping tests (Phase 2) ===

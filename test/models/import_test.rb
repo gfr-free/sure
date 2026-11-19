@@ -245,4 +245,55 @@ class ImportTest < ActiveSupport::TestCase
 
     assert_equal [ "'+44 Taxis", "+44 Taxis" ], csv["name"]
   end
+
+  test "visible_to hides imports that touch an account not shared with the user" do
+    member = users(:family_member)
+    family = member.family
+    shared = accounts(:depository)
+    hidden = accounts(:investment)
+
+    no_account = family.imports.create!(type: "TransactionImport")
+    shared_import = family.imports.create!(type: "TransactionImport", account: shared)
+    hidden_import = family.imports.create!(type: "TransactionImport", account: hidden)
+    mapped_import = family.imports.create!(type: "TransactionImport")
+    Import::AccountMapping.create!(import: mapped_import, key: "Brokerage", mappable: hidden)
+    written_import = family.imports.create!(type: "TransactionImport", account: shared)
+    written_import.entries.create!(
+      account: hidden, date: Date.current, amount: 10, currency: "USD", name: "Imported",
+      entryable: Transaction.new
+    )
+
+    visible = Import.visible_to(member)
+
+    assert_includes visible, no_account
+    assert_includes visible, shared_import
+    assert_not_includes visible, hidden_import
+    assert_not_includes visible, mapped_import
+    assert_not_includes visible, written_import
+    assert_includes Import.visible_to(users(:family_admin)), hidden_import
+  end
+
+  test "visible_to ignores accounts the import created itself" do
+    member = users(:family_member)
+    import = member.family.imports.create!(type: "TransactionImport")
+    created = member.family.accounts.create!(
+      name: "Created by import", balance: 0, currency: "USD", accountable: Depository.new,
+      import: import, owner: users(:family_admin)
+    )
+    Import::AccountMapping.create!(import: import, key: "Created by import", mappable: created)
+
+    assert_includes Import.visible_to(member), import
+  end
+
+  test "account mappings only offer and match accounts the current user can write to" do
+    member = users(:family_member)
+    import = member.family.imports.create!(type: "TransactionImport")
+    import.rows.create!(source_row_number: 1, account: accounts(:investment).name, date: "01/01/2024", amount: "10", currency: "USD", name: "Row")
+    Current.stubs(:user).returns(member)
+
+    choices = Import::AccountMapping.new(import: import, key: "x").selectable_values.map(&:last)
+    assert_includes choices, accounts(:depository).id
+    assert_not_includes choices, accounts(:investment).id
+    assert_nil Import::AccountMapping.mappables_by_key(import)[accounts(:investment).name]
+  end
 end

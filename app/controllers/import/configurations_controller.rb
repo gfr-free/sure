@@ -39,7 +39,7 @@ class Import::ConfigurationsController < ApplicationController
 
   private
     def set_import
-      @import = Current.family.imports.find(params[:import_id])
+      @import = Current.family.imports.visible_to(Current.user).find(params[:import_id])
     end
 
     # Existing accounts a Monarch account can go into: the manual ones this

@@ -537,8 +537,8 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     sign_in users(:family_member)
     post publish_import_url(import)
 
-    assert_redirected_to import_path(import)
-    assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
+    # The mapping makes the whole import invisible to the member.
+    assert_response :not_found
   end
 
   test "member can publish import targeting a full control shared account" do
@@ -792,6 +792,18 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'select[name="import[account_id]"] option', text: "Collectable Account", count: 0
     assert_select 'select[name="import[account_id]"] option', text: "IOU (personal debt to friend)", count: 0
     assert_select 'select[name="import[account_id]"] option', text: "Plaid Depository Account", count: 0
+  end
+
+  test "index and show leave out imports into accounts not shared with the member" do
+    sign_in users(:family_member)
+    hidden = @user.family.imports.create!(type: "TransactionImport", account: accounts(:investment))
+
+    get imports_url
+    assert_response :success
+    assert_select "a[href=?]", import_path(hidden), count: 0
+
+    get import_url(hidden)
+    assert_response :not_found
   end
 
   private

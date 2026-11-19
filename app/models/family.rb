@@ -154,6 +154,7 @@ class Family < ApplicationRecord
   validates :locale, inclusion: { in: I18n.available_locales.map(&:to_s) }
   validates :date_format, inclusion: { in: DATE_FORMATS.map(&:last) }
   validates :month_start_day, inclusion: { in: 1..28 }
+  validates :fiscal_year_start_month, inclusion: { in: 1..12 }
   validates :moniker, inclusion: { in: MONIKERS }
   validates :default_account_sharing, inclusion: { in: SHARING_DEFAULTS }
   validates :personal_budgets, inclusion: { in: [ true, false ] }
@@ -342,6 +343,66 @@ class Family < ApplicationRecord
     start_date = custom_month_start_for(Date.current)
     end_date = custom_month_end_for(Date.current)
     Period.custom(start_date: start_date, end_date: end_date)
+  end
+
+  # A fiscal year is always twelve whole budget months: it opens on the budget
+  # month named by `fiscal_year_start_month`, so with a month start day of 25
+  # and April it runs from 25 April to 24 April. A family on January keeps the
+  # plain calendar year, whatever its month start day.
+  def uses_fiscal_year?
+    fiscal_year_start_month != 1
+  end
+
+  def fiscal_year_start_for(date)
+    return date.beginning_of_year unless uses_fiscal_year?
+
+    start_date = fiscal_year_starting_in(date.year)
+    start_date > date ? start_date.prev_year : start_date
+  end
+
+  # The fiscal year that opens in calendar year `year`.
+  def fiscal_year_starting_in(year)
+    uses_fiscal_year? ? Date.new(year, fiscal_year_start_month, month_start_day) : Date.new(year, 1, 1)
+  end
+
+  def fiscal_year_end_for(date)
+    return date.end_of_year unless uses_fiscal_year?
+
+    fiscal_year_start_for(date).next_year - 1.day
+  end
+
+  # "2026" for a calendar year, "2026/27" for a fiscal year opening in 2026.
+  def fiscal_year_label(date)
+    start_year = fiscal_year_start_for(date).year
+    return start_year.to_s unless uses_fiscal_year?
+
+    "#{start_year}/#{format('%02d', (start_year + 1) % 100)}"
+  end
+
+  # The first day of the quarter `date` falls in. Fiscal quarters count three
+  # budget months from the fiscal year's start; a calendar-year family keeps
+  # calendar quarters.
+  def fiscal_quarter_start_for(date)
+    return date.beginning_of_quarter unless uses_fiscal_year?
+
+    year_start = fiscal_year_start_for(date)
+    quarter_index = (0..3).select { |i| year_start.advance(months: 3 * i) <= date }.last
+    year_start.advance(months: 3 * quarter_index)
+  end
+
+  def fiscal_quarter_end_for(date)
+    return date.end_of_quarter unless uses_fiscal_year?
+
+    fiscal_quarter_start_for(date).advance(months: 3) - 1.day
+  end
+
+  # 1-based quarter number within the fiscal (or calendar) year.
+  def fiscal_quarter_number(date)
+    return date.quarter unless uses_fiscal_year?
+
+    quarter_start = fiscal_quarter_start_for(date)
+    year_start = fiscal_year_start_for(date)
+    ((quarter_start.year * 12 + quarter_start.month) - (year_start.year * 12 + year_start.month)) / 3 + 1
   end
 
   def assigned_merchants

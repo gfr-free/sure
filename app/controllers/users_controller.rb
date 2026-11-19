@@ -117,7 +117,7 @@ class UsersController < ApplicationController
       family_attrs = [ :name, :currency, :country, :date_format, :timezone, :locale, :month_start_day, :id ]
       if Current.user.admin?
         family_attrs.push(:personal_budgets, :household_budget_enabled, :investment_contributions_as_spending, :manual_reconciliation) # Needed for updating existing family
-        family_attrs.push(:moniker, :default_account_sharing)
+        family_attrs.push(:moniker, :default_account_sharing, :fiscal_year_start_month)
         family_attrs << { enabled_currencies: [] }
       end
 

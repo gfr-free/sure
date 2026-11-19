@@ -735,6 +735,7 @@ components:
       - locale
       - date_format
       - month_start_day
+      - fiscal_year_start_month
       - moniker
       - default_account_sharing
       - custom_enabled_currencies
@@ -764,6 +765,10 @@ components:
           type: integer
           minimum: 1
           maximum: 28
+        fiscal_year_start_month:
+          type: integer
+          minimum: 1
+          maximum: 12
         moniker:
           type: string
           enum:

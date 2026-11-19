@@ -53,7 +53,14 @@ class Period
       comparison_label: "vs. last quarter"
     },
     "current_year" => {
-      date_range: -> { [ Date.current.beginning_of_year, Date.current ] },
+      # A family with a fiscal year gets its fiscal year to date here instead
+      # of the calendar one; the key stays so saved defaults and links keep
+      # working.
+      date_range: -> {
+        family = Current.family
+        start_date = family ? family.fiscal_year_start_for(Date.current) : Date.current.beginning_of_year
+        [ start_date, Date.current ]
+      },
       label_short: "YTD",
       label: "Current Year",
       comparison_label: "vs. start of year"
@@ -112,6 +119,15 @@ class Period
       start_date, end_date = PERIODS[key].fetch(:date_range).call
 
       new(key: key, start_date: start_date, end_date: end_date)
+    end
+
+    # For callers without a request, such as the assistant's jobs, where
+    # Current.family is not set: "current_year" still follows the given
+    # family's fiscal year.
+    def from_key_for(key, family)
+      return from_key(key) unless key == "current_year" && family
+
+      new(key: key, start_date: family.fiscal_year_start_for(Date.current), end_date: Date.current)
     end
 
     def custom(start_date:, end_date:)
@@ -189,7 +205,7 @@ class Period
 
   def label
     if key
-      I18n.t("period.#{key}.label", default: key_metadata&.fetch(:label) || "Custom Period")
+      I18n.t("period.#{translation_key}.label", default: key_metadata&.fetch(:label) || "Custom Period")
     else
       I18n.t("period.custom.label", default: "Custom Period")
     end
@@ -197,7 +213,7 @@ class Period
 
   def label_short
     if key
-      I18n.t("period.#{key}.label_short", default: key_metadata&.fetch(:label_short) || "Custom")
+      I18n.t("period.#{translation_key}.label_short", default: key_metadata&.fetch(:label_short) || "Custom")
     else
       I18n.t("period.custom.label_short", default: "Custom")
     end
@@ -205,7 +221,7 @@ class Period
 
   def comparison_label
     if key
-      I18n.t("period.#{key}.comparison_label", default: key_metadata&.fetch(:comparison_label) || custom_comparison_label)
+      I18n.t("period.#{translation_key}.comparison_label", default: key_metadata&.fetch(:comparison_label) || custom_comparison_label)
     else
       custom_comparison_label
     end
@@ -237,6 +253,12 @@ class Period
   private
     def key_metadata
       @key_metadata ||= PERIODS[key]
+    end
+
+    # "current_year" reads as the fiscal year once the family has one, so the
+    # picker says so instead of promising a calendar year it no longer shows.
+    def translation_key
+      key == "current_year" && Current.family&.uses_fiscal_year? ? "current_fiscal_year" : key
     end
 
     # The year is dropped while the whole range sits inside the current year — it

@@ -106,7 +106,7 @@ class Assistant::Function::GetBillDetails < Assistant::Function
       ytd = RecurringAllocation.confirmed
                                .joins(:recurring_occurrence)
                                .where(recurring_occurrences: { recurring_transaction_id: series.id })
-                               .where("recurring_allocations.paid_on >= ?", Date.current.beginning_of_year)
+                               .where("recurring_allocations.paid_on >= ?", family.fiscal_year_start_for(Date.current))
                                .sum(:allocated_amount)
 
       average = paid_amounts.sum / paid_amounts.size

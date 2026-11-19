@@ -83,6 +83,63 @@ module ReportsHelper
     end
   end
 
+  # The quarter grid of the report period picker, for the fiscal year that
+  # holds `start_date`. A calendar-year family gets calendar quarters.
+  def report_picker_quarters(family, start_date)
+    year_start = family.fiscal_year_start_for(start_date)
+    selected_start = family.fiscal_quarter_start_for(start_date)
+    year_label = family.fiscal_year_label(year_start)
+    next_year_start = year_start.next_year
+
+    quarters = (0..3).map do |index|
+      quarter_start = year_start.advance(months: 3 * index)
+      {
+        start_date: quarter_start,
+        end_date: quarter_start.advance(months: 3) - 1.day,
+        label: t("reports.index.period_picker.quarter", quarter: index + 1, year: year_label),
+        selected: quarter_start == selected_start,
+        available: quarter_start <= Date.current
+      }
+    end
+
+    {
+      label: year_label,
+      prev_start: year_start.prev_year,
+      next_start: (next_year_start if next_year_start <= Date.current),
+      quarters: quarters
+    }
+  end
+
+  # The year grid of the report period picker: one decade of fiscal years,
+  # counted by the calendar year each one opens in.
+  def report_picker_years(family, start_date)
+    selected_start = family.fiscal_year_start_for(start_date)
+    current_start = family.fiscal_year_start_for(Date.current)
+    decade_start = (selected_start.year / 10) * 10
+    next_decade_start = family.fiscal_year_starting_in(decade_start + 10)
+
+    years = (decade_start..decade_start + 9).filter_map do |year|
+      year_start = family.fiscal_year_starting_in(year)
+      next if year_start > Date.current
+
+      current = year_start == current_start
+      label = family.fiscal_year_label(year_start)
+      {
+        start_date: year_start,
+        end_date: current ? Date.current : family.fiscal_year_end_for(year_start),
+        label: current ? t("reports.index.period_picker.ytd", year: label) : label,
+        selected: year_start == selected_start
+      }
+    end
+
+    {
+      label: "#{decade_start}–#{decade_start + 9}",
+      prev_start: family.fiscal_year_starting_in(decade_start - 1),
+      next_start: (next_decade_start if next_decade_start <= Date.current),
+      years: years
+    }
+  end
+
   private
     def spending_treemap_node(comparison, row, start_date:, end_date:, parent: nil, direct_label: false)
       name = row.direct && direct_label ? t("reports.spending_vs_normal.direct", category: row.category.name) : row.category.name

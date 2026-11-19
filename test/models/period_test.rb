@@ -184,4 +184,51 @@ class PeriodTest < ActiveSupport::TestCase
     assert_equal valuation_date, period.start_date
     assert_equal Date.current, period.end_date
   end
+
+  test "current_year is the calendar year to date without a fiscal year" do
+    Current.stubs(:family).returns(families(:dylan_family))
+
+    travel_to Date.new(2026, 11, 19) do
+      period = Period.from_key("current_year")
+      assert_equal Date.new(2026, 1, 1), period.start_date
+      assert_equal Date.new(2026, 11, 19), period.end_date
+      assert_equal "YTD", period.label_short
+    end
+  end
+
+  test "current_year follows the family's fiscal year and says so" do
+    family = families(:dylan_family)
+    family.update!(fiscal_year_start_month: 4)
+    Current.stubs(:family).returns(family)
+
+    travel_to Date.new(2026, 2, 10) do
+      period = Period.from_key("current_year")
+      assert_equal "current_year", period.key
+      assert_equal Date.new(2025, 4, 1), period.start_date
+      assert_equal Date.new(2026, 2, 10), period.end_date
+      assert_equal "FYTD", period.label_short
+      assert_equal "Current Fiscal Year", period.label
+      assert_equal "vs. start of fiscal year", period.comparison_label
+    end
+  end
+
+  test "current_year without a family falls back to the calendar year" do
+    Current.stubs(:family).returns(nil)
+
+    travel_to Date.new(2026, 11, 19) do
+      assert_equal Date.new(2026, 1, 1), Period.from_key("current_year").start_date
+    end
+  end
+
+  test "from_key_for uses the given family's fiscal year without Current.family" do
+    family = families(:dylan_family)
+    family.fiscal_year_start_month = 7
+    Current.stubs(:family).returns(nil)
+
+    travel_to Date.new(2026, 11, 19) do
+      assert_equal Date.new(2026, 7, 1), Period.from_key_for("current_year", family).start_date
+      assert_equal Date.new(2026, 11, 19), Period.from_key_for("current_year", family).end_date
+      assert_equal Period.from_key("last_30_days").start_date, Period.from_key_for("last_30_days", family).start_date
+    end
+  end
 end

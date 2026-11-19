@@ -174,6 +174,6 @@ class Assistant::Function::GetAccounts < Assistant::Function
     def series_period(params)
       key = params["series_period"].to_s
 
-      Period.valid_key?(key) ? Period.from_key(key) : Period.from_key("last_365_days")
+      Period.valid_key?(key) ? Period.from_key_for(key, family) : Period.from_key("last_365_days")
     end
 end

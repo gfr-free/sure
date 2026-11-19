@@ -13,6 +13,10 @@ class User::FamilyReferenceRemapper
   def remap!
     return if account_ids.empty?
 
+    # Holds the moved transactions so a concurrent job of the old family
+    # cannot set one of its records on them between the remap and the commit.
+    transactions.lock("FOR UPDATE OF transactions").pluck(:id)
+
     remap_categories!
     remap_merchants!
     remap_tags!
@@ -43,8 +47,8 @@ class User::FamilyReferenceRemapper
 
         new_family.categories.create!(
           name: category.name,
-          color: category.color,
-          lucide_icon: category.lucide_icon,
+          color: valid_color(category.color) || Category.column_defaults["color"],
+          lucide_icon: category.lucide_icon.presence || Category.column_defaults["lucide_icon"],
           # A same-named match in the new family can itself be a subcategory;
           # nesting under it would exceed the two-level limit.
           parent: parent&.parent_id.nil? ? parent : nil
@@ -61,8 +65,9 @@ class User::FamilyReferenceRemapper
         target, created = FamilyMerchant.find_or_create_with_name(
           new_family,
           merchant.name,
-          color: merchant.color,
-          website_url: merchant.website_url
+          color: valid_color(merchant.color),
+          website_url: merchant.website_url,
+          logo_url: merchant.read_attribute(:logo_url)
         )
         target.logo.attach(merchant.logo.blob) if created && merchant.logo.attached?
 
@@ -76,7 +81,7 @@ class User::FamilyReferenceRemapper
 
       foreign_tags.each do |tag|
         target = find_or_create_by_name(new_family.tags, tag.name) do
-          new_family.tags.create!(name: tag.name, color: tag.color)
+          new_family.tags.create!(name: tag.name, color: valid_color(tag.color))
         end
 
         # A transaction that already carries the target tag keeps just one tagging.
@@ -87,12 +92,19 @@ class User::FamilyReferenceRemapper
 
     # Enrichments record the value an automatic source set, and
     # Transaction.enriched_from_sql only counts a claim whose value still equals
-    # the column. They move along so a remap is not mistaken for a user edit.
+    # the column. They move along so a remap is not mistaken for a user edit;
+    # updated_at stays, because it marks when the claim was made.
     def repoint!(attribute, from, to)
       transactions.where(attribute => from.id).update_all(attribute => to.id, updated_at: Time.current)
       DataEnrichment
         .where(enrichable_type: "Transaction", enrichable_id: transactions.select(:id), attribute_name: attribute.to_s, value: from.id)
-        .update_all(value: to.id, updated_at: Time.current)
+        .update_all(value: to.id)
+    end
+
+    # Records saved before today's color validation would make the copy invalid
+    # and roll back the whole transfer; those fall back to the default color.
+    def valid_color(color)
+      color if color.is_a?(String) && color.match?(/\A#[0-9A-Fa-f]{6}\z/)
     end
 
     # The savepoint lets a concurrent insert of the same name lose on the

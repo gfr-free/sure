@@ -85,11 +85,41 @@ class User::FamilyReferenceRemapperTest < ActiveSupport::TestCase
     entry = create_transaction(account: @account)
     transaction = entry.entryable
     assert transaction.enrich_attributes({ category_id: categories(:food_and_drink).id, merchant_id: merchants(:netflix).id }, source: "ai")
+    claimed_at = DataEnrichment.where(enrichable: transaction).pluck(:attribute_name, :updated_at).to_h
 
     @user.transfer_to_family!(@new_family, role: "admin")
 
+    transaction.reload
+    assert_equal @new_family, transaction.category.family
+    assert_equal @new_family, transaction.merchant.family
+    assert_equal claimed_at, DataEnrichment.where(enrichable: transaction).pluck(:attribute_name, :updated_at).to_h
     assert Transaction.where(id: transaction.id).where(Transaction.enriched_from_sql("category_id", "ai")).exists?
     assert Transaction.where(id: transaction.id).where(Transaction.enriched_from_sql("merchant_id", "ai")).exists?
+  end
+
+  test "transfer_to_family! uses a record created concurrently under the same name" do
+    entry = create_transaction(account: @account, tags: [ tags(:one) ])
+    concurrent = @new_family.tags.create!(name: "Trips", color: "#e99537")
+    tags_scope = @new_family.tags
+    Family.any_instance.stubs(:tags).returns(tags_scope)
+    # The first lookup misses, as if the other insert had not committed yet.
+    tags_scope.stubs(:find_by).with(name: "Trips").returns(nil)
+    tags_scope.stubs(:create!).raises(ActiveRecord::RecordNotUnique)
+
+    @user.transfer_to_family!(@new_family, role: "admin")
+
+    assert_equal [ concurrent ], entry.reload.entryable.tags.to_a
+  end
+
+  test "transfer_to_family! copies a record whose stored color no longer validates" do
+    categories(:one).update_column(:color, "blue")
+    entry = create_transaction(account: @account, category: categories(:one))
+
+    @user.transfer_to_family!(@new_family, role: "admin")
+
+    category = entry.reload.entryable.category
+    assert_equal @new_family, category.family
+    assert_equal Category.column_defaults["color"], category.color
   end
 
   test "transfer_to_family! leaves entries of accounts that stay behind untouched" do

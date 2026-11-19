@@ -87,10 +87,6 @@ class Entry < ApplicationRecord
   }
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
-  # A leg a person's clearing account holds for this entry mirrors it, so it
-  # goes with it (unsplitting included); see Counterparty::Assignment.
-  before_destroy :remember_clearing_leg
-  after_destroy :destroy_clearing_leg
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   # Any other write of `excluded` (a user toggling it, a reconciliation) ends the
@@ -1058,22 +1054,6 @@ class Entry < ApplicationRecord
     #
     # Explicit transaction + lock!, not with_lock: Entry#transaction is the delegated_type
     # accessor for the Transaction entryable, so with_lock silently never yields.
-    def remember_clearing_leg
-      @mirrored_clearing_leg = (Counterparty::Assignment.clearing_leg_for(self) if entryable.is_a?(Transaction) && entryable.transfer?)
-    end
-
-    def destroy_clearing_leg
-      leg = @mirrored_clearing_leg
-      @mirrored_clearing_leg = nil
-      return unless leg
-
-      clearing_account = leg.account
-      leg.reload.destroy!
-      clearing_account.sync_later(window_start_date: date)
-    rescue ActiveRecord::RecordNotFound
-      nil
-    end
-
     def with_split_lock
       self.class.transaction do
         txn = entryable if entryable.is_a?(Transaction)

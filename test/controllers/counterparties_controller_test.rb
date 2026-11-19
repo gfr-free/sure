@@ -93,7 +93,7 @@ class CounterpartiesControllerTest < ActionDispatch::IntegrationTest
   test "forgiving books the open balance" do
     person = @family.counterparties.create!(name: "Alex", default_currency: "USD", created_by: @user)
     account = person.clearing_account_for!("USD", user: @user)
-    account.update!(balance: 12)
+    Counterparty::Assignment.new(create_transaction(account: accounts(:depository), amount: 12)).update!(person, user: @user)
 
     get new_counterparty_forgiveness_path(person, account_id: account.id)
     assert_response :success

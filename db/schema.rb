@@ -590,8 +590,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_150000) do
     t.string "name", null: false
     t.text "note"
     t.datetime "updated_at", null: false
-    t.index "family_id, lower((name)::text)", name: "index_counterparties_on_family_id_and_lower_name", unique: true
     t.index ["created_by_id"], name: "index_counterparties_on_created_by_id"
+    t.index "family_id, created_by_id, lower((name)::text)", name: "index_counterparties_on_family_creator_and_lower_name", unique: true
     t.index ["family_id"], name: "index_counterparties_on_family_id"
   end
 

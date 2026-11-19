@@ -146,6 +146,16 @@ module TransactionsHelper
   # - the Brandfetch settings that shape logo URLs
   #
   # Add a file to TRANSACTION_ROW_SOURCES when the row starts rendering it.
+  # A bank transaction booked to a person opens in its own drawer, where the
+  # person can be changed or removed, rather than in the transfer drawer.
+  def person_transfer?(transaction)
+    transfer = transaction.transfer
+    return false unless transfer&.confirmed?
+
+    counterpart = transaction.transfer_as_outflow.present? ? transfer.to_account : transfer.from_account
+    counterpart&.clearing? && !transaction.entry.account.clearing?
+  end
+
   def transaction_row_cache_key(entry, view_ctx:, in_split_group:)
     transaction = entry.entryable
     transfer = transaction.transfer

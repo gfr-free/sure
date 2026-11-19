@@ -9,7 +9,7 @@ class CreateCounterpartiesAndClearings < ActiveRecord::Migration[8.1]
       t.datetime :archived_at
       t.timestamps
     end
-    add_index :counterparties, "family_id, lower(name)", unique: true, name: "index_counterparties_on_family_id_and_lower_name"
+    add_index :counterparties, "family_id, created_by_id, lower(name)", unique: true, name: "index_counterparties_on_family_creator_and_lower_name"
 
     create_table :clearings, id: :uuid do |t|
       t.references :counterparty, null: false, foreign_key: true, type: :uuid

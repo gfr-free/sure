@@ -73,4 +73,17 @@ class Transactions::CounterpartiesControllerTest < ActionDispatch::IntegrationTe
 
     assert_select "form[action=?]", transaction_counterparty_path(@entry), count: 0
   end
+
+  test "a booked transaction opens in its own drawer, where the person can be changed" do
+    Counterparty::Assignment.new(@entry).update!(@person, user: @user)
+    transfer = @entry.reload.transaction.transfer
+
+    get transactions_path(q: { search: "Concert" })
+
+    assert_select "a[href=?]", transfer_path(transfer), count: 0
+    assert_select "a[href=?]", entry_path(@entry)
+
+    get transaction_path(@entry)
+    assert_select "input[name=?]", "transaction_counterparty[counterparty_id]"
+  end
 end

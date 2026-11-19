@@ -139,4 +139,61 @@ class Counterparty::AssignmentTest < ActiveSupport::TestCase
     legs.each { |leg| assert_not Entry.exists?(leg.id) }
     assert_equal "standard", parent.reload.transaction.kind
   end
+
+  test "removing the transfer removes the person's leg" do
+    entry = create_transaction(account: @checking, amount: 60)
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    entry.reload.transaction.transfer.destroy!
+
+    assert_not Entry.exists?(leg.id)
+    assert_equal "standard", entry.reload.transaction.kind
+  end
+
+  test "deleting the bank account removes the person's legs" do
+    entry = create_transaction(account: @checking, amount: 60)
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    @checking.reload.destroy!
+
+    assert_not Entry.exists?(leg.id)
+    assert Account.exists?(leg.account_id)
+  end
+
+  test "deleting the clearing account gives the bank entry back its own kind" do
+    entry = create_transaction(account: @checking, amount: 60)
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    leg.account.destroy!
+
+    assert Entry.exists?(entry.id)
+    assert_equal "standard", entry.reload.transaction.kind
+  end
+
+  test "a payback into an investment account is no contribution" do
+    entry = create_transaction(account: accounts(:investment), amount: -50, name: "Payback")
+
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    assert_equal "funds_movement", leg.reload.transaction.kind
+    assert_nil leg.transaction.category
+    assert_equal "funds_movement", entry.reload.transaction.kind
+  end
+
+  test "an old booking moves the person's opening balance back" do
+    entry = create_transaction(account: @checking, amount: 100, date: 3.years.ago.to_date)
+
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    clearing = leg.account.reload
+    assert clearing.opening_anchor_date < entry.date
+    Balance::Materializer.new(clearing, strategy: :forward).materialize_balances
+    assert_equal 100, clearing.reload.balance
+  end
+
+  test "a zero amount can't be assigned" do
+    entry = create_transaction(account: @checking, amount: 0)
+
+    assert_not Counterparty::Assignment.new(entry).assignable?
+  end
 end

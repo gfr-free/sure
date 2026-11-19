@@ -13,14 +13,14 @@
   </header>
 
   <section class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    <div class="bg-container rounded-xl shadow-border-xs p-4">
+    <%= render DS::Card.new do %>
       <p class="text-xs font-medium uppercase text-secondary"><%= t(".owed_to_me") %></p>
       <p class="text-2xl font-medium text-primary tabular-nums mt-1 privacy-sensitive"><%= @totals[:owed_to_me].format %></p>
-    </div>
-    <div class="bg-container rounded-xl shadow-border-xs p-4">
+    <% end %>
+    <%= render DS::Card.new do %>
       <p class="text-xs font-medium uppercase text-secondary"><%= t(".i_owe") %></p>
       <p class="text-2xl font-medium text-primary tabular-nums mt-1 privacy-sensitive"><%= @totals[:i_owe].format %></p>
-    </div>
+    <% end %>
   </section>
 
   <nav class="flex gap-2" aria-label="<%= t(".filter") %>">
@@ -34,11 +34,11 @@
     <% end %>
   </nav>
 
-  <div class="bg-container rounded-xl shadow-border-xs p-1">
+  <%= render DS::Card.new(class: "py-2") do %>
     <% if @counterparties.any? %>
       <% @counterparties.each_with_index do |person, index| %>
         <%= render "shared/ruler" if index.positive? %>
-        <%= link_to counterparty_path(person), class: "flex items-center justify-between gap-3 px-4 py-3 rounded-lg hover:bg-surface-hover" do %>
+        <%= link_to counterparty_path(person), class: "flex items-center justify-between gap-3 -mx-3 px-3 py-3 rounded-lg hover:bg-surface-hover" do %>
           <div class="flex items-center gap-3 min-w-0">
             <%= render DS::FilledIcon.new(icon: "user", variant: :container, size: "md") %>
             <p class="text-sm font-medium text-primary truncate"><%= person.name %></p>
@@ -55,10 +55,7 @@
         <% end %>
       <% end %>
     <% else %>
-      <div class="py-16 text-center">
-        <p class="text-sm text-primary font-medium"><%= t(".empty.#{@status}") %></p>
-        <p class="text-sm text-secondary mt-1 max-w-md mx-auto"><%= t(".empty_hint") %></p>
-      </div>
+      <%= render DS::EmptyState.new(icon: "users", title: t(".empty.#{@status}"), description: t(".empty_hint")) %>
     <% end %>
-  </div>
+  <% end %>
 </div>

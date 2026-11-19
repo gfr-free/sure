@@ -37,6 +37,7 @@ class Counterparty::Assignment
       !entry.account.clearing? &&
       !entry.split_parent? &&
       !entry.excluded? &&
+      !entry.amount.zero? &&
       !transaction.pending? &&
       (transaction.transfer.nil? || clearing_leg.present?)
   end
@@ -71,6 +72,8 @@ class Counterparty::Assignment
       )
       transfer.save!
       transfer.confirm!
+      # A leg older than the account's zero opening anchor would not count.
+      account.ensure_opening_anchor_precedes_entries
       @clearing_leg = counterpart
     end
 

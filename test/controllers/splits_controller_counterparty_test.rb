@@ -57,6 +57,16 @@ class SplitsControllerCounterpartyTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("accounts.not_authorized"), flash[:alert]
   end
 
+  test "a part may stay with a person who was archived since" do
+    post transaction_split_path(@entry), params: split_params([ [ "Mine", "-60", "" ], [ "Alex", "-40", @person.id ] ])
+    @person.update!(archived_at: Time.current)
+
+    patch transaction_split_path(@entry), params: split_params([ [ "Mine 2", "-60", "" ], [ "Alex", "-40", @person.id ] ])
+
+    child = @entry.reload.child_entries.in_split_order.last
+    assert_equal @person, Counterparty::Assignment.new(child).counterparty
+  end
+
   private
     def split_params(rows)
       { split: { splits: rows.map { |name, amount, person_id| { name: name, amount: amount, category_id: "", counterparty_id: person_id } } } }

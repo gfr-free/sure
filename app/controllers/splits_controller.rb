@@ -38,6 +38,7 @@ class SplitsController < ApplicationController
 
     set_form_options
     @children = @entry.child_entries.in_split_order.includes(entryable: :tags)
+    @child_counterparties = @children.to_h { |child| [ child.id, Counterparty::Assignment.new(child).counterparty ] } if preview_features_enabled?
   end
 
   def update
@@ -108,18 +109,22 @@ class SplitsController < ApplicationController
     end
 
     # The person picked for each row (nil for the user's own part), checked
-    # against what the user may book onto. Redirects and returns nil when a
-    # row names a person the user can't use.
+    # against what the user may book onto. A part may keep a person it is
+    # already booked to, even once they are archived; the leg write check
+    # covers those. Redirects and returns nil when a row names a person the
+    # user can't use.
     def split_counterparties
       ids = raw_splits.map { |row| row[:counterparty_id].presence }
       return ids if ids.none?
 
       people = Current.family.counterparties.visible_to(Current.user).where(id: ids.compact).index_by(&:id)
+      kept_ids = existing_split_legs.map { |leg| leg.account.clearing.counterparty_id }
       ids.map do |id|
         next nil unless id
 
         person = people[id]
-        return forbid_counterparties unless person&.assignable_by?(Current.user, currency: @entry.currency)
+        allowed = person && (kept_ids.include?(person.id) || person.assignable_by?(Current.user, currency: @entry.currency))
+        return forbid_counterparties unless allowed
 
         person
       end
@@ -127,11 +132,14 @@ class SplitsController < ApplicationController
 
     # Editing or removing a split deletes the person legs of its parts.
     def split_counterparty_legs_writable?
-      legs = @entry.child_entries.includes(:entryable).filter_map { |child| Counterparty::Assignment.clearing_leg_for(child) }
-      return true if legs.all? { |leg| AccountPolicy.new(Current.user, leg.account).update? }
+      return true if existing_split_legs.all? { |leg| AccountPolicy.new(Current.user, leg.account).update? }
 
       forbid_counterparties
       false
+    end
+
+    def existing_split_legs
+      @existing_split_legs ||= @entry.child_entries.includes(:entryable).filter_map { |child| Counterparty::Assignment.clearing_leg_for(child) }
     end
 
     def forbid_counterparties

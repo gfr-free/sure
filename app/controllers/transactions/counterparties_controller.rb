@@ -21,6 +21,8 @@ class Transactions::CounterpartiesController < ApplicationController
 
     assignment.update!(counterparty, user: Current.user)
     redirect_back_or_to transactions_path, notice: counterparty ? t(".assigned", name: counterparty.name) : t(".released")
+  rescue Counterparty::Assignment::NotAssignable, ActiveRecord::RecordInvalid
+    redirect_back_or_to transactions_path, alert: t(".not_assignable")
   end
 
   private

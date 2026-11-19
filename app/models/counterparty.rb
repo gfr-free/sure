@@ -11,8 +11,12 @@ class Counterparty < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 100 }
   validates :default_currency, presence: true
-  validates :name, uniqueness: { scope: :family_id, case_sensitive: false }
+  # Per creator: a person is private to whoever adds them, so a family-wide
+  # check would refuse a name the member can't see and reveal that it exists.
+  validates :name, uniqueness: { scope: %i[family_id created_by_id], case_sensitive: false }
   validates :default_currency, inclusion: { in: ->(_) { Money::Currency.as_options.map(&:iso_code) } }
+
+  after_update :rename_accounts, if: :saved_change_to_name?
 
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
@@ -57,8 +61,9 @@ class Counterparty < ApplicationRecord
     account.nil? || AccountPolicy.new(user, account).update?
   end
 
-  # Renaming, archiving and forgiving need write access to every clearing
-  # account the person has (or, before the first one, being its creator).
+  # Renaming and archiving need write access to every clearing account the
+  # person has (or, before the first one, being its creator). Forgiving only
+  # needs write access to the account it settles.
   def manageable_by?(user)
     return false if user.nil? || user.family_id != family_id
 
@@ -94,23 +99,34 @@ class Counterparty < ApplicationRecord
 
   # Books the remaining balance of `account` as spending (the user forgives a
   # debt) or income (the person forgives the user's debt), so it reaches zero.
+  # The balance is recalculated under the account lock first, so a booking
+  # whose sync hasn't run yet, or a second click, can't over-forgive.
   def forgive!(account:, category: nil, date: Date.current)
     raise ArgumentError, "account does not belong to this person" unless accounts.exists?(account.id)
-    return nil if account.balance.zero?
 
-    entry = account.entries.create!(
-      date: date,
-      name: I18n.t("counterparties.forgiveness.entry_name", name: name),
-      amount: account.balance,
-      currency: account.currency,
-      user_modified: true,
-      entryable: Transaction.new(category: category)
-    )
-    entry.sync_account_later
+    entry = account.with_lock do
+      Balance::Materializer.new(account, strategy: :forward).materialize_balances
+      balance = account.reload.balance
+      next nil if balance.zero?
+
+      account.entries.create!(
+        date: date,
+        name: I18n.t("counterparties.forgiveness.entry_name", name: name),
+        amount: balance,
+        currency: account.currency,
+        user_modified: true,
+        entryable: Transaction.new(category: category)
+      )
+    end
+    entry&.sync_account_later
     entry
   end
 
   private
+    def rename_accounts
+      accounts.each { |account| account.update!(name: account_name_for(account.currency)) }
+    end
+
     def account_name_for(currency)
       currency == default_currency ? name : "#{name} (#{currency})"
     end

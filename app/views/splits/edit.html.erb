@@ -43,7 +43,7 @@
                      category_id: child.entryable.try(:category_id),
                      merchant_id: child.entryable.try(:merchant_id),
                      tag_ids: child.entryable.try(:tag_ids) || [],
-                     counterparty: Counterparty::Assignment.new(child).counterparty,
+                     counterparty: @child_counterparties&.dig(child.id),
                      counterparties: @counterparties,
                      categories: @categories,
                      merchants: @merchants,

@@ -105,6 +105,19 @@ class Api::V1::AuthControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "signup rechecks local registration under the first-user lock" do
+    AuthConfig.stubs(:local_registration_allowed?).returns(true).then.returns(false)
+
+    assert_no_difference [ "User.count", "Family.count" ] do
+      post "/api/v1/auth/signup", params: {
+        user: { email: "second-bootstrap@example.com", password: "Password1!", password_confirmation: "Password1!" },
+        device: @device_info
+      }
+    end
+
+    assert_response :forbidden
+  end
+
   test "should not signup without device info" do
     assert_no_difference("User.count") do
       post "/api/v1/auth/signup", params: {

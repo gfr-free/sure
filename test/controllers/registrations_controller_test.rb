@@ -249,6 +249,21 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert User.find_by(email: "bootstrap@example.com").super_admin?
   end
 
+  # A concurrent bootstrap signup can commit between the before_action and
+  # the first-user lock; the recheck under the lock refuses the second one.
+  test "create rechecks local registration under the first-user lock" do
+    AuthConfig.stubs(:local_registration_allowed?).returns(true).then.returns(false)
+
+    assert_no_difference [ "User.count", "Family.count" ] do
+      post registration_url, params: { user: {
+        email: "second-bootstrap@example.com",
+        password: "Password1!" } }
+    end
+
+    assert_redirected_to new_session_path
+    assert_equal I18n.t("registrations.local_signup_disabled"), flash[:alert]
+  end
+
   # Invitees join through SSO instead; the invitation stays pending for that.
   test "create does not register an invited user when local login is disabled" do
     AuthConfig.stubs(:local_login_enabled?).returns(false)

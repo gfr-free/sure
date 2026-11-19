@@ -69,6 +69,12 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             User.lock_first_user_role!
+            # Recheck under the lock: a concurrent bootstrap signup may have
+            # used up the first-account exception meanwhile.
+            unless AuthConfig.local_registration_allowed?
+              render json: { error: "Local registration is disabled. Please use single sign-on." }, status: :forbidden
+              raise ActiveRecord::Rollback
+            end
             user.role = User.role_for_new_family_creator
 
             unless user.save

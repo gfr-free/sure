@@ -31,6 +31,8 @@ class RegistrationsController < ApplicationController
 
     if signup_with_invite_claim!
       redirect_to root_path, notice: t(".success")
+    elsif @local_registration_closed
+      redirect_to new_session_path, alert: t("registrations.local_signup_disabled")
     elsif @invite_code_invalid
       redirect_to new_registration_path, alert: t("registrations.create.invalid_invite_code")
     else
@@ -66,6 +68,12 @@ class RegistrationsController < ApplicationController
       ActiveRecord::Base.transaction do
         if @creating_new_family
           User.lock_first_user_role!
+          # The first-account exception is only decided under the lock: a
+          # concurrent bootstrap signup may have committed meanwhile.
+          unless AuthConfig.local_registration_allowed?
+            @local_registration_closed = true
+            raise ActiveRecord::Rollback
+          end
           @user.role = User.role_for_new_family_creator
         end
 

@@ -68,10 +68,11 @@ class Rule::ConditionFilter
     nil
   end
 
-  # Label lookup for value_display. Override when the select labels carry
-  # cosmetic markup (e.g. indented subcategories) that shouldn't reach summaries.
+  # Label lookup for value_display when the select labels carry cosmetic
+  # markup (e.g. indented subcategories) that shouldn't reach summaries.
+  # nil uses the select options.
   def display_options
-    options
+    nil
   end
 
   def operators

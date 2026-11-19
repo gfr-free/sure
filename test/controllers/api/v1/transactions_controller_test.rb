@@ -1352,7 +1352,19 @@ end
              headers: api_headers(key)
       end
       assert_response :not_found, "expected #{account_id} to be not found"
+      assert_equal "record_not_found", JSON.parse(response.body)["error"]
     end
+  end
+
+  test "a full_control member can create a transaction on the shared account" do
+    key, entry = shared_member_key_and_entry("full_control")
+
+    assert_difference -> { entry.account.entries.count }, 1 do
+      post api_v1_transactions_url,
+           params: { transaction: { account_id: entry.account_id, name: "Mine too", amount: 10, date: Date.current, nature: "expense" } },
+           headers: api_headers(key)
+    end
+    assert_response :created
   end
 
   test "a read_write member can change category, merchant and tags" do

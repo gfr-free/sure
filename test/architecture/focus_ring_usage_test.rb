@@ -13,8 +13,18 @@ class FocusRingUsageTest < ActiveSupport::TestCase
   # Matches colored or sized focus rings (`focus:ring-2`, `focus-visible:ring-gray-900`,
   # `focus-within:ring-secondary`, `focus:ring-offset-2`). `focus:ring-0` stays allowed:
   # it neutralizes the @tailwindcss/forms focus box-shadow on native inputs so only
-  # the canonical outline shows.
-  BESPOKE_FOCUS_RING = /(?<![\w-])focus(?:-visible|-within)?:ring(?!-0(?![\w\/.-]))(?:-[\w\/.\[\]-]+)?/
+  # the canonical outline shows. An important modifier (`focus:!ring-2`) counts too.
+  BESPOKE_FOCUS_RING = /(?<![\w-])focus(?:-visible|-within)?:!?ring(?!-0(?![\w\/.-]))(?:-[\w\/.\[\]-]+)?/
+
+  test "the pattern flags bespoke rings and leaves the forms reset alone" do
+    %w[focus:ring-2 focus-visible:ring-gray-900 focus-within:ring-secondary focus:ring-offset-2 focus:!ring-2].each do |klass|
+      assert_match BESPOKE_FOCUS_RING, klass
+    end
+
+    %w[focus:ring-0 focus:!ring-0 focus-ring focus-ring-within].each do |klass|
+      assert_no_match BESPOKE_FOCUS_RING, klass
+    end
+  end
 
   test "keyboard focus uses the canonical focus-ring classes" do
     violations = []

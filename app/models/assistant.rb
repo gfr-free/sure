@@ -48,14 +48,20 @@ module Assistant
     Function::CreateGoal
   ].freeze
 
-  # Guests may view family configuration but not change it, so these tools are
-  # left out of a guest's registry (chat and MCP alike).
+  # Guests may view family configuration (tags, categories, rules) but not
+  # change it, so these tools are left out of a guest's registry (chat and MCP
+  # alike). PreviewRule writes nothing, but it issues the token ApplyRule needs,
+  # and the web blocks guests from a rule's confirmation page too.
   FAMILY_CONFIG_FUNCTION_CLASSES = [
     Function::CreateTag,
     Function::UpdateTag,
     Function::CreateCategory,
     Function::UpdateCategory,
-    Function::DeleteCategory
+    Function::DeleteCategory,
+    Function::CreateRule,
+    Function::UpdateRule,
+    Function::ApplyRule,
+    Function::PreviewRule
   ].freeze
 
   class << self
@@ -80,6 +86,7 @@ module Assistant
       classes = [
         Function::GetTransactions,
         Function::GetRecurringTransactions,
+        Function::GetUncategorizedTransactions,
         Function::GetAccounts,
         Function::GetHoldings,
         Function::GetBalanceSheet,
@@ -118,10 +125,14 @@ module Assistant
       classes -= FAMILY_CONFIG_FUNCTION_CLASSES if user&.guest?
       classes -= BUDGET_FUNCTION_CLASSES if user&.family&.budgets_enabled? == false
       classes -= PLAN_FUNCTION_CLASSES if user&.family&.plan_enabled? == false
-      classes
+      classes.select { |fn_class| ai_feature_available?(fn_class, user) }
     end
 
     private
+      def ai_feature_available?(fn_class, user)
+        feature = fn_class.ai_feature
+        feature.nil? || user.nil? || Ai.available?(feature, family: user.family, user:)
+      end
 
       def implementation_for(chat)
         raise Error, "chat is required" if chat.blank?

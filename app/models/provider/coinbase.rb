@@ -28,6 +28,43 @@ class Provider::Coinbase
 
   attr_reader :api_key, :api_secret
 
+  # Parses a CDP API secret into a signing key. CDP issues two key types:
+  # Ed25519 keys (the default for new keys, a base64 string of the 32-byte seed,
+  # optionally followed by the 32-byte public key) and ECDSA keys (a PEM EC
+  # private key on P-256). PEM keys are read however they were pasted (see
+  # Provider::PrivateKeyPem); a PEM Ed25519 key is accepted too.
+  def self.parse_private_key(secret)
+    if ed25519_secret?(secret)
+      return OpenSSL::PKey.new_raw_private_key("ED25519", decode_base64_secret(secret).byteslice(0, 32))
+    end
+
+    key = Provider::PrivateKeyPem.parse(secret)
+    return key if ed25519_key?(key)
+
+    unless key.is_a?(OpenSSL::PKey::EC) && key.group.curve_name == "prime256v1"
+      raise AuthenticationError, "Coinbase API secret must be an Ed25519 key or an ECDSA (P-256) private key."
+    end
+
+    key
+  rescue Provider::PrivateKeyPem::Error => e
+    raise AuthenticationError, "Coinbase API secret is neither an Ed25519 secret nor a valid ECDSA private key (#{e.message}). Paste the secret exactly as Coinbase shows it; for ECDSA keys include the BEGIN and END lines."
+  end
+
+  def self.ed25519_secret?(secret)
+    !secret.to_s.include?("-----BEGIN") && [ 32, 64 ].include?(decode_base64_secret(secret)&.bytesize)
+  end
+
+  def self.ed25519_key?(key)
+    key.oid == "ED25519"
+  end
+
+  def self.decode_base64_secret(secret)
+    Base64.strict_decode64(secret.to_s.strip)
+  rescue ArgumentError
+    nil
+  end
+  private_class_method :decode_base64_secret
+
   def initialize(api_key:, api_secret:)
     @api_key = api_key
     @api_secret = api_secret
@@ -152,43 +189,11 @@ class Provider::Coinbase
       raise
     end
 
-    # Parses a PEM EC private key, normalizing literal \n sequences to real
-    # newlines. Coinbase CDP keys are often stored or pasted as a single-line
-    # string with escaped newlines (e.g. copied directly from the JSON download
-    # file), or with the newlines collapsed to spaces. All forms are accepted.
-    def parse_ec_private_key(pem)
-      pem = pem.to_s.gsub('\n', "\n").strip
-      if (parts = pem.match(/\A(-----BEGIN [A-Z ]+-----)\s*(.+?)\s*(-----END [A-Z ]+-----)\z/m))
-        body = parts[2].gsub(/\s+/, "").scan(/.{1,64}/)
-        pem = [ parts[1], *body, parts[3] ].join("\n")
-      end
-      OpenSSL::PKey::EC.new(pem)
-    end
-
-    # Ed25519 secrets (the CDP default for new keys) are base64 of the 32-byte
-    # seed followed by the 32-byte public key. A bare 32-byte seed also works.
-    def ed25519_secret?(secret)
-      secret = secret.to_s
-      !secret.include?("-----BEGIN") && [ 32, 64 ].include?(decode_ed25519_secret(secret)&.bytesize)
-    end
-
-    def decode_ed25519_secret(secret)
-      Base64.strict_decode64(secret.to_s.strip)
-    rescue ArgumentError
-      nil
-    end
-
-    def parse_ed25519_private_key(secret)
-      OpenSSL::PKey.new_raw_private_key("ED25519", decode_ed25519_secret(secret).byteslice(0, 32))
-    end
-
-    # Generate JWT token for CDP API authentication.
-    # Coinbase CDP issues two key types: ECDSA keys (a PEM EC private key,
-    # signed with ES256) and Ed25519 keys (a base64 secret, signed with EdDSA).
-    # PEM keys may use real newlines or literal \n.
+    # Generate JWT token for CDP API authentication: EdDSA for Ed25519 keys,
+    # ES256 for ECDSA P-256 keys.
     def generate_jwt(method, path)
-      ed25519 = ed25519_secret?(api_secret)
-      private_key = ed25519 ? parse_ed25519_private_key(api_secret) : parse_ec_private_key(api_secret)
+      private_key = @private_key ||= self.class.parse_private_key(api_secret)
+      ed25519 = self.class.ed25519_key?(private_key)
 
       now = Time.now.to_i
       uri = "#{method} api.coinbase.com#{path}"

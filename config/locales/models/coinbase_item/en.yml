@@ -1,0 +1,12 @@
+---
+en:
+  activerecord:
+    attributes:
+      coinbase_item:
+        api_secret: API secret
+    errors:
+      models:
+        coinbase_item:
+          attributes:
+            api_secret:
+              invalid_key: is neither an Ed25519 secret nor an ECDSA (P-256) private key. Paste the secret exactly as Coinbase shows it; for ECDSA keys include the BEGIN and END lines.

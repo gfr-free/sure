@@ -46,7 +46,7 @@ class ProviderItemSyncCompleteEventsTest < ActiveSupport::TestCase
   # Providers without fixtures, built with only what their validations need.
   {
     "akahu_item" => { app_token: "app", user_token: "user" },
-    "coinbase_item" => { api_key: "key", api_secret: "secret" },
+    "coinbase_item" => { api_key: "key", api_secret: OpenSSL::PKey::EC.generate("prime256v1").to_pem },
     "coinstats_item" => { api_key: "key" },
     "sophtron_item" => { user_id: "user", access_key: "key" },
     "up_item" => { access_token: "token" }

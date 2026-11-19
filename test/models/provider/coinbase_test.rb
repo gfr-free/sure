@@ -26,15 +26,15 @@ class Provider::CoinbaseTest < ActiveSupport::TestCase
     @provider_escaped = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: @test_key_single_line)
   end
 
-  # --- parse_ec_private_key ---
+  # --- parse_private_key ---
 
-  test "parse_ec_private_key accepts real-newline PEM" do
-    key = @provider.send(:parse_ec_private_key, @test_key_multiline)
+  test "parse_private_key accepts real-newline PEM" do
+    key = Provider::Coinbase.parse_private_key(@test_key_multiline)
     assert_instance_of OpenSSL::PKey::EC, key
   end
 
-  test "parse_ec_private_key accepts escaped-newline PEM (JSON paste format)" do
-    key = @provider.send(:parse_ec_private_key, @test_key_single_line)
+  test "parse_private_key accepts escaped-newline PEM (JSON paste format)" do
+    key = Provider::Coinbase.parse_private_key(@test_key_single_line)
     assert_instance_of OpenSSL::PKey::EC, key
   end
 
@@ -99,10 +99,50 @@ class Provider::CoinbaseTest < ActiveSupport::TestCase
       "JWT signature must verify against the EC public key"
   end
 
-  test "parse_ec_private_key accepts PEM with newlines collapsed to spaces" do
-    spaced = @test_key_multiline.strip.gsub("\n", " ")
-    key = @provider.send(:parse_ec_private_key, spaced)
-    assert_instance_of OpenSSL::PKey::EC, key
+  # --- pasted key formats ---
+
+  test "generate_jwt accepts a PEM pasted into the single-line secret field" do
+    # Browsers turn the line breaks of a pasted multi-line PEM into spaces.
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: @test_key_multiline.gsub("\n", " "))
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt accepts a quoted PEM with escaped CRLF line breaks" do
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: %("#{@test_key_multiline.gsub("\n", '\r\n')}"))
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt accepts a PKCS#8 EC key" do
+    pkcs8 = OpenSSL::PKey::EC.new(@test_key_multiline).private_to_pem
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: pkcs8)
+
+    assert_equal 3, provider.send(:generate_jwt, "GET", "/v2/user").split(".").length
+  end
+
+  test "generate_jwt accepts an Ed25519 key pasted as PEM" do
+    key = OpenSSL::PKey.generate_key("ED25519")
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: key.private_to_pem.gsub("\n", " "))
+
+    jwt = provider.send(:generate_jwt, "GET", "/v2/user")
+    encoded_header, encoded_payload, encoded_sig = jwt.split(".")
+    assert_equal "EdDSA", JSON.parse(jwt_decode_part(encoded_header))["alg"]
+    assert key.verify(nil, jwt_decode_part(encoded_sig), "#{encoded_header}.#{encoded_payload}")
+  end
+
+  test "generate_jwt parses the secret once per provider" do
+    Provider::PrivateKeyPem.expects(:parse).once.returns(OpenSSL::PKey::EC.new(@test_key_multiline))
+
+    2.times { @provider.send(:generate_jwt, "GET", "/v2/user") }
+  end
+
+  test "generate_jwt rejects an EC key on a curve other than P-256" do
+    other_curve = OpenSSL::PKey::EC.generate("secp384r1").to_pem
+    provider = Provider::Coinbase.new(api_key: TEST_API_KEY, api_secret: other_curve)
+
+    error = assert_raises(Provider::Coinbase::AuthenticationError) { provider.send(:generate_jwt, "GET", "/v2/user") }
+    assert_match "P-256", error.message
   end
 
   # --- Ed25519 keys (CDP default for new API keys) ---
@@ -139,8 +179,8 @@ class Provider::CoinbaseTest < ActiveSupport::TestCase
   end
 
   test "PEM keys are not mistaken for Ed25519 secrets" do
-    refute @provider.send(:ed25519_secret?, @test_key_multiline)
-    refute @provider.send(:ed25519_secret?, @test_key_single_line)
+    refute Provider::Coinbase.ed25519_secret?(@test_key_multiline)
+    refute Provider::Coinbase.ed25519_secret?(@test_key_single_line)
   end
 
   # --- paginated_get: rate limits mid-pagination ---

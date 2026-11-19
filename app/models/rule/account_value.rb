@@ -9,12 +9,9 @@ module Rule::AccountValue
 
   # Keeping the stored account as an option means saving the form doesn't
   # silently switch it to the first account in the list.
-  def options_for(value)
-    visible = options
-    return visible if value.blank? || visible.any? { |_name, id| id.casecmp?(value.to_s) }
-
+  def option_for(value)
     name = accessible_accounts.where(id: value).pick(:name) if Rule::AccountValue.uuid?(value)
-    [ [ name || I18n.t("rule.account_not_shared"), value.to_s ], *visible ]
+    [ name || I18n.t("rule.account_not_shared"), value.to_s ]
   end
 
   # Without a signed-in user (jobs, imports) there is no viewer to check.

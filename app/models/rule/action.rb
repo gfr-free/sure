@@ -33,6 +33,13 @@ class Rule::Action < ApplicationRecord
   before_validation :build_split_value, if: -> { action_type == "split_transaction" && split_rows.present? }
   validate :split_config_valid, if: -> { action_type == "split_transaction" }
   validate :value_selectable, if: :value_choice_changing?
+  # The rule runs for the whole family, so the merchant a user picks must be one
+  # they can see. Checked only when a user sets the value; a merchant another
+  # member saved stays as it is (see #options).
+  validate :merchant_assignable_by_user, if: -> {
+    action_type == "set_transaction_merchant" && Current.user && value.present? &&
+      (new_record? || will_save_change_to_value? || will_save_change_to_action_type?)
+  }
 
   # Pre-seed (watermark): when an EMAIL_NOTIFICATION action is created — on a
   # new rule OR added to an existing one — record all currently-matching
@@ -97,7 +104,15 @@ class Rule::Action < ApplicationRecord
   # Only a stored value brings along an account the viewer can't access, so a
   # rejected new choice renders the same as an account that doesn't exist.
   def options
-    executor.options_for(will_save_change_to_value? ? nil : value)
+    stored = will_save_change_to_value? ? nil : value
+    executor_options = rule.option_list([ :action, action_type ]) { executor.options }
+    return executor_options if executor_options.nil? || stored.blank?
+    return executor_options if executor_options.any? { |_label, id| id.to_s == stored.to_s }
+
+    # Shared across the rules of a page (see Rule.share_option_lists), so a
+    # saved value outside the options is looked up once per request.
+    saved_option = rule.option_list([ :saved_action_option, action_type, stored.to_s ]) { executor.option_for(stored) }
+    saved_option ? executor_options + [ saved_option ] : executor_options
   end
 
   def claimed_attributes
@@ -142,6 +157,12 @@ class Rule::Action < ApplicationRecord
       return unless action_type.in?(SUPPORTED_ACTION_TYPES) && rule&.resource_type.in?(Rule::SUPPORTED_RESOURCE_TYPES)
 
       errors.add(:value, :not_selectable) unless executor.selectable_value?(value)
+    end
+
+    def merchant_assignable_by_user
+      return if UuidFormat.valid?(value) && rule&.family&.assignable_merchants_for(Current.user)&.exists?(id: value)
+
+      errors.add(:value, :invalid)
     end
 
     def execution_value

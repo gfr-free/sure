@@ -68,9 +68,10 @@ class Rule::ConditionFilter
     nil
   end
 
-  # Options for a condition or action that already holds +value+.
-  def options_for(value)
-    options
+  # The option for a saved value that options leaves out, so editing the rule
+  # keeps the value. nil if there is none.
+  def option_for(value)
+    nil
   end
 
   # Whether the current user may newly choose +value+.

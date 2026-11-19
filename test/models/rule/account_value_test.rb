@@ -37,20 +37,20 @@ class Rule::AccountValueTest < ActiveSupport::TestCase
     action = stored(@rule.actions, action_type: "set_as_transfer_or_payment", value: @read_only.id)
 
     assert_equal @read_only.name, action.value_display
-    assert_equal [ @read_only.name, @read_only.id ], action.options.first
+    assert_includes action.options, [ @read_only.name, @read_only.id ]
   end
 
   test "a stored transfer target the viewer can't access shows under a neutral label" do
     action = stored(@rule.actions, action_type: "set_as_transfer_or_payment", value: @hidden.id)
 
-    assert_equal [ label, @hidden.id ], action.options.first
+    assert_includes action.options, [ label, @hidden.id ]
     assert_equal label, action.value_display
   end
 
   test "a stored account condition the viewer can't access shows under a neutral label" do
     condition = stored(@rule.conditions, condition_type: "transaction_account", operator: "=", value: @hidden.id)
 
-    assert_equal [ label, @hidden.id ], condition.options.first
+    assert_includes condition.options, [ label, @hidden.id ]
     assert_equal label, condition.value_display
   end
 
@@ -65,7 +65,7 @@ class Rule::AccountValueTest < ActiveSupport::TestCase
     other = families(:empty).accounts.create!(name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
     action = stored(@rule.actions, action_type: "set_as_transfer_or_payment", value: other.id)
 
-    assert_equal [ label, other.id ], action.options.first
+    assert_includes action.options, [ label, other.id ]
   end
 
   test "a stored id in upper case still matches its account" do

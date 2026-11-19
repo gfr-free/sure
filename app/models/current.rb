@@ -47,7 +47,6 @@ class Current < ActiveSupport::CurrentAttributes
   # created, updated, or destroyed.
   def account_share_version
     return "0-" unless user
-    shares = AccountShare.where(user: user)
-    "#{shares.count}-#{shares.maximum(:updated_at)&.to_f}"
+    AccountShare.cache_version_for(user)
   end
 end

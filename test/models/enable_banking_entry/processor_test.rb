@@ -1614,4 +1614,19 @@ class EnableBankingEntry::ProcessorTest < ActiveSupport::TestCase
     assert_equal rows.map { |r| EnableBankingEntry::Processor.compute_external_id(r) },
                  EnableBankingEntry::Processor.external_ids_for(rows)
   end
+  test "external_ids_for tells rows sharing a transaction_id without entry_reference apart by date only" do
+    rows = [
+      { transaction_id: "tid-d", booking_date: "2026-03-05", transaction_amount: { amount: "4.00", currency: "EUR" } },
+      { transaction_id: "tid-d", booking_date: "2026-03-06", transaction_amount: { amount: "4.00", currency: "EUR" } },
+      { transaction_id: "tid-w", entry_reference: "r-1", booking_date: "2026-03-05", transaction_amount: { amount: "1.00", currency: "EUR" } },
+      { transaction_id: "tid-w", entry_reference: " ", booking_date: "2026-03-06", transaction_amount: { amount: "2.00", currency: "EUR" } }
+    ]
+
+    assert_equal [
+      "enable_banking_tid-d",
+      "enable_banking_tid-d_#{Digest::MD5.hexdigest("date:2026-03-06")}",
+      "enable_banking_tid-w",
+      "enable_banking_tid-w_#{Digest::MD5.hexdigest(" ")}"
+    ], EnableBankingEntry::Processor.external_ids_for(rows)
+  end
 end

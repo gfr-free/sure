@@ -35,6 +35,7 @@ class EnableBankingEntry::Processor
   # Prefix of the identifier synthesised for a transaction the ASPSP returned
   # with neither transaction_id nor entry_reference.
   CONTENT_ID_PREFIX = "enable_banking_content_"
+  BLANK_REFERENCE_DIGEST = Digest::MD5.hexdigest("").freeze
 
   # extra key listing external_ids a transaction was previously stored under.
   #
@@ -79,10 +80,11 @@ class EnableBankingEntry::Processor
   end
 
   # One external id per raw row. transaction_id is not guaranteed unique, so booked
-  # rows sharing one are told apart by entry_reference: one keeps
-  # enable_banking_<transaction_id> (the row with its own suffixed entry never does;
-  # otherwise the best match for the entry stored under the plain id, else the first),
-  # the others get enable_banking_<transaction_id>_<MD5(entry_reference)>.
+  # rows sharing one are told apart by entry_reference, or by their date when they
+  # have none: one keeps enable_banking_<transaction_id> (the row with its own
+  # suffixed entry never does; otherwise the best match for the entry stored under
+  # the plain id, else the first), the others get
+  # enable_banking_<transaction_id>_<MD5(entry_reference or "date:<date>")>.
   # Pending rows keep compute_external_id.
   #
   # @return [Array<String, nil>]
@@ -90,12 +92,22 @@ class EnableBankingEntry::Processor
     rows = raw_transactions.map(&:with_indifferent_access)
     ids = rows.map { |data| compute_external_id(data) }
     ref = ->(i) { rows[i][:entry_reference].to_s }
-    suffixed = ->(i) { "#{ids[i]}_#{Digest::MD5.hexdigest(ref[i])}" }
+    # Without a reference, rows on the same date are one movement whose details the
+    # ASPSP may correct; rows on different dates are separate movements.
+    key = ->(i) { ref[i].empty? ? "date:#{rows[i][:booking_date].presence || rows[i][:value_date].presence || rows[i][:transaction_date]}" : ref[i] }
+    suffixed = ->(i) { "#{ids[i]}_#{Digest::MD5.hexdigest(key[i])}" }
+    # Entries of rows without an entry_reference may still be stored under MD5("").
+    blank_suffixed = ->(i) { "#{ids[i]}_#{BLANK_REFERENCE_DIGEST}" }
     groups = rows.each_index.select { |i| rows[i][:transaction_id].present? && !pending_payload?(rows[i]) }.group_by { |i| ids[i] }
-    stored = account ? account.entries.where(source: "enable_banking", external_id: groups.flat_map { |id, is| [ id, *is.map(&suffixed) ] }).includes(:entryable).index_by(&:external_id) : {}
+    stored_ids = groups.flat_map { |id, is| [ id, *is.map(&suffixed), *is.select { |i| ref[i].empty? }.map(&blank_suffixed) ] }
+    stored = account ? account.entries.where(source: "enable_banking", external_id: stored_ids.uniq).includes(:entryable).index_by(&:external_id) : {}
 
     groups.each do |legacy_id, indexes|
-      free = indexes.reject { |i| stored.key?(suffixed[i]) }
+      # An entry stored under MD5("") belongs to the row without an entry_reference that
+      # matches it, which keeps that id like a row with its own suffixed entry.
+      blank_id = "#{legacy_id}_#{BLANK_REFERENCE_DIGEST}"
+      heir = blank_heir(stored[blank_id], indexes.select { |i| ref[i].empty? && !stored.key?(suffixed[i]) }, rows, account)
+      free = indexes.reject { |i| i == heir || stored.key?(suffixed[i]) }
       legacy = stored[legacy_id]
       kept = legacy&.entryable.try(:provider_entry_reference)
       # Without a stored reference, a locked currency is the owner's change, not the bank's: match on amount and date
@@ -113,9 +125,28 @@ class EnableBankingEntry::Processor
       own_date = legacy && (legacy.locked?(:date) || legacy.entryable.try(:extra)&.key?("auto_claimed_pending_ids"))
       owner = nil if kept && indexes.none? { |i| ref[i] == kept } && owner && score[owner] < (own_date ? 1 : 2)
       owner = nil if !kept && owner && legacy && free.size < indexes.size && score[owner].zero? && !legacy.protected_from_sync? && !legacy.locked?(:amount) && !legacy.locked?(:currency)
-      indexes.each { |i| ids[i] = suffixed[i] unless owner && ref[i] == ref[owner] }
+      indexes.each { |i| ids[i] = suffixed[i] unless owner && key[i] == key[owner] }
+      ids[heir] = blank_id if heir
     end
     ids
+  end
+
+  # The row an entry stored under MD5("") belongs to: the best match on amount, then
+  # date. None when no row matches either, so an unrelated row never overwrites it.
+  def self.blank_heir(entry, candidates, rows, account)
+    return if entry.nil?
+
+    scored = candidates.each_with_index.map do |i, pos|
+      [ i, [ movement_match(entry, rows[i], account), same_date?(entry, rows[i], account) ? 1 : 0, -pos ] ]
+    end
+    best = scored.max_by(&:last)
+    best.first if best && (best.last[0].positive? || best.last[1].positive?)
+  end
+
+  def self.same_date?(entry, data, account)
+    entry.date == transaction_date(data, account.family&.timezone)
+  rescue ArgumentError, TypeError
+    false
   end
 
   # 2: same signed amount, currency and date as the entry; 1: same signed amount and currency; 0: neither.

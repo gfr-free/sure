@@ -79,6 +79,7 @@ de:
       none: "(niemand)"
       hint: Für jemanden bezahlt oder Geld von jemandem bekommen? Wähle die Person.
       assigned_hint: "Bei %{name} gebucht: zählt nicht mehr als deine Einnahme oder Ausgabe."
+      hidden_hint: Einer Person zugeordnet, deren Konto ein anderes Mitglied führt.
       manage: Personen
     counterparties:
       update:

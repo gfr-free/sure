@@ -23,6 +23,18 @@ class Counterparty::Assignment
     other_entry if other_entry&.account&.clearing?
   end
 
+  # Deleting an entry, or a split parent with its parts, deletes the clearing
+  # legs that mirror them, so whoever deletes must be able to write to every
+  # clearing account involved; a leg is private to the person's keeper.
+  def self.legs_deletable_by?(entries, user)
+    entries = Array(entries)
+    parts = Entry.where(parent_entry_id: entries.map(&:id)).includes(:entryable).to_a
+    (entries + parts).all? do |entry|
+      leg = clearing_leg_for(entry)
+      leg.nil? || AccountPolicy.new(user, leg.account).update?
+    end
+  end
+
   def initialize(entry)
     @entry = entry
   end

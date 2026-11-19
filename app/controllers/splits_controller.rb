@@ -38,7 +38,13 @@ class SplitsController < ApplicationController
 
     set_form_options
     @children = @entry.child_entries.in_split_order.includes(entryable: :tags)
-    @child_counterparties = @children.to_h { |child| [ child.id, Counterparty::Assignment.new(child).counterparty ] } if preview_features_enabled?
+    if preview_features_enabled?
+      visible_ids = Current.family.counterparties.visible_to(Current.user).pluck(:id).to_set
+      @child_counterparties = @children.to_h do |child|
+        person = Counterparty::Assignment.new(child).counterparty
+        [ child.id, (person if person && visible_ids.include?(person.id)) ]
+      end
+    end
   end
 
   def update

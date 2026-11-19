@@ -1,7 +1,10 @@
 <%# locals: (entry:) %>
 <%# The person this transaction (or split part) was paid for or received
     from. Choosing one books it onto that person's clearing account. %>
-<% if (picker = counterparty_picker_for(entry)) %>
+<% picker = counterparty_picker_for(entry) %>
+<% if picker&.hidden %>
+  <p class="text-xs text-secondary"><%= t(".hidden_hint") %></p>
+<% elsif picker %>
   <% current = picker.current %>
   <%= styled_form_with url: transaction_counterparty_path(entry),
         method: :patch,

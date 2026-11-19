@@ -79,6 +79,7 @@ en:
       none: "(nobody)"
       hint: Paid for someone, or money from them? Choose the person.
       assigned_hint: "Booked to %{name}: no longer counted as your income or spending."
+      hidden_hint: Booked to a person whose account another member keeps.
       manage: People
     counterparties:
       update:

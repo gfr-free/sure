@@ -95,15 +95,15 @@ class Rule::Condition < ApplicationRecord
     end
   end
 
-  # Only a stored value brings along an account the viewer can't access, so a
-  # rejected new choice renders the same as an account that doesn't exist.
+  # A new value the viewer may not choose adds no option, so a rejected
+  # choice renders the same as a value that doesn't exist.
   def options
-    stored = will_save_change_to_value? ? nil : value
     filter_options = rule.option_list([ :condition, condition_type ]) { filter.options }
-    return filter_options if filter_options.nil? || stored.blank?
-    return filter_options if filter_options.any? { |_label, id| id.to_s == stored.to_s }
+    return filter_options if filter_options.nil? || value.blank?
+    return filter_options if filter_options.any? { |_label, id| id.to_s == value.to_s }
+    return filter_options if will_save_change_to_value? && !filter.selectable_value?(value)
 
-    saved_option = rule.option_list([ :saved_condition_option, condition_type, stored.to_s ]) { filter.option_for(stored) }
+    saved_option = rule.option_list([ :saved_condition_option, condition_type, value.to_s ]) { filter.option_for(value) }
     saved_option ? filter_options + [ saved_option ] : filter_options
   end
 

@@ -101,17 +101,17 @@ class Rule::Action < ApplicationRecord
     executor.execute(resource_scope, value: execution_value, ignore_attribute_locks: ignore_attribute_locks, rule_run: rule_run) || 0
   end
 
-  # Only a stored value brings along an account the viewer can't access, so a
-  # rejected new choice renders the same as an account that doesn't exist.
+  # A new value the viewer may not choose adds no option, so a rejected
+  # choice renders the same as a value that doesn't exist.
   def options
-    stored = will_save_change_to_value? ? nil : value
     executor_options = rule.option_list([ :action, action_type ]) { executor.options }
-    return executor_options if executor_options.nil? || stored.blank?
-    return executor_options if executor_options.any? { |_label, id| id.to_s == stored.to_s }
+    return executor_options if executor_options.nil? || value.blank?
+    return executor_options if executor_options.any? { |_label, id| id.to_s == value.to_s }
+    return executor_options if will_save_change_to_value? && !executor.selectable_value?(value)
 
     # Shared across the rules of a page (see Rule.share_option_lists), so a
     # saved value outside the options is looked up once per request.
-    saved_option = rule.option_list([ :saved_action_option, action_type, stored.to_s ]) { executor.option_for(stored) }
+    saved_option = rule.option_list([ :saved_action_option, action_type, value.to_s ]) { executor.option_for(value) }
     saved_option ? executor_options + [ saved_option ] : executor_options
   end
 

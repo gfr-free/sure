@@ -812,6 +812,9 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
       assert_select "turbo-frame#tag_dropdown", count: 0
     end
     assert_select "#transaction-search-filters", text: /#{I18n.t("transactions.searches.filters.badge.disabled_accounts")}/
+
+    get filters_transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+    assert_response :success
     assert_select "input[type=checkbox][name='q[active_accounts_only]'][value=false][checked]"
   end
 

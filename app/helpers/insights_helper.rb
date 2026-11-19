@@ -225,6 +225,10 @@ module InsightsHelper
   end
 
   private
+    def insight_account(insight)
+      insight.family.accounts.visible.find_by(id: (insight.metadata || {})["account_id"])
+    end
+
     def account_release_caption(insight)
       facts = insight.facts || {}
 
@@ -233,10 +237,6 @@ module InsightsHelper
       when "renewal" then t("insights.figures.renews_on", date: facts["date"])
       else t("insights.figures.released_in", count: facts["days"].to_i)
       end
-    end
-
-    def insight_account(insight)
-      insight.family.accounts.visible.find_by(id: (insight.metadata || {})["account_id"])
     end
 
     # "June" for month-aligned periods, "Next 30 days" / "Last 30 days" for

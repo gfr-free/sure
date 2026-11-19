@@ -64,7 +64,6 @@ en:
         one: free in %{count} day
         other: free in %{count} days
       renews_on: "renews %{date}"
-      vs_previous: vs prior month
       vs_previous_three_months: vs previous three months
       today: today
       on_pace: on pace

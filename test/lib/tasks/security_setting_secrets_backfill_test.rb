@@ -11,7 +11,6 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
   setup do
     skip "Encryption not configured" unless Setting::SecretCodec.active_record_available?
     Rails.application.load_tasks unless Rake::Task.task_defined?("security:backfill_encryption")
-    Provider::Factory.ensure_adapters_loaded
     Setting.where(var: Setting.secret_setting_vars).delete_all
     Setting.settings_secrets_format = Setting::SECRETS_FORMAT_LEGACY
   end
@@ -20,9 +19,10 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
     Setting.clear_cache
   end
 
-  test "converts plaintext, legacy and dynamic secrets and switches new writes" do
+  test "converts plaintext and legacy secrets and switches new writes" do
     store_raw("openai_access_token", legacy("sk-legacy"))
     store_raw("anthropic_access_token", "sk-plain")
+    store_raw("twelve_data_api_key", legacy("td-legacy"))
     store_raw("dynamic:plaid_secret", "plaid-plain")
 
     result = run_task("security:backfill_encryption", "500", "0")["results"]["settings_secrets"]
@@ -30,12 +30,16 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
     assert_equal 0, result["failed_count"]
     assert_equal 3, result["updated"]
     assert_equal Setting::SECRETS_FORMAT_ACTIVE_RECORD, Setting.settings_secrets_format
-    %w[openai_access_token anthropic_access_token dynamic:plaid_secret].each do |var|
+    %w[openai_access_token anthropic_access_token twelve_data_api_key].each do |var|
       assert_equal :active_record, Setting::SecretCodec.format_of(Setting.find_by(var: var).value), var
     end
     assert_equal "sk-legacy", Setting.openai_access_token
     assert_equal "sk-plain", Setting.anthropic_access_token
-    assert_equal "plaid-plain", Setting["plaid_secret"]
+    assert_equal "td-legacy", Setting.twelve_data_api_key
+    # Provider fields without a declared setting are not secrets of this task.
+    assert_equal "plaid-plain", Setting.find_by(var: "dynamic:plaid_secret").value
+  ensure
+    Setting.where(var: "dynamic:plaid_secret").delete_all
   end
 
   test "a dry run reports without writing or switching" do
@@ -150,7 +154,7 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
 
   test "downgrade writes the previous formats back and switches back" do
     store_raw("openai_access_token", legacy("sk-legacy"))
-    store_raw("dynamic:plaid_secret", "plaid-plain")
+    store_raw("anthropic_access_token", "sk-plain")
     run_task("security:backfill_encryption", "500", "0")
 
     report = run_task("security:downgrade_setting_secrets", "0")
@@ -158,8 +162,9 @@ class SecuritySettingSecretsBackfillTest < ActiveSupport::TestCase
     assert report["ok"]
     assert_equal Setting::SECRETS_FORMAT_LEGACY, Setting.settings_secrets_format
     assert_equal :legacy, Setting::SecretCodec.format_of(Setting.find_by(var: "openai_access_token").value)
-    assert_equal "plaid-plain", Setting.find_by(var: "dynamic:plaid_secret").value
+    assert_equal :legacy, Setting::SecretCodec.format_of(Setting.find_by(var: "anthropic_access_token").value)
     assert_equal "sk-legacy", Setting.openai_access_token
+    assert_equal "sk-plain", Setting.anthropic_access_token
   end
 
   test "downgrade defaults to a dry run" do

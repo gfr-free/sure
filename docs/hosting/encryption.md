@@ -80,10 +80,11 @@ Re-enter any setting the report lists under `settings_secrets.not_decryptable`.
 ## Settings secrets
 
 API keys and tokens saved on the settings pages (AI, market data and
-property valuation keys, Plaid secrets, and similar) are encrypted with
+property valuation keys, and similar) are encrypted with
 Active Record Encryption once `security:backfill_encryption` has converted
 them. Before that run, existing values keep their old form: encrypted with a
-key derived from `SECRET_KEY_BASE`, or plaintext for Plaid secrets. The app
+key derived from `SECRET_KEY_BASE`, or plaintext if they were saved before
+that encryption existed. The app
 reads both forms, so the conversion is optional and can wait for a
 convenient maintenance window.
 
@@ -98,11 +99,10 @@ Each value is decrypted, encrypted again, checked to decrypt back to the
 same value, and only then written, and only if nobody changed it in the
 meantime. Values no configured key opens are left untouched and listed by
 name under `settings_secrets.not_decryptable`; they do not fail the run, and
-a later run with the old key still converts them. After a write pass without failures, new values are written with
+a later run with the old key still converts them. After a write pass
+without failures, new values are written with
 Active Record Encryption too. A fresh install without any saved settings
-does that from the start for the keys on the self-hosting page. Plaid
-secrets saved on the bank sync page stay plaintext until the first backfill
-run, as on existing installs.
+does that from the start.
 
 Releases before this change cannot read the new form. Before going back to
 one, write the old form again with the app stopped:

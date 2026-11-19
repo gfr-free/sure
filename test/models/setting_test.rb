@@ -343,34 +343,13 @@ class SettingTest < ActiveSupport::TestCase
     Setting.settings_secrets_format = Setting::SECRETS_FORMAT_LEGACY
   end
 
-  test "dynamic provider secrets stay plaintext before the switch and are encrypted after it" do
-    Provider::Factory.ensure_adapters_loaded
-    store_raw_setting("anthropic_access_token", old_setting_encryptor(Rails.application.secret_key_base).encrypt_and_sign("sk-existing"))
-
-    Setting["plaid_secret"] = "plaid-before"
-    assert_equal "plaid-before", Setting.find_by(var: "dynamic:plaid_secret").value
-
-    with_secrets_format(Setting::SECRETS_FORMAT_ACTIVE_RECORD) do
-      Setting["plaid_secret"] = "plaid-after"
-
-      assert_equal :active_record, Setting::SecretCodec.format_of(Setting.find_by(var: "dynamic:plaid_secret").value)
-      assert_equal "plaid-after", Setting["plaid_secret"]
-      assert_equal "plaid-after", Setting.delete("plaid_secret")
-    end
-  ensure
-    Setting["plaid_secret"] = nil
-    Setting.anthropic_access_token = nil
-  end
-
-  test "secret_setting_vars covers declared secrets and every secret provider field" do
+  test "secret_setting_vars lists the declared secrets and leaves provider fields alone" do
     vars = Setting.secret_setting_vars
 
-    Setting::EncryptedSettingFields::ENCRYPTED_FIELDS.each { |field| assert_includes vars, field.to_s }
-    Provider::ConfigurationRegistry.all.flat_map(&:fields).select(&:secret).each do |field|
-      key = field.setting_key.to_s
-      assert(vars.include?(key) || vars.include?("dynamic:#{key}"), "#{key} is missing")
-    end
+    assert_equal Setting::EncryptedSettingFields::ENCRYPTED_FIELDS.map(&:to_s).sort, vars.sort
     assert_not_includes vars, "encryption_backfill_completed_version"
+    assert_not_includes vars, "settings_secrets_format"
+    assert(vars.none? { |var| var.start_with?("dynamic:") })
   end
 
   private

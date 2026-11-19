@@ -507,7 +507,7 @@ Pass the variable only to these commands, never put it into `.env` or `compose.y
 
 If you already changed `SECRET_KEY_BASE` and logins or syncs broke, run step 2 with the old value in `ACTIVE_RECORD_ENCRYPTION_PREVIOUS_SECRET_KEY_BASE`, then re-encrypt the settings as described next.
 
-Changing `SECRET_KEY_BASE` can also affect settings. API keys and tokens saved on the self-hosting and bank sync settings pages (OpenAI and Anthropic tokens, market data and property valuation keys, Plaid secrets, and similar) move to the Active Record keys above the first time `security:backfill_encryption[100,0]` runs, and from then on follow those keys like every other encrypted field. Until that run they are encrypted with a key derived from `SECRET_KEY_BASE` itself (Plaid secrets: stored as plaintext), which the `previous` scheme does not cover. If you changed `SECRET_KEY_BASE` before that run, give the backfill the old value in `OLD_SECRET_KEY_BASE` as well:
+Changing `SECRET_KEY_BASE` can also affect settings. API keys and tokens saved on the self-hosting settings page (OpenAI and Anthropic tokens, market data and property valuation keys, and similar) move to the Active Record keys above the first time `security:backfill_encryption[100,0]` runs, and from then on follow those keys like every other encrypted field. Until that run they are encrypted with a key derived from `SECRET_KEY_BASE` itself, which the `previous` scheme does not cover. If you changed `SECRET_KEY_BASE` before that run, give the backfill the old value in `OLD_SECRET_KEY_BASE` as well:
 
 ```bash
 read -rs OLD_SECRET_KEY_BASE && export OLD_SECRET_KEY_BASE   # paste the previous value; keeps it out of your shell history

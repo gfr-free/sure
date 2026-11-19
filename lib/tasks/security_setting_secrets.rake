@@ -58,7 +58,6 @@ namespace :security do
     raw_dry = args[:dry_run].presence || ENV["DRY_RUN"].presence
     dry_run = !%w[0 false no n].include?(raw_dry.to_s.strip.downcase)
 
-    declared = Setting::EncryptedSettingFields::ENCRYPTED_FIELDS.map(&:to_s)
     results = {}
     failed = []
 
@@ -76,9 +75,7 @@ namespace :security do
         next
       end
 
-      # Declared fields were encrypted with the settings key before; dynamic
-      # provider secrets were stored as plaintext.
-      old_form = declared.include?(row.var) ? Setting::SecretCodec.encrypt_legacy(plaintext) : plaintext
+      old_form = Setting::SecretCodec.encrypt_legacy(plaintext)
       if Setting.where(id: row.id, value: raw).update_all(value: old_form.to_yaml, updated_at: Time.current) == 1
         results[row.var] = :downgraded
       else

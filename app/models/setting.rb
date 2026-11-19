@@ -173,16 +173,12 @@ class Setting < RailsSettings::Base
     end
 
     # Encrypts a new secret value in the format this install writes.
-    # `legacy_plaintext: true` is for secrets that were stored unencrypted
-    # before the switch (dynamic provider fields such as Plaid's).
-    def encode_secret(value, legacy_plaintext: false)
+    def encode_secret(value)
       return value if value.blank?
 
-      enable_active_record_secrets_on_fresh_install! unless legacy_plaintext
+      enable_active_record_secrets_on_fresh_install!
       if secrets_use_active_record? && Setting::SecretCodec.active_record_available?
         Setting::SecretCodec.encrypt_active_record(value)
-      elsif legacy_plaintext
-        value
       else
         Setting::SecretCodec.encrypt_legacy(value)
       end
@@ -199,14 +195,9 @@ class Setting < RailsSettings::Base
       nil
     end
 
-    # Every `settings.var` that holds a secret: the declared fields above plus
-    # each `secret: true` field of a Provider::Configurable adapter that has no
-    # declared field of its own (stored as "dynamic:<key>").
+    # Every `settings.var` that holds a secret.
     def secret_setting_vars
-      Provider::Factory.ensure_adapters_loaded
-      dynamic = Provider::ConfigurationRegistry.all.flat_map(&:fields).select(&:secret).map { |field| field.setting_key.to_s }
-      declared = ENCRYPTED_FIELDS.map(&:to_s)
-      declared + (dynamic - declared).map { |key| "dynamic:#{key}" }
+      ENCRYPTED_FIELDS.map(&:to_s)
     end
 
     # The settings key is derived from SECRET_KEY_BASE alone, so it is not
@@ -263,14 +254,10 @@ class Setting < RailsSettings::Base
 
       # A fresh install has no stored secret any older process could need to
       # read, so it can write the Active Record format right away.
-      # Counts any dynamic row as a possible secret, so this needs no adapter
-      # loading and errs towards keeping the legacy format.
       def enable_active_record_secrets_on_fresh_install!
         return if secrets_use_active_record?
         return unless Setting::SecretCodec.active_record_available?
-
-        stored = where(var: ENCRYPTED_FIELDS.map(&:to_s)).or(where("var LIKE 'dynamic:%'"))
-        return if stored.where.not(value: Setting::SecretCodec::EMPTY_STORED_VALUES).exists?
+        return if where(var: secret_setting_vars).where.not(value: Setting::SecretCodec::EMPTY_STORED_VALUES).exists?
 
         self.settings_secrets_format = SECRETS_FORMAT_ACTIVE_RECORD
       end
@@ -393,8 +380,7 @@ class Setting < RailsSettings::Base
         public_send(key_str)
       else
         # Fall back to individual dynamic entry lookup
-        value = find_by(var: dynamic_key_name(key_str))&.value
-        secret_dynamic_key?(key_str) ? decode_secret(value, key_str) : value
+        find_by(var: dynamic_key_name(key_str))&.value
       end
     end
 
@@ -411,11 +397,6 @@ class Setting < RailsSettings::Base
           where(var: dynamic_key).destroy_all
           clear_cache
         else
-          # Dynamic secrets were plaintext before the switch; after it, load
-          # every adapter so a secret field is recognized from any caller.
-          if secrets_use_active_record? && secret_dynamic_key?(key_str, load_adapters: true)
-            value = encode_secret(value, legacy_plaintext: true)
-          end
           # Use upsert for atomic insert/update to avoid race conditions
           upsert({ var: dynamic_key, value: value.to_yaml }, unique_by: :var)
           clear_cache
@@ -453,18 +434,6 @@ class Setting < RailsSettings::Base
 
       def dynamic_key_name(key_str)
         "dynamic:#{key_str}"
-      end
-
-      # Secret fields of the provider adapters loaded so far, unless asked to
-      # load them all. Reads come through Provider::Configurable, whose
-      # adapter is loaded by then.
-      def secret_dynamic_key?(key_str, load_adapters: false)
-        Provider::Factory.ensure_adapters_loaded if load_adapters
-        return false unless defined?(Provider::ConfigurationRegistry)
-
-        Provider::ConfigurationRegistry.all.any? do |config|
-          config.fields.any? { |field| field.secret && field.setting_key.to_s == key_str }
-        end
       end
   end
 

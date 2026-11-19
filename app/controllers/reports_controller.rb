@@ -41,11 +41,7 @@ class ReportsController < ApplicationController
   # the report. Preview-only for now; unknown keys fall back to the account
   # type.
   def update_net_worth_grouping
-    if Current.user.preview_features_enabled?
-      dimension = params[:net_worth_grouping].to_s
-      dimension = AccountGrouping::DEFAULT_PRIMARY unless AccountGrouping.valid_dimension?(dimension)
-      Current.user.update_reports_preferences("reports_net_worth_grouping" => dimension)
-    end
+    Current.user.update_reports_net_worth_grouping(params[:net_worth_grouping]) if Current.user.preview_features_enabled?
 
     redirect_back_or_to reports_path, status: :see_other
   end

@@ -81,6 +81,6 @@ class DashboardCustomizeTest < ApplicationSystemTestCase
 
     assert_equal keys, all("section[data-section-key]").map { |section| section["data-section-key"] }
     assert_no_text "null"
-    assert_nil page.evaluate_script("document.documentElement.dataset.orderSaved")
+    assert_nil page.evaluate_script("document.documentElement.dataset.orderRequests")
   end
 end

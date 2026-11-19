@@ -19,6 +19,38 @@ class AssistantTest < ActiveSupport::TestCase
     assert_includes preview_classes, Assistant::Function::GetValuations
   end
 
+  test "guest registry leaves out the tools that change categories and tags" do
+    guest_classes = Assistant.function_classes(family_guest)
+
+    Assistant::FAMILY_CONFIG_FUNCTION_CLASSES.each do |fn_class|
+      assert_not_includes guest_classes, fn_class
+      assert_includes Assistant.function_classes(users(:family_admin)), fn_class
+    end
+    assert_includes guest_classes, Assistant::Function::GetCategories
+  end
+
+  test "guest registry leaves out the rule write tools" do
+    guest_classes = Assistant.function_classes(family_guest)
+    admin_classes = Assistant.function_classes(users(:family_admin))
+
+    [
+      Assistant::Function::CreateRule,
+      Assistant::Function::UpdateRule,
+      Assistant::Function::ApplyRule,
+      Assistant::Function::PreviewRule
+    ].each do |fn_class|
+      assert_includes admin_classes, fn_class
+      assert_not_includes guest_classes, fn_class
+    end
+  end
+
+  test "guest registry keeps the rule read tools" do
+    guest_classes = Assistant.function_classes(family_guest)
+
+    assert_includes guest_classes, Assistant::Function::GetRules
+    assert_includes guest_classes, Assistant::Function::GetRuleOptions
+  end
+
   setup do
     @chat = chats(:two)
     @message = @chat.messages.create!(
@@ -401,6 +433,8 @@ class AssistantTest < ActiveSupport::TestCase
     assistant = Assistant.for_chat(@chat)
 
     Net::HTTP.any_instance.stubs(:request).raises(Errno::ECONNREFUSED, "Connection refused")
+    # Skip the real 1s/2s retry backoff sleeps
+    Assistant::External::Client.any_instance.stubs(:sleep)
 
     with_env_overrides(
       "EXTERNAL_ASSISTANT_URL" => "http://localhost:18789/v1/chat",

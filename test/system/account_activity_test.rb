@@ -48,7 +48,7 @@ class AccountActivityTest < ApplicationSystemTestCase
     end
   end
 
-  test "account activity keeps edit for a transfer and hides delete and duplicate" do
+  test "account activity keeps every action for a transfer" do
     users(:family_admin).family.update!(manual_reconciliation: true)
     transfer = create_transfer(from_account: @account, to_account: accounts(:credit_card), amount: 100)
     outflow_entry = transfer.outflow_transaction.entry
@@ -59,8 +59,8 @@ class AccountActivityTest < ApplicationSystemTestCase
 
     within "#entry-selection-bar" do
       assert_selector "a[title='Edit']"
-      assert_selector "a[title='Duplicate'].hidden", visible: false
-      assert_selector "button[title='Delete'].hidden", visible: false
+      assert_selector "a[title='Duplicate']:not(.hidden)"
+      assert_selector "button[title='Delete']:not(.hidden)"
       assert_selector "button[aria-label='#{I18n.t("transactions.selection_bar.reconcile")}']"
     end
   end

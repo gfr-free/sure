@@ -95,7 +95,7 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
 
     within "#entry-selection-bar" do
       assert_selector "a[title='Edit']"
-      assert_selector "button[title='Delete'].hidden", visible: false
+      assert_selector "button[title='Delete']:not(.hidden)"
       find("a[title='Edit']").click
     end
 

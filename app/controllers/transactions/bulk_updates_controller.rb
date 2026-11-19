@@ -35,7 +35,7 @@ class Transactions::BulkUpdatesController < ApplicationController
     # Transfer legs are edited as a transfer (see Transfer#apply_bulk_update!),
     # never as two independent transactions.
     transfers = Transfer.with_legs_in(Current.accessible_entries.where(id: entry_ids)).to_a
-    transfer_entry_ids = transfers.flat_map { |transfer| [ transfer.inflow_transaction.entry&.id, transfer.outflow_transaction.entry&.id ] }.compact
+    transfer_entry_ids = transfers.flat_map { |transfer| transfer_leg_entry_ids(transfer) }
 
     selected = Current.annotatable_entries
                       .excluding_split_parents
@@ -59,8 +59,7 @@ class Transactions::BulkUpdatesController < ApplicationController
 
       bulk_update_entries(full_ids, scoped_params, &collect_changed) +
         bulk_update_entries(annotate_ids, scoped_params.slice(*AccountShare::ANNOTATE_ENTRY_ATTRIBUTES, *AccountShare::ANNOTATE_TRANSACTION_ATTRIBUTES), &collect_changed) +
-        bulk_update_transfers(transfers, scoped_params) +
-        bulk_reconcile_transfer_legs(transfer_entry_ids, scoped_params)
+        bulk_update_transfer_legs(transfers, Array.wrap(entry_ids), scoped_params)
     end
 
     Rule.apply_immediately_later(Current.family, changed_ids)
@@ -84,16 +83,28 @@ class Transactions::BulkUpdatesController < ApplicationController
   end
 
   private
-    # Same permissions as editing one transfer: category and notes need full
-    # access to both endpoints, tags need annotate access to both.
-    def bulk_update_transfers(transfers, attributes)
+    # Counts each selected transfer leg once, whether its transfer was edited,
+    # the leg was reconciled, or both.
+    def bulk_update_transfer_legs(transfers, entry_ids, attributes)
       return 0 if transfers.empty?
 
+      selected_leg_ids = transfers.flat_map { |transfer| transfer_leg_entry_ids(transfer) } & entry_ids
+      changed_leg_ids = bulk_update_transfers(transfers, attributes)
+                          .flat_map { |transfer| transfer_leg_entry_ids(transfer) } & entry_ids
+      reconciled_leg_ids = bulk_reconcile_transfer_legs(selected_leg_ids, attributes)
+
+      (changed_leg_ids | reconciled_leg_ids).size
+    end
+
+    # Same permissions as editing one transfer: category and notes need full
+    # access to both endpoints, tags need annotate access to both. Returns the
+    # transfers that changed.
+    def bulk_update_transfers(transfers, attributes)
       writable_ids = Current.family.accounts.writable_by(Current.user).pluck(:id).to_set
       annotatable_ids = Current.family.accounts.annotatable_by(Current.user).pluck(:id).to_set
       update_tags = attributes.key?(:tag_ids)
 
-      transfers.count do |transfer|
+      transfers.select do |transfer|
         endpoint_ids = [ transfer.from_account&.id, transfer.to_account&.id ]
         next false if endpoint_ids.any?(&:nil?)
 
@@ -105,14 +116,22 @@ class Transactions::BulkUpdatesController < ApplicationController
       end
     end
 
-    # Manual reconciliation stays per leg, like on a single transaction:
-    # each leg needs write access to its own account.
+    # Manual reconciliation stays per leg, like on a single transaction: only
+    # the selected leg changes, it needs write access to its own account, and
+    # only legs on manual accounts take a status. Returns the reconciled ids.
     def bulk_reconcile_transfer_legs(entry_ids, attributes)
-      return 0 if entry_ids.empty? || attributes[:reconciled_status].blank?
+      return [] if entry_ids.empty? || attributes[:reconciled_status].blank?
 
       rows = Current.annotatable_entries.where(id: entry_ids).pluck(:id, Account.writable_by_sql(Current.user))
       writable_ids = rows.select(&:last).map(&:first).uniq
-      bulk_update_entries(writable_ids, attributes.slice(:reconciled_status))
+      reconcilable_ids = Current.family.entries.where(id: writable_ids).includes(:account)
+                                .select { |entry| entry.account.manual? }.map(&:id)
+      bulk_update_entries(reconcilable_ids, attributes.slice(:reconciled_status))
+      reconcilable_ids
+    end
+
+    def transfer_leg_entry_ids(transfer)
+      [ transfer.inflow_transaction.entry&.id, transfer.outflow_transaction.entry&.id ].compact
     end
 
     def bulk_update_entries(entry_ids, attributes, &on_change)

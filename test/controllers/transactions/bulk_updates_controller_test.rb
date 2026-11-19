@@ -42,7 +42,9 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
       conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "x") ],
       actions: [ Rule::Action.new(action_type: "set_transaction_category", value: Category.first.id) ]
     )
-    entries = @user.family.entries.transactions.excluding_split_parents.limit(2)
+    # Notes on a transfer leg go to the transfer, so pick regular transactions
+    transfer_entry_ids = [ entries(:transfer_out).id, entries(:transfer_in).id ]
+    entries = @user.family.entries.transactions.excluding_split_parents.where.not(id: transfer_entry_ids).limit(2)
 
     post transactions_bulk_update_url, params: { bulk_update: { entry_ids: entries.map(&:id), notes: "Bulk note" } }
 
@@ -246,10 +248,11 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
       assert_equal original_date, entry.date
       assert_nil entry.transaction.category_id
       assert_nil entry.transaction.merchant_id
-      assert_equal "Both legs", entry.notes
+      assert_nil entry.notes
       assert_equal [ Tag.first.id ], entry.transaction.tag_ids
       assert_equal "reconciled", entry.reconciled_status
     end
+    assert_equal "Both legs", transfer.reload.notes
   end
 
   test "bulk update applies normal fields to normal entries and safe fields to a transfer" do
@@ -290,7 +293,7 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal transfer_date, outflow_entry.date
     assert_nil outflow_entry.transaction.category_id
     assert_nil outflow_entry.transaction.merchant_id
-    assert_equal "Mixed update", outflow_entry.notes
+    assert_equal "Mixed update", transfer.reload.notes
     assert_equal [ Tag.first.id ], outflow_entry.transaction.tag_ids
     assert_equal "reconciled", outflow_entry.reconciled_status
   end
@@ -330,9 +333,11 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
+    # One lookup in the controller (transfer legs are edited as transfers)
+    # and one in Entry.bulk_update!, never one per entry.
     transfer_queries = queries.grep(/FROM "?transfers"?/)
-    assert_equal 1, transfer_queries.size,
-      "expected one transfer-leg lookup, got: #{transfer_queries.inspect}"
+    assert_equal 2, transfer_queries.size,
+      "expected two transfer-leg lookups, got: #{transfer_queries.inspect}"
   end
 
   test "new hides the reconciliation field when the selection has no transaction" do

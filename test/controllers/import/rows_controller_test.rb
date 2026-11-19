@@ -70,6 +70,14 @@ class Import::RowsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to import_row_path(@import, @row)
   end
 
+  test "hides a row of an import into an account not shared with the member" do
+    sign_in users(:family_member)
+    @import.update!(account: accounts(:investment))
+
+    get import_row_path(@import, @row)
+    assert_response :not_found
+  end
+
   private
     def assert_row_fields(row, fields)
       fields.each do |field|

@@ -10,9 +10,10 @@ class Import::AccountMapping < Import::Mapping
     end
   end
 
-  # Linked accounts are offered too: imported rows are deduplicated against
-  # provider entries. Only accounts the user may write to, as publishing
-  # requires write access to every mapped account.
+  # Linked accounts are offered too: a row that matches a synced entry by
+  # date, amount and currency updates that entry instead of adding a copy
+  # (see TransactionImport#import!). Only accounts the user may write to, as
+  # publishing requires write access to every mapped account.
   def selectable_values(user: Current.user)
     accounts = user ? import.family.accounts.writable_by(user).visible.alphabetically : Account.none
     family_accounts = accounts.map { |account| [ account.name, account.id ] }

@@ -34,6 +34,7 @@ class BalanceSheet::AccountTotals
                   .includes(
                     :account_shares,
                     :accountable,
+                    :custom_account_subtype,
                     :plaid_account,
                     :simplefin_account,
                     account_providers: :provider

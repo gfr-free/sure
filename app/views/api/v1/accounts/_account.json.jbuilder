@@ -13,6 +13,15 @@ json.currency account.currency
 json.classification account.classification
 json.account_type account.accountable_type&.underscore
 json.subtype account.subtype
+if (custom_subtype = account.custom_account_subtype)
+  json.custom_subtype do
+    json.id custom_subtype.id
+    json.name custom_subtype.name
+    json.rules custom_subtype.rules_for_export
+  end
+else
+  json.custom_subtype nil
+end
 json.liquidity account.liquidity
 json.available_on account.available_on&.iso8601
 json.available_now account.available_on?

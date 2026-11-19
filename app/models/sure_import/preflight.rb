@@ -38,6 +38,7 @@ class SureImport::Preflight
   end
 
   REQUIRED_FIELDS = {
+    "CustomAccountSubtype" => %w[id name accountable_type],
     "Account" => %w[id name balance accountable_type],
     "Balance" => %w[account_id date balance],
     "Category" => %w[id name],
@@ -82,6 +83,7 @@ class SureImport::Preflight
   # family-scoped uniqueness.
   SOURCE_ID_TYPES = TAXONOMY_TYPES.merge(
     "ProviderMerchant" => :merchants,
+    "CustomAccountSubtype" => :custom_account_subtypes,
     "Account" => :accounts,
     "RecurringTransaction" => :recurring_transactions,
     "Transaction" => :transactions,

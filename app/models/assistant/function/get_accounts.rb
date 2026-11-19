@@ -31,6 +31,9 @@ class Assistant::Function::GetAccounts < Assistant::Function
         (some report the credit limit, others the remaining credit), so confirm
         with the user before reasoning about headroom on a linked card.
 
+        When the family named its own subtype for an account, custom_subtype
+        holds its name and rules.
+
         Pass include_balance_series: true only when the user asks about balance
         history; the series is omitted by default to keep responses small.
       INSTRUCTIONS
@@ -75,6 +78,9 @@ class Assistant::Function::GetAccounts < Assistant::Function
           classification: account.classification,
           type: account.accountable_type,
           subtype: account.subtype,
+          # The family's own subtype, when set: its name and the rules that
+          # replace the built-in subtype's.
+          custom_subtype: account.custom_account_subtype&.then { |custom| { name: custom.name, rules: custom.rules_for_export } },
           start_date: account.start_date,
           is_linked: account.linked?,
           provider: account.provider_name,
@@ -97,7 +103,7 @@ class Assistant::Function::GetAccounts < Assistant::Function
     # No balances preload: the series goes through Balance::ChartSeriesBuilder,
     # which runs its own query keyed by account ids.
     def accounts_scope(_include_series)
-      user.accessible_accounts.visible.includes(:account_providers, :accountable)
+      user.accessible_accounts.visible.includes(:account_providers, :accountable, :custom_account_subtype)
     end
 
     # The accountable record holds the only borrowing terms Sure stores, and

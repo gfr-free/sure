@@ -143,22 +143,6 @@ class AiHealth
     expires_at if expires_at.future?
   end
 
-  def self.redact_endpoint(value)
-    return if value.blank?
-
-    uri = URI.parse(value.to_s)
-    uri.user = nil if uri.respond_to?(:user=)
-    uri.password = nil if uri.respond_to?(:password=)
-    uri.query = nil if uri.respond_to?(:query=)
-    uri.fragment = nil if uri.respond_to?(:fragment=)
-    uri.to_s
-  rescue URI::InvalidURIError
-    value.to_s
-         .sub(%r{\A([^:]+://)[^/@]+@}, "\\1")
-         .split(/[?#]/, 2)
-         .first
-  end
-
   private
     def probe_checked_at
       [ llm_probe, function_calling_probe, pdf_text_extraction_probe, pdf_vision_processing_probe, vector_store_probe,
@@ -226,8 +210,7 @@ class AiHealth
           provider: @effective_llm_protocol,
           endpoint: @llm_raw_endpoint,
           access_token: @llm_access_token,
-          model: llm_model,
-          openai_compatible: @effective_llm_protocol == :openai && openai_compatible_endpoint?
+          model: llm_model
         )
         @function_calling_probe = probe.function_calling(
           provider: @effective_llm_protocol,
@@ -402,17 +385,10 @@ class AiHealth
     end
 
     def hosted_openai_endpoint?(value)
-      uri = URI.parse(value.to_s)
-      normalized_path = uri.path.to_s.sub(%r{/+\z}, "")
-
-      uri.scheme == "https" && uri.host == "api.openai.com" && uri.port == 443 && normalized_path.in?([ "", "/v1" ])
-    rescue URI::InvalidURIError
-      false
+      Provider::Openai.hosted_endpoint?(value)
     end
 
-    def redact_endpoint(value)
-      self.class.redact_endpoint(value)
-    end
+    def redact_endpoint(value) = Ai::Instrumentation::Redactor.url(value)
 
     def safely(fallback)
       yield

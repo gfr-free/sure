@@ -25,6 +25,13 @@ class Rule::ActionExecutor
     nil
   end
 
+  # Label lookup for value_display when the select labels carry cosmetic
+  # markup (e.g. indented subcategories) that shouldn't reach summaries.
+  # nil uses the select options.
+  def display_options
+    nil
+  end
+
   # The option for a saved value that options leaves out (e.g. a merchant only
   # on accounts the current user can't see, or one no longer assigned), so
   # editing the rule keeps the value instead of silently switching to the
@@ -70,7 +77,7 @@ class Rule::ActionExecutor
 
   # Executors with a non-trivial value format (e.g. structured JSON) can override this
   # to provide a human-readable summary for the rule list view. Returning nil falls back
-  # to the default (options-based) display logic in Rule::Action#value_display.
+  # to the options-based lookup in Rule::Action#value_display.
   def value_display(value)
     nil
   end

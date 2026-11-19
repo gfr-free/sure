@@ -37,7 +37,8 @@ module Setting::SecretCodec
 
   # Returns the plaintext, or raises Undecryptable when no configured key
   # opens the value. Never returns ciphertext.
-  def decrypt(value, legacy_secret_key_bases: [ Rails.application.secret_key_base ])
+  # SECRET_KEY_BASE is only looked up for legacy values.
+  def decrypt(value, legacy_secret_key_bases: nil)
     case format_of(value)
     when :blank, :plaintext then value
     when :active_record then decrypt_active_record(value).first
@@ -48,7 +49,7 @@ module Setting::SecretCodec
   # Plaintext plus where it came from: :current when the value is already in
   # its final form (Active Record format under the current key), otherwise
   # :plaintext, :legacy or :previous_key.
-  def inspect_value(value, legacy_secret_key_bases: [ Rails.application.secret_key_base ])
+  def inspect_value(value, legacy_secret_key_bases: nil)
     case format_of(value)
     when :blank then [ value, :blank ]
     when :plaintext then [ value, :plaintext ]
@@ -120,7 +121,8 @@ module Setting::SecretCodec
     ActiveRecord::Encryption.config.previous_schemes.reject(&:deterministic?).filter_map(&:key_provider)
   end
 
-  def decrypt_legacy(value, secret_key_bases)
+  def decrypt_legacy(value, secret_key_bases = nil)
+    secret_key_bases ||= [ Rails.application.secret_key_base ]
     secret_key_bases.compact_blank.uniq.each do |secret_key_base|
       return legacy_encryptor(secret_key_base).decrypt_and_verify(value)
     rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveSupport::MessageEncryptor::InvalidMessage

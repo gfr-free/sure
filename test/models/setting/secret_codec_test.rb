@@ -22,6 +22,15 @@ class Setting::SecretCodecTest < ActiveSupport::TestCase
     assert_equal "sk-new", Setting::SecretCodec.decrypt(Setting::SecretCodec.encrypt_active_record("sk-new"))
   end
 
+  test "looks up SECRET_KEY_BASE only for legacy values" do
+    active_record = Setting::SecretCodec.encrypt_active_record("sk-new")
+    Rails.application.expects(:secret_key_base).never
+
+    assert_nil Setting::SecretCodec.decrypt(nil)
+    assert_equal "sk-plain", Setting::SecretCodec.decrypt("sk-plain")
+    assert_equal "sk-new", Setting::SecretCodec.decrypt(active_record)
+  end
+
   test "never returns ciphertext it cannot decrypt" do
     other_legacy = Setting::SecretCodec.encrypt_legacy("sk-lost", secret_key_base: "other-" + "a" * 64)
     other_active_record = ActiveRecord::Encryption.encryptor.encrypt("sk-lost", key_provider: other_key_provider)

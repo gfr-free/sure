@@ -114,7 +114,6 @@ class RedbarkItemsController < ApplicationController
     end
 
     redbark_account.ensure_account_provider!(account)
-    redbark_account.update!(ignored: false)
     redbark_item.sync_later unless redbark_item.syncing?
 
     redirect_to account_path(account), notice: t(".success", account_name: account.name)
@@ -163,7 +162,6 @@ class RedbarkItemsController < ApplicationController
       ActiveRecord::Base.transaction do
         account = create_account_from_redbark(redbark_account, accountable_type, config)
         redbark_account.ensure_account_provider!(account)
-        redbark_account.update!(ignored: false)
         redbark_account.update!(sync_start_date: config[:sync_start_date]) if config[:sync_start_date].present?
       end
       created_count += 1
@@ -258,7 +256,6 @@ class RedbarkItemsController < ApplicationController
       )
 
       redbark_account.ensure_account_provider!(account)
-      redbark_account.update!(ignored: false)
       account
     end
 

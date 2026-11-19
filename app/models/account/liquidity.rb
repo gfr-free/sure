@@ -29,6 +29,10 @@ module Account::Liquidity
   # Form value for "follow the subtype again".
   AUTOMATIC = "automatic".freeze
 
+  # Form fields for the availability choice; web forms permit them only
+  # where they show them (AccountableResource#liquidity_form_attributes).
+  FORM_ATTRIBUTES = %i[liquidity_choice available_on auto_renew renewal_term_months].freeze
+
   MAX_RENEWAL_TERM_MONTHS = 600
 
   included do
@@ -49,8 +53,8 @@ module Account::Liquidity
       assets.where(liquidity: AVAILABLE_LEVELS).or(assets.released_on(date))
     }
 
-    # Money for this month's budget (decision E2: a brokerage account counts
-    # as available wealth, but not as budget money).
+    # Money for this month's budget (a brokerage account counts as
+    # available wealth, but not as budget money).
     scope :immediate_assets_on, ->(date) {
       assets.where(liquidity: "immediate").or(assets.released_on(date))
     }
@@ -63,7 +67,7 @@ module Account::Liquidity
       )
     }
 
-    # Debts that eat into available wealth (decision E3): credit cards and
+    # Debts that eat into available wealth: credit cards and
     # overdraft lines. Loans and mortgages are long-term and stay out.
     scope :short_term_liabilities, -> { liabilities.where(liquidity: AVAILABLE_LEVELS) }
 
@@ -93,6 +97,12 @@ module Account::Liquidity
   # The value the form's select shows.
   def liquidity_choice_for_form
     liquidity_choice || (liquidity_manual? ? liquidity : AUTOMATIC)
+  end
+
+  # Whether the form offers the availability choice.
+  def liquidity_selectable?
+    type = Accountable.from_type(accountable_type)
+    type.present? && type.classification == "asset" && type.liquidity_selectable?
   end
 
   def liquidity_manual?
@@ -171,6 +181,10 @@ module Account::Liquidity
 
   private
     def apply_liquidity
+      # A type with a fixed level always follows its default, also when a
+      # choice arrives through the API or an import.
+      @liquidity_choice = AUTOMATIC if Accountable.from_type(accountable_type)&.liquidity_selectable? == false
+
       case liquidity_choice
       when nil
         self.liquidity = default_liquidity if !liquidity_manual? && liquidity_default_needed?

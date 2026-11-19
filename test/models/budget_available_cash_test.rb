@@ -118,74 +118,31 @@ class BudgetAvailableCashTest < ActiveSupport::TestCase
     assert_equal 1_200, @budget.available_cash
   end
 
-  # A missing rate leaves the amount as it stands rather than raising: a panel
-  # wrong by the spread beats the whole budget page failing to render.
-  test "a missing rate leaves the figure standing rather than raising" do
-    Account.create!(
-      family: @family, accountable: Depository.new,
-      name: "EUR pot", currency: "EUR", balance: 1_000
-    )
-
+  test "missing rates cannot turn a reserved foreign balance into free cash" do
+    account = Account.create!(family: @family, accountable: Depository.new,
+                             name: "EUR pot", currency: "EUR", balance: 1_000)
+    @family.goals.create!(name: "Mixed", target_amount: 1_000, currency: "USD") do |goal|
+      goal.goal_accounts.build(account: account)
+    end
     ExchangeRate.stubs(:find_or_fetch_rate).returns(nil)
 
-    assert_equal 1_000, @budget.available_cash
-  end
-
-  # --- Availability (Account::Liquidity), preview only ---
-
-  test "with preview on, a term deposit counts only once it is released" do
-    viewer = preview_viewer
-    checking = depository(2_000, owner: viewer)
-    cd = depository(5_000, subtype: "cd", owner: viewer)
-    cd.update!(available_on: Date.current + 30)
-
-    assert_equal 2_000, budget_for(viewer).available_cash
-
-    cd.update!(available_on: Date.current)
-
-    assert_equal checking.balance + cd.balance, budget_for(viewer).available_cash
-  end
-
-  test "with preview on, an HSA and a brokerage account do not count, a manual immediate account does" do
-    viewer = preview_viewer
-    depository(2_000, owner: viewer)
-    depository(3_000, subtype: "hsa", owner: viewer)
-    investment(9_000, owner: viewer)
-    investment(400, owner: viewer).update!(liquidity_choice: "immediate")
-
-    assert_equal 2_400, budget_for(viewer).available_cash
-  end
-
-  test "without preview, every depository still counts" do
-    viewer = users(:empty)
-    viewer.update!(preferences: (viewer.preferences || {}).merge("preview_features_enabled" => false))
-    depository(2_000, owner: viewer)
-    depository(5_000, subtype: "cd", owner: viewer).update!(available_on: Date.current + 30)
-
-    assert_equal 7_000, budget_for(viewer).available_cash
+    assert_equal 0, @budget.available_cash
+    assert_equal 0, @budget.earmarked_for_goals
+    assert_equal 0, @budget.free_cash
+    assert_equal [ "EUR" ], @budget.missing_cash_currencies.to_a
   end
 
   private
-    def preview_viewer
-      users(:empty).tap do |user|
-        user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => true))
-      end
-    end
-
-    def budget_for(user)
-      Budget.find(@budget.id).tap { |budget| budget.current_user = user }
-    end
-
-    def depository(balance, subtype: nil, owner: nil)
+    def depository(balance)
       Account.create!(
-        family: @family, accountable: Depository.new(subtype: subtype), owner: owner,
+        family: @family, accountable: Depository.new,
         name: "Cash #{SecureRandom.hex(4)}", currency: @family.currency, balance: balance
       )
     end
 
-    def investment(balance, owner: nil)
+    def investment(balance)
       Account.create!(
-        family: @family, accountable: Investment.new, owner: owner,
+        family: @family, accountable: Investment.new,
         name: "Brokerage #{SecureRandom.hex(4)}", currency: @family.currency, balance: balance
       )
     end

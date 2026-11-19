@@ -11,6 +11,34 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "shows the saved timezone instead of another city sharing its zone" do
+    users(:family_admin).family.update!(timezone: "Europe/Moscow")
+
+    get settings_preferences_url
+
+    assert_response :success
+    assert_select "input[type=hidden][name='user[family_attributes][timezone]'][value='Europe/Moscow']"
+    assert_select "button#timezone_trigger", text: "(+03:00) Europe/Moscow"
+    assert_select "[role=option][data-value='Europe/Moscow']", count: 1
+    assert_select "[role=option][aria-selected=true][data-value='Europe/Moscow']", count: 1
+  end
+
+  test "admins see the investing-as-spending toggle" do
+    get settings_preferences_url
+
+    assert_response :success
+    assert_select "input[name='user[family_attributes][investment_contributions_as_spending]']"
+    assert_match I18n.t("settings.preferences.show.investment_contributions_as_spending"), response.body
+  end
+
+  test "members do not see the investing-as-spending toggle" do
+    sign_in users(:family_member)
+    get settings_preferences_url
+
+    assert_response :success
+    assert_select "input[name='user[family_attributes][investment_contributions_as_spending]']", count: 0
+  end
+
   test "group moniker uses group currencies copy and hides legacy currency field" do
     users(:family_admin).family.update!(moniker: "Group")
 
@@ -38,6 +66,15 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to settings_preferences_url
     assert user.reload.preview_features_enabled?
+  end
+
+  test "changing preview features syncs the manual loans" do
+    loan_account = accounts(:loan)
+    assert loan_account.manual?
+
+    assert_difference -> { loan_account.syncs.count }, 1 do
+      patch settings_preferences_url, params: { user: { preview_features_enabled: "1" } }
+    end
   end
 
   test "update toggles preview_features_enabled off" do
@@ -80,38 +117,32 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, I18n.t("settings.preferences.show.budget_sharing_title")
   end
 
-  test "release reminder settings are preview only" do
-    get settings_preferences_url
-    assert_select "select[name='user[account_release_channel]']", count: 0
+  test "admins with preview access see the manual reconciliation toggle" do
+    user = users(:family_admin)
+    user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => true))
 
-    users(:family_admin).update!(preferences: { "preview_features_enabled" => true })
     get settings_preferences_url
 
-    assert_select "select[name='user[account_release_channel]'] option[selected][value='insight']"
-    assert_select "input[name='user[account_release_lead_days]'][value='14']"
+    assert_response :success
+    assert_select "input[name='user[family_attributes][manual_reconciliation]']"
+    assert_match I18n.t("settings.preferences.show.manual_reconciliation"), response.body
   end
 
-  test "update stores release reminder channel and lead time" do
-    user = users(:family_admin)
-    user.update!(preferences: { "preview_features_enabled" => true })
+  test "hides the manual reconciliation toggle without preview access" do
+    get settings_preferences_url
 
-    patch settings_preferences_url, params: { user: { account_release_channel: "both", account_release_lead_days: "30" } }
-
-    assert_redirected_to settings_preferences_url
-    user.reload
-    assert_equal "both", user.account_release_channel
-    assert_equal 30, user.account_release_lead_days
-    assert user.preview_features_enabled?
+    assert_response :success
+    assert_select "input[name='user[family_attributes][manual_reconciliation]']", count: 0
   end
 
-  test "update ignores unknown release reminder values" do
-    user = users(:family_admin)
-    user.update!(preferences: { "account_release_channel" => "email", "account_release_lead_days" => 7 })
+  test "members with preview access do not see the manual reconciliation toggle" do
+    user = users(:family_member)
+    user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => true))
+    sign_in user
 
-    patch settings_preferences_url, params: { user: { account_release_channel: "sms", account_release_lead_days: "365" } }
+    get settings_preferences_url
 
-    user.reload
-    assert_equal "email", user.account_release_channel
-    assert_equal 7, user.account_release_lead_days
+    assert_response :success
+    assert_select "input[name='user[family_attributes][manual_reconciliation]']", count: 0
   end
 end

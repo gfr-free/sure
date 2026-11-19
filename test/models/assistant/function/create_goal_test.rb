@@ -70,15 +70,17 @@ class Assistant::Function::CreateGoalTest < ActiveSupport::TestCase
     assert_includes result[:unknown_names], "Nonexistent Account"
   end
 
-  test "soft error when currencies differ across linked accounts" do
-    eur = Account.create!(family: @family, accountable: Depository.new, name: "EUR Account", currency: "EUR", balance: 100)
+  test "mixed-currency accounts fund one goal in the family currency" do
+    usd = Account.create!(family: @family, accountable: Depository.new, name: "USD Pot", currency: "USD", balance: 100)
+    eur = Account.create!(family: @family, accountable: Depository.new, name: "EUR Pot", currency: "EUR", balance: 100)
     result = @fn.call(
       "name" => "Mixed",
       "target_amount" => 100,
-      "linked_account_names" => [ @depository.name, eur.name ]
+      "linked_account_names" => [ usd.name, eur.name ]
     )
-    assert_equal false, result[:success]
-    assert_equal "currency_mismatch", result[:error]
+    assert result[:success]
+    assert_equal @family.primary_currency_code, result[:currency]
+    assert_equal [ usd.id, eur.id ].sort, Goal.find(result[:goal_id]).linked_accounts.pluck(:id).sort
   end
 
   test "scopes to the user's family" do
@@ -144,19 +146,5 @@ class Assistant::Function::CreateGoalTest < ActiveSupport::TestCase
 
     assert listed[:claimed_in_full]
     assert listed.key?(:free_to_earmark)
-  end
-
-  test "does not list or link another member's private account" do
-    other = users(:family_member)
-    private_account = Account.create!(
-      family: @family, accountable: Investment.new, owner: other,
-      name: "Private Brokerage", currency: "USD", balance: 9_000
-    )
-
-    result = @fn.call("name" => "Rainy day", "target_amount" => 500, "linked_account_names" => [ private_account.name ])
-
-    assert_not result[:success]
-    assert_equal [ private_account.name ], result[:unknown_names]
-    assert_not_includes result[:available_accounts].map { |account| account[:name] }, private_account.name
   end
 end

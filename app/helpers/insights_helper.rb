@@ -11,8 +11,10 @@ module InsightsHelper
     # Same shield the reserve panel uses on the goal page, so the two read as
     # the same object seen from two places.
     "maintained_goal_depleted" => "shield-alert",
-    "account_shortfall" => "alert-triangle",
-    "account_release" => "calendar-clock"
+    "bill_not_covered" => "calendar-x",
+    "loan_payment_change" => "landmark",
+    "bank_fees" => "receipt",
+    "account_shortfall" => "alert-triangle"
   }.freeze
 
   def insight_icon_key(insight)
@@ -31,7 +33,7 @@ module InsightsHelper
   /x
 
   # Insight titles and bodies are stored as finished prose with the amounts
-  # already interpolated (by the i18n template or the LLM writer), so unlike
+  # already interpolated by the i18n template, so unlike
   # the rest of the app the figures can't be tagged where they're formatted.
   # This wraps each numeric fragment in a privacy-sensitive span at render
   # time so privacy mode blurs the numbers but the sentence stays readable.
@@ -63,7 +65,7 @@ module InsightsHelper
     when "savings_rate_change"
       return nil unless facts["change_pp"]
       sign = insight_sentiment(insight) == :positive ? "+" : "−"
-      [ "#{sign}#{facts["change_pp"]} pp", t("insights.figures.vs_previous") ]
+      [ "#{sign}#{facts["change_pp"]} pp", t("insights.figures.vs_previous_three_months") ]
     when "net_worth_milestone"
       facts["net_worth"] && [ facts["net_worth"], t("insights.figures.today") ]
     when "spending_anomaly"
@@ -83,8 +85,12 @@ module InsightsHelper
     when "budget_on_track"
       # Still the right figure here, where overall usage *is* the subject.
       facts["budget_spent_pct"] && [ "#{facts["budget_spent_pct"]}%", t("insights.figures.of_budget") ]
-    when "account_release"
-      facts["balance"] && [ facts["balance"], account_release_caption(insight) ]
+    when "bill_not_covered"
+      facts["shortfall"] && [ facts["shortfall"], t("insights.figures.short_on", date: facts["due_on"]) ]
+    when "loan_payment_change"
+      facts["new_payment"] && [ facts["new_payment"], facts["effective_on"] ]
+    when "bank_fees"
+      facts["amount"] && [ facts["amount"], t("insights.figures.fee_charges", count: facts["count"].to_i) ]
     end
   end
 
@@ -102,9 +108,16 @@ module InsightsHelper
         text: t("insights.actions.spending_anomaly", category: category.name),
         href: transactions_path(q: { categories: [ category.name ] })
       }
-    when "idle_cash"
-      account = insight.family.accounts.visible.find_by(id: metadata["account_id"])
-      account && { text: t("insights.actions.idle_cash"), href: account_path(account) }
+    when "idle_cash", "bill_not_covered", "loan_payment_change"
+      account = insight_account(insight)
+      account && { text: t("insights.actions.#{insight.insight_type}"), href: account_path(account) }
+    when "bank_fees"
+      account = insight_account(insight)
+      fee_names = insight.family.categories.fees.pluck(:name)
+      return nil unless account && fee_names.any? && insight.period_start && insight.period_end
+      { text: t("insights.actions.bank_fees"),
+        href: transactions_path(q: { account_ids: [ account.id ], categories: fee_names, status: [ "confirmed" ], types: [ "expense", "income" ],
+                                     start_date: insight.period_start.to_s, end_date: insight.period_end.to_s }) }
     when "subscription_audit"
       { text: t("insights.actions.subscription_audit"), href: recurring_transactions_path }
     when "cash_flow_warning"
@@ -127,10 +140,30 @@ module InsightsHelper
     when "maintained_goal_depleted"
       goal = insight.family.goals.find_by(id: metadata["goal_id"])
       goal && { text: t("insights.actions.maintained_goal_depleted"), href: goal_path(goal) }
-    when "account_release"
-      account = insight.family.accounts.visible.find_by(id: metadata["account_id"])
-      account && { text: t("insights.actions.account_release"), href: account_path(account) }
     end
+  end
+
+  # "Dig in with AI" opens a chat about the insight (#4031). Gated per family,
+  # not per user, because cards are also rendered in broadcasts without a
+  # Current.user; chats#new asks a user without AI consent to opt in.
+  def insight_dig_in_available?(insight)
+    family = insight.family
+    return false unless family.assistant_enabled?
+
+    family.effective_assistant_type == "external" ? Assistant::External.configured? : Provider::Registry.preferred_llm_provider.present?
+  end
+
+  # Fills only these placeholders, so a mistyped one in an override stays as typed.
+  def insight_dig_in_prompt(insight)
+    values = {
+      "title" => insight.title,
+      "body" => insight.body,
+      "period" => insight.period_start && insight.period_end ? "#{l(insight.period_start)} – #{l(insight.period_end)}" : "–",
+      "facts" => (insight.facts || {}).map { |key, value| "- #{key.to_s.humanize}: #{value}" }.join("\n")
+    }
+    template = insight.family.ai_prompt(:insight_dig_in) || t("insights.dig_in.prompt")
+
+    template.gsub(/%\{(#{values.keys.join("|")})\}/) { values[$1] }
   end
 
   # Sentiment picks the color; priority only orders the feed. The two are
@@ -173,14 +206,12 @@ module InsightsHelper
       metadata["negative"] ? :negative : :warning
     when "account_shortfall"
       :negative
-    when "account_release"
-      # Money coming free is good news; a renewal is a deadline to act on.
-      case metadata["kind"]
-      when "released" then :positive
-      when "renewal" then :warning
-      else :neutral
-      end
-    when "budget_at_risk", "maintained_goal_depleted"
+    when "bill_not_covered"
+      # Paying the bill would take the account below zero.
+      :negative
+    when "loan_payment_change"
+      metadata["new_payment"].to_f < metadata["previous_payment"].to_f ? :positive : :warning
+    when "budget_at_risk", "maintained_goal_depleted", "bank_fees"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning
@@ -190,14 +221,8 @@ module InsightsHelper
   end
 
   private
-    def account_release_caption(insight)
-      facts = insight.facts || {}
-
-      case insight.metadata&.dig("kind")
-      when "released" then t("insights.figures.released")
-      when "renewal" then t("insights.figures.renews_on", date: facts["date"])
-      else t("insights.figures.released_in", count: facts["days"].to_i)
-      end
+    def insight_account(insight)
+      insight.family.accounts.visible.find_by(id: (insight.metadata || {})["account_id"])
     end
 
     # "June" for month-aligned periods, "Next 30 days" / "Last 30 days" for
@@ -218,8 +243,9 @@ module InsightsHelper
       elsif rolling_period_insight?(insight) && end_date >= Date.current - 1
         t("insights.meta.last_n_days", count: days)
       elsif start_date == start_date.beginning_of_month && end_date == start_date.end_of_month
-        format = start_date.year == Date.current.year ? "%B" : "%B %Y"
-        I18n.l(start_date, format: format)
+        insight_month_name(start_date)
+      elsif start_date == start_date.beginning_of_month && end_date == end_date.end_of_month
+        t("insights.meta.date_range", from: insight_month_name(start_date), to: insight_month_name(end_date))
       elsif start_date >= Date.current - 1
         t("insights.meta.next_n_days", count: days)
       elsif end_date >= Date.current - 1
@@ -227,6 +253,10 @@ module InsightsHelper
       else
         t("insights.meta.date_range", from: I18n.l(start_date, format: :short), to: I18n.l(end_date, format: :short))
       end
+    end
+
+    def insight_month_name(date)
+      I18n.l(date, format: date.year == Date.current.year ? "%B" : "%B %Y")
     end
 
     def rolling_period_insight?(insight)

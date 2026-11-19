@@ -102,6 +102,24 @@ class Account::LiquidityTest < ActiveSupport::TestCase
     assert_nil account.renewal_term_months
   end
 
+  test "a vehicle keeps its default whatever choice is sent" do
+    account = create_account(Vehicle, nil)
+
+    account.update!(liquidity_choice: "immediate")
+
+    assert_equal "long_term", account.reload.liquidity
+    assert_not account.liquidity_manual?
+  end
+
+  test "liabilities still take a manual choice" do
+    account = create_account(CreditCard, nil)
+
+    account.update!(liquidity_choice: "long_term")
+
+    assert_equal "long_term", account.reload.liquidity
+    assert account.liquidity_manual?
+  end
+
   test "an unknown choice is rejected" do
     account = create_account(Depository, "checking")
 
@@ -175,23 +193,6 @@ class Account::LiquidityTest < ActiveSupport::TestCase
     assert_nil account.available_on
     assert_not account.auto_renew?
     assert_nil account.renewal_term_months
-  end
-
-  test "details separate budget transactions from budget cash" do
-    account = create_account(Depository, "money_market")
-    rows = Account::RuleDetails.new(account, date: @today).rows.index_by(&:key)
-
-    assert_equal "short_term", rows[:liquidity].value
-    assert_equal :subtype, rows[:liquidity].source
-    assert rows[:counts_in_budget].value
-    assert_not rows[:counts_as_budget_cash].value
-    assert_nil rows[:release]
-
-    account.update!(liquidity_choice: "immediate")
-    rows = Account::RuleDetails.new(account, date: @today).rows.index_by(&:key)
-
-    assert_equal :user, rows[:liquidity].source
-    assert rows[:counts_as_budget_cash].value
   end
 
   test "scopes split assets by availability on a date" do

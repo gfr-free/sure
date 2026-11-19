@@ -1,4 +1,4 @@
-<%# locals: (series:, current_occurrence:, suggestion: nil) %>
+<%# locals: (series:, current_occurrence:, suggestion: nil, settled_occurrence: nil) %>
 
 <%# INSPECT. What is going on with this bill, and what to do about it?
 
@@ -8,19 +8,21 @@
 <div class="space-y-4">
   <%= render "bills/cancelled_notice", series: series %>
 
-  <%# Current state. %>
+  <%# Current state, at the size the payment drawer and a transaction's
+      drawer give their headline figure. At text-lg it matched the bill's name
+      above it, so the drawer had no figure to lead with. %>
   <% if current_occurrence %>
     <% expected = current_occurrence.resolved_expected_amount_money %>
     <% paid = current_occurrence.confirmed_allocated_money %>
     <div class="space-y-0.5">
-      <p class="text-lg font-medium text-primary privacy-sensitive">
+      <p class="text-2xl font-medium text-primary privacy-sensitive">
         <% if current_occurrence.paid? %>
           <%= t("bills.summary.paid_headline", amount: format_money(paid)) %>
         <% else %>
           <%= t("bills.summary.remaining", amount: format_money(current_occurrence.remaining_amount_money)) %>
         <% end %>
       </p>
-      <p class="text-xs <%= current_occurrence.overdue? ? "text-destructive" : "text-secondary" %>">
+      <p class="text-sm <%= current_occurrence.overdue? ? "text-destructive" : "text-secondary" %>">
         <span class="privacy-sensitive"><%= t("bills.partial_progress", paid: format_money(paid), expected: format_money(expected)) %></span>
         &middot; <%= occurrence_due_label(current_occurrence) %>
       </p>
@@ -36,10 +38,10 @@
     </div>
   <% else %>
     <div class="space-y-0.5">
-      <p class="text-lg font-medium text-primary privacy-sensitive">
+      <p class="text-2xl font-medium text-primary privacy-sensitive">
         <%= "~" if series.has_amount_variance? %><%= format_money(Money.new(series.amount.abs, series.currency)) %>
       </p>
-      <p class="text-xs text-secondary">
+      <p class="text-sm text-secondary">
         <%= series.next_expected_date.present? ? t("bills.detail.around", date: bills_upcoming_date(series.next_expected_date)) : t("bills.detail.next_payment") %>
       </p>
     </div>
@@ -71,5 +73,20 @@
     <%# Pay and Add link keep a home here, so the portal never leaves Bills
         just because the row got quieter. %>
     <%= render "recurring_transactions/pay_action", recurring_transaction: series %>
+
+    <%# The primary verb only reaches the cycle the drawer is showing. When
+        that is a different cycle -- an open one, or a skipped/missed one whose
+        own verb has no payment to manage -- offer the latest settled cycle
+        here. When the drawer already shows it, the primary action covers it. %>
+    <% if settled_occurrence.present? && settled_occurrence != current_occurrence %>
+      <%= render DS::Link.new(
+            text: t("bills.manage_payments"),
+            icon: "receipt-text",
+            variant: "outline",
+            size: "md",
+            href: recurring_occurrence_path(settled_occurrence),
+            frame: :drawer
+          ) %>
+    <% end %>
   </div>
 </div>

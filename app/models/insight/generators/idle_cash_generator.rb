@@ -34,12 +34,12 @@ class Insight::Generators::IdleCashGenerator < Insight::Generator
   private
     # Ordered so the pick is stable between runs — an unordered relation could
     # nudge a different pair of accounts each night, churning the feed.
+    #
+    # The feed is shared by the whole family and the insight names the account
+    # and its balance, so only accounts every active member can see qualify.
     def idle_accounts
-      # Only money that is reachable today can be "idle": nudging the user to
-      # invest a term deposit that is already locked away makes no sense.
-      family.accounts.visible
-        .immediate_assets_on(Account.liquidity_today_for(family))
-        .where(currency: family.currency)
+      family.accounts.visible.accessible_by_all_active_members
+        .where(accountable_type: "Depository", currency: family.currency)
         .where("balance >= ?", MIN_BALANCE)
         .where.not(id: Entry.where("date >= ?", IDLE_DAYS.days.ago.to_date).select(:account_id))
         .order(balance: :desc)

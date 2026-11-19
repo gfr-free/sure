@@ -14,6 +14,38 @@ class TransferTest < ActiveSupport::TestCase
     end
   end
 
+  test "deleting one leg gives the other leg back the standard kind" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+    outflow = transfer.outflow_transaction
+    assert_equal "cc_payment", outflow.reload.kind
+
+    assert_difference "Transfer.count", -1 do
+      transfer.inflow_transaction.entry.destroy!
+    end
+
+    assert_equal "standard", outflow.reload.kind
+  end
+
+  test "deleting a leg of a pending transfer leaves the other leg's kind alone" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.inflow_transaction.update!(kind: "one_time")
+
+    transfer.outflow_transaction.entry.destroy!
+
+    assert_equal "one_time", transfer.inflow_transaction.reload.kind
+  end
+
+  test "destroy resets the transfer kinds of a confirmed transfer, like destroy!" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+
+    transfer.destroy
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
   test "destroy! clears the idempotency key so a retried request can create a new transfer" do
     idempotency_key = SecureRandom.uuid
 
@@ -137,6 +169,131 @@ class TransferTest < ActiveSupport::TestCase
     end
   end
 
+  test "confirm! marks both legs with the destination account's transfer kinds" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+
+    transfer.confirm!
+
+    assert transfer.reload.confirmed?
+    assert_equal "cc_payment", transfer.outflow_transaction.reload.kind
+    assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
+  end
+
+  test "confirm! assigns the investment contributions category to an uncategorized outflow" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+
+    transfer.confirm!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "investment_contribution", outflow.kind
+    assert_equal families(:dylan_family).investment_contributions_category, outflow.category
+  end
+
+  test "confirm! keeps an outflow category the user already set" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.outflow_transaction.update!(category: categories(:income))
+
+    transfer.confirm!
+
+    assert_equal categories(:income), transfer.outflow_transaction.reload.category
+  end
+
+  test "reject! leaves the kind of a pending transfer's transactions alone" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "one_time")
+
+    transfer.reject!
+
+    assert_equal "one_time", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
+  test "reject! keeps a transfer kind that predates a pending match" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.update!(kind: "funds_movement")
+
+    transfer.reject!
+
+    assert_equal "funds_movement", transfer.outflow_transaction.reload.kind
+  end
+
+  test "reject! resets the transfer kinds of a confirmed transfer" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.confirm!
+
+    transfer.reject!
+
+    assert_equal "standard", transfer.outflow_transaction.reload.kind
+    assert_equal "standard", transfer.inflow_transaction.reload.kind
+  end
+
+  test "update_investment_contribution! turns a contribution into a plain transfer and back" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    assert transfer.investment_contribution?
+
+    assert transfer.update_investment_contribution!(false)
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "funds_movement", outflow.kind
+    assert_nil outflow.category
+    assert outflow.locked?(:kind)
+    assert_not transfer.investment_contribution?
+    assert_not transfer.categorizable?
+
+    assert transfer.update_investment_contribution!(true)
+
+    outflow.reload
+    assert_equal "investment_contribution", outflow.kind
+    assert_equal families(:dylan_family).investment_contributions_category, outflow.category
+    assert transfer.investment_contribution?
+    assert transfer.categorizable?
+  end
+
+  test "update_investment_contribution! keeps a category the user chose" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.outflow_transaction.update!(category: categories(:food_and_drink))
+    transfer.confirm!
+
+    transfer.update_investment_contribution!(false)
+
+    assert_equal categories(:food_and_drink), transfer.outflow_transaction.reload.category
+  end
+
+  test "update_investment_contribution! leaves transfers that cannot be a contribution alone" do
+    payment = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    payment.confirm!
+    pending = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+
+    assert_not payment.update_investment_contribution!(false)
+    assert_not pending.update_investment_contribution!(false)
+
+    assert_equal "cc_payment", payment.outflow_transaction.reload.kind
+    assert_not payment.outflow_transaction.locked?(:kind)
+    assert_equal "standard", pending.outflow_transaction.reload.kind
+  end
+
+  test "kind_for_leg keeps a plain transfer the user chose over a contribution" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    transfer.update_investment_contribution!(false)
+
+    assert_equal "funds_movement", transfer.reload.kind_for_leg(transfer.outflow_transaction)
+    assert_equal "funds_movement", transfer.kind_for_leg(transfer.inflow_transaction)
+  end
+
+  test "reject! drops the contribution choice with the transfer" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
+    transfer.confirm!
+    transfer.update_investment_contribution!(false)
+
+    transfer.reject!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "standard", outflow.kind
+    assert_not outflow.locked?(:kind)
+  end
+
   test "kind_for_account returns investment_contribution for investment accounts" do
     assert_equal "investment_contribution", Transfer.kind_for_account(accounts(:investment))
   end
@@ -155,100 +312,6 @@ class TransferTest < ActiveSupport::TestCase
 
   test "kind_for_account returns funds_movement for depository accounts" do
     assert_equal "funds_movement", Transfer.kind_for_account(accounts(:depository))
-  end
-
-  test "kind_for_account counts a transfer into a locked account as saving" do
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:depository), date: Date.current)
-  end
-
-  test "kind_for_account counts a transfer into a long-term asset as saving" do
-    hsa = families(:dylan_family).accounts.create!(
-      name: "HSA", balance: 0, currency: "USD", accountable: Depository.new(subtype: "hsa")
-    )
-    assert_equal "long_term", hsa.liquidity
-
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(hsa, from_account: accounts(:depository), date: Date.current)
-  end
-
-  test "kind_for_account treats a locked account past its release date as available" do
-    term_deposit = create_term_deposit(available_on: 1.month.ago.to_date)
-
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:depository), date: Date.current)
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:depository), date: 2.months.ago.to_date)
-  end
-
-  test "kind_for_account keeps a renewing term deposit locked after its first date" do
-    term_deposit = create_term_deposit(available_on: 1.month.ago.to_date, auto_renew: true, renewal_term_months: 12)
-
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:depository), date: Date.current)
-  end
-
-  test "kind_for_account does not count moves between savings accounts as saving" do
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-    building_savings = families(:dylan_family).accounts.create!(
-      name: "Building savings", balance: 0, currency: "USD", accountable: Depository.new(subtype: "building_savings")
-    )
-
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:investment), date: Date.current)
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(term_deposit, from_account: building_savings, date: Date.current)
-  end
-
-  test "kind_for_account keeps money moved from a locked account into investments neutral" do
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(accounts(:investment), from_account: term_deposit, date: Date.current)
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(accounts(:crypto), from_account: accounts(:investment), date: Date.current)
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(accounts(:investment), from_account: accounts(:depository), date: Date.current)
-    assert_equal "investment_contribution", Transfer.kind_for_account(accounts(:investment))
-  end
-
-  test "kind_for_account does not count borrowed money as saving" do
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:loan), date: Date.current)
-    assert_equal "funds_movement",
-      Transfer.kind_for_account(term_deposit, from_account: accounts(:credit_card), date: Date.current)
-  end
-
-  test "kind_for_account keeps instant-access savings and money coming back neutral" do
-    savings = families(:dylan_family).accounts.create!(
-      name: "Savings", balance: 0, currency: "USD", accountable: Depository.new(subtype: "savings")
-    )
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-
-    assert_equal "funds_movement", Transfer.kind_for_account(savings, from_account: accounts(:depository), date: Date.current)
-    assert_equal "funds_movement", Transfer.kind_for_account(accounts(:depository), from_account: term_deposit, date: Date.current)
-  end
-
-  test "kind_for_account keeps transfers into property and other assets neutral" do
-    assert_equal "long_term", accounts(:property).liquidity
-    assert_equal "long_term", accounts(:other_asset).liquidity
-
-    assert_equal "funds_movement", Transfer.kind_for_account(accounts(:property), from_account: accounts(:depository), date: Date.current)
-    assert_equal "funds_movement", Transfer.kind_for_account(accounts(:other_asset), from_account: accounts(:depository), date: Date.current)
-  end
-
-  test "kind_for_account follows a manual availability choice" do
-    savings = families(:dylan_family).accounts.create!(
-      name: "Savings", balance: 0, currency: "USD", accountable: Depository.new(subtype: "savings"),
-      liquidity_choice: "long_term"
-    )
-
-    assert_equal "investment_contribution",
-      Transfer.kind_for_account(savings, from_account: accounts(:depository), date: Date.current)
   end
 
   test "kind_for_account returns funds_movement for investment-to-investment transfers" do
@@ -326,17 +389,6 @@ class TransferTest < ActiveSupport::TestCase
     refute transfer.categorizable?
   end
 
-  test "categorizable? is true for a saving transfer into a locked account" do
-    term_deposit = create_term_deposit(available_on: 1.year.from_now.to_date)
-    outflow_entry = create_transaction(date: Date.current, account: accounts(:depository), amount: 500, kind: "investment_contribution")
-    inflow_entry = create_transaction(date: Date.current, account: term_deposit, amount: -500, kind: "funds_movement")
-
-    transfer = Transfer.create!(inflow_transaction: inflow_entry.transaction, outflow_transaction: outflow_entry.transaction)
-
-    assert transfer.categorizable?
-    assert_equal "investment_contribution", transfer.kind_for_leg(outflow_entry.transaction)
-  end
-
   test "has_source_fee? returns true when source fee present" do
     transfer = transfers(:one)
     entry = accounts(:depository).entries.create!(name: "Fee", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new(kind: "standard"))
@@ -367,10 +419,10 @@ class TransferTest < ActiveSupport::TestCase
   end
 
   private
-    def create_term_deposit(available_on:, auto_renew: false, renewal_term_months: nil)
-      families(:dylan_family).accounts.create!(
-        name: "Term deposit", balance: 0, currency: "USD", accountable: Depository.new(subtype: "cd"),
-        available_on: available_on, auto_renew: auto_renew, renewal_term_months: renewal_term_months
-      )
+    def create_pending_transfer(from:, to:)
+      outflow_entry = create_transaction(date: Date.current, account: from, amount: 500)
+      inflow_entry = create_transaction(date: Date.current, account: to, amount: -500)
+
+      Transfer.create!(inflow_transaction: inflow_entry.transaction, outflow_transaction: outflow_entry.transaction)
     end
 end

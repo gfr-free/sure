@@ -23,13 +23,13 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
     visit transactions_url
   end
 
-  test "keeps edit and reconcile for a transfer and hides delete and duplicate" do
+  test "keeps every action for a transfer and adds unlink and reconcile" do
     find("##{dom_id(@outflow_entry, "selection")}").check
 
     within "#entry-selection-bar" do
       assert_selector "a[title='Edit']"
-      assert_selector "a[title='Duplicate'].hidden", visible: false
-      assert_selector "button[title='Delete'].hidden", visible: false
+      assert_selector "a[title='Duplicate']:not(.hidden)"
+      assert_selector "button[title='Delete']:not(.hidden)"
       assert_selector "button[aria-label='#{I18n.t("transactions.selection_bar.reconcile")}']"
     end
   end
@@ -95,7 +95,7 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
 
     within "#entry-selection-bar" do
       assert_selector "a[title='Edit']"
-      assert_selector "button[title='Delete'].hidden", visible: false
+      assert_selector "button[title='Delete']:not(.hidden)"
       find("a[title='Edit']").click
     end
 
@@ -121,7 +121,7 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
     assert_equal "unreconciled", @inflow_entry.reload.reconciled_status
   end
 
-  test "disables a synced transfer leg but keeps the manual leg selectable" do
+  test "keeps both legs of a transfer with a synced account selectable" do
     synced_transfer = create_transfer(
       from_account: accounts(:connected),
       to_account: @account,
@@ -131,18 +131,18 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
     manual_inflow = synced_transfer.inflow_transaction.entry
 
     visit account_url(accounts(:connected), tab: "activity")
-    assert find("##{dom_id(synced_outflow, "selection")}", visible: :all).disabled?
+    assert_not find("##{dom_id(synced_outflow, "selection")}", visible: :all).disabled?
 
     visit account_url(@account, tab: "activity")
     assert_not find("##{dom_id(manual_inflow, "selection")}", visible: :all).disabled?
   end
 
-  test "disables transfer selection when manual reconciliation is off" do
+  test "keeps transfer selection when manual reconciliation is off" do
     @family.update!(manual_reconciliation: false)
 
     visit transactions_url
 
-    assert find("##{dom_id(@outflow_entry, "selection")}").disabled?
+    assert_not find("##{dom_id(@outflow_entry, "selection")}").disabled?
   end
 
   test "shows the reconciliation filter for a family with manual accounts" do

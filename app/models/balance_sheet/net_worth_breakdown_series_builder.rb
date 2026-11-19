@@ -102,10 +102,17 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
         accounts = historical_accounts.select { |account| account.classification == classification }
 
         grouping.group(accounts).map do |group|
-          key = AccountGrouping.classified_group_key(classification, group_by, group.key)
-          { name: group.name, color: AccountGrouping.color_for(key), classification: classification, accounts: group.accounts }
+          { name: group.name, color: group_color(classification, group_by, group.key), classification: classification, accounts: group.accounts }
         end
       end
+    end
+
+    # Same colors as the report tables: a type fallback group is the account
+    # type's own group, every other group is colored by its key.
+    def group_color(classification, group_by, value)
+      return Accountable.from_type(value.accountable_type).color if value.is_a?(AccountGrouping::TypeFallback)
+
+      AccountGrouping.color_for(AccountGrouping.classified_group_key(classification, group_by, value))
     end
 
     def grouped_by_account_type

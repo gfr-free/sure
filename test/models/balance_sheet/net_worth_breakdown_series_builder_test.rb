@@ -123,6 +123,17 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilderTest < ActiveSupport::TestCase
     assert_equal 7000, last_point[:value].amount
   end
 
+  test "keeps account types the field does not apply to as their own type group" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    create_balance(account: @liability_account, date: period.end_date, balance: 1000)
+
+    credit_card_group = builder.breakdown_series(period: period, group_by: "subtype")[:values].last[:groups]
+      .find { |g| g[:classification] == "liability" }
+
+    assert_equal CreditCard.display_name, credit_card_group[:name]
+    assert_equal CreditCard.color, credit_card_group[:color]
+  end
+
   test "falls back to account types for an unknown grouping" do
     period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
     create_balance(account: @asset_account, date: period.end_date, balance: 5000)

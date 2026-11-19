@@ -467,6 +467,7 @@ class User < ApplicationRecord
       end
 
       AccountStatement.where(account: accounts_to_move).update_all(family_id: new_family.id, updated_at: Time.current) if accounts_to_move.any?
+      User::FamilyReferenceRemapper.new(accounts_to_move, new_family).remap!
 
       provider_items_to_move.each do |provider_item|
         if provider_item.is_a?(FinancekitItem)

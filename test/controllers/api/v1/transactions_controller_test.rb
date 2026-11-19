@@ -214,6 +214,30 @@ class Api::V1::TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil found_transaction, "Should find the coffee transaction"
   end
 
+  # The search term is interpolated into an ILIKE pattern, so "%" and "_" from
+  # the caller act as wildcards instead of literals. Unescaped, a search for
+  # "%" matches every transaction in the family rather than the ones that
+  # actually contain a percent sign.
+  test "search treats LIKE wildcards in the term as literal characters" do
+    literal = @account.entries.create!(
+      name: "100% cotton",
+      amount: 5.50, currency: "USD", date: Date.current, entryable: Transaction.new
+    )
+    other = @account.entries.create!(
+      name: "Plain coffee",
+      amount: 5.50, currency: "USD", date: Date.current, entryable: Transaction.new
+    )
+
+    get api_v1_transactions_url,
+        params: { search: "%" },
+        headers: api_headers(@api_key)
+    assert_response :success
+
+    ids = JSON.parse(response.body)["transactions"].map { |t| t["id"] }
+    assert_includes ids, literal.transaction.id, "the transaction containing a literal % must match"
+    assert_not_includes ids, other.transaction.id, "a bare % must not match every transaction"
+  end
+
   test "should search disabled account transactions" do
     disabled_transaction = create_disabled_account_transaction(name: "Closed Account Coffee")
 
@@ -326,6 +350,51 @@ class Api::V1::TransactionsControllerTest < ActionDispatch::IntegrationTest
     response_data = JSON.parse(response.body)
     assert_equal "Test Transaction", response_data["name"]
     assert_equal @account.id, response_data["account"]["id"]
+  end
+
+  test "creating and updating via the API runs rules set to apply immediately" do
+    @family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "API") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @family.categories.first.id) ]
+    )
+
+    post api_v1_transactions_url,
+         params: { transaction: { account_id: @account.id, name: "API purchase", amount: 5, date: Date.current, currency: "USD", nature: "expense" } },
+         headers: api_headers(@api_key)
+    assert_response :created
+    created_id = JSON.parse(response.body)["id"]
+    assert_enqueued_with(job: ApplyImmediateRulesJob, args: [ @family, { transaction_ids: [ created_id ] } ])
+
+    put api_v1_transaction_url(@transaction), params: { transaction: { name: "API rename" } }, headers: api_headers(@api_key)
+    assert_response :success
+    assert_enqueued_with(job: ApplyImmediateRulesJob, args: [ @family, { transaction_ids: [ @transaction.id ] } ])
+  end
+
+  test "an API update that changes nothing runs no immediate rules" do
+    @family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "API") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @family.categories.first.id) ]
+    )
+
+    put api_v1_transaction_url(@transaction), params: { transaction: { name: @transaction.entry.name } }, headers: api_headers(@api_key)
+
+    assert_response :success
+    assert_no_enqueued_jobs(only: ApplyImmediateRulesJob)
+  end
+
+  test "a rejected API update runs no immediate rules" do
+    @family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "API") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @family.categories.first.id) ]
+    )
+
+    put api_v1_transaction_url(@transaction), params: { transaction: { name: "" } }, headers: api_headers(@api_key)
+
+    assert_response :unprocessable_entity
+    assert_no_enqueued_jobs(only: ApplyImmediateRulesJob)
   end
 
   test "should create transaction with external idempotency key" do

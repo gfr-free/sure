@@ -1,24 +1,17 @@
 class Transaction < ApplicationRecord
   include Entryable, Transferable, Ruleable, Splittable, Encryptable
 
-  # A counterparty's own bank account identifiers are a third party's data,
-  # not something the viewing family controls -- deterministic (not
-  # random) encryption is used only because Account#iban/Merchant#iban set
-  # that precedent for the same reason (equality lookups), not because one
-  # is needed here today; see Account#iban for the full tradeoff writeup.
-  # Populated by EnableBankingEntry::Processor#extra via
-  # Account::ProviderImportAdapter#import_transaction, which normalizes the
-  # IBAN (see IbanNormalizable) before assignment, and copied on a manual
-  # pending merge and to split children -- there is no user-facing form
-  # field for either column, unlike accounts.iban/merchants.iban.
-  if encryption_ready?
-    encrypts :counterparty_iban, deterministic: true
-    encrypts :counterparty_account_id, deterministic: true
-  end
+  # Counterparty data from a provider sync. Only the last four characters of
+  # a third party's IBAN or account reference are kept, so nothing that
+  # identifies their account sits at rest. When the full IBAN belongs to
+  # another account of the same family, the link is kept instead
+  # (counterparty_own_account). See Account::ProviderImportAdapter.
+  COUNTERPARTY_ATTRIBUTES = %i[counterparty_iban_last4 counterparty_reference_last4 counterparty_own_account_id].freeze
 
   belongs_to :category, optional: true
   belongs_to :merchant, optional: true
   belongs_to :transfer, optional: true
+  belongs_to :counterparty_own_account, class_name: "Account", optional: true
 
   has_many :taggings, as: :taggable, dependent: :destroy
   has_many :tags, through: :taggings
@@ -224,6 +217,12 @@ class Transaction < ApplicationRecord
   scope :pending, -> { where(Transaction.pending_sql) }
 
   scope :excluding_pending, -> { where(Transaction.not_pending_sql) }
+
+  # Transactions carrying any of the given tags. A subquery rather than a
+  # join, so a transaction with several of them is returned once.
+  scope :with_any_tag, ->(tag_ids) {
+    where(id: Tagging.where(tag_id: tag_ids, taggable_type: "Transaction").select(:taggable_id))
+  }
 
   # SQL snippet for raw queries that must exclude pending transactions.
   # Use in income statements, balance sheets, and raw analytics.
@@ -618,7 +617,7 @@ class Transaction < ApplicationRecord
         # the provider sync does (no UI field a user could have edited).
         pending_transaction = pending_entry.entryable
         if pending_transaction.is_a?(Transaction)
-          %i[counterparty_iban counterparty_account_id].each do |attribute|
+          COUNTERPARTY_ATTRIBUTES.each do |attribute|
             if posted_tx[attribute].blank? && pending_transaction[attribute].present?
               tx_attrs[attribute] = pending_transaction[attribute]
             end

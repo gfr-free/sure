@@ -374,7 +374,7 @@ class TransactionImportTest < ActiveSupport::TestCase
     loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = accounts(:depository).entries.create!(
       date: Date.new(2024, 1, 1), amount: 500, currency: "USD", name: "Loan payment",
-      entryable: Transaction.new(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+      entryable: Transaction.new(counterparty_iban_last4: "3000", counterparty_own_account: loan)
     )
     loan.family.auto_create_missing_transfer_counterparts!
     transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
@@ -405,7 +405,9 @@ class TransactionImportTest < ActiveSupport::TestCase
 
     fabricated_entry.reload
     assert_equal "Incoming payment", fabricated_entry.name
-    assert_equal @import.id, fabricated_entry.import_id
+    # Like any matched entry it keeps its original import (none here), so
+    # reverting this import does not delete a leg of the transfer.
+    assert_nil fabricated_entry.import_id
     assert_nil fabricated_entry.transaction.extra["auto_generated_transfer_counterpart"]
     assert_equal fabricated_entry.entryable_id, transfer.reload.inflow_transaction_id
     assert_equal 1, loan.entries.where(date: Date.new(2024, 1, 1), amount: -500).count

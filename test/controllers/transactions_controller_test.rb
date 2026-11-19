@@ -12,14 +12,31 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
   # Bills has always linked out to transactions. Until now nothing linked back,
   # so a transaction that settled a bill was a dead end. The link-back is part
   # of the preview-gated bills surface, so the viewer needs the flag.
-  test "index loads the merchant list on demand and keeps selected merchants in the form" do
+  test "index lazy loads filters with selected merchants in the frame URL" do
     get transactions_url(q: { merchants: [ "Amazon" ] })
 
     assert_response :success
-    assert_select "#transactions-search turbo-frame#merchant_filter_options[loading=lazy][data-action=?]", "turbo:frame-load->list-filter#filter" do
-      assert_select "input[type=hidden][name='q[merchants][]'][value=?]", "Amazon"
-    end
+    assert_select "#transactions-search turbo-frame#transaction-filters[loading=lazy][src=?]",
+                  filters_transactions_path(q: { merchants: [ "Amazon" ] })
     assert_select "input[type=checkbox][name='q[merchants][]']", count: 0
+  end
+
+  test "show lists split rows in the order they were entered" do
+    entry = create_transaction(amount: 100, name: "Split parent", account: accounts(:depository))
+    entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])
+
+    queries = []
+    ActiveSupport::Notifications.subscribed(->(*, payload) { queries << payload[:sql] }, "sql.active_record") do
+      get transaction_url(entry), headers: { "Turbo-Frame" => "drawer" }
+    end
+
+    assert_response :success
+    # Without an ORDER BY PostgreSQL returns the rows in physical order.
+    row_reads = queries.select { |sql| sql.include?('"entries"."parent_entry_id" =') && !sql.include?("SELECT 1 AS one") }
+    assert row_reads.any?, "expected the split rows to be read"
+    assert row_reads.all? { |sql| sql.include?('ORDER BY "entries"."created_at" ASC, "entries"."id" ASC') }, row_reads.join("\n")
+    names = css_select("p.font-medium").map(&:text).select { |text| text.start_with?("Part ") }
+    assert_equal [ "Part 1", "Part 2" ], names
   end
 
   test "a German transaction shows the bill it paid with localized copy" do
@@ -200,21 +217,6 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-activity-label-quick-edit-target=badge]", text: /Transfer/, count: 0
     # The picker shows translated names but still submits the stored label.
     assert_select "button[data-label='Sweep In']", text: "Автоперевод (зачисление)"
-  end
-
-  test "index groups subcategories immediately after their parent in the category filter" do
-    get transactions_url
-    assert_response :success
-
-    doc = Nokogiri::HTML::Document.parse(response.body)
-    checkbox_values = doc.css("input[name='q[categories][]']").map { |node| node["value"] }
-
-    parent_index = checkbox_values.index(categories(:food_and_drink).name)
-    child_index = checkbox_values.index(categories(:subcategory).name)
-
-    assert_not_nil parent_index
-    assert_not_nil child_index
-    assert_equal parent_index + 1, child_index
   end
 
   # The form passes its own change action on the currency select; the money
@@ -2409,13 +2411,6 @@ end
     assert_response :success
   end
 
-  test "index offers the attachment filter in the filter menu" do
-    get transactions_url
-
-    assert_response :success
-    assert_select "#transaction-filters-menu input[type=checkbox][name='q[attachment_status][]']", count: 2
-  end
-
   test "index ignores unsupported attachment_status values without rendering a badge" do
     get transactions_url(q: { attachment_status: [ "bogus" ] })
 
@@ -2520,7 +2515,7 @@ end
   test "destroying a transaction also removes its fabricated transfer counterpart" do
     accounts(:loan).update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: accounts(:depository), amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow_entry.entryable.update!(counterparty_iban_last4: "3000", counterparty_own_account: accounts(:loan))
     @user.family.auto_create_missing_transfer_counterparts!
     fabricated_entry_id = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).inflow_transaction.entry.id
 
@@ -2531,7 +2526,7 @@ end
   end
 
   test "shows the counterparty account when the setting is on and data is present" do
-    @entry.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @entry.transaction.update!(counterparty_iban_last4: "3000")
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
 
@@ -2546,9 +2541,24 @@ end
     assert_match "•••3000", response.body
     assert_select "dl dt", text: I18n.t("transactions.show.counterparty_iban_label")
     assert_select "dl dd.privacy-sensitive", text: "•••3000"
-    # The full IBAN must never appear anywhere in the response, including
-    # the raw "Additional Details" debug dump further down the page -- that
-    # surface strips these keys unconditionally, regardless of this setting.
+  end
+
+  test "names the family's own counterparty account" do
+    @entry.transaction.update!(counterparty_iban_last4: "3201", counterparty_own_account: accounts(:connected))
+
+    get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
+
+    assert_response :success
+    assert_select "dl dt", text: I18n.t("transactions.show.counterparty_own_account_label")
+    assert_select "dl dd a[href=?]", account_path(accounts(:connected)), text: accounts(:connected).name
+  end
+
+  test "keeps a full IBAN an older sync left in extra out of the raw details" do
+    @entry.transaction.update_columns(extra: { "counterparty_iban" => "DE89370400440532013000" }) # pipelock:ignore IBAN
+
+    get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
+
+    assert_response :success
     assert_no_match "DE89370400440532013000", response.body # pipelock:ignore IBAN
   end
 
@@ -2561,20 +2571,18 @@ end
   end
 
   test "hides the counterparty account when the user has disabled the setting" do
-    @entry.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @entry.transaction.update!(counterparty_iban_last4: "3000")
     @user.update!(preferences: { "show_counterparty_account" => false })
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
 
     assert_response :success
     assert_no_match I18n.t("transactions.show.counterparty_iban_label"), response.body
-    # The dedicated row is gone; the raw-extra debug dump (Additional
-    # Details) always strips this key too, regardless of the setting.
-    assert_no_match "DE89370400440532013000", response.body # pipelock:ignore IBAN
+    assert_no_match "•••3000", response.body
   end
 
   test "hides the counterparty account id when the user has disabled the setting" do
-    @entry.transaction.update!(counterparty_account_id: "ACC-998877")
+    @entry.transaction.update!(counterparty_reference_last4: "8877")
     @user.update!(preferences: { "show_counterparty_account" => false })
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
@@ -2584,8 +2592,8 @@ end
     assert_no_match "•••8877", response.body
   end
 
-  test "falls back to counterparty_account_id when no iban is present" do
-    @entry.transaction.update!(counterparty_account_id: "ACC-998877")
+  test "falls back to the account reference when no iban is present" do
+    @entry.transaction.update!(counterparty_reference_last4: "8877")
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
 

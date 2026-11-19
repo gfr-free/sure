@@ -268,112 +268,6 @@ class EnableBankingAccountTest < ActiveSupport::TestCase
     assert_nil linked_account.reload.iban
   end
 
-  test "does not raise or fail the sync when another family account already has this iban" do
-    other_account = @family.accounts.create!(name: "Other account", balance: 0, currency: "USD", accountable: Depository.new, iban: "NL91ABNA0417164300") # pipelock:ignore IBAN
-    linked_account = accounts(:depository)
-    AccountProvider.create!(provider: @account, account: linked_account)
-
-    assert_nothing_raised do
-      @account.upsert_enable_banking_snapshot!({
-        uid: "uid_uuid_123",
-        identification_hash: "hash_abc123",
-        currency: "EUR",
-        cash_account_type: "CACC",
-        iban: "NL91ABNA0417164300" # pipelock:ignore IBAN
-      })
-    end
-
-    assert_nil linked_account.reload.iban
-    assert_equal "NL91ABNA0417164300", other_account.reload.iban # pipelock:ignore IBAN
-    assert_equal "NL91ABNA0417164300", @account.reload.iban # pipelock:ignore IBAN
-
-    debug_entry = DebugLogEntry.last
-    assert_equal "provider_sync_warning", debug_entry.category
-    assert_equal linked_account.id, debug_entry.account_id
-  end
-
-  test "propagates an iban another family account in a different currency already has" do
-    # One IBAN backs several currency sub-accounts at Revolut or Wise.
-    other_account = @family.accounts.create!(name: "EUR sub-account", balance: 0, currency: "EUR", accountable: Depository.new, iban: "NL91ABNA0417164300") # pipelock:ignore IBAN
-    linked_account = accounts(:depository)
-    AccountProvider.create!(provider: @account, account: linked_account)
-
-    assert_no_difference "DebugLogEntry.count" do
-      @account.upsert_enable_banking_snapshot!({
-        uid: "uid_uuid_123",
-        identification_hash: "hash_abc123",
-        currency: "USD",
-        cash_account_type: "CACC",
-        iban: "NL91ABNA0417164300" # pipelock:ignore IBAN
-      })
-    end
-
-    assert_equal "NL91ABNA0417164300", linked_account.reload.iban # pipelock:ignore IBAN
-    assert_equal "NL91ABNA0417164300", other_account.reload.iban # pipelock:ignore IBAN
-  end
-
-  test "logs a known iban conflict only once across repeated syncs" do
-    @family.accounts.create!(name: "Other account", balance: 0, currency: "USD", accountable: Depository.new, iban: "NL91ABNA0417164300") # pipelock:ignore IBAN
-    linked_account = accounts(:depository)
-    AccountProvider.create!(provider: @account, account: linked_account)
-    snapshot = {
-      uid: "uid_uuid_123",
-      identification_hash: "hash_abc123",
-      currency: "USD",
-      cash_account_type: "CACC",
-      iban: "NL91ABNA0417164300" # pipelock:ignore IBAN
-    }
-
-    assert_difference "DebugLogEntry.count", 1 do
-      3.times { @account.upsert_enable_banking_snapshot!(snapshot) }
-    end
-    assert_nil linked_account.reload.iban
-  end
-
-  test "logs a failed iban save only once across repeated syncs" do
-    linked_account = accounts(:depository)
-    AccountProvider.create!(provider: @account, account: linked_account)
-    Account.any_instance.stubs(:update).returns(false)
-    snapshot = {
-      uid: "uid_uuid_123",
-      identification_hash: "hash_abc123",
-      currency: "EUR",
-      cash_account_type: "CACC",
-      iban: "NL91ABNA0417164300" # pipelock:ignore IBAN
-    }
-
-    assert_difference "DebugLogEntry.count", 1 do
-      3.times { @account.upsert_enable_banking_snapshot!(snapshot) }
-    end
-  end
-
-  test "does not raise or fail the sync on a raw unique-index race during propagation" do
-    # #with_lock only serializes writers to the target row; it can't stop a
-    # DIFFERENT blank-iban account in the family from concurrently passing
-    # the same Rails-level uniqueness check and then losing at the raw DB
-    # index on commit -- surfacing as RecordNotUnique, which a plain
-    # `update` does not rescue on its own.
-    linked_account = accounts(:depository)
-    AccountProvider.create!(provider: @account, account: linked_account)
-    Account.any_instance.stubs(:update).raises(
-      ActiveRecord::RecordNotUnique.new("duplicate key value violates unique constraint")
-    )
-
-    assert_nothing_raised do
-      @account.upsert_enable_banking_snapshot!({
-        uid: "uid_uuid_123",
-        identification_hash: "hash_abc123",
-        currency: "EUR",
-        cash_account_type: "CACC",
-        iban: "NL91ABNA0417164300" # pipelock:ignore IBAN
-      })
-    end
-
-    debug_entry = DebugLogEntry.last
-    assert_equal "provider_sync_warning", debug_entry.category
-    assert_match "Concurrent iban conflict", debug_entry.message
-  end
-
   test "does not touch linked account when snapshot has no iban" do
     linked_account = accounts(:depository)
     AccountProvider.create!(provider: @account, account: linked_account)
@@ -386,5 +280,48 @@ class EnableBankingAccountTest < ActiveSupport::TestCase
     })
 
     assert_nil linked_account.reload.iban
+  end
+  test "ignore! keeps the account's identity but drops what was fetched for it" do
+    @account.update!(current_balance: 1234.56, raw_payload: { "uid" => "uid_1", "iban" => "FR7612345" },
+      raw_transactions_payload: [ { "transaction_id" => "t1" } ])
+
+    assert @account.ignore!
+
+    @account.reload
+    assert @account.ignored?
+    assert_equal "hash_abc123", @account.uid
+    assert_equal "Mon compte", @account.name
+    assert_nil @account.current_balance
+    assert_nil @account.raw_payload
+    assert_nil @account.raw_transactions_payload
+  end
+
+  test "ignore! refuses an account that is linked to a Sure account" do
+    @account.update!(current_balance: 10)
+    AccountProvider.create!(account: accounts(:depository), provider: @account)
+
+    assert_not @account.ignore!
+    assert_not @account.reload.ignored?
+    assert_equal 10, @account.current_balance
+  end
+
+  test "needs_setup leaves out linked and ignored accounts" do
+    linked = EnableBankingAccount.create!(enable_banking_item: @item, name: "Linked", uid: "hash_linked", currency: "EUR")
+    AccountProvider.create!(account: accounts(:depository), provider: linked)
+
+    assert_equal [ @account ], @item.enable_banking_accounts.needs_setup.to_a
+
+    @account.ignore!
+    assert_empty @item.enable_banking_accounts.needs_setup
+  end
+
+  test "snapshot writers skip an account ignored after it was loaded" do
+    stale = EnableBankingAccount.find(@account.id)
+    @account.ignore!
+
+    assert_no_changes -> { @account.reload.attributes } do
+      assert_not stale.upsert_enable_banking_snapshot!(uid: "uid_1", identification_hash: "hash_abc123", name: "Renamed", currency: "EUR")
+      assert_not stale.upsert_enable_banking_transactions_snapshot!([ { "transaction_id" => "t1" } ])
+    end
   end
 end

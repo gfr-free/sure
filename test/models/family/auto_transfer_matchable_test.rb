@@ -313,6 +313,118 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_not Transfer.exists?(inflow_transaction_id: coincidental_inflow.entryable_id)
   end
 
+  test "does not auto-match a cross-currency pair whose legs have different categories" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500, category: categories(:food_and_drink))
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "CAD", category: categories(:income))
+
+    # Otherwise eligible: the automatic path's other restrictions still offer the pair.
+    eligible = @family.transfer_match_candidates(include_rejected: false, restrict_cross_currency_to_linked_accounts: true, require_common_writer: true)
+    assert_includes eligible.map { |c| [ c.inflow_transaction_id, c.outflow_transaction_id ] }, [ inflow.entryable_id, outflow.entryable_id ]
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+  end
+
+  # A route the user confirmed is a stronger signal than the categories, which an
+  # auto-categorizer can get wrong on one leg.
+  test "auto-matches a cross-currency pair with different categories on a confirmed route" do
+    load_family_currency_rates
+    confirm_transfer!(from: @depository, to: @other_asset)
+
+    outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 400, currency: "GBP", category: categories(:food_and_drink))
+    inflow = create_transaction(date: Date.current, account: @other_asset, amount: -680, currency: "CAD", category: categories(:income))
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+    assert Transfer.exists?(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: outflow.entryable_id)
+  end
+
+  # The category filter removes one row, not the inflow's slot: the greedy matcher
+  # then takes the next eligible candidate, as it does after a rejected pair.
+  test "a category-blocked cross-currency candidate leaves the inflow to the next eligible one" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "CAD", category: categories(:income))
+    blocked_outflow = create_transaction(date: Date.current, account: @depository, amount: 500, category: categories(:food_and_drink))
+    next_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 505)
+
+    # Without the category filter the blocked outflow, one day closer, ranks first.
+    unfiltered = @family.transfer_match_candidates(include_rejected: false, restrict_cross_currency_to_linked_accounts: true, require_common_writer: true)
+    assert_equal [ blocked_outflow.entryable_id, next_outflow.entryable_id ],
+                 unfiltered.select { |c| c.inflow_transaction_id == inflow.entryable_id }.map(&:outflow_transaction_id)
+
+    @family.auto_match_transfers!
+
+    assert Transfer.exists?(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: next_outflow.entryable_id)
+    assert_not Transfer.exists?(outflow_transaction_id: blocked_outflow.entryable_id)
+  end
+
+  test "auto-matches a cross-currency pair when either leg is uncategorized" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    uncategorized_inflow_out = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500, category: categories(:food_and_drink))
+    uncategorized_inflow_in = create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "CAD")
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+    assert Transfer.exists?(inflow_transaction_id: uncategorized_inflow_in.entryable_id, outflow_transaction_id: uncategorized_inflow_out.entryable_id)
+
+    uncategorized_outflow_out = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 1000)
+    uncategorized_outflow_in = create_transaction(date: Date.current, account: @credit_card, amount: -1400, currency: "CAD", category: categories(:income))
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+    assert Transfer.exists?(inflow_transaction_id: uncategorized_outflow_in.entryable_id, outflow_transaction_id: uncategorized_outflow_out.entryable_id)
+  end
+
+  test "auto-matches a cross-currency pair whose legs share a category" do
+    load_exchange_prices
+    link_account!(@depository)
+    link_account!(@credit_card)
+
+    outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500, category: categories(:food_and_drink))
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "CAD", category: categories(:food_and_drink))
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+    assert Transfer.exists?(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: outflow.entryable_id)
+  end
+
+  test "auto-matches a same-currency exact pair whose legs have different categories" do
+    outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500, category: categories(:food_and_drink))
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -500, category: categories(:income))
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+    assert Transfer.exists?(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: outflow.entryable_id)
+  end
+
+  test "a cross-currency pair with different categories can still be matched by hand" do
+    load_exchange_prices
+    outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500, category: categories(:food_and_drink))
+    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "CAD", category: categories(:income))
+
+    assert_includes inflow.transaction.transfer_match_candidates.map(&:outflow_transaction_id), outflow.entryable_id
+
+    transfer = Transfer::Matcher.new(inflow.transaction).match_with!(outflow.transaction)
+    assert transfer.confirmed?
+    assert_equal [ inflow.entryable_id, outflow.entryable_id ], [ transfer.inflow_transaction_id, transfer.outflow_transaction_id ]
+  end
+
   test "does not suggest a family currency cross rate outside the exchange rate tolerance" do
     load_family_currency_rates
 
@@ -638,23 +750,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @credit_card.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
 
     confirmed_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    confirmed_outflow.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
-
-    create_transaction(date: Date.current, account: @depository, amount: 500)
-
-    inflow = create_transaction(date: Date.current, account: @credit_card, amount: -500)
-
-    @family.auto_match_transfers!
-
-    transfer = Transfer.find_by!(inflow_transaction_id: inflow.entryable_id)
-    assert_equal confirmed_outflow.entryable_id, transfer.outflow_transaction_id
-  end
-
-  test "prefers an iban-confirmed candidate whose counterparty iban has dots and dashes" do
-    @credit_card.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
-
-    confirmed_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    confirmed_outflow.transaction.update!(counterparty_iban: "de89.3704-0044/0532:0130'00")
+    confirmed_outflow.transaction.update!(counterparty_iban_last4: "3000", counterparty_own_account: @credit_card)
 
     create_transaction(date: Date.current, account: @depository, amount: 500)
 
@@ -670,7 +766,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @credit_card.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
 
     outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    outflow.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow.transaction.update!(counterparty_iban_last4: "3000", counterparty_own_account: @credit_card)
 
     # Same-day inflow on another account: by date alone it would win.
     closest_inflow = create_transaction(date: 1.day.ago.to_date, account: @loan, amount: -500)
@@ -686,7 +782,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "a confirmed iban does not widen the date window" do
     @credit_card.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow = create_transaction(date: 10.days.ago.to_date, account: @depository, amount: 500)
-    outflow.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    outflow.transaction.update!(counterparty_iban_last4: "3000", counterparty_own_account: @credit_card)
     create_transaction(date: Date.current, account: @credit_card, amount: -500)
 
     assert_no_difference -> { Transfer.count } do
@@ -700,7 +796,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     closest_outflow = create_transaction(date: Date.current, account: @depository, amount: 500)
 
     mismatched_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    mismatched_outflow.transaction.update!(counterparty_iban: "AT611904300234573201") # pipelock:ignore IBAN
+    mismatched_outflow.transaction.update!(counterparty_iban_last4: "3201")
 
     inflow = create_transaction(date: Date.current, account: @credit_card, amount: -500)
 
@@ -711,10 +807,9 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   end
 
   test "does not prefer a candidate when the inflow side's own counterparty iban contradicts the outflow account" do
-    # The destination (credit_card) iban matches the outflow's recorded
-    # counterparty_iban, which alone would confirm the match. But the inflow
-    # transaction itself recorded a DIFFERENT counterparty_iban than the
-    # outflow account's own iban -- the destination bank says this money came
+    # The outflow's counterparty is linked to the destination (credit_card),
+    # which alone would confirm the match. But the inflow transaction itself
+    # recorded a DIFFERENT counterparty IBAN than the outflow account's own -- the destination bank says this money came
     # from somewhere else, so the IBAN signal must not override the date order.
     @credit_card.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     @depository.update!(iban: "AT611904300234573201") # pipelock:ignore IBAN
@@ -722,10 +817,10 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     closest_outflow = create_transaction(date: Date.current, account: @depository, amount: 500)
 
     iban_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    iban_outflow.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    iban_outflow.transaction.update!(counterparty_iban_last4: "3000", counterparty_own_account: @credit_card)
 
     inflow = create_transaction(date: Date.current, account: @credit_card, amount: -500)
-    inflow.transaction.update!(counterparty_iban: "FR1420041010050500013M02606") # pipelock:ignore IBAN
+    inflow.transaction.update!(counterparty_iban_last4: "2606")
 
     @family.auto_match_transfers!
 
@@ -740,10 +835,10 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     create_transaction(date: Date.current, account: @depository, amount: 500)
 
     iban_outflow = create_transaction(date: 1.day.ago.to_date, account: @depository, amount: 500)
-    iban_outflow.transaction.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    iban_outflow.transaction.update!(counterparty_iban_last4: "3000", counterparty_own_account: @credit_card)
 
     inflow = create_transaction(date: Date.current, account: @credit_card, amount: -500)
-    inflow.transaction.update!(counterparty_iban: "AT611904300234573201") # pipelock:ignore IBAN
+    inflow.transaction.update!(counterparty_iban_last4: "3201", counterparty_own_account: @depository)
 
     @family.auto_match_transfers!
 
@@ -961,7 +1056,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_includes sql, "EXISTS (SELECT 1 FROM account_providers WHERE account_providers.account_id = outflow_accounts.id)"
     assert_includes sql, ":restrict_cross_currency_to_linked_accounts = FALSE"
     assert_equal 2, sql.scan(":require_common_writer = FALSE").size
-    assert_equal 2, sql.scan(":exclude_same_wise_item = FALSE").size
+    assert_equal 2, sql.scan(":exclude_same_connection_pairs = FALSE").size
   end
 
   # Moves between one Wise connection's balances are linked from Wise's own
@@ -1007,6 +1102,34 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
 
     assert Transfer.exists?(inflow_transaction_id: bank_credit.entryable_id, outflow_transaction_id: payout.entryable_id)
     assert Transfer.exists?(inflow_transaction_id: move_in.entryable_id, outflow_transaction_id: move_out.entryable_id)
+  end
+
+  test "the same-connection exclusion comes from the provider adapter" do
+    wise_item = wise_items(:one)
+    jar_out = create_transaction(date: Date.current, account: link_wise_balance!(wise_item, "EUR"), amount: 250.75, currency: "EUR")
+    jar_in = create_transaction(date: Date.current, account: link_wise_balance!(wise_item, "EUR"), amount: -250.75, currency: "EUR")
+    Provider::WiseAdapter.stubs(:auto_match_exclusion_sql).returns(nil)
+
+    @family.auto_match_transfers!
+
+    assert Transfer.exists?(inflow_transaction_id: jar_in.entryable_id, outflow_transaction_id: jar_out.entryable_id)
+  end
+
+  test "one provider adapter's exclusion does not lift another's" do
+    wise_item = wise_items(:one)
+    jar_out = create_transaction(date: Date.current, account: link_wise_balance!(wise_item, "EUR"), amount: 250.75, currency: "EUR")
+    jar_in = create_transaction(date: Date.current, account: link_wise_balance!(wise_item, "EUR"), amount: -250.75, currency: "EUR")
+    link_account!(@depository)
+    link_account!(@credit_card)
+    create_transaction(date: Date.current, account: @depository, amount: 500)
+    create_transaction(date: Date.current, account: @credit_card, amount: -500)
+    Provider::PlaidAdapter.stubs(:auto_match_exclusion_sql).with("inflow_accounts", "outflow_accounts")
+                          .returns("inflow_accounts.id = '#{@credit_card.id}'")
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+    assert_not Transfer.exists?(inflow_transaction_id: jar_in.entryable_id, outflow_transaction_id: jar_out.entryable_id)
   end
 
   test "does not auto-match transfers when the family has disabled auto match" do
@@ -1128,7 +1251,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "missing_transfer_suggestion_for finds an account whose iban matches the outflow's counterparty iban" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "de89 3704 0044 0532 0130 00")
+    link_counterparty!(outflow_entry, "de89 3704 0044 0532 0130 00")
 
     assert_equal @loan, @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
   end
@@ -1138,7 +1261,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @family.accounts.create!(name: "EUR sub-account", balance: 0, currency: "EUR", accountable: Depository.new, iban: "DE89370400440532013000") # pipelock:ignore IBAN
     usd_account = @family.accounts.create!(name: "USD sub-account", balance: 0, currency: "USD", accountable: Depository.new, iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500, currency: "USD")
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_equal usd_account, @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
   end
@@ -1151,7 +1274,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
 
   test "missing_transfer_suggestion_for returns nil when no account matches" do
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "AT611904300234573201") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "AT611904300234573201") # pipelock:ignore IBAN
 
     assert_nil @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
   end
@@ -1159,7 +1282,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "missing_transfer_suggestion_for returns nil for an inflow entry" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     inflow_entry = create_transaction(date: Date.current, account: @depository, amount: -500)
-    inflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(inflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_nil @family.missing_transfer_suggestion_for(inflow_entry, user: @user)
   end
@@ -1167,8 +1290,8 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "missing_transfer_suggestion_for returns nil once dismissed" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(
-      counterparty_iban: "DE89370400440532013000", # pipelock:ignore IBAN
+    link_counterparty!(
+      outflow_entry, "DE89370400440532013000", # pipelock:ignore IBAN
       extra: { "counterparty_transfer_suggestion_dismissed" => true }
     )
 
@@ -1178,7 +1301,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "missing_transfer_suggestion_for returns nil for an already-matched transfer" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000", kind: "funds_movement") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000", kind: "funds_movement") # pipelock:ignore IBAN
     inflow_entry = create_transaction(date: Date.current, account: @loan, amount: -500)
     Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable)
 
@@ -1189,7 +1312,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     @loan.disable!
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_nil @family.missing_transfer_suggestion_for(outflow_entry, user: @user)
   end
@@ -1198,7 +1321,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     other_member = users(:family_member)
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     # @loan is owned by @user (family_admin) with no share granted to
     # other_member, so it's outside other_member's writable_by scope --
@@ -1210,7 +1333,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! creates a pending transfer and fabricated inflow entry" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_difference [ "Transfer.count", "Entry.count" ], 1 do
       @family.auto_create_missing_transfer_counterparts!
@@ -1233,7 +1356,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "confirming a fabricated counterpart applies the transfer kind to the outflow" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
 
     transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
@@ -1258,7 +1381,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! skips an outflow already in a pending transfer" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     inflow_entry = create_transaction(date: Date.current, account: @credit_card, amount: -500)
     Transfer.create!(inflow_transaction: inflow_entry.entryable, outflow_transaction: outflow_entry.entryable, status: "pending")
 
@@ -1271,7 +1394,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! does not fabricate a counterpart on a synced (non-manual) account" do
     @loan.update!(iban: "DE89370400440532013000", plaid_account_id: plaid_accounts(:one).id) # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_no_difference [ "Transfer.count", "Entry.count" ] do
       @family.auto_create_missing_transfer_counterparts!
@@ -1281,7 +1404,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! does not fabricate a counterpart when a real candidate already exists" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     create_transaction(date: Date.current, account: @loan, amount: -500)
 
     assert_no_difference "Entry.count" do
@@ -1292,8 +1415,8 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! does not fabricate a counterpart once dismissed" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(
-      counterparty_iban: "DE89370400440532013000", # pipelock:ignore IBAN
+    link_counterparty!(
+      outflow_entry, "DE89370400440532013000", # pipelock:ignore IBAN
       extra: { "counterparty_transfer_suggestion_dismissed" => true }
     )
 
@@ -1305,7 +1428,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! does not fabricate a counterpart across currencies" do
     @loan.update!(iban: "DE89370400440532013000", currency: "EUR") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500, currency: "USD")
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_no_difference [ "Transfer.count", "Entry.count" ] do
       @family.auto_create_missing_transfer_counterparts!
@@ -1315,7 +1438,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "rejecting a transfer with a fabricated counterpart deletes that entry entirely" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     transfer = Transfer.find_by(outflow_transaction_id: outflow_entry.entryable_id)
     fabricated_entry_id = transfer.inflow_transaction.entry.id
@@ -1333,7 +1456,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "a rejected fabricated counterpart is not recreated by the next sync" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).reject!
 
@@ -1346,7 +1469,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "an unlinked fabricated counterpart is not recreated by the next sync" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).unlink!
 
@@ -1358,7 +1481,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "deleting the real outflow also removes its fabricated counterpart" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     fabricated_entry_id = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).inflow_transaction.entry.id
 
@@ -1372,7 +1495,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "deleting a fabricated counterpart itself removes only that entry and its transfer" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     fabricated_entry = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id).inflow_transaction.entry
 
@@ -1386,7 +1509,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "a system-side destroy of a fabricated transfer does not dismiss the suggestion" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
 
     # e.g. Account#cleanup_transfers when the target account is deleted
@@ -1398,7 +1521,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "rejecting keeps other extra keys on the outflow" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     @family.auto_create_missing_transfer_counterparts!
     transfer = Transfer.find_by!(outflow_transaction_id: outflow_entry.entryable_id)
     transfer.outflow_transaction.extra # load the outflow before the concurrent write
@@ -1415,7 +1538,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "a reject that lands while the sync is running is not undone" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
     stale_transaction = Transaction.find(outflow_entry.entryable_id)
 
     # The user dismisses it after the sync loaded its batch.
@@ -1430,7 +1553,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     @depository.update_column(:owner_id, nil)
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_no_difference [ "Transfer.count", "Entry.count" ] do
       @family.auto_create_missing_transfer_counterparts!
@@ -1464,7 +1587,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @loan.update!(iban: "DE89370400440532013000", owner: other_member) # pipelock:ignore IBAN
     @loan.account_shares.where(user: @user).destroy_all
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     assert_no_difference [ "Transfer.count", "Entry.count" ] do
       @family.auto_create_missing_transfer_counterparts!
@@ -1474,7 +1597,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   test "auto_create_missing_transfer_counterparts! skips third-party ibans without querying candidates" do
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "AT611904300234573201") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "AT611904300234573201") # pipelock:ignore IBAN
 
     @family.expects(:transfer_match_candidates).never
 
@@ -1487,7 +1610,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @family.update!(locale: "de")
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     @family.auto_create_missing_transfer_counterparts!
 
@@ -1500,7 +1623,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     account_shares(:depository_shared_with_member).destroy!
     @loan.account_shares.create!(user: users(:family_member), permission: "read_only")
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     @family.auto_create_missing_transfer_counterparts!
 
@@ -1512,7 +1635,7 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     @loan.update!(iban: "DE89370400440532013000") # pipelock:ignore IBAN
     @loan.account_shares.create!(user: users(:family_member), permission: "read_only")
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
-    outflow_entry.entryable.update!(counterparty_iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    link_counterparty!(outflow_entry, "DE89370400440532013000") # pipelock:ignore IBAN
 
     @family.auto_create_missing_transfer_counterparts!
 
@@ -1521,6 +1644,19 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
   end
 
   private
+
+    # Links the counterparty the way Account::ProviderImportAdapter does on
+    # import: only the last four IBAN characters, plus the family's own
+    # account with that IBAN.
+    def link_counterparty!(entry, iban, **attributes)
+      iban = IbanNormalizable.normalize(iban)
+      candidates = Account.own_accounts_by_iban(entry.account.family, excluding: entry.account)[iban]
+      entry.entryable.update!(
+        counterparty_iban_last4: iban.last(4),
+        counterparty_own_account_id: Account.own_account_id_for(candidates, currency: entry.currency),
+        **attributes
+      )
+    end
     def auto_match_and_confirm_transfers!
       @family.auto_match_transfers!
       Transfer.pending.find_each(&:confirm!)

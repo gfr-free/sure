@@ -24,7 +24,7 @@ de:
         month_start_day_hint: Lege fest, wann dein Budgetmonat beginnt (z. B. Gehaltstag)
         month_start_day_warning: Deine Budgets und MTD-Berechnungen verwenden diesen benutzerdefinierten Starttag anstelle des 1. jedes Monats.
         fiscal_year_start_month: Geschäftsjahr beginnt im
-        fiscal_year_start_month_hint: Der Monat, in dem dein Jahr beginnt, z. B. April für ein Steuerjahr ab April. Es beginnt am Starttag des Budgetmonats.
+        fiscal_year_start_month_hint: Der Monat, in dem dein Jahr beginnt, z. B. April für ein Steuerjahr ab April. Es beginnt am Starttag des Budgetmonats. Januar entspricht dem Kalenderjahr.
         fiscal_year_start_month_warning: Laufendes Jahr, Jahres- und Quartalsberichte sowie „In diesem Jahr bezahlt“ folgen jetzt deinem Geschäftsjahr statt dem Kalenderjahr. Für ein Kalenderjahr nutze im Bericht einen eigenen Zeitraum.
         additional_currencies_label: Weitere Währungen
         base_currency_badge: Basiswährung

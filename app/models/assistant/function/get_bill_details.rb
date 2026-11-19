@@ -19,7 +19,9 @@ class Assistant::Function::GetBillDetails < Assistant::Function
         from estimates, and are null when nothing has been paid yet. The one figure that is
         not payment-derived says so in its name: annualized_declared is the amount on the
         bill times its cadence, while annualized_cost follows what has actually been paid.
-        Where they disagree, annualized_cost is what the bill is costing.
+        Where they disagree, annualized_cost is what the bill is costing. paid_this_year
+        counts from paid_this_year_since, the start of the family's fiscal year, which is
+        not January 1 when the family has set one.
 
         history is capped at the last #{HISTORY_LIMIT} settled cycles and price_changes at
         #{PRICE_CHANGE_LOOKBACK_MONTHS} months. history_window and price_change_window report
@@ -103,11 +105,7 @@ class Assistant::Function::GetBillDetails < Assistant::Function
 
       return nil if paid_amounts.empty?
 
-      ytd = RecurringAllocation.confirmed
-                               .joins(:recurring_occurrence)
-                               .where(recurring_occurrences: { recurring_transaction_id: series.id })
-                               .where("recurring_allocations.paid_on >= ?", family.fiscal_year_start_for(Date.current))
-                               .sum(:allocated_amount)
+      ytd = series.paid_this_year_amount
 
       average = paid_amounts.sum / paid_amounts.size
 
@@ -125,7 +123,8 @@ class Assistant::Function::GetBillDetails < Assistant::Function
         # keeps its name and starts meaning what the block always promised.
         annualized_cost: Money.new(average * series.schedule.occurrences_per_year, series.currency).format,
         annualized_declared: (series.monthly_equivalent_amount * 12).abs.format,
-        paid_this_year: Money.new(ytd, series.currency).format
+        paid_this_year: Money.new(ytd, series.currency).format,
+        paid_this_year_since: family.fiscal_year_start_for(Date.current).iso8601
       }
     end
 

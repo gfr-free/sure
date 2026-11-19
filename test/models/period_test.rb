@@ -228,6 +228,7 @@ class PeriodTest < ActiveSupport::TestCase
     travel_to Date.new(2026, 11, 19) do
       assert_equal Date.new(2026, 7, 1), Period.from_key_for("current_year", family).start_date
       assert_equal Date.new(2026, 11, 19), Period.from_key_for("current_year", family).end_date
+      assert_equal "FYTD", Period.from_key_for("current_year", family).label_short
       assert_equal Period.from_key("last_30_days").start_date, Period.from_key_for("last_30_days", family).start_date
     end
   end

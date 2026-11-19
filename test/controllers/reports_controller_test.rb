@@ -976,6 +976,21 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "calendar dates on a fiscal quarterly or yearly link snap to the fiscal period" do
+    @family.update!(fiscal_year_start_month: 4)
+
+    travel_to Date.new(2026, 11, 19) do
+      get reports_path(period_type: :quarterly, start_date: Date.new(2026, 1, 1), end_date: Date.new(2026, 3, 31))
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.quarterly", quarter: 4, year: "2025/26"), response.body
+      assert_select "a[href=?]", reports_path(period_type: :quarterly, start_date: Date.new(2026, 4, 1), end_date: Date.new(2026, 6, 30))
+
+      get reports_path(period_type: :ytd, start_date: Date.new(2026, 1, 1), end_date: Date.new(2026, 11, 19))
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.ytd", year: "2026/27"), response.body
+    end
+  end
+
   test "the period picker lists fiscal quarters and fiscal years" do
     @family.update!(fiscal_year_start_month: 4)
 

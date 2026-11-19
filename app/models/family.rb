@@ -347,8 +347,9 @@ class Family < ApplicationRecord
 
   # A fiscal year is always twelve whole budget months: it opens on the budget
   # month named by `fiscal_year_start_month`, so with a month start day of 25
-  # and April it runs from 25 April to 24 April. A family on January keeps the
-  # plain calendar year, whatever its month start day.
+  # and April it runs from 25 April to 24 April. January means the plain
+  # calendar year, whatever the month start day, so a family that never
+  # touches the setting sees no change.
   def uses_fiscal_year?
     fiscal_year_start_month != 1
   end
@@ -371,12 +372,14 @@ class Family < ApplicationRecord
     fiscal_year_start_for(date).next_year - 1.day
   end
 
-  # "2026" for a calendar year, "2026/27" for a fiscal year opening in 2026.
+  # "2026" for a calendar year, "2026/27" (in the locale's form) for a fiscal
+  # year opening in 2026.
   def fiscal_year_label(date)
     start_year = fiscal_year_start_for(date).year
     return start_year.to_s unless uses_fiscal_year?
 
-    "#{start_year}/#{format('%02d', (start_year + 1) % 100)}"
+    I18n.t("period.fiscal_year_label", start_year: start_year, end_year: format("%02d", (start_year + 1) % 100),
+           default: "%{start_year}/%{end_year}")
   end
 
   # The first day of the quarter `date` falls in. Fiscal quarters count three

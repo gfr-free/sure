@@ -37,6 +37,7 @@ class ReportsController < ApplicationController
     @period_type = params[:period_type]&.to_sym || :monthly
     @start_date = parse_date_param(:start_date) || default_start_date
     @end_date = parse_date_param(:end_date) || default_end_date
+    align_to_fiscal_period
 
     # Validate and fix date range if end_date is before start_date
     # Don't show flash message since we're returning CSV data
@@ -105,6 +106,7 @@ class ReportsController < ApplicationController
       @period_type = params[:period_type]&.to_sym || :monthly
       @start_date = parse_date_param(:start_date) || default_start_date
       @end_date = parse_date_param(:end_date) || default_end_date
+      align_to_fiscal_period
 
       # Validate and fix date range if end_date is before start_date
       validate_and_fix_date_range(show_flash: show_flash)
@@ -252,6 +254,24 @@ class ReportsController < ApplicationController
       Date.parse(date_string)
     rescue Date::Error
       nil
+    end
+
+    # A quarterly or yearly link can carry calendar dates (a bookmark from
+    # before the fiscal year was set, a shared link). Snap it to the fiscal
+    # quarter or year holding its start, so the data matches the label and
+    # the navigation built from it.
+    def align_to_fiscal_period
+      family = Current.family
+      return unless family&.uses_fiscal_year?
+
+      case @period_type
+      when :quarterly
+        @start_date = family.fiscal_quarter_start_for(@start_date)
+        @end_date = family.fiscal_quarter_end_for(@start_date)
+      when :ytd
+        @start_date = family.fiscal_year_start_for(@start_date)
+        @end_date = [ family.fiscal_year_end_for(@start_date), Date.current ].min
+      end
     end
 
     def default_start_date

@@ -67,6 +67,12 @@ class Family::FiscalYearTest < ActiveSupport::TestCase
     assert_equal "2099/00", @family.fiscal_year_label(Date.new(2099, 8, 1))
   end
 
+  test "the fiscal year label follows the locale" do
+    @family.fiscal_year_start_month = 4
+
+    I18n.with_locale(:de) { assert_equal "2026/27", @family.fiscal_year_label(Date.new(2026, 5, 1)) }
+  end
+
   test "fiscal quarters count three months from the fiscal year start" do
     @family.fiscal_year_start_month = 4
 

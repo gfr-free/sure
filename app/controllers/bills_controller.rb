@@ -255,7 +255,7 @@ class BillsController < ApplicationController
         lowest: Money.new(paid_amounts.min, @series.currency),
         highest: Money.new(paid_amounts.max, @series.currency),
         annualized: @series.monthly_equivalent_amount * 12,
-        ytd: Money.new(ytd_paid_total, @series.currency)
+        ytd: Money.new(@series.paid_this_year_amount, @series.currency)
       }
     end
 
@@ -277,15 +277,7 @@ class BillsController < ApplicationController
         [ month, by_month.fetch(month, 0) ]
       end
 
-      # Grouped in Ruby by the family's fiscal year (the calendar year unless
-      # one is set); one series has few enough payments for that.
-      family = Current.family
-      by_year = confirmed.pluck("recurring_occurrences.due_on", :allocated_amount)
-                         .group_by { |due_on, _| family.fiscal_year_start_for(due_on) }
-      @yearly_metrics = by_year.map do |year_start, rows|
-        total = rows.sum { |_, amount| amount }
-        { year: year_start.year, label: family.fiscal_year_label(year_start), total: Money.new(total, @series.currency), average: Money.new(total / rows.size, @series.currency) }
-      end.sort_by { |row| -row[:year] }.first(4)
+      @yearly_metrics = @series.yearly_payment_metrics
 
       last_allocation = confirmed.where.not(entry_id: nil).includes(entry: :account).order(paid_on: :desc, created_at: :desc).first
       @last_account = last_allocation&.entry&.account
@@ -465,13 +457,6 @@ class BillsController < ApplicationController
       end
     end
 
-    def ytd_paid_total
-      RecurringAllocation.confirmed
-                         .joins(:recurring_occurrence)
-                         .where(recurring_occurrences: { recurring_transaction_id: @series.id })
-                         .where("recurring_allocations.paid_on >= ?", Current.family.fiscal_year_start_for(Date.current))
-                         .sum(:allocated_amount)
-    end
 
     # Open occurrences through the horizon plus everything closed this
     # month, for every payable series (bills, subscriptions, and debt

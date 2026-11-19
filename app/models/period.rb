@@ -127,7 +127,7 @@ class Period
     def from_key_for(key, family)
       return from_key(key) unless key == "current_year" && family
 
-      new(key: key, start_date: family.fiscal_year_start_for(Date.current), end_date: Date.current)
+      new(key: key, start_date: family.fiscal_year_start_for(Date.current), end_date: Date.current, family: family)
     end
 
     def custom(start_date:, end_date:)
@@ -170,8 +170,11 @@ class Period
 
   # NOTE: dates are rendered through `I18n.l`, so there is no `date_format:`
   # knob — the format follows the active locale, not the caller.
-  def initialize(start_date: nil, end_date: nil, key: nil)
+  # `family` is only needed where Current.family is not set (the assistant's
+  # jobs); it decides whether "current_year" reads as the fiscal year.
+  def initialize(start_date: nil, end_date: nil, key: nil, family: nil)
     @key = key
+    @family = family
     @start_date = start_date
     @end_date = end_date
     validate!
@@ -258,7 +261,7 @@ class Period
     # "current_year" reads as the fiscal year once the family has one, so the
     # picker says so instead of promising a calendar year it no longer shows.
     def translation_key
-      key == "current_year" && Current.family&.uses_fiscal_year? ? "current_fiscal_year" : key
+      key == "current_year" && (@family || Current.family)&.uses_fiscal_year? ? "current_fiscal_year" : key
     end
 
     # The year is dropped while the whole range sits inside the current year — it

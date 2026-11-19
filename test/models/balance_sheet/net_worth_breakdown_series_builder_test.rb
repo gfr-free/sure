@@ -96,7 +96,67 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilderTest < ActiveSupport::TestCase
   test "cache key includes payload version" do
     period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
 
-    assert_includes builder.send(:cache_key, period), BalanceSheet::NetWorthBreakdownSeriesBuilder::CACHE_VERSION
+    assert_includes builder.send(:cache_key, period, "account_type"), BalanceSheet::NetWorthBreakdownSeriesBuilder::CACHE_VERSION
+  end
+
+  test "groups by another account field across account types" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    investment = accounts(:investment)
+    investment.balances.destroy_all
+
+    @asset_account.update!(custom_group: "Reserve")
+    investment.update!(custom_group: "reserve ")
+    @liability_account.update!(custom_group: "Reserve")
+
+    create_balance(account: @asset_account, date: period.end_date, balance: 5000)
+    create_balance(account: investment, date: period.end_date, balance: 3000)
+    create_balance(account: @liability_account, date: period.end_date, balance: 1000)
+
+    series = builder.breakdown_series(period: period, group_by: "custom_group")
+    last_point = series[:values].last
+    groups = last_point[:groups]
+
+    # One asset group summing both account types, and a separate debt group
+    # with the same value
+    assert_equal [ [ "asset", "Reserve", 8000 ], [ "liability", "Reserve", 1000 ] ],
+                 groups.map { |g| [ g[:classification], g[:name], g[:value].amount ] }
+    assert_equal 7000, last_point[:value].amount
+  end
+
+  test "keeps account types the field does not apply to as their own type group" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    create_balance(account: @liability_account, date: period.end_date, balance: 1000)
+
+    credit_card_group = builder.breakdown_series(period: period, group_by: "subtype")[:values].last[:groups]
+      .find { |g| g[:classification] == "liability" }
+
+    assert_equal CreditCard.display_name, credit_card_group[:name]
+    assert_equal CreditCard.color, credit_card_group[:color]
+  end
+
+  test "falls back to account types for an unknown grouping" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    create_balance(account: @asset_account, date: period.end_date, balance: 5000)
+
+    groups = builder.breakdown_series(period: period, group_by: "bogus")[:values].last[:groups]
+
+    assert_equal [ Depository.display_name ], groups.map { |g| g[:name] }
+  end
+
+  test "cache key differs per grouping" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+
+    assert_not_equal builder.send(:cache_key, period, "account_type"), builder.send(:cache_key, period, "custom_group")
+  end
+
+  test "owner grouping cache key changes when a family member is renamed" do
+    period = Period.custom(start_date: Date.new(2026, 6, 15), end_date: Date.new(2026, 7, 15))
+    before = builder.send(:cache_key, period, "owner")
+
+    travel 1.minute do
+      @family.users.first.update!(first_name: "Renamed")
+      assert_not_equal before, builder.send(:cache_key, period, "owner")
+    end
   end
 
   test "cache key changes when the family currency changes" do

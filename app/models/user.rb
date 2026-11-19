@@ -1005,6 +1005,22 @@ class User < ApplicationRecord
     key == account_grouping_primary_for(view) ? nil : key
   end
 
+  # The dimension the net worth section of the reports groups accounts by
+  # (tables and history chart); the account type unless the user picked
+  # another one in the report. See AccountGrouping.
+  def reports_net_worth_grouping
+    key = preferences&.dig("reports_net_worth_grouping")
+    AccountGrouping.valid_dimension?(key) ? key : AccountGrouping::DEFAULT_PRIMARY
+  end
+
+  # Unknown fields are stored as the account type.
+  def update_reports_net_worth_grouping(dimension)
+    dimension = dimension.to_s
+    dimension = AccountGrouping::DEFAULT_PRIMARY unless AccountGrouping.valid_dimension?(dimension)
+
+    with_locked_preferences { |prefs| prefs["reports_net_worth_grouping"] = dimension }
+  end
+
   # The user's own name for the free-text "custom group" account field.
   def custom_account_group_label
     preferences&.dig("custom_account_group_label").presence || I18n.t("account_grouping.dimensions.custom_group")

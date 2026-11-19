@@ -109,6 +109,7 @@ de:
       total_liabilities: Verbindlichkeiten
       no_assets: Keine Vermögenswerte
       no_liabilities: Keine Verbindlichkeiten
+      group_by: Gruppieren nach
     investment_performance:
       title: Anlageperformance
       portfolio_value: Portfoliowert

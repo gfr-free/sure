@@ -31,6 +31,14 @@ class Rule::ActionExecutor
     options
   end
 
+  # The option for a saved value that options leaves out (e.g. a merchant only
+  # on accounts the current user can't see, or one no longer assigned), so
+  # editing the rule keeps the value instead of silently switching to the
+  # first option. nil if the value doesn't refer to a record at all.
+  def option_for(value)
+    nil
+  end
+
   # Attributes this action sets. When several rules set the same attribute on
   # a transaction, the rule highest in the list wins (see Rule::Runner), so the
   # action skips transactions a rule above already claimed. Additive actions

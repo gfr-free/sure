@@ -98,8 +98,10 @@ Each value is decrypted, encrypted again, checked to decrypt back to the
 same value, and only then written, and only if nobody changed it in the
 meantime. Values no configured key opens are left untouched and listed by
 name. After a write pass without failures, new values are written with
-Active Record Encryption too. A fresh install without saved keys does that
-from the start.
+Active Record Encryption too. A fresh install without any saved settings
+does that from the start for the keys on the self-hosting page. Plaid
+secrets saved on the bank sync page stay plaintext until the first backfill
+run, as on existing installs.
 
 Releases before this change cannot read the new form. Before going back to
 one, write the old form again with the app stopped:

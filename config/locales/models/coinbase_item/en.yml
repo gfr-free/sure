@@ -9,5 +9,4 @@ en:
         coinbase_item:
           attributes:
             api_secret:
-              ed25519_key: is an Ed25519 key, which Coinbase does not accept here. Create a new API key with the ECDSA signature algorithm.
-              invalid_key: is not a valid ECDSA private key. Paste the full key including the BEGIN and END lines.
+              invalid_key: is neither an Ed25519 secret nor an ECDSA (P-256) private key. Paste the secret exactly as Coinbase shows it; for ECDSA keys include the BEGIN and END lines.

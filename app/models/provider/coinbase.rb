@@ -7,6 +7,19 @@ class Provider::Coinbase
   class RateLimitError < Error; end
   class ApiError < Error; end
 
+  # Raised instead of RateLimitError when a rate limit hits a later page of a
+  # paginated fetch after earlier pages already succeeded -- see
+  # #paginated_get. Carries those earlier pages so a caller can keep them
+  # instead of the fetch as a whole discarding real, already-fetched data.
+  class PartialResultError < Error
+    attr_reader :partial_results
+
+    def initialize(message, partial_results)
+      super(message)
+      @partial_results = partial_results
+    end
+  end
+
   # CDP API base URL
   API_BASE_URL = "https://api.coinbase.com".freeze
 
@@ -15,29 +28,42 @@ class Provider::Coinbase
 
   attr_reader :api_key, :api_secret
 
-  # Parses the PEM EC private key of a CDP key, however it was pasted (see
-  # Provider::PrivateKeyPem). ES256 signing needs a P-256 key; CDP's default
-  # Ed25519 secrets are a bare base64 string and cannot be used here.
+  # Parses a CDP API secret into a signing key. CDP issues two key types:
+  # Ed25519 keys (the default for new keys, a base64 string of the 32-byte seed,
+  # optionally followed by the 32-byte public key) and ECDSA keys (a PEM EC
+  # private key on P-256). PEM keys are read however they were pasted (see
+  # Provider::PrivateKeyPem); a PEM Ed25519 key is accepted too.
   def self.parse_private_key(secret)
+    if ed25519_secret?(secret)
+      return OpenSSL::PKey.new_raw_private_key("ED25519", decode_base64_secret(secret).byteslice(0, 32))
+    end
+
     key = Provider::PrivateKeyPem.parse(secret)
+    return key if ed25519_key?(key)
+
     unless key.is_a?(OpenSSL::PKey::EC) && key.group.curve_name == "prime256v1"
-      raise AuthenticationError, "Coinbase API secret must be an ECDSA (P-256) private key. Create the API key with the ECDSA signature algorithm."
+      raise AuthenticationError, "Coinbase API secret must be an Ed25519 key or an ECDSA (P-256) private key."
     end
 
     key
   rescue Provider::PrivateKeyPem::Error => e
-    if ed25519_secret?(secret)
-      raise AuthenticationError, "Coinbase API secret is an Ed25519 key, which is not supported. Create a new API key with the ECDSA signature algorithm."
-    end
-
-    raise AuthenticationError, "Coinbase API secret is not a valid ECDSA private key (#{e.message}). Paste the full key including the BEGIN and END lines."
+    raise AuthenticationError, "Coinbase API secret is neither an Ed25519 secret nor a valid ECDSA private key (#{e.message}). Paste the secret exactly as Coinbase shows it; for ECDSA keys include the BEGIN and END lines."
   end
 
   def self.ed25519_secret?(secret)
-    Base64.strict_decode64(secret.to_s.strip).bytesize == 64
-  rescue ArgumentError
-    false
+    !secret.to_s.include?("-----BEGIN") && [ 32, 64 ].include?(decode_base64_secret(secret)&.bytesize)
   end
+
+  def self.ed25519_key?(key)
+    key.oid == "ED25519"
+  end
+
+  def self.decode_base64_secret(secret)
+    Base64.strict_decode64(secret.to_s.strip)
+  rescue ArgumentError
+    nil
+  end
+  private_class_method :decode_base64_secret
 
   def initialize(api_key:, api_secret:)
     @api_key = api_key
@@ -153,24 +179,28 @@ class Provider::Coinbase
       end
 
       results.first(limit)
+    rescue RateLimitError => e
+      # Earlier pages already fetched are real data -- raising RateLimitError
+      # here as before would discard them along with the pages never reached,
+      # forcing every later sync to restart this backfill from page one.
+      # Nothing to preserve on a first-page limit, so that case still raises
+      # RateLimitError exactly as before.
+      raise PartialResultError.new(e.message, results.first(limit)) if results.any?
+      raise
     end
 
-    def parse_ec_private_key(pem)
-      self.class.parse_private_key(pem)
-    end
-
-    # Generate JWT token for CDP API authentication.
-    # Uses ES256 (ECDSA P-256) signing — matches the key format Coinbase CDP
-    # issues for ECDSA keys. api_secret must be a PEM EC private key.
+    # Generate JWT token for CDP API authentication: EdDSA for Ed25519 keys,
+    # ES256 for ECDSA P-256 keys.
     def generate_jwt(method, path)
-      private_key = @private_key ||= parse_ec_private_key(api_secret)
+      private_key = @private_key ||= self.class.parse_private_key(api_secret)
+      ed25519 = self.class.ed25519_key?(private_key)
 
       now = Time.now.to_i
       uri = "#{method} api.coinbase.com#{path}"
 
       # JWT header
       header = {
-        alg: "ES256",
+        alg: ed25519 ? "EdDSA" : "ES256",
         kid: api_key,
         nonce: SecureRandom.hex(16),
         typ: "JWT"
@@ -189,15 +219,22 @@ class Provider::Coinbase
       encoded_header = Base64.urlsafe_encode64(header.to_json, padding: false)
       encoded_payload = Base64.urlsafe_encode64(payload.to_json, padding: false)
 
-      # Sign with ECDSA SHA-256
       message = "#{encoded_header}.#{encoded_payload}"
-      der_sig = private_key.sign(OpenSSL::Digest::SHA256.new, message)
 
-      # Convert DER-encoded signature to raw r||s (required by JWT spec)
-      asn1 = OpenSSL::ASN1.decode(der_sig)
-      r = asn1.value[0].value.to_s(2).rjust(32, "\x00")[-32..]
-      s = asn1.value[1].value.to_s(2).rjust(32, "\x00")[-32..]
-      encoded_signature = Base64.urlsafe_encode64(r + s, padding: false)
+      if ed25519
+        # EdDSA signs the message directly (no digest); the signature is already raw 64 bytes
+        raw_sig = private_key.sign(nil, message)
+      else
+        # Sign with ECDSA SHA-256
+        der_sig = private_key.sign(OpenSSL::Digest::SHA256.new, message)
+
+        # Convert DER-encoded signature to raw r||s (required by JWT spec)
+        asn1 = OpenSSL::ASN1.decode(der_sig)
+        r = asn1.value[0].value.to_s(2).rjust(32, "\x00")[-32..]
+        s = asn1.value[1].value.to_s(2).rjust(32, "\x00")[-32..]
+        raw_sig = r + s
+      end
+      encoded_signature = Base64.urlsafe_encode64(raw_sig, padding: false)
 
       "#{message}.#{encoded_signature}"
     end

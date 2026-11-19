@@ -9,6 +9,8 @@ class CoinbaseItem < ApplicationRecord
   if encryption_ready?
     encrypts :api_key, deterministic: true
     encrypts :api_secret
+    encrypts :raw_payload
+    encrypts :raw_institution_payload
   end
 
   validates :name, presence: true
@@ -178,6 +180,6 @@ class CoinbaseItem < ApplicationRecord
 
       Provider::Coinbase.parse_private_key(api_secret)
     rescue Provider::Coinbase::AuthenticationError
-      errors.add(:api_secret, Provider::Coinbase.ed25519_secret?(api_secret) ? :ed25519_key : :invalid_key)
+      errors.add(:api_secret, :invalid_key)
     end
 end

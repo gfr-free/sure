@@ -34,13 +34,14 @@ class CoinbaseItemsControllerTest < ActionDispatch::IntegrationTest
     assert_match "can't be blank", flash[:alert]
   end
 
-  test "create explains that an Ed25519 secret cannot be used" do
+  test "create explains which key types the secret can be" do
     assert_no_difference "CoinbaseItem.count" do
-      post coinbase_items_url, params: { coinbase_item: { api_key: "key", api_secret: Base64.strict_encode64(SecureRandom.random_bytes(64)) } }
+      post coinbase_items_url, params: { coinbase_item: { api_key: "key", api_secret: "not a key" } }
     end
 
     assert_redirected_to settings_providers_path
     assert_match "Ed25519", flash[:alert]
+    assert_match "ECDSA", flash[:alert]
   end
 
   test "invalid create from the page shows the error in the panel" do

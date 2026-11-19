@@ -9,5 +9,4 @@ de:
         coinbase_item:
           attributes:
             api_secret:
-              ed25519_key: ist ein Ed25519-Schlüssel, der hier nicht funktioniert. Erstelle einen neuen API-Schlüssel mit dem Signaturalgorithmus ECDSA.
-              invalid_key: ist kein gültiger ECDSA-Privatschlüssel. Füge den ganzen Schlüssel inklusive der BEGIN- und END-Zeilen ein.
+              invalid_key: ist weder ein Ed25519-Geheimnis noch ein ECDSA-Privatschlüssel (P-256). Füge das Geheimnis genau so ein, wie Coinbase es anzeigt; bei ECDSA-Schlüsseln inklusive der BEGIN- und END-Zeilen.

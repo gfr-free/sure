@@ -54,14 +54,21 @@ class CoinbaseItemTest < ActiveSupport::TestCase
     assert item.valid?
   end
 
-  test "rejects an Ed25519 secret with a hint to create an ECDSA key" do
-    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: Base64.strict_encode64(SecureRandom.random_bytes(64)))
+  test "accepts an Ed25519 secret" do
+    key = OpenSSL::PKey.generate_key("ED25519")
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: Base64.strict_encode64(key.raw_private_key + key.raw_public_key))
 
-    assert_not item.valid?
-    assert_includes item.errors.details[:api_secret], { error: :ed25519_key }
+    assert item.valid?
   end
 
-  test "rejects a secret that is not an ECDSA private key" do
+  test "rejects an ECDSA key on a curve other than P-256" do
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: OpenSSL::PKey::EC.generate("secp384r1").to_pem)
+
+    assert_not item.valid?
+    assert_includes item.errors.details[:api_secret], { error: :invalid_key }
+  end
+
+  test "rejects a secret that is neither an Ed25519 secret nor an ECDSA private key" do
     item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: "not a key")
 
     assert_not item.valid?
@@ -249,5 +256,15 @@ class CoinbaseItemTest < ActiveSupport::TestCase
     )
 
     assert_equal I18n.t("coinbase_items.coinbase_item.sync_status.partial_sync", linked_count: 1, unlinked_count: 1), @coinbase_item.sync_status_summary
+  end
+
+  test "declares credentials and raw payloads as encrypted" do
+    skip "Encryption not configured" unless CoinbaseItem.encryption_ready?
+
+    encrypted = Array(CoinbaseItem.encrypted_attributes).map(&:to_s)
+    assert_includes encrypted, "api_key"
+    assert_includes encrypted, "api_secret"
+    assert_includes encrypted, "raw_payload"
+    assert_includes encrypted, "raw_institution_payload"
   end
 end

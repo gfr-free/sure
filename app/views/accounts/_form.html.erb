@@ -17,7 +17,7 @@
     <%= form.text_field :name, placeholder: t(".name_placeholder"), required: "required", label: t(".name_label") %>
 
     <% unless account.linked? %>
-      <%= form.money_field :balance, label: t(".balance"), required: true, default_currency: Current.family.currency %>
+      <%= form.money_field :balance, label: t(".balance"), required: true, default_currency: Current.family.currency, disable_currency: account.clearing? %>
     <% end %>
 
     <% if account.new_record? && !account.linked? %>

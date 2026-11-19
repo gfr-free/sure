@@ -87,7 +87,7 @@ class Import::MonarchAccountMapping < Import::Mapping
     end
 
     def choices_are_valid
-      errors.add(:value, :inclusion) unless Accountable::TYPES.include?(type)
+      errors.add(:value, :inclusion) unless Accountable::USER_SELECTABLE_TYPES.include?(type)
       raw = current_balance.to_s.delete(",$").strip
       errors.add(:value, :not_a_number) if raw.present? && parsed_current_balance.nil?
     end

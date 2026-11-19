@@ -87,6 +87,10 @@ class Entry < ApplicationRecord
   }
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
+  # A leg a person's clearing account holds for this entry mirrors it, so it
+  # goes with it (unsplitting included); see Counterparty::Assignment.
+  before_destroy :remember_clearing_leg
+  after_destroy :destroy_clearing_leg
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   # Any other write of `excluded` (a user toggling it, a reconciliation) ends the
@@ -693,12 +697,13 @@ class Entry < ApplicationRecord
   # inserts children, and split! only validates its own amounts, so without the lock both sets
   # of children would land and the amount would count twice. A provider sync can also mark the
   # transaction pending or a transfer in between, so those are re-checked too. Returns true
-  # when it split.
+  # when it split. A block gets the new children inside the same lock and transaction.
   def split_once!(splits, lock_attributes: false)
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes)
+      children = split!(splits, lock_attributes: lock_attributes)
+      yield children if block_given?
       true
     end
   end
@@ -706,12 +711,14 @@ class Entry < ApplicationRecord
   # Replaces the children of a split under the same lock, so a concurrent unsplit can't be undone
   # and two edits can't both insert children. Returns false when the entry is no longer a split
   # parent. Editing an existing split doesn't re-check pending/transfer: it creates no new split.
+  # A block gets the new children inside the same lock and transaction.
   def resplit!(splits)
     with_split_lock do
       next false unless split_parent?
 
       unsplit!
-      split!(splits)
+      children = split!(splits)
+      yield children if block_given?
       true
     end
   end
@@ -1051,6 +1058,22 @@ class Entry < ApplicationRecord
     #
     # Explicit transaction + lock!, not with_lock: Entry#transaction is the delegated_type
     # accessor for the Transaction entryable, so with_lock silently never yields.
+    def remember_clearing_leg
+      @mirrored_clearing_leg = (Counterparty::Assignment.clearing_leg_for(self) if entryable.is_a?(Transaction) && entryable.transfer?)
+    end
+
+    def destroy_clearing_leg
+      leg = @mirrored_clearing_leg
+      @mirrored_clearing_leg = nil
+      return unless leg
+
+      clearing_account = leg.account
+      leg.reload.destroy!
+      clearing_account.sync_later(window_start_date: date)
+    rescue ActiveRecord::RecordNotFound
+      nil
+    end
+
     def with_split_lock
       self.class.transaction do
         txn = entryable if entryable.is_a?(Transaction)

@@ -1,0 +1,87 @@
+---
+de:
+  counterparties:
+    balance:
+      owes_you: "schuldet dir %{amount}"
+      settled: Ausgeglichen
+      you_owe: "du schuldest %{amount}"
+    forgiveness:
+      entry_name: "Erlassener Saldo mit %{name}"
+    index:
+      title: Personen
+      subtitle: Personen, für die du zahlst oder von denen du Geld bekommst, und wer wem was schuldet.
+      new: Neue Person
+      owed_to_me: Andere schulden mir
+      i_owe: Ich schulde
+      filter: Personen filtern
+      statuses:
+        active: Alle
+        open: Offen
+        archived: Archiviert
+      empty:
+        active: Noch keine Personen
+        open: Niemand schuldet etwas
+        archived: Keine archivierten Personen
+      empty_hint: Lege eine Person an und wähle sie in einer Buchung oder einem Split-Teil, den du für sie bezahlt hast.
+    show:
+      back: Personen
+      archived: Archiviert
+      edit: Bearbeiten
+      archive: Archivieren
+      unarchive: Wiederherstellen
+      no_accounts: Noch kein Saldo.
+      history: Verlauf
+      paid_for_me: Hat für mich bezahlt
+      forgive: Saldo erlassen
+      how_title: So funktioniert es
+      how_assign: "Für diese Person bezahlt? Öffne die Buchung (oder einen Split-Teil) und wähle sie unter Person. Nur dein eigener Anteil bleibt Ausgabe."
+      how_settle: "Geld zurückbekommen oder zurückgezahlt? Wähle die Person an dieser ein- oder ausgehenden Zahlung."
+      how_paid_for_me: "Die Person hat etwas für dich bezahlt? Trage deinen Anteil mit „Hat für mich bezahlt“ ein."
+    new:
+      title: Neue Person
+    edit:
+      title: "%{name} bearbeiten"
+    form:
+      name_label: Name
+      name_placeholder: z. B. Alex
+      currency_label: Währung
+      currency_hint: Eine Zahlung in einer anderen Währung bekommt bei dieser Person einen eigenen Saldo.
+      note_label: Notiz
+      create: Person hinzufügen
+      update: Speichern
+    create:
+      success: Person hinzugefügt
+    update:
+      success: Person gespeichert
+    archive:
+      success: Person archiviert
+      not_settled: Nur eine ausgeglichene Person kann archiviert werden.
+    unarchive:
+      success: Person wiederhergestellt
+    forgivenesses:
+      new:
+        title: "Saldo mit %{name} erlassen"
+        you_forgive: "%{name} schuldet dir %{amount}. Erlassen bucht den Betrag als deine Ausgabe."
+        they_forgive: "Du schuldest %{name} %{amount}. Erlässt die Person das, wird es als deine Einnahme gebucht."
+        category_label: Kategorie
+        no_category: Ohne Kategorie
+        submit: Saldo erlassen
+      create:
+        success: Saldo erlassen
+        nothing_to_forgive: Dieser Saldo ist schon ausgeglichen.
+  clearings:
+    edit:
+      edit: "%{account} bearbeiten"
+      balance_info: "Der Saldo folgt den Buchungen, die dieser Person zugeordnet sind. Ändere ihn hier nur, um festzuhalten, was schon vorher offen war."
+  transactions:
+    counterparty:
+      label: Person
+      none: "(niemand)"
+      hint: Für jemanden bezahlt oder Geld von jemandem bekommen? Wähle die Person.
+      assigned_hint: "Bei %{name} gebucht: zählt nicht mehr als deine Einnahme oder Ausgabe."
+      manage: Personen
+    counterparties:
+      update:
+        assigned: "Bei %{name} gebucht"
+        released: Von der Person entfernt
+        not_assignable: "Diese Buchung lässt sich keiner Person zuordnen (ausstehend, aufgeteilt oder schon eine Überweisung)."

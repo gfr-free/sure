@@ -634,7 +634,7 @@ class SnaptradeItemsController < ApplicationController
 
     def link_snaptrade_account(snaptrade_account, selected_type)
       accountable_type = selected_type.presence || snaptrade_account.suggested_account_type
-      unless Accountable::TYPES.include?(accountable_type)
+      unless Accountable::USER_SELECTABLE_TYPES.include?(accountable_type)
         raise ArgumentError, "Invalid SnapTrade account type: #{accountable_type}"
       end
 

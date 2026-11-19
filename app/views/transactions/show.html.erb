@@ -130,6 +130,7 @@
             <% end %>
           <% end %>
         <% end %>
+        <%= render "transactions/counterparty", entry: @entry if preview_features_enabled? && can_edit_entry? %>
       </div>
     <% end %>
     <% dialog.with_section(title: t(".details")) do %>

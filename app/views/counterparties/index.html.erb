@@ -1,0 +1,64 @@
+<div class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold text-primary"><%= t(".title") %></h1>
+        <%= render DS::Pill.new(label: t("shared.preview"), size: :md) %>
+      </div>
+      <p class="text-sm text-secondary mt-1"><%= t(".subtitle") %></p>
+    </div>
+    <% unless Current.user.guest? %>
+      <%= render DS::Link.new(text: t(".new"), variant: "primary", href: new_counterparty_path, icon: "plus", frame: :modal) %>
+    <% end %>
+  </header>
+
+  <section class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <p class="text-xs font-medium uppercase text-secondary"><%= t(".owed_to_me") %></p>
+      <p class="text-2xl font-medium text-primary tabular-nums mt-1 privacy-sensitive"><%= @totals[:owed_to_me].format %></p>
+    </div>
+    <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <p class="text-xs font-medium uppercase text-secondary"><%= t(".i_owe") %></p>
+      <p class="text-2xl font-medium text-primary tabular-nums mt-1 privacy-sensitive"><%= @totals[:i_owe].format %></p>
+    </div>
+  </section>
+
+  <nav class="flex gap-2" aria-label="<%= t(".filter") %>">
+    <% CounterpartiesController::STATUSES.each do |status| %>
+      <%= render DS::Link.new(
+            text: t(".statuses.#{status}"),
+            href: counterparties_path(status: status),
+            variant: status == @status ? "secondary" : "ghost",
+            size: :sm
+          ) %>
+    <% end %>
+  </nav>
+
+  <div class="bg-container rounded-xl shadow-border-xs p-1">
+    <% if @counterparties.any? %>
+      <% @counterparties.each_with_index do |person, index| %>
+        <%= render "shared/ruler" if index.positive? %>
+        <%= link_to counterparty_path(person), class: "flex items-center justify-between gap-3 px-4 py-3 rounded-lg hover:bg-surface-hover" do %>
+          <div class="flex items-center gap-3 min-w-0">
+            <%= render DS::FilledIcon.new(icon: "user", variant: :container, size: "md") %>
+            <p class="text-sm font-medium text-primary truncate"><%= person.name %></p>
+          </div>
+          <div class="text-sm text-right space-y-0.5">
+            <% accounts = @accounts_by_counterparty.fetch(person.id, []) %>
+            <% if accounts.empty? %>
+              <span class="text-secondary"><%= t("counterparties.balance.settled") %></span>
+            <% end %>
+            <% accounts.each do |account| %>
+              <p><%= render "counterparties/balance", money: account.balance_money %></p>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    <% else %>
+      <div class="py-16 text-center">
+        <p class="text-sm text-primary font-medium"><%= t(".empty.#{@status}") %></p>
+        <p class="text-sm text-secondary mt-1 max-w-md mx-auto"><%= t(".empty_hint") %></p>
+      </div>
+    <% end %>
+  </div>
+</div>

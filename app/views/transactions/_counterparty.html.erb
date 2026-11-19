@@ -1,0 +1,24 @@
+<%# locals: (entry:) %>
+<%# The person this transaction (or split part) was paid for or received
+    from. Choosing one books it onto that person's clearing account. %>
+<% assignment = Counterparty::Assignment.new(entry) %>
+<% current = assignment.counterparty %>
+<% if current || assignment.assignable? %>
+  <% people = Current.family.counterparties.visible_to(Current.user).active.alphabetically.to_a %>
+  <% people = (people + [ current ]).compact.uniq %>
+  <%= styled_form_with url: transaction_counterparty_path(entry),
+        method: :patch,
+        scope: :transaction_counterparty,
+        data: { controller: "auto-submit-form", turbo_frame: "_top" } do |f| %>
+    <%= f.collection_select :counterparty_id,
+          people,
+          :id,
+          :name,
+          { selected: current&.id, include_blank: t(".none"), label: t(".label") },
+          { data: { "auto-submit-form-target": "auto" } } %>
+    <p class="text-xs text-secondary mt-1">
+      <%= current ? t(".assigned_hint", name: current.name) : t(".hint") %>
+      <%= link_to t(".manage"), counterparties_path, class: "underline", data: { turbo_frame: "_top" } %>
+    </p>
+  <% end %>
+<% end %>

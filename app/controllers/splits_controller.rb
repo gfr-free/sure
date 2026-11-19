@@ -14,7 +14,10 @@ class SplitsController < ApplicationController
 
     # A rule run, an API request or a double submit can split it between the check above and
     # here; split_once! re-checks under a lock.
-    unless @entry.split_once!(build_splits)
+    splits = build_splits
+    return unless (people = split_counterparties)
+
+    unless @entry.split_once!(splits) { |children| assign_counterparties(children, people) }
       redirect_back_or_to transactions_path, alert: t("splits.create.not_splittable")
       return
     end
@@ -46,9 +49,11 @@ class SplitsController < ApplicationController
     end
 
     splits = build_splits
+    return unless (people = split_counterparties)
+    return unless split_counterparty_legs_writable?
 
     # A concurrent unsplit or edit can land between the check above and here.
-    unless @entry.resplit!(splits)
+    unless @entry.resplit!(splits) { |children| assign_counterparties(children, people) }
       redirect_to transactions_path, alert: t("splits.edit.not_split")
       return
     end
@@ -67,6 +72,8 @@ class SplitsController < ApplicationController
       redirect_to transactions_path, alert: t("splits.edit.not_split")
       return
     end
+
+    return unless split_counterparty_legs_writable?
 
     unless @entry.unsplit_once!
       redirect_to transactions_path, alert: t("splits.edit.not_split")
@@ -92,13 +99,57 @@ class SplitsController < ApplicationController
     end
 
     def split_params
-      params.require(:split).permit(splits: [ :name, :amount, :category_id, :merchant_id, :excluded, tag_ids: [] ])
+      params.require(:split).permit(splits: [ :name, :amount, :category_id, :merchant_id, :excluded, :counterparty_id, tag_ids: [] ])
+    end
+
+    def raw_splits
+      rows = split_params[:splits] || []
+      rows.respond_to?(:values) ? rows.values : rows
+    end
+
+    # The person picked for each row (nil for the user's own part), checked
+    # against what the user may book onto. Redirects and returns nil when a
+    # row names a person the user can't use.
+    def split_counterparties
+      ids = raw_splits.map { |row| row[:counterparty_id].presence }
+      return ids if ids.none?
+
+      people = Current.family.counterparties.visible_to(Current.user).where(id: ids.compact).index_by(&:id)
+      ids.map do |id|
+        next nil unless id
+
+        person = people[id]
+        return forbid_counterparties unless person&.assignable_by?(Current.user, currency: @entry.currency)
+
+        person
+      end
+    end
+
+    # Editing or removing a split deletes the person legs of its parts.
+    def split_counterparty_legs_writable?
+      legs = @entry.child_entries.includes(:entryable).filter_map { |child| Counterparty::Assignment.clearing_leg_for(child) }
+      return true if legs.all? { |leg| AccountPolicy.new(Current.user, leg.account).update? }
+
+      forbid_counterparties
+      false
+    end
+
+    def forbid_counterparties
+      redirect_back_or_to transactions_path, alert: t("accounts.not_authorized")
+      nil
+    end
+
+    def assign_counterparties(children, people)
+      children.zip(people).each do |child, person|
+        Counterparty::Assignment.new(child).update!(person, user: Current.user) if person
+      end
     end
 
     def set_form_options
       @categories = grouped_categories
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically
       @tags = Current.family.tags.alphabetically
+      @counterparties = preview_features_enabled? ? Current.family.counterparties.visible_to(Current.user).active.alphabetically.to_a : []
     end
 
     # Builds Entry#split! input from submitted params. Category, merchant and tag ids are
@@ -106,9 +157,6 @@ class SplitsController < ApplicationController
     # rather than trusted, so a crafted request can't attach another family's records.
     def build_splits
       references = Entry::SplitReferences.for_user(Current.family, Current.user)
-
-      raw_splits = split_params[:splits] || []
-      raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
       raw_splits.map do |s|
         {

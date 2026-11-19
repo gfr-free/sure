@@ -435,6 +435,12 @@ class Import < ApplicationRecord
     []
   end
 
+  # A re-upload that picks a fixed account keeps the account mappings of an
+  # earlier upload; their rows all go to that account, so none may be created.
+  def mappings_to_create
+    account ? mappings.where.not(type: "Import::AccountMapping") : mappings
+  end
+
   def rows_ordered
     rows.ordered
   end

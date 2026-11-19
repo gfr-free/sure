@@ -1,7 +1,7 @@
 class TradeImport < Import
   def import!
     transaction do
-      mappings.each(&:create_mappable!)
+      mappings_to_create.each(&:create_mappable!)
 
       trades = rows.map do |row|
         mapped_account = if account

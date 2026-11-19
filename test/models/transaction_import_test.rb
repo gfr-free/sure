@@ -208,6 +208,27 @@ class TransactionImportTest < ActiveSupport::TestCase
     assert_equal [ -100, 200, -300 ], @import.entries.order(:date).map(&:amount)
   end
 
+  test "a fixed account skips account mappings kept from an earlier upload" do
+    @import.update!(
+      account: accounts(:depository),
+      raw_file_str: "date,amount,name\n01/01/2024,100,Coffee\n",
+      date_col_label: "date",
+      date_format: "%m/%d/%Y",
+      amount_col_label: "amount",
+      name_col_label: "name",
+      signage_convention: "inflows_positive"
+    )
+    @import.generate_rows_from_csv
+    @import.mappings.create!(key: "Old Upload Account", create_when_empty: true, type: "Import::AccountMapping")
+
+    assert_no_difference -> { Account.count } do
+      @import.reload.publish
+    end
+
+    assert_equal "complete", @import.status
+    assert_equal [ accounts(:depository) ], @import.entries.map(&:account).uniq
+  end
+
   test "csv_template uses ISO dates" do
     first_row = @import.csv_template.first
 

@@ -75,6 +75,10 @@ class Security::Price::Importer
       return 0
     end
 
+    # A cache clear replaces only the stored prices the provider covers;
+    # stored history before its first price is kept.
+    replace_from = earliest_provider_price&.date if clear_cache
+
     gapfilled_prices = fill_start_date.upto(end_date).map do |date|
       db_price             = db_prices[date]
       db_price_value       = db_price&.price
@@ -87,9 +91,7 @@ class Security::Price::Importer
       is_provisional = db_price&.provisional
 
       # Choose price and currency from the same source to avoid mismatches
-      # A cache clear replaces only the stored prices the provider covers;
-      # stored history before its first price is kept.
-      replace_db_price = clear_cache && earliest_provider_price.present? && date >= earliest_provider_price.date
+      replace_db_price = replace_from.present? && date >= replace_from
 
       chosen_price, chosen_currency = if replace_db_price || is_provisional
         # For provisional/cache clear: only use provider price, let gap-fill handle missing
@@ -130,7 +132,13 @@ class Security::Price::Importer
       }
     end
 
-    result = upsert_rows(gapfilled_prices)
+    result = Security::Price.transaction do
+      if replace_from
+        delete_prices_in_other_currencies(gapfilled_prices.select { |row| row[:date] >= replace_from })
+      end
+
+      upsert_rows(gapfilled_prices)
+    end
 
     # Persist the advanced start date so subsequent syncs can clamp
     # expected_count and short-circuit via all_prices_exist? instead of
@@ -363,6 +371,24 @@ class Security::Price::Importer
       end
 
       total_upsert_count
+    end
+
+    # The unique key includes the currency, so a price stored in a currency the
+    # provider no longer returns would stay next to the replacing row, and a
+    # lookup by date could read either. Only dates that get a new row lose
+    # their old ones, so no other family is left without a price. A row whose
+    # currency the provider did not report fell back to USD and may be wrong,
+    # so it replaces nothing.
+    def delete_prices_in_other_currencies(rows)
+      reported_currencies = provider_prices.values.filter_map(&:currency).to_set
+
+      rows.group_by { |row| row[:currency] }.each do |currency, currency_rows|
+        next unless reported_currencies.include?(currency)
+
+        Security::Price.where(security_id: security.id, date: currency_rows.map { |row| row[:date] })
+                       .where.not(currency: currency)
+                       .delete_all
+      end
     end
 
     def db_price_currency

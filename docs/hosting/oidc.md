@@ -629,4 +629,4 @@ SSO-only users (no password) cannot unlink their last identity.
 
 ---
 
-For additional help, see the main [hosting documentation](../README.md) or open an issue on GitHub.
+For additional help, see the main [hosting documentation](../../README.md#hosting-sure) or open an issue on GitHub.

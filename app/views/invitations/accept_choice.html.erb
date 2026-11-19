@@ -11,16 +11,25 @@
 </div>
 
 <div class="space-y-4">
-  <% local_registration_enabled = AuthConfig.local_registration_enabled? %>
-  <% if local_registration_enabled %>
-    <%= link_to new_registration_path(invitation: @invitation.token),
-        class: "block w-full rounded-md border border-secondary bg-container px-4 py-3 text-center text-sm font-medium text-primary hover:bg-secondary transition" do %>
-      <%= t(".create_account") %>
-    <% end %>
-  <% end %>
+  <%# The page looks the same whether or not the email has an account, since
+      household admins can open pending invitation links. %>
+  <% if AuthConfig.local_registration_enabled? %>
+    <%= render DS::Link.new(
+      text: t(".create_account"),
+      href: new_registration_path(invitation: @invitation.token),
+      variant: "outline",
+      size: "lg",
+      full_width: true
+    ) %>
 
-  <%= link_to new_session_path(invitation: @invitation.token),
-      class: "block w-full rounded-md border border-secondary bg-container px-4 py-3 text-center text-sm font-medium text-primary hover:bg-secondary transition" do %>
-    <%= local_registration_enabled ? t(".sign_in_existing") : t(".continue_with_sso") %>
+    <p class="text-secondary text-sm text-center"><%= t(".existing_account_hint") %></p>
+  <% else %>
+    <%= render DS::Link.new(
+      text: t(".continue_with_sso"),
+      href: new_session_path(invitation: @invitation.token),
+      variant: "outline",
+      size: "lg",
+      full_width: true
+    ) %>
   <% end %>
 </div>

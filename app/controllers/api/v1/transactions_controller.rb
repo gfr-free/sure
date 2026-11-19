@@ -94,7 +94,14 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       return
     end
 
-    account = family.accounts.writable_by(current_resource_owner).find(account_id_param)
+    # Resolved here rather than with find, because the action's catch-all
+    # rescue would turn RecordNotFound into a 500. An account the user cannot
+    # see is not found; one they can see but not write to is forbidden.
+    account = family.accounts.accessible_by(current_resource_owner).find_by(id: account_id_param) if valid_uuid?(account_id_param)
+    unless account
+      return render_json({ error: "record_not_found", message: "The requested resource was not found" }, status: :not_found)
+    end
+    return unless require_api_account_permission!(account, :write)
 
     if idempotency_key_requested? && (existing_entry = existing_idempotent_entry(account))
       return render_existing_idempotent_entry(existing_entry)

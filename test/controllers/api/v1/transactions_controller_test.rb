@@ -1324,6 +1324,37 @@ end
     assert_response :forbidden
   end
 
+  [ "read_only", "read_write" ].each do |permission|
+    test "a #{permission} member cannot create a transaction on the shared account" do
+      key, entry = shared_member_key_and_entry(permission)
+
+      assert_no_difference "Entry.count" do
+        post api_v1_transactions_url,
+             params: { transaction: { account_id: entry.account_id, name: "Not mine", amount: 10, date: Date.current, nature: "expense" } },
+             headers: api_headers(key)
+      end
+      assert_response :forbidden
+      assert_equal "forbidden", JSON.parse(response.body)["error"]
+    end
+  end
+
+  test "create on an account the member cannot see answers not found" do
+    key, = shared_member_key_and_entry("read_only")
+    unshared = @user.family.accounts.create!(name: "Admin Private", owner: @user, balance: 0,
+                                             currency: "USD", accountable: Depository.new)
+    foreign = families(:empty).accounts.create!(name: "Foreign", balance: 0, currency: "USD",
+                                                accountable: Depository.new)
+
+    [ unshared.id, foreign.id, "not-a-uuid" ].each do |account_id|
+      assert_no_difference "Entry.count" do
+        post api_v1_transactions_url,
+             params: { transaction: { account_id: account_id, name: "Hidden", amount: 10, date: Date.current, nature: "expense" } },
+             headers: api_headers(key)
+      end
+      assert_response :not_found, "expected #{account_id} to be not found"
+    end
+  end
+
   test "a read_write member can change category, merchant and tags" do
     key, entry = shared_member_key_and_entry("read_write")
     category = @user.family.categories.first

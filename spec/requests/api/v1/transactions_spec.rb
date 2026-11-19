@@ -56,6 +56,7 @@ RSpec.describe 'API V1 Transactions', type: :request do
   let(:account) do
     Account.create!(
       family: family,
+      owner: user,
       name: 'Checking Account',
       balance: 1000,
       currency: 'USD',
@@ -252,6 +253,40 @@ RSpec.describe 'API V1 Transactions', type: :request do
             source: 'external_import',
             entryable: Transaction.new
           )
+        end
+
+        run_test!
+      end
+
+      response '403', 'account is shared with you without full control' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:body) do
+          {
+            transaction: {
+              account_id: read_only_transaction.entry.account_id,
+              date: Date.current.to_s,
+              amount: 50.00,
+              name: 'Test purchase'
+            }
+          }
+        end
+
+        run_test!
+      end
+
+      response '404', 'account not found' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+
+        let(:body) do
+          {
+            transaction: {
+              account_id: SecureRandom.uuid,
+              date: Date.current.to_s,
+              amount: 50.00,
+              name: 'Test purchase'
+            }
+          }
         end
 
         run_test!

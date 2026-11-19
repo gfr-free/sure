@@ -1207,7 +1207,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     get reports_path
     assert_response :ok
-    assert_select "#liquidity-releases td", text: /Term deposit/
+    assert_select "#liquidity-releases th", text: /Term deposit/
   end
 
   # The category column of the reports export is a user-supplied name, and this

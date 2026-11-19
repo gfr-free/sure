@@ -80,8 +80,8 @@ class Insight::Generators::CashFlowWarningGenerator < Insight::Generator
     # Insights only run for families with preview features, so no gate here.
     def cash_accounts
       shared_accounts.visible
-            .immediate_assets_on(Account.liquidity_today_for(family))
-            .where(currency: family.currency)
+                     .immediate_assets_on(Account.liquidity_today_for(family))
+                     .where(currency: family.currency)
     end
 
     # Projected occurrences of known recurring transactions within the horizon.

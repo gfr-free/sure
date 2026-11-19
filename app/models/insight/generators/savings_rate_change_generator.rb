@@ -65,22 +65,21 @@ class Insight::Generators::SavingsRateChangeGenerator < Insight::Generator
   private
     # The rate of the window of WINDOW_MONTHS months starting on `start_date`.
     def savings_rate(start_date)
-      incomes, expense, saved = window_totals(start_date)
+      incomes, expense = window_totals(start_date)
       income = incomes.sort[WINDOW_MONTHS / 2] * WINDOW_MONTHS # the median: WINDOW_MONTHS is odd
       return nil if income <= 0
 
-      # Transfers into savings accounts are budget expenses, but they are
-      # money saved, not spent.
-      (income - expense + saved) / income * 100
+      (income - expense) / income * 100
     end
 
     def spent_more_than_earned?(start_date)
-      incomes, expense, saved = window_totals(start_date)
-      expense - saved > incomes.sum
+      incomes, expense = window_totals(start_date)
+      expense > incomes.sum
     end
 
-    # [each month's income, the window's summed spending, the part of that
-    # spending moved into savings accounts].
+    # [each month's income, the window's summed spending]. Transfers into
+    # savings accounts are budget expenses, but they are money saved, not
+    # spent, so they don't count as spending here.
     def window_totals(start_date)
       months = Array.new(WINDOW_MONTHS) do |i|
         month_start = start_date + i.months
@@ -89,8 +88,10 @@ class Insight::Generators::SavingsRateChangeGenerator < Insight::Generator
 
       [
         months.map { |month| income_statement.income_totals(period: month).total.to_d },
-        months.sum { |month| income_statement.expense_totals(period: month).total.to_d },
-        months.sum { |month| income_statement.savings_contributions_total(period: month).to_d }
+        months.sum do |month|
+          income_statement.expense_totals(period: month).total.to_d -
+            income_statement.savings_contributions_total(period: month).to_d
+        end
       ]
     end
 

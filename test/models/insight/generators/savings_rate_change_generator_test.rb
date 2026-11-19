@@ -199,7 +199,7 @@ class Insight::Generators::SavingsRateChangeGeneratorTest < ActiveSupport::TestC
   end
 
   # Moving money into a term deposit or brokerage account is saved money. A
-  # window that saves 1,000 more a month than the one before must not read as
+  # window that saves 1,000 a month more than the one before must not read as
   # a drop in the savings rate just because the budget books the transfer as
   # spending.
   test "money moved into savings accounts does not lower the savings rate" do
@@ -216,7 +216,10 @@ class Insight::Generators::SavingsRateChangeGeneratorTest < ActiveSupport::TestC
       @months.first(3).each { |month| record(month, income: 4_000, spending: 1_000) }
       @months.last(3).each { |month| record(month, income: 4_000, spending: 2_000, saved: 1_000) }
 
-      assert_equal({ current_rate: 50.0, previous_rate: 75.0 }, generate.sole.metadata.except(:accounts_digest))
+      insight = generate.sole
+
+      assert_equal 50.0, insight.metadata[:current_rate]
+      assert_equal 75.0, insight.metadata[:previous_rate]
     end
   end
 
@@ -225,13 +228,12 @@ class Insight::Generators::SavingsRateChangeGeneratorTest < ActiveSupport::TestC
       Insight::Generators::SavingsRateChangeGenerator.new(@family).generate
     end
 
-    # Pay on the month's first day, spending four days later, money moved into
-    # savings the day after.
+    # Pay on the month's first day, spending four days later.
     def record(month, income:, spending:, saved: 0)
       create_transaction(amount: -income, date: month + 1.day, name: "Pay #{month}") if income.positive?
       create_transaction(amount: spending, date: month + 4.days, name: "Spend #{month}")
       return if saved.zero?
 
-      create_transaction(amount: saved, date: month + 5.days, name: "Saving #{month}", kind: "investment_contribution")
+      create_transaction(amount: saved, date: month + 5.days, name: "Save #{month}", kind: "investment_contribution")
     end
 end

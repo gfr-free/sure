@@ -29,6 +29,11 @@ en:
       label_short: "90D"
       label: "Last 90 Days"
       comparison_label: "vs. last quarter"
+    fiscal_year_label: "%{start_year}/%{end_year}"
+    current_fiscal_year:
+      label_short: "FYTD"
+      label: "Current Fiscal Year"
+      comparison_label: "vs. start of fiscal year"
     current_year:
       label_short: "YTD"
       label: "Current Year"

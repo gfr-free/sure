@@ -8,6 +8,7 @@ json.date_format @family.date_format
 json.country @family.country
 json.timezone @family.timezone
 json.month_start_day @family.month_start_day
+json.fiscal_year_start_month @family.fiscal_year_start_month
 json.moniker @family.moniker
 json.default_account_sharing @family.default_account_sharing
 json.custom_enabled_currencies @family.custom_enabled_currencies?

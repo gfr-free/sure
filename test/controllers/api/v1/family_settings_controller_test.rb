@@ -14,6 +14,7 @@ class Api::V1::FamilySettingsControllerTest < ActionDispatch::IntegrationTest
       country: "SG",
       timezone: "Asia/Singapore",
       month_start_day: 15,
+      fiscal_year_start_month: 4,
       moniker: "Family",
       default_account_sharing: "private"
     )
@@ -43,6 +44,7 @@ class Api::V1::FamilySettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "SG", response_body["country"]
     assert_equal "Asia/Singapore", response_body["timezone"]
     assert_equal 15, response_body["month_start_day"]
+    assert_equal 4, response_body["fiscal_year_start_month"]
     assert_equal "Family", response_body["moniker"]
     assert_equal "private", response_body["default_account_sharing"]
     assert_equal true, response_body["custom_enabled_currencies"]

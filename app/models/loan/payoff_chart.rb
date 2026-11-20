@@ -15,7 +15,7 @@ class Loan
   #              was given one; without it the payload is exactly as above.
   #
   # The picked period governs the x-domain, and it means what it means on
-  # every other chart: 1Y is the last year, YTD the current calendar year,
+  # every other chart: 1Y is the last year, YTD the year to date (the fiscal year when the family has one),
   # clamped so no window opens before the loan does. Under "All" the domain
   # runs origination -> the later payoff date so every series has room. A
   # bounded window ends today, so the forward series draw under All alone;

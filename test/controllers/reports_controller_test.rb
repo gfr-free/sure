@@ -1106,6 +1106,58 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", reports_path(period_type: :quarterly, start_date: next_start, end_date: next_end)
   end
 
+  test "ytd and quarterly reports follow the family's fiscal year" do
+    @family.update!(fiscal_year_start_month: 4)
+
+    travel_to Date.new(2026, 11, 19) do
+      get reports_path(period_type: :ytd)
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.ytd", year: "2026/27"), response.body
+      assert_select "a[href=?]", reports_path(period_type: :ytd, start_date: Date.new(2025, 4, 1), end_date: Date.new(2026, 3, 31))
+
+      get reports_path(period_type: :ytd, start_date: Date.new(2025, 4, 1), end_date: Date.new(2026, 3, 31))
+      assert_response :ok
+      assert_select "a[href=?]", reports_path(period_type: :ytd, start_date: Date.new(2026, 4, 1), end_date: Date.new(2026, 11, 19))
+
+      get reports_path(period_type: :quarterly)
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.quarterly", quarter: 3, year: "2026/27"), response.body
+      assert_select "a[href=?]", reports_path(period_type: :quarterly, start_date: Date.new(2026, 7, 1), end_date: Date.new(2026, 9, 30))
+    end
+  end
+
+  test "calendar dates on a fiscal quarterly or yearly link snap to the fiscal period" do
+    @family.update!(fiscal_year_start_month: 4)
+
+    travel_to Date.new(2026, 11, 19) do
+      get reports_path(period_type: :quarterly, start_date: Date.new(2026, 1, 1), end_date: Date.new(2026, 3, 31))
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.quarterly", quarter: 4, year: "2025/26"), response.body
+      assert_select "a[href=?]", reports_path(period_type: :quarterly, start_date: Date.new(2026, 4, 1), end_date: Date.new(2026, 6, 30))
+
+      get reports_path(period_type: :ytd, start_date: Date.new(2026, 1, 1), end_date: Date.new(2026, 11, 19))
+      assert_response :ok
+      assert_match I18n.t("reports.index.period_label.ytd", year: "2026/27"), response.body
+    end
+  end
+
+  test "the period picker lists fiscal quarters and fiscal years" do
+    @family.update!(fiscal_year_start_month: 4)
+
+    travel_to Date.new(2026, 11, 19) do
+      get picker_reports_path(period_type: :quarterly, start_date: Date.new(2026, 11, 1))
+      assert_response :ok
+      assert_select "a[href=?]", reports_path(period_type: :quarterly, start_date: Date.new(2026, 4, 1), end_date: Date.new(2026, 6, 30)),
+                    text: I18n.t("reports.index.period_picker.quarter", quarter: 1, year: "2026/27")
+
+      get picker_reports_path(period_type: :ytd, start_date: Date.new(2026, 11, 1))
+      assert_response :ok
+      assert_select "a[href=?]", reports_path(period_type: :ytd, start_date: Date.new(2025, 4, 1), end_date: Date.new(2026, 3, 31)), text: "2025/26"
+      assert_select "a[href=?]", reports_path(period_type: :ytd, start_date: Date.new(2026, 4, 1), end_date: Date.new(2026, 11, 19)),
+                    text: I18n.t("reports.index.period_picker.ytd", year: "2026/27")
+    end
+  end
+
   test "custom period hides period display" do
     get reports_path(
       period_type: :custom,

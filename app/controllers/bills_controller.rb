@@ -255,7 +255,7 @@ class BillsController < ApplicationController
         lowest: Money.new(paid_amounts.min, @series.currency),
         highest: Money.new(paid_amounts.max, @series.currency),
         annualized: @series.monthly_equivalent_amount * 12,
-        ytd: Money.new(ytd_paid_total, @series.currency)
+        ytd: Money.new(@series.paid_this_year_amount, @series.currency)
       }
     end
 
@@ -277,12 +277,7 @@ class BillsController < ApplicationController
         [ month, by_month.fetch(month, 0) ]
       end
 
-      totals = confirmed.group(Arel.sql("date_trunc('year', recurring_occurrences.due_on)")).sum(:allocated_amount)
-      counts = confirmed.group(Arel.sql("date_trunc('year', recurring_occurrences.due_on)")).count
-      @yearly_metrics = totals.map do |year, total|
-        count = counts.fetch(year, 1)
-        { year: year.to_date.year, total: Money.new(total, @series.currency), average: Money.new(total / count, @series.currency) }
-      end.sort_by { |row| -row[:year] }.first(4)
+      @yearly_metrics = @series.yearly_payment_metrics
 
       last_allocation = confirmed.where.not(entry_id: nil).includes(entry: :account).order(paid_on: :desc, created_at: :desc).first
       @last_account = last_allocation&.entry&.account
@@ -462,13 +457,6 @@ class BillsController < ApplicationController
       end
     end
 
-    def ytd_paid_total
-      RecurringAllocation.confirmed
-                         .joins(:recurring_occurrence)
-                         .where(recurring_occurrences: { recurring_transaction_id: @series.id })
-                         .where("recurring_allocations.paid_on >= ?", Date.current.beginning_of_year)
-                         .sum(:allocated_amount)
-    end
 
     # Open occurrences through the horizon plus everything closed this
     # month, for every payable series (bills, subscriptions, and debt

@@ -91,7 +91,7 @@
                 </div>
                 <% yearly_metrics.each do |row| %>
                   <div class="grid grid-cols-3 py-1.5 text-sm">
-                    <p class="text-secondary"><%= row[:year] %></p>
+                    <p class="text-secondary"><%= row[:label] %></p>
                     <p class="text-right text-primary privacy-sensitive"><%= format_money(row[:total]) %></p>
                     <p class="text-right text-primary privacy-sensitive"><%= format_money(row[:average]) %></p>
                   </div>

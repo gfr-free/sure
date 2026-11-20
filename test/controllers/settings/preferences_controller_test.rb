@@ -48,6 +48,24 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='user[family_attributes][investment_contributions_as_spending]']", count: 0
   end
 
+  test "admins see the fiscal year select and its warning once a fiscal year is set" do
+    get settings_preferences_url
+    assert_select "select[name='user[family_attributes][fiscal_year_start_month]']"
+    assert_no_match I18n.t("settings.preferences.show.fiscal_year_start_month_warning"), response.body
+
+    users(:family_admin).family.update!(fiscal_year_start_month: 4)
+    get settings_preferences_url
+    assert_match ERB::Util.html_escape(I18n.t("settings.preferences.show.fiscal_year_start_month_warning")), response.body
+  end
+
+  test "members do not see the fiscal year select" do
+    sign_in users(:family_member)
+    get settings_preferences_url
+
+    assert_response :success
+    assert_select "select[name='user[family_attributes][fiscal_year_start_month]']", count: 0
+  end
+
   test "group moniker uses group currencies copy and hides legacy currency field" do
     users(:family_admin).family.update!(moniker: "Group")
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -863,11 +863,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
     t.string "timezone"
     t.datetime "updated_at", null: false
     t.string "vector_store_id"
+    t.integer "fiscal_year_start_month", default: 1, null: false
     t.index ["bills_feed_token"], name: "index_families_on_bills_feed_token", unique: true
     t.check_constraint "categorization_confidence_threshold >= 0::numeric AND categorization_confidence_threshold <= 1::numeric", name: "chk_families_categorization_confidence_threshold"
     t.check_constraint "categorization_provider::text = ANY (ARRAY['llm'::character varying::text, 'jev'::character varying::text])", name: "chk_families_categorization_provider"
     t.check_constraint "categorization_shadow_rate >= 0::numeric AND categorization_shadow_rate <= 1::numeric", name: "chk_families_categorization_shadow_rate"
     t.check_constraint "default_account_sharing::text = ANY (ARRAY['shared'::character varying::text, 'private'::character varying::text])", name: "chk_families_default_account_sharing"
+    t.check_constraint "fiscal_year_start_month >= 1 AND fiscal_year_start_month <= 12", name: "fiscal_year_start_month_range"
     t.check_constraint "month_start_day >= 1 AND month_start_day <= 28", name: "month_start_day_range"
   end
 

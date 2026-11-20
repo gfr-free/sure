@@ -107,6 +107,31 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert @member.family.reload.investment_contributions_as_spending?
   end
 
+  test "admin can set the fiscal year start month" do
+    patch user_url(@user), params: {
+      user: {
+        redirect_to: "preferences",
+        family_attributes: { id: @user.family.id, fiscal_year_start_month: "4" }
+      }
+    }
+
+    assert_redirected_to settings_preferences_url
+    assert_equal 4, @user.family.reload.fiscal_year_start_month
+  end
+
+  test "non-admin cannot change the fiscal year start month" do
+    sign_in @member = users(:family_member)
+
+    patch user_url(@member), params: {
+      user: {
+        redirect_to: "preferences",
+        family_attributes: { id: @member.family.id, fiscal_year_start_month: "4" }
+      }
+    }
+
+    assert_equal 1, @member.family.reload.fiscal_year_start_month
+  end
+
   test "admin can enable manual reconciliation" do
     patch user_url(@user), params: {
       user: {

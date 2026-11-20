@@ -41,6 +41,7 @@ class ReportsController < ApplicationController
     @period_type = params[:period_type]&.to_sym || :monthly
     @start_date = parse_date_param(:start_date) || default_start_date
     @end_date = parse_date_param(:end_date) || default_end_date
+    align_to_fiscal_period
 
     # Validate and fix date range if end_date is before start_date
     # Don't show flash message since we're returning CSV data
@@ -110,6 +111,7 @@ class ReportsController < ApplicationController
       @period_type = params[:period_type]&.to_sym || :monthly
       @start_date = parse_date_param(:start_date) || default_start_date
       @end_date = parse_date_param(:end_date) || default_end_date
+      align_to_fiscal_period
 
       # Validate and fix date range if end_date is before start_date
       validate_and_fix_date_range(show_flash: show_flash)
@@ -278,14 +280,32 @@ class ReportsController < ApplicationController
       nil
     end
 
+    # A quarterly or yearly link can carry calendar dates (a bookmark from
+    # before the fiscal year was set, a shared link). Snap it to the fiscal
+    # quarter or year holding its start, so the data matches the label and
+    # the navigation built from it.
+    def align_to_fiscal_period
+      family = Current.family
+      return unless family&.uses_fiscal_year?
+
+      case @period_type
+      when :quarterly
+        @start_date = family.fiscal_quarter_start_for(@start_date)
+        @end_date = family.fiscal_quarter_end_for(@start_date)
+      when :ytd
+        @start_date = family.fiscal_year_start_for(@start_date)
+        @end_date = [ family.fiscal_year_end_for(@start_date), Date.current ].min
+      end
+    end
+
     def default_start_date
       case @period_type
       when :monthly
         Date.current.beginning_of_month.to_date
       when :quarterly
-        Date.current.beginning_of_quarter.to_date
+        Current.family.fiscal_quarter_start_for(Date.current)
       when :ytd
-        Date.current.beginning_of_year.to_date
+        Current.family.fiscal_year_start_for(Date.current)
       when :last_6_months
         (Date.current.end_of_month + 1.day - 6.months).beginning_of_month.to_date
       when :custom
@@ -300,7 +320,7 @@ class ReportsController < ApplicationController
       when :monthly, :last_6_months
         Date.current.end_of_month.to_date
       when :quarterly
-        Date.current.end_of_quarter.to_date
+        Current.family.fiscal_quarter_end_for(Date.current)
       when :ytd
         Date.current
       when :custom
@@ -1335,19 +1355,24 @@ class ReportsController < ApplicationController
         next_end   = next_start.end_of_month
         at_latest  = @start_date.beginning_of_month >= Date.current.beginning_of_month
       when :quarterly
-        prev_start = (@start_date.beginning_of_quarter - 1.day).beginning_of_quarter
-        prev_end   = prev_start.end_of_quarter
-        next_start = @end_date.end_of_quarter + 1.day
-        next_end   = next_start.end_of_quarter
-        at_latest  = @start_date.beginning_of_quarter >= Date.current.beginning_of_quarter
+        # Quarters and years follow the family's fiscal year; a family on a
+        # January start gets the calendar ones.
+        family = Current.family
+        quarter_start = family.fiscal_quarter_start_for(@start_date)
+        prev_start = family.fiscal_quarter_start_for(quarter_start - 1.day)
+        prev_end   = quarter_start - 1.day
+        next_start = family.fiscal_quarter_end_for(@end_date) + 1.day
+        next_end   = family.fiscal_quarter_end_for(next_start)
+        at_latest  = quarter_start >= family.fiscal_quarter_start_for(Date.current)
       when :ytd
-        prev_year  = @start_date.year - 1
-        prev_start = Date.new(prev_year, 1, 1)
-        prev_end   = Date.new(prev_year, 12, 31)
-        next_year  = @start_date.year + 1
-        next_start = Date.new(next_year, 1, 1)
-        next_end   = next_year == Date.current.year ? Date.current : Date.new(next_year, 12, 31)
-        at_latest  = @start_date.year >= Date.current.year
+        family = Current.family
+        year_start = family.fiscal_year_start_for(@start_date)
+        current_year_start = family.fiscal_year_start_for(Date.current)
+        prev_start = family.fiscal_year_start_for(year_start - 1.day)
+        prev_end   = year_start - 1.day
+        next_start = year_start.next_year
+        next_end   = next_start == current_year_start ? Date.current : family.fiscal_year_end_for(next_start)
+        at_latest  = year_start >= current_year_start
       when :last_6_months
         prev_start = @start_date.beginning_of_month - 6.months
         prev_end   = prev_start + 6.months - 1.day
@@ -1372,12 +1397,15 @@ class ReportsController < ApplicationController
       when :monthly
         I18n.l(@start_date, format: :month_year)
       when :quarterly
-        t("reports.index.period_label.quarterly", quarter: @start_date.quarter, year: @start_date.year)
+        family = Current.family
+        t("reports.index.period_label.quarterly", quarter: family.fiscal_quarter_number(@start_date), year: family.fiscal_year_label(@start_date))
       when :ytd
-        if @start_date.year == Date.current.year
-          t("reports.index.period_label.ytd", year: @start_date.year)
+        family = Current.family
+        year_label = family.fiscal_year_label(@start_date)
+        if family.fiscal_year_start_for(@start_date) == family.fiscal_year_start_for(Date.current)
+          t("reports.index.period_label.ytd", year: year_label)
         else
-          t("reports.index.period_label.past_year", year: @start_date.year)
+          t("reports.index.period_label.past_year", year: year_label)
         end
       when :last_6_months
         t("reports.index.period_label.last_6_months",

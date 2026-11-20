@@ -21,6 +21,19 @@ class Assistant::Function::GetBillDetailsTest < ActiveSupport::TestCase
     assert_equal "$100.00", result[:analytics][:paid_this_year]
   end
 
+  test "paid_this_year counts from the family's fiscal year and says from when" do
+    @family.update!(fiscal_year_start_month: 4)
+    series = create_series(name: "CITY WATER", amount: 200)
+    paid = series.recurring_occurrences.order(:due_on).first
+    paid.allocations.create!(allocated_amount: 100, currency: "USD", source: "user_created", paid_on: @family.fiscal_year_start_for(Date.current) - 1.day)
+    paid.close!("paid", source: "user")
+
+    result = call_tool(series.id)
+
+    assert_equal "$0.00", result[:analytics][:paid_this_year]
+    assert_equal @family.fiscal_year_start_for(Date.current).iso8601, result[:analytics][:paid_this_year_since]
+  end
+
   test "analytics are null before anything was paid" do
     series = create_series(name: "Fresh bill", amount: 50)
 

@@ -11,7 +11,8 @@ RSpec.describe 'API V1 Family Settings', type: :request do
       date_format: '%m-%d-%Y',
       country: 'US',
       timezone: 'America/New_York',
-      month_start_day: 1
+      month_start_day: 1,
+      fiscal_year_start_month: 1
     )
   end
 

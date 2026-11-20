@@ -13,6 +13,24 @@ module RecurringTransactionsHelper
     end
   end
 
+  # Which of these accounts are manual, for the bill form's auto-post switch.
+  # One query instead of Account#manual? per option. The bill's own account
+  # counts even when the picker hides it (a disabled account), so saving the
+  # form does not switch auto-posting off behind the user's back.
+  def recurring_manual_account_ids(accounts, current: nil)
+    ids = accounts.reorder(nil).manual.pluck(:id)
+    ids << current.id if current&.manual?
+    ids.uniq
+  end
+
+  # Discarding a post deletes its entry, and both legs of a transfer, so it
+  # takes write access to every account involved, as
+  # RecurringAllocationsController#ensure_posted_entries_writable checks.
+  def auto_post_discardable?(allocation, writable_account_ids)
+    series = allocation.recurring_occurrence.recurring_transaction
+    [ allocation.entry&.account_id, series.account_id, series.destination_account_id ].compact.all? { |id| writable_account_ids.include?(id) }
+  end
+
   def frequency_preset_options(recurring_transaction)
     options = RecurringTransaction::FrequencyPreset::PRESETS.map do |preset|
       [ t("recurring_transactions.frequency_presets.#{preset}"), preset ]

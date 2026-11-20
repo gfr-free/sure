@@ -69,10 +69,10 @@ class TradeImportTest < ActiveSupport::TestCase
     CSV
 
     @import.update!(
-      account: accounts(:depository),
       raw_file_str: import,
       date_col_label: "date",
       ticker_col_label: "ticker",
+      account_col_label: "account",
       qty_col_label: "qty",
       price_col_label: "price",
       exchange_operating_mic_col_label: "exchange_operating_mic",
@@ -93,6 +93,31 @@ class TradeImportTest < ActiveSupport::TestCase
     end
 
     assert_equal "complete", @import.status
+    assert_equal [ "TestAccount1" ], @import.entries.map { |entry| entry.account.name }.uniq
+  end
+
+  test "a fixed account skips account mappings kept from an earlier upload" do
+    Security::Resolver.stubs(:new).returns(stub(resolve: securities(:aapl)))
+
+    @import.update!(
+      account: accounts(:depository),
+      raw_file_str: "date,ticker,qty,price,currency,name\n01/01/2024,AAPL,10,150.00,USD,Apple Buy\n",
+      date_col_label: "date",
+      ticker_col_label: "ticker",
+      qty_col_label: "qty",
+      price_col_label: "price",
+      date_format: "%m/%d/%Y",
+      signage_convention: "inflows_positive"
+    )
+    @import.generate_rows_from_csv
+    @import.mappings.create!(key: "Old Upload Account", create_when_empty: true, type: "Import::AccountMapping")
+
+    assert_no_difference -> { Account.count } do
+      @import.reload.publish
+    end
+
+    assert_equal "complete", @import.status
+    assert_equal [ accounts(:depository) ], @import.entries.map(&:account).uniq
   end
 
   test "auto-assigns investment activity labels to buy and sell trades" do
@@ -136,5 +161,11 @@ class TradeImportTest < ActiveSupport::TestCase
     assert_not_nil sell_trade, "Sell trade should have been created"
     assert_equal "Buy", buy_trade.investment_activity_label, "Buy trade should have 'Buy' activity label"
     assert_equal "Sell", sell_trade.investment_activity_label, "Sell trade should have 'Sell' activity label"
+  end
+
+  test "dry_run counts accounts that will be created when no account is selected" do
+    @import.mappings.create!(key: "New Brokerage", create_when_empty: true, type: "Import::AccountMapping")
+
+    assert_equal 1, @import.dry_run[:accounts]
   end
 end

@@ -1,12 +1,25 @@
 <%= render DS::Dialog.new do |dialog| %>
   <% dialog.with_header(title: t(".title"), subtitle: t(".description")) %>
   <% dialog.with_body do %>
-    <%= styled_form_with url: perform_merge_family_merchants_path, method: :post, class: "space-y-4" do |f| %>
+    <%= styled_form_with url: perform_merge_family_merchants_path, method: :post, class: "space-y-4",
+          data: {
+            controller: "merchant-merge-select",
+            merchant_merge_select_count_one_value: t(".selected_count.one"),
+            merchant_merge_select_count_other_value: t(".selected_count.other"),
+            merchant_merge_select_confirm_title_value: t(".confirm_title"),
+            merchant_merge_select_confirm_body_one_value: t(".confirm_body.one"),
+            merchant_merge_select_confirm_body_other_value: t(".confirm_body.other"),
+            merchant_merge_select_confirm_text_value: t(".confirm_accept")
+          } do |f| %>
       <%= f.collection_select :target_id,
             @merchants,
             :id, :name,
             { prompt: t(".select_target"), label: t(".target_label"), searchable: true, variant: :logo },
-            { required: true } %>
+            { required: true,
+              data: {
+                merchant_merge_select_target: "targetInput",
+                action: "change->merchant-merge-select#targetChanged"
+              } } %>
 
       <div class="space-y-2" data-controller="list-filter">
         <p class="text-sm font-medium text-primary"><%= t(".sources_label") %></p>
@@ -15,9 +28,21 @@
           placeholder: t(".sources_search_placeholder"),
           data: {
             list_filter_target: "input",
-            action: "input->list-filter#filter keydown->list-filter#handleKeydown"
+            action: "input->list-filter#filter input->merchant-merge-select#refresh keydown->list-filter#handleKeydown"
           }
         ) %>
+        <div class="flex items-center justify-between gap-2 px-2">
+          <label class="flex items-center gap-2 text-sm text-primary cursor-pointer">
+            <%= tag.input type: "checkbox",
+                  class: "rounded border-secondary",
+                  data: {
+                    merchant_merge_select_target: "selectAll",
+                    action: "merchant-merge-select#toggleAll"
+                  } %>
+            <span><%= t(".select_all_visible") %></span>
+          </label>
+          <span class="text-xs text-secondary" data-merchant-merge-select-target="count" aria-live="polite"></span>
+        </div>
         <div data-list-filter-target="list" class="max-h-64 overflow-y-auto space-y-1 border border-secondary rounded-lg p-2">
           <p class="hidden text-sm text-secondary px-2 py-1" data-list-filter-target="emptyMessage">
             <%= t(".no_merchants_found") %>
@@ -25,7 +50,12 @@
           <% @merchants.each do |merchant| %>
             <label class="filterable-item flex items-center gap-2 p-2 hover:bg-surface-hover rounded cursor-pointer"
                    data-filter-name="<%= merchant.name %>">
-              <%= check_box_tag "source_ids[]", merchant.id, false, class: "rounded border-secondary" %>
+              <%= check_box_tag "source_ids[]", merchant.id, false,
+                    class: "rounded border-secondary",
+                    data: {
+                      merchant_merge_select_target: "source",
+                      action: "merchant-merge-select#refresh"
+                    } %>
               <div class="hidden lg:flex">
                 <% if merchant.logo_url.present? %>
                   <%= image_tag Setting.transform_brand_fetch_url(merchant.logo_url),
@@ -54,7 +84,8 @@
       <%= render DS::Button.new(
         text: t(".submit"),
         type: :submit,
-        full_width: true
+        full_width: true,
+        data: { merchant_merge_select_target: "submit" }
       ) %>
     <% end %>
   <% end %>

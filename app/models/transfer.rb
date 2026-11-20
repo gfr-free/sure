@@ -200,7 +200,22 @@ class Transfer < ApplicationRecord
         outflow_attrs[:category] = category if category.present?
       end
 
-      inflow_transaction.update!(kind: "funds_movement")
+      inflow_attrs = { kind: "funds_movement" }
+
+      # A plain transfer or card payment is uncategorized (see
+      # Transaction::UNCATEGORIZED_EXCLUDED_KINDS), so a category either leg
+      # carried as a standalone transaction no longer applies. The lock keeps
+      # a provider sync or rule from putting it back.
+      unless categorizable?
+        [ [ inflow_transaction, inflow_attrs ], [ outflow_transaction, outflow_attrs ] ].each do |transaction, attrs|
+          next if transaction.category_id.blank?
+
+          attrs[:category] = nil
+          attrs[:locked_attributes] = transaction.locked_attributes.merge("category_id" => Time.current)
+        end
+      end
+
+      inflow_transaction.update!(inflow_attrs)
       outflow_transaction.update!(outflow_attrs)
     end
   end
@@ -251,6 +266,9 @@ class Transfer < ApplicationRecord
             transaction.update!(kind: "standard")
             # A kind locked by update_investment_contribution! belonged to this transfer.
             transaction.unlock_attr!(:kind) if transaction.locked?(:kind)
+            # confirm! cleared and locked the category of a plain transfer; let
+            # rules and syncs categorize the standalone transaction again.
+            transaction.unlock_attr!(:category_id) if transaction.category_id.nil? && transaction.locked?(:category_id)
           end
           # The entry survives this destroy (only the Transfer join row and
           # fee transactions go away), but its idempotency_key must not: a

@@ -160,6 +160,44 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     assert_equal "funds_movement", checking_entry.transaction.reload.kind
   end
 
+  test "re-importing a matched plain transfer keeps its categories cleared" do
+    checking_entry = @adapter.import_transaction(
+      external_id: "plaid_checking_to_card", amount: 300.00, currency: "USD",
+      date: Date.current, name: "Card payment", source: "plaid", category_id: categories(:food_and_drink).id
+    )
+    broker_adapter = Account::ProviderImportAdapter.new(accounts(:investment))
+    broker_entry = broker_adapter.import_transaction(
+      external_id: "plaid_broker_from_other_broker", amount: -300.00, currency: "USD",
+      date: Date.current, name: "Transfer in", source: "plaid", investment_activity_label: "Contribution"
+    )
+    other_broker = accounts(:investment).dup.tap { |account| account.update!(name: "Other broker", accountable: Investment.create!) }
+    other_entry = other_broker.entries.create!(
+      name: "Transfer out", date: Date.current, amount: 300, currency: "USD", entryable: Transaction.new
+    )
+    Transfer.create!(inflow_transaction: broker_entry.transaction, outflow_transaction: other_entry.transaction).confirm!
+    card_transfer = Transfer.create!(
+      inflow_transaction: accounts(:credit_card).entries.create!(
+        name: "Payment", date: Date.current, amount: -300, currency: "USD", entryable: Transaction.new
+      ).transaction,
+      outflow_transaction: checking_entry.transaction
+    )
+    card_transfer.confirm!
+    assert_nil broker_entry.transaction.reload.category
+    assert_nil checking_entry.transaction.reload.category
+
+    @adapter.import_transaction(
+      external_id: "plaid_checking_to_card", amount: 300.00, currency: "USD",
+      date: Date.current, name: "Card payment", source: "plaid", category_id: categories(:food_and_drink).id
+    )
+    broker_adapter.import_transaction(
+      external_id: "plaid_broker_from_other_broker", amount: -300.00, currency: "USD",
+      date: Date.current, name: "Transfer in", source: "plaid", investment_activity_label: "Contribution"
+    )
+
+    assert_nil checking_entry.transaction.reload.category
+    assert_nil broker_entry.transaction.reload.category
+  end
+
   test "re-importing an unconfirmed auto-matched leg does not give it a transfer kind" do
     loan_entry = Account::ProviderImportAdapter.new(accounts(:loan)).import_transaction(
       external_id: "plaid_loan_inflow_pending", amount: -200.00, currency: "USD",

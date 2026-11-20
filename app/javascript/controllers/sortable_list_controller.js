@@ -18,6 +18,10 @@ import { Controller } from "@hotwired/stimulus";
 // connected list.
 const connectedLists = new Set();
 
+// The order the server confirmed, per list element. A list reconnects when an
+// outer list moves it; its unsaved moves must not become the confirmed order.
+const confirmedOrders = new WeakMap();
+
 function cancelOnSecondFinger(event) {
   if (event.touches.length < 2) return;
 
@@ -60,11 +64,20 @@ export default class extends Controller {
     this.currentTouchX = 0;
     this.currentTouchY = 0;
     this.isTouching = false;
-    this.keyboardGrabbedElement = null;
+    // A row held with the keyboard stays held when an outer list moves this
+    // list, so its release still saves the move.
+    this.keyboardGrabbedElement =
+      this.itemTargets.find(
+        (item) =>
+          item.getAttribute("aria-grabbed") === "true" &&
+          item.classList.contains("ring-2"),
+      ) ?? null;
     this.holdTimer = null;
     this.holdActivated = false;
     // What the server has; a save that cannot reach it puts this back.
-    this.savedOrder = this.currentOrder();
+    if (!confirmedOrders.has(this.element)) {
+      this.savedOrder = this.currentOrder();
+    }
 
     if (connectedLists.size === 0) {
       document.addEventListener("touchstart", cancelOnSecondFinger, {
@@ -83,6 +96,22 @@ export default class extends Controller {
       queue.savedOrder = this.savedOrder;
     };
     document.addEventListener("turbo:morph", this.refreshSavedOrder);
+
+    // Leaving the sort mode drops a row still held with the keyboard where it
+    // is and saves it.
+    this.releaseOnSortModeStop = () => this.releaseKeyboardGrab();
+    window.addEventListener(
+      "account-sort-mode:stop",
+      this.releaseOnSortModeStop,
+    );
+  }
+
+  get savedOrder() {
+    return confirmedOrders.get(this.element) ?? [];
+  }
+
+  set savedOrder(order) {
+    confirmedOrders.set(this.element, order);
   }
 
   disconnect() {
@@ -93,6 +122,10 @@ export default class extends Controller {
       });
     }
     document.removeEventListener("turbo:morph", this.refreshSavedOrder);
+    window.removeEventListener(
+      "account-sort-mode:stop",
+      this.releaseOnSortModeStop,
+    );
     this.cancelHold();
   }
 

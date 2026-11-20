@@ -47,6 +47,12 @@ class BalanceSheet::ClassificationGroup
     BalanceSheet::ManualOrder.sort(groups, user.manual_list_positions("groups", dimension), &:key)
   end
 
+  # Ids of this classification's accounts in the order a grouping by the
+  # dimension lists them, before they are split into groups.
+  def account_ids_in_order_of(dimension, user:)
+    accounts_in_order_of(dimension.to_s, user: user).map(&:id)
+  end
+
   private
     attr_reader :accounts
 

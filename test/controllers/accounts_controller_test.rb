@@ -2297,7 +2297,7 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     patch reorder_accounts_url(dimension: "institution", group: "asset_institution_abc"), params: { account_ids: ids }, as: :json
 
     assert_response :success
-    assert_equal ids, @user.reload.manual_list_order("accounts", "institution")
+    assert_equal ids, @user.reload.manual_list_order("accounts", "institution") & ids
     assert_empty @user.manual_account_order
   end
 

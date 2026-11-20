@@ -1793,7 +1793,24 @@ class UserTest < ActiveSupport::TestCase
 
     assert @user.update_manual_list_order("accounts", "institution", [ foreign.id, accounts(:depository).id ])
 
-    assert_equal [ accounts(:depository).id ], @user.reload.manual_list_order("accounts", "institution")
+    order = @user.reload.manual_list_order("accounts", "institution")
+    assert_includes order, accounts(:depository).id
+    assert_not_includes order, foreign.id
+  end
+
+  test "update_manual_list_order keeps unsent accounts at their shown positions" do
+    @user.update!(default_account_order: "manual")
+    family = families(:dylan_family)
+    a, b, c = [ [ "A acct", "USD" ], [ "B acct", "EUR" ], [ "C acct", "USD" ] ].map do |name, currency|
+      family.accounts.create!(name: name, currency: currency, balance: 0, accountable: Depository.new, owner: @user)
+    end
+    @user.update_manual_account_order("depository", [ a.id, b.id, c.id ])
+
+    # The USD accounts of a group swap; the EUR account between them stays.
+    assert @user.update_manual_list_order("accounts", "institution", [ c.id, a.id ])
+
+    order = @user.reload.manual_list_order("accounts", "institution")
+    assert_equal [ c.id, b.id, a.id ], order.select { |id| [ a.id, b.id, c.id ].include?(id) }
   end
 
   test "update_manual_list_order rejects unknown kinds, dimensions and malformed ids" do

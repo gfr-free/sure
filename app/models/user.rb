@@ -804,6 +804,14 @@ class User < ApplicationRecord
         accessible_ids = accessible_accounts.where(id: saved_ids + requested_ids).pluck(:id).to_set
         saved_ids = saved_ids.select { |id| accessible_ids.include?(id) }
         requested_ids = requested_ids.select { |id| accessible_ids.include?(id) }
+        # A list may send only some of the accounts it shares the stored order
+        # with (one currency's accounts of a group). Accounts never stored keep
+        # the position they are shown in, so placing the sent ones does not
+        # move the others.
+        if (requested_ids - saved_ids).any?
+          shown_ids = BalanceSheet.new(family, user: self).account_ids_in_order_of(dimension)
+          saved_ids = shown_ids + (saved_ids - shown_ids)
+        end
       end
 
       ordered_ids = reorder_among_positions(saved_ids + (requested_ids - saved_ids), requested_ids)

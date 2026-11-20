@@ -401,6 +401,12 @@ class Holding < ApplicationRecord
     # it reads no associations cached before the remap.
     locked_account = Account.find(account_id)
     locked_account.with_lock do
+      # A concurrent remap may have moved (or merged away) this row while we
+      # waited for the lock, so work from its current security.
+      reload
+      return if new_security.id == security_id
+      raise ArgumentError, "cannot remap to or from a cash security" unless remappable_to?(new_security)
+
       remap_security!(new_security)
       strategy = locked_account.linked? ? :reverse : :forward
       Balance::Materializer.new(locked_account, strategy: strategy, security_ids: [ new_security.id ]).materialize_balances

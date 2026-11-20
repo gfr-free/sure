@@ -130,6 +130,20 @@ class Api::V1::HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal securities(:aapl), @holding.reload.security
   end
 
+  test "remap_security rejects ticker fields that are not strings" do
+    Security.stubs(:providers).returns([])
+
+    [ { ticker: true }, { ticker: 42 }, { ticker: "MSFT", exchange_operating_mic: false }, { security_id: true } ].each do |holding_params|
+      patch remap_security_api_v1_holding_url(@holding),
+            params: { holding: holding_params }.to_json,
+            headers: api_headers(write_api_key).merge("Content-Type" => "application/json")
+
+      assert_response :unprocessable_entity
+    end
+    assert_not Security.exists?(ticker: "TRUE")
+    assert_equal securities(:aapl), @holding.reload.security
+  end
+
   test "remap_security answers with the holding it merged into" do
     merged_into = @account.holdings.create!(security: securities(:msft), date: @holding.date, qty: 5, price: 400, amount: 2000, currency: "USD")
 

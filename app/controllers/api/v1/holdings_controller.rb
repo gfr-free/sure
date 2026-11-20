@@ -57,6 +57,9 @@ class Api::V1::HoldingsController < Api::V1::BaseController
     return head(:no_content) unless @holding
 
     render :show
+  rescue ActiveRecord::RecordNotFound
+    # A concurrent remap merged this holding into another row meanwhile.
+    render json: { error: "not_found", message: "Holding not found" }, status: :not_found
   rescue => e
     log_and_render_error("remap_security", e)
   end
@@ -93,11 +96,15 @@ class Api::V1::HoldingsController < Api::V1::BaseController
       params[:holding].permit(:security_id, :ticker, :exchange_operating_mic)
     end
 
+    # Only string identifiers count: permit also lets booleans and numbers
+    # through, and `true` must not become a ticker named "TRUE".
     def requested_security
-      if remap_params[:security_id].present?
-        Security.find_by(id: remap_params[:security_id].to_s)
-      else
-        Security.resolve_typed_ticker(remap_params[:ticker], exchange_operating_mic: remap_params[:exchange_operating_mic])
+      security_id, ticker, mic = remap_params.values_at(:security_id, :ticker, :exchange_operating_mic)
+
+      if security_id.present?
+        Security.find_by(id: security_id) if security_id.is_a?(String)
+      elsif ticker.is_a?(String) && (mic.nil? || mic.is_a?(String))
+        Security.resolve_typed_ticker(ticker, exchange_operating_mic: mic)
       end
     end
 

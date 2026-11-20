@@ -94,6 +94,7 @@ class Security < ApplicationRecord
 
   has_many :trades, dependent: :nullify, class_name: "Trade"
   has_many :prices, dependent: :destroy
+  has_one :bullion_spec
   has_many :splits, dependent: :destroy
   # A security row is shared by every family that holds the instrument, but a
   # Tag belongs to one family, so a tagging is reachable only through its
@@ -348,6 +349,12 @@ class Security < ApplicationRecord
       ticker: ticker,
       exchange_operating_mic: canonical_exchange_operating_mic(exchange_operating_mic)
     )
+  end
+
+  # Catalogue bullion is shared by every family, so its stored name is the
+  # English one; read it back in the viewer's language.
+  def name
+    BullionCatalog.localized_name(ticker) || super
   end
 
   def exchange_name

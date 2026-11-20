@@ -85,10 +85,10 @@ class Family::DataExporter
 
     def generate_accounts_csv
       generate_sanitized_csv do |csv|
-        csv << [ "id", "name", "type", "subtype", "balance", "currency", "created_at" ]
+        csv << [ "id", "name", "type", "subtype", "balance", "currency", "created_at", "liquidity", "available_on", "custom_subtype" ]
 
         # Only export accounts belonging to this family
-        @family.accounts.includes(:accountable).find_each do |account|
+        @family.accounts.includes(:accountable, :custom_account_subtype).find_each do |account|
           csv << [
             account.id,
             account.name,
@@ -96,7 +96,10 @@ class Family::DataExporter
             account.subtype,
             account.balance.to_s,
             account.currency,
-            account.created_at.iso8601
+            account.created_at.iso8601,
+            account.liquidity,
+            account.available_on&.iso8601,
+            account.custom_account_subtype&.name
           ]
         end
       end
@@ -267,6 +270,20 @@ class Family::DataExporter
 
     def generate_ndjson
       lines = []
+
+      # The family's own subtypes, before the accounts that reference them
+      # (custom_account_subtype_id).
+      @family.custom_account_subtypes.find_each do |custom_subtype|
+        lines << {
+          type: "CustomAccountSubtype",
+          data: {
+            id: custom_subtype.id,
+            accountable_type: custom_subtype.accountable_type,
+            name: custom_subtype.name,
+            rules: custom_subtype.rules_for_export
+          }
+        }.to_json
+      end
 
       # Export accounts with full accountable data
       @family.accounts.includes(:accountable).find_each do |account|

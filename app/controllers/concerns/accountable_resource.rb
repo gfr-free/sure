@@ -225,12 +225,28 @@ module AccountableResource
       require_account_permission!(@account)
     end
 
+    # Only where the form offers the availability fields (preview features,
+    # an asset type with a choice) may the request set them. Liabilities keep
+    # their level from the type; imports and the API set it on purpose.
+    def liquidity_form_attributes
+      selectable = accountable_type.classification == "asset" && accountable_type.liquidity_selectable?
+      preview_features_enabled? && selectable ? Account::Liquidity::FORM_ATTRIBUTES : []
+    end
+
+    # The custom subtype select is a preview feature like the availability
+    # fields; the model checks that the subtype belongs to the family and type.
+    def custom_subtype_form_attributes
+      preview_features_enabled? ? [ :custom_account_subtype_id ] : []
+    end
+
     def account_params
       params.require(:account).permit(
         :name, :balance, :subtype, :currency, :accountable_type, :return_to,
         :opening_balance_date,
         :institution_name, :institution_domain, :custom_group, :notes, :exclude_from_reports,
         :enable_category_matcher, :cost_basis_method, :logo,
+        *liquidity_form_attributes,
+        *custom_subtype_form_attributes,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

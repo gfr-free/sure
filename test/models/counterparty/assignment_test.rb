@@ -83,6 +83,19 @@ class Counterparty::AssignmentTest < ActiveSupport::TestCase
     assert_not Entry.exists?(leg.id)
   end
 
+  test "reverting an import removes the person's legs of its entries" do
+    import = imports(:transaction)
+    import.update!(status: :complete)
+    entry = create_transaction(account: @checking, amount: 60, import: import)
+    leg = Counterparty::Assignment.new(entry).update!(@person, user: @user)
+
+    import.revert
+
+    assert_equal "pending", import.reload.status
+    assert_not Entry.exists?(entry.id)
+    assert_not Entry.exists?(leg.id)
+  end
+
   test "a payment in another currency opens a second clearing account" do
     entry = create_transaction(account: @checking, amount: 50, currency: "EUR")
 

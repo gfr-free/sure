@@ -35,6 +35,27 @@ class Api::V1::InsightsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Put idle cash to work", row.fetch("title")
   end
 
+  test "omits insights addressed to another member and keeps the user's own" do
+    other = users(:family_member)
+    foreign = @user.family.insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Member's insurance deadline", body: "Private", user: other,
+      generated_at: Time.current, dedup_key: "api-user-scope-foreign"
+    )
+    own = @user.family.insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Admin's insurance deadline", body: "Mine", user: @user,
+      generated_at: Time.current, dedup_key: "api-user-scope-own"
+    )
+
+    get api_v1_insights_url, headers: api_headers(@api_key)
+
+    assert_response :success
+    ids = response.parsed_body.fetch("insights").map { |insight| insight.fetch("id") }
+    assert_includes ids, own.id
+    assert_not_includes ids, foreign.id
+  end
+
   test "hides a household total once access to its accounts changes" do
     total = household_total(@user.family)
     accounts(:depository).unshare_with!(users(:family_member))
@@ -74,6 +95,20 @@ class Api::V1::InsightsControllerTest < ActionDispatch::IntegrationTest
     get api_v1_insights_url, headers: api_headers(@api_key)
     assert_response :success
     assert_not_includes response.parsed_body.fetch("insights").pluck("id"), @insight.id
+  end
+
+  test "cannot acknowledge an insight addressed to another member" do
+    @api_key.update!(scopes: [ "read_write" ])
+    foreign = @user.family.insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Member's insurance deadline", body: "Private", user: users(:family_member),
+      generated_at: Time.current, dedup_key: "api-acknowledge-foreign"
+    )
+
+    patch acknowledge_api_v1_insight_url(foreign), headers: api_headers(@api_key)
+
+    assert_response :not_found
+    assert foreign.reload.active?
   end
 
   test "acknowledgment is idempotent and does not revive expired insights" do

@@ -1,0 +1,34 @@
+<%# locals: (f:, contract:) %>
+<%# One group of kind-specific fields per kind; the contract-kind-fields
+    controller shows the group for the selected kind. Values live under
+    contract[details][...]. %>
+<section class="space-y-3">
+  <% Contract::DETAIL_FIELDS.each do |kind, fields| %>
+    <% next if fields.empty? %>
+    <div class="space-y-3 <%= "hidden" unless kind == contract.kind %>" data-contract-kind-fields-target="group" data-kind="<%= kind %>">
+      <h3 class="text-sm font-medium text-primary"><%= t("contracts.details.title", kind: contract_kind_label(kind)) %></h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <% fields.each do |key, type| %>
+          <% value = contract.kind == kind ? contract.detail(key) : nil %>
+          <% name = "contract[details][#{key}]" %>
+          <% field_id = "contract_details_#{kind}_#{key}" %>
+          <div class="form-field <%= "sm:col-span-2" if type == :text %>">
+            <label for="<%= field_id %>" class="form-field__label"><%= t("contracts.details.fields.#{key}") %></label>
+            <% case type %>
+            <% when :insurance_line %>
+              <%= select_tag name, options_for_select(Contract.insurance_line_options, value), include_blank: true, id: field_id, class: "form-field__input", disabled: kind != contract.kind %>
+            <% when :decimal %>
+              <%= number_field_tag name, value, id: field_id, min: 0, step: "any", class: "form-field__input", autocomplete: "off", disabled: kind != contract.kind %>
+            <% when :date %>
+              <%= date_field_tag name, value, id: field_id, class: "form-field__input", autocomplete: "off", disabled: kind != contract.kind %>
+            <% when :text %>
+              <%= text_area_tag name, value, id: field_id, rows: 2, class: "form-field__input", disabled: kind != contract.kind %>
+            <% else %>
+              <%= text_field_tag name, value, id: field_id, class: "form-field__input", autocomplete: "off", disabled: kind != contract.kind %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</section>

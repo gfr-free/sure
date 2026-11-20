@@ -16,8 +16,14 @@ class Insight::Generator
     :currency,
     :period_start,
     :period_end,
-    :dedup_key
-  )
+    :dedup_key,
+    :user_id
+  ) do
+    # user_id addresses the insight to one member; omitted, it is family-wide.
+    def initialize(user_id: nil, **attributes)
+      super(user_id: user_id, **attributes)
+    end
+  end
 
   class << self
     # Declares the insight_type values this generator can emit. The job uses
@@ -106,7 +112,7 @@ class Insight::Generator
       @current_budget
     end
 
-    def build_insight(insight_type:, priority:, title:, template_key:, facts:, dedup_key:, metadata:, period: nil)
+    def build_insight(insight_type:, priority:, title:, template_key:, facts:, dedup_key:, metadata:, period: nil, user_id: nil)
       GeneratedInsight.new(
         insight_type: insight_type,
         priority: priority,
@@ -117,7 +123,8 @@ class Insight::Generator
         currency: family.currency,
         period_start: period&.start_date,
         period_end: period&.end_date,
-        dedup_key: dedup_key
+        dedup_key: dedup_key,
+        user_id: user_id
       )
     end
 

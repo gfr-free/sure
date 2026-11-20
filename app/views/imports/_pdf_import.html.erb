@@ -31,6 +31,10 @@
                 than exposing an untranslated/internal enum string. %>
             <%= t("imports.document_types.#{import.document_type}", default: t("imports.pdf_import.unknown_document_type")) %>
           </p>
+          <% if import.document_type == "contract" && preview_features_enabled? && !Current.family.recurring_transactions_disabled? %>
+            <%= render DS::Link.new(text: t("imports.pdf_import.create_contract"), icon: "file-signature", variant: "outline",
+                                    href: new_contract_path(pdf_import_id: import.id), frame: :modal) %>
+          <% end %>
         </div>
 
         <div class="space-y-2">

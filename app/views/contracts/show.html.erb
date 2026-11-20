@@ -1,0 +1,249 @@
+<%= content_for :page_title, @contract.name %>
+
+<% editable = @contract.editable_by?(Current.user) %>
+<% manageable = @contract.manageable_by?(Current.user) %>
+
+<div class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex items-start justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <%= contract_avatar(@contract) %>
+      <div class="min-w-0 space-y-1">
+        <h1 class="text-xl font-medium text-primary truncate"><%= @contract.name %></h1>
+        <p class="text-sm text-secondary">
+          <%= contract_kind_label(@contract.kind) %> &middot; <%= @contract.provider_display_name %>
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <%= contract_status_pill(@contract) %>
+          <% if @contract.owner_id != Current.user.id %>
+            <%= render DS::Pill.new(label: t(".owned_by", name: @contract.owner.display_name), tone: :neutral, marker: false, icon: "users") %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <% if editable %>
+      <%= render DS::Menu.new do |menu| %>
+        <% menu.with_item(variant: "link", text: t(".edit"), icon: "pencil", href: edit_contract_path(@contract), data: { turbo_frame: :modal }) %>
+        <% if manageable %>
+          <% menu.with_item(variant: "link", text: t(".share"), icon: "share-2", href: contract_sharing_path(@contract), data: { turbo_frame: :modal }) %>
+        <% end %>
+        <% if @contract.active? %>
+          <% menu.with_item(variant: "link", text: t(".end_contract"), icon: "calendar-x", href: new_contract_ending_path(@contract), data: { turbo_frame: :modal }) %>
+        <% end %>
+        <% if manageable %>
+          <% menu.with_item(variant: "button", text: t(".delete"), icon: "trash-2", href: contract_path(@contract), method: :delete, destructive: true,
+                            confirm: t(".confirm_delete", name: @contract.name)) %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </header>
+
+  <%= render "contracts/end_notice", contract: @contract, editable: editable %>
+
+  <% if @next_payments.any? %>
+    <% next_bill = @next_payments.first %>
+    <%= render DS::Card.new do %>
+      <dl>
+        <%= render DS::DetailRow.new(label: t(".next_payment"), align: :center) do |row| %>
+          <% row.with_value do %>
+            <span class="font-medium"><%= l(next_bill.next_due_date, format: :long) %></span>
+            <span class="font-medium privacy-sensitive">&middot; <%= safe_join(@next_payments.map { |bill| format_money(contract_next_payment_amount(bill)) }, " + ") %></span>
+            <% if next_bill.overdue? %>
+              <span class="block text-xs text-warning"><%= t(".next_payment_overdue") %></span>
+            <% end %>
+            <% if @visible_bills.count(&:active?) > 1 %>
+              <span class="block text-xs text-secondary truncate"><%= @next_payments.map(&:display_name).to_sentence %></span>
+            <% end %>
+          <% end %>
+        <% end %>
+      </dl>
+    <% end %>
+  <% end %>
+
+  <% if @duplicates.any? %>
+    <%= render DS::Alert.new(variant: :warning, message: t(".possible_duplicate", names: @duplicates.map(&:name).to_sentence)) %>
+  <% end %>
+
+  <div class="space-y-4">
+    <%= render DS::Card.new(class: "space-y-3") do %>
+      <h2 class="text-sm font-medium text-primary"><%= t(".contract_section") %></h2>
+      <dl class="space-y-2">
+        <% if (number = contract_number_for(@contract, :contract_number)) %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:contract_number), value: number, value_class: "privacy-sensitive") %>
+        <% end %>
+        <% if (number = contract_number_for(@contract, :customer_number)) %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:customer_number), value: number, value_class: "privacy-sensitive") %>
+        <% end %>
+        <% if @contract.started_on %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:started_on), value: l(@contract.started_on, format: :long)) %>
+        <% end %>
+        <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:minimum_term_months), value: contract_minimum_term(@contract)) %>
+        <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:notice_period_value), value: contract_notice(@contract)) %>
+        <%= render DS::DetailRow.new(label: t(".renewal"), value: contract_renewal(@contract)) %>
+        <% if @schedule.notice_deadline %>
+          <%= render DS::DetailRow.new(label: t(".notice_deadline")) do |row| %>
+            <% row.with_value do %>
+              <span class="font-medium"><%= l(@schedule.notice_deadline, format: :long) %></span>
+              <span class="block text-xs text-secondary"><%= t(".to_end_on", date: l(@schedule.term_ends_on, format: :long)) %></span>
+            <% end %>
+          <% end %>
+        <% elsif @contract.active? && @schedule.earliest_end_on %>
+          <%= render DS::DetailRow.new(label: t(".earliest_end"), value: l(@schedule.earliest_end_on, format: :long)) %>
+        <% end %>
+        <% if @contract.renewal_anchor_on %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:renewal_anchor_on), value: l(@contract.renewal_anchor_on, format: :long)) %>
+        <% end %>
+        <% if @contract.ends_on %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:ends_on), value: l(@contract.ends_on, format: :long)) %>
+        <% end %>
+        <% if @contract.account && Current.user.accessible_accounts.exists?(id: @contract.account_id) %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:account)) do |row| %>
+            <% row.with_value { link_to @contract.account.name, account_path(@contract.account), class: "underline" } %>
+          <% end %>
+        <% end %>
+        <% if @contract.replaced_by&.viewable_by?(Current.user) %>
+          <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:replaced_by)) do |row| %>
+            <% row.with_value { link_to @contract.replaced_by.name, contract_path(@contract.replaced_by), class: "underline" } %>
+          <% end %>
+        <% end %>
+      </dl>
+    <% end %>
+
+    <%= render DS::Card.new(class: "space-y-3") do %>
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-sm font-medium text-primary"><%= t(".payments_section") %></h2>
+        <p class="text-sm text-secondary privacy-sensitive"><%= contract_annual_cost([ @annual_cost, @unconvertible_count, @unconverted ]) %></p>
+      </div>
+      <% if @visible_bills.any? %>
+        <ul class="divide-y divide-subdued">
+          <% @visible_bills.each do |bill| %>
+            <li class="py-2 flex items-center justify-between gap-3">
+              <%= link_to bill.display_name, bill_path(bill), class: "text-sm text-primary hover:underline truncate" %>
+              <div class="text-right shrink-0">
+                <p class="text-sm text-primary privacy-sensitive"><%= format_money(bill.amount_money.abs) %></p>
+                <p class="text-xs text-secondary">
+                  <%= bill.active? ? t(".next_due", date: l(bill.next_due_date, format: :short)) : t("recurring_transactions.status.#{bill.status}") %>
+                </p>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-sm text-secondary"><%= t(".no_payments") %></p>
+      <% end %>
+      <% if @price_changes.any? %>
+        <div class="space-y-1">
+          <p class="text-xs font-medium text-secondary uppercase"><%= t(".price_changes") %></p>
+          <ul class="bg-container-inset rounded-lg divide-y divide-subdued">
+            <% @price_changes.each do |change| %>
+              <li class="flex items-center justify-between gap-3 px-3 py-2">
+                <div class="min-w-0">
+                  <p class="text-sm text-primary"><%= l(change.effective_on, format: :long) %></p>
+                  <% if @visible_bills.size > 1 %>
+                    <p class="text-xs text-secondary truncate"><%= change.recurring_transaction.display_name %></p>
+                  <% end %>
+                </div>
+                <p class="text-sm shrink-0 privacy-sensitive <%= change.new_amount.abs > change.previous_amount.abs ? "text-warning" : "text-success" %>">
+                  <%= t("bills.detail.price_change_line",
+                        from: format_money(change.previous_amount_money),
+                        to: format_money(change.new_amount_money)) %>
+                </p>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <% if @payments.any? || @older_payments || @all_payments %>
+        <% payment_months = Contract::PAYMENT_HISTORY_WINDOW.in_months.to_i %>
+        <div id="contract-payment-history" class="space-y-1">
+          <p class="text-xs font-medium text-secondary uppercase">
+            <%= @all_payments ? t(".payment_history_all") : t(".payment_history", months: payment_months) %>
+          </p>
+          <% if @payments.any? %>
+            <ul class="bg-container-inset rounded-lg divide-y divide-subdued">
+              <% @payments.each do |payment| %>
+                <li>
+                  <% row_class = "flex items-center justify-between gap-3 px-3 py-2" %>
+                  <% row = capture do %>
+                    <div class="min-w-0">
+                      <p class="text-sm text-primary truncate"><%= payment.entry&.name.presence || t("bills.detail.manual_payment") %></p>
+                      <p class="text-xs text-secondary truncate">
+                        <%= l(payment.paid_on, format: :short_with_year) %><% if payment.entry %> &middot; <%= payment.entry.account.name %><% end %>
+                      </p>
+                    </div>
+                    <p class="text-sm text-primary privacy-sensitive shrink-0"><%= format_money(payment.allocated_amount_money) %></p>
+                  <% end %>
+                  <% if payment.entry %>
+                    <%= link_to row, entry_path(payment.entry), data: { turbo_frame: "drawer" }, class: "#{row_class} hover:bg-container-inset-hover" %>
+                  <% else %>
+                    <%= tag.div row, class: row_class %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-sm text-secondary"><%= @all_payments ? t(".no_payments_yet") : t(".no_recent_payments", months: payment_months) %></p>
+          <% end %>
+          <% if @older_payments %>
+            <%= render DS::Link.new(text: t(".show_all_payments"), variant: "ghost", size: :sm,
+                                    href: contract_path(@contract, payments: "all", anchor: "contract-payment-history")) %>
+          <% elsif @all_payments %>
+            <%= render DS::Link.new(text: t(".show_recent_payments", months: payment_months), variant: "ghost", size: :sm,
+                                    href: contract_path(@contract, anchor: "contract-payment-history")) %>
+          <% end %>
+        </div>
+      <% end %>
+      <% if @annual_cost.nil? && @visible_bills.any? %>
+        <p class="text-xs text-secondary"><%= t(".cost_unknown_hint") %></p>
+      <% end %>
+      <% if @hidden_bills %>
+        <p class="text-xs text-secondary"><%= t(".hidden_payments") %></p>
+      <% end %>
+      <% if editable %>
+        <div class="flex flex-wrap gap-2">
+          <%= render DS::Link.new(text: t(".link_payments"), icon: "link", variant: "outline", size: :sm, href: payments_contract_path(@contract), frame: :modal) %>
+          <%= render DS::Link.new(text: t(".add_payment"), icon: "plus", variant: "ghost", size: :sm, href: new_recurring_transaction_path(contract_id: @contract.id), frame: :modal) %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <%= render "contracts/details_rows", contract: @contract, annual_cost: @annual_cost %>
+
+    <% if [ @contract.portal_url, @contract.service_phone, @contract.service_email, @contract.claims_phone ].any?(&:present?) %>
+      <%= render DS::Card.new(class: "space-y-3") do %>
+        <h2 class="text-sm font-medium text-primary"><%= t(".contacts_section") %></h2>
+        <dl class="space-y-2">
+          <% if (portal_url = contract_safe_url(@contract.portal_url)) %>
+            <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:portal_url)) do |row| %>
+              <% row.with_value { link_to URI.parse(portal_url).host, portal_url, target: "_blank", rel: "noopener noreferrer", class: "underline" } %>
+            <% end %>
+          <% end %>
+          <% if @contract.service_phone.present? %>
+            <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:service_phone)) do |row| %>
+              <% row.with_value { link_to @contract.service_phone, "tel:#{@contract.service_phone.gsub(/[^\d+]/, "")}", class: "underline" } %>
+            <% end %>
+          <% end %>
+          <% if @contract.claims_phone.present? %>
+            <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:claims_phone)) do |row| %>
+              <% row.with_value { link_to @contract.claims_phone, "tel:#{@contract.claims_phone.gsub(/[^\d+]/, "")}", class: "underline" } %>
+            <% end %>
+          <% end %>
+          <% if @contract.service_email.present? %>
+            <%= render DS::DetailRow.new(label: Contract.human_attribute_name(:service_email)) do |row| %>
+              <% row.with_value { mail_to @contract.service_email, class: "underline" } %>
+            <% end %>
+          <% end %>
+        </dl>
+      <% end %>
+    <% end %>
+
+    <%= render "contracts/documents", contract: @contract, documents: @documents, editable: editable %>
+
+    <% if @contract.notes.present? %>
+      <%= render DS::Card.new(class: "space-y-2") do %>
+        <h2 class="text-sm font-medium text-primary"><%= Contract.human_attribute_name(:notes) %></h2>
+        <p class="text-sm text-primary whitespace-pre-line"><%= @contract.notes %></p>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,20 @@
+<%# locals: (contract:, editable:) %>
+<%# A recorded end that is still ahead, with the way to take it back. %>
+<% if contract.ended? && contract.open? %>
+  <div class="bg-warning/10 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-start gap-2 text-sm text-primary">
+      <%= icon "calendar-x", size: "sm", color: "warning", class: "mt-0.5" %>
+      <p><%= t("contracts.end_notice.ends", date: l(contract.ends_on, format: :long)) %></p>
+    </div>
+    <% if editable %>
+      <%= render DS::Button.new(text: t("contracts.end_notice.reopen"), icon: "undo-2", variant: :ghost, size: :sm,
+                                href: contract_ending_path(contract), method: :delete,
+                                confirm: CustomConfirm.new(title: t("contracts.end_notice.reopen_confirm_title"), body: t("contracts.end_notice.reopen_confirm_body"), btn_text: t("contracts.end_notice.reopen"))) %>
+    <% end %>
+  </div>
+<% end %>
+
+<% running = contract.running_bills_after_end.accessible_by(Current.user).to_a %>
+<% if running.any? %>
+  <%= render DS::Alert.new(variant: :warning, message: t("contracts.end_notice.bills_still_running", names: running.map(&:display_name).to_sentence)) %>
+<% end %>

@@ -101,7 +101,7 @@ meantime. Values no configured key opens are left untouched and listed by
 name under `settings_secrets.not_decryptable`; they do not fail the run, and
 a later run with the old key still converts them. After a write pass
 without failures, new values are written with
-Active Record Encryption too. A fresh install without any saved settings
+Active Record Encryption too. A fresh install without saved API keys
 does that from the start.
 
 Releases before this change cannot read the new form. Before going back to

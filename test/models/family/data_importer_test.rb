@@ -33,6 +33,18 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal "Depository", account.accountable_type
   end
 
+  test "assigns new accounts to the user who started the Sure import" do
+    member = users(:new_email)
+    import = SureImport.create!(family: @family, user: member)
+    ndjson = build_ndjson([
+      { type: "Account", data: { id: "old-account-1", name: "Member Checking", balance: "10", currency: "USD", accountable_type: "Depository" } }
+    ])
+
+    account = Account.find(Family::DataImporter.new(@family, ndjson, import: import).import![:account_ids].sole)
+
+    assert_equal member, account.owner
+  end
+
   test "round trips loan terms through full export" do
     source_family = Family.create!(name: "Source Loan Family", currency: "EUR", locale: "en", date_format: "%Y-%m-%d")
     source_family.accounts.create!(

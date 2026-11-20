@@ -6,7 +6,7 @@ const RESET_DELAY_MS = 2000;
 
 export default class extends Controller {
   static targets = ["source", "iconDefault", "iconSuccess"];
-  static values = { copiedText: String };
+  static values = { copiedText: String, failedText: String };
 
   copy(event) {
     event.preventDefault();
@@ -23,6 +23,8 @@ export default class extends Controller {
       })
       .catch((error) => {
         console.error("Failed to copy text: ", error);
+        // The clipboard still holds its old content, so say so on the button.
+        if (this.hasFailedTextValue) this.flashLabel(button, this.failedTextValue);
       });
   }
 
@@ -41,22 +43,22 @@ export default class extends Controller {
 
     // A single-icon button (e.g. DS::Button) has no icons to swap, so confirm
     // the copy by briefly flipping the button's own label.
-    this.flashLabel(button);
+    if (this.hasCopiedTextValue) this.flashLabel(button, this.copiedTextValue);
   }
 
-  flashLabel(button) {
+  flashLabel(button, text) {
     // DS::Button renders its icon as an <svg> and its text in `span.truncate`,
     // so scope to that class rather than the first <span> in case an icon ever
     // ships wrapped in a span.
     const label = button?.querySelector("span.truncate") ?? button?.querySelector("span");
-    if (!label || !this.hasCopiedTextValue) return;
+    if (!label) return;
 
     clearTimeout(this.labelResetTimer);
     if (this.originalLabel == null) {
       this.originalLabel = label.textContent;
     }
 
-    label.textContent = this.copiedTextValue;
+    label.textContent = text;
     this.labelResetTimer = setTimeout(() => {
       label.textContent = this.originalLabel;
       this.originalLabel = null;

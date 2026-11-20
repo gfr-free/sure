@@ -36,6 +36,15 @@ class DS::ProgressRingTest < ViewComponent::TestCase
     assert_equal "var(--color-gray-400)", DS::ProgressRing.new(percent: 1, tone: :bogus).stroke_color
   end
 
+  test "the arc keeps a fractional percent while the label stays whole" do
+    ring = DS::ProgressRing.new(percent: 12.5)
+    assert_in_delta ring.circumference * 0.875, ring.dash_offset, 0.0001
+    assert_equal 12, ring.clamped_percent
+
+    sliver = DS::ProgressRing.new(percent: BigDecimal("0.4"))
+    assert_operator sliver.dash_offset, :<, sliver.circumference
+  end
+
   test "dash offset runs from full circumference at 0% to zero at 100%" do
     ring = DS::ProgressRing.new(percent: 0)
     assert_in_delta ring.circumference, ring.dash_offset, 0.001

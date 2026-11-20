@@ -108,3 +108,30 @@ also read `preview_features_enabled?`. The API `custom_subtype` field is always
 returned (additive). A custom subtype already assigned to an account keeps its
 rules when preview is off: like the stored level, it is the account's
 classification.
+
+## Account forecast
+
+`Account::Forecast` answers "what is left in this account after the payments
+expected on it?" (the bills account). It starts from today's balance and
+walks the open bill occurrences that touch the account: expenses paid from
+it, income paid into it, and recurring transfers out of it (`account_id`) or
+into it (`destination_account_id`).
+
+- Window: up to the day before the next declared payday on the account
+  (manual income series), else 30 days; `until_date` overrides it.
+- No statistical daily spend, so a pure bills account does not read as
+  running dry.
+- Only `forecastable?` accounts: visible assets whose effective level today
+  is `immediate`. Credit cards stay out.
+- Each account in its own currency; occurrences in another currency are
+  converted at today's rate or counted in `unconvertible_count`.
+- `Account::Forecast.for_family(family, user:)` builds every account's
+  forecast from one occurrence query and one allocation-sum query. Pass the
+  user wherever a person sees the result: only accounts they can access are
+  forecast, and a transfer from or to an account they cannot access still
+  counts but is marked `restricted` (generic name, no link or ids).
+
+It feeds the account page's Forecast tab, the Bills page's account coverage
+card, `GET /api/v1/accounts/:id/forecast` and the assistant's
+`get_account_forecast`. It raises no insight of its own: the per-account
+warning is `Insight::Generators::BillNotCoveredGenerator`.

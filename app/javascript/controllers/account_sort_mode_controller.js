@@ -74,7 +74,8 @@ export default class extends Controller {
   // them moves the row.
   renderHandle(handle) {
     handle.style.display = this.sorting ? "" : "none";
-    const item = handle.closest("[data-sortable-list-target='item']");
+    // The handle's own row: of an account, a subgroup or a group.
+    const item = handle.closest("[data-sortable-list-id]");
     if (!item) return;
 
     item.draggable = this.sorting;

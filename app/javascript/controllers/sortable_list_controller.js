@@ -6,15 +6,21 @@ import { Controller } from "@hotwired/stimulus";
 // the ids are sent as JSON to urlValue, nested under paramValue
 // ("a.b" sends { a: { b: [...] } }).
 //
-// A list can hold another list (rule groups inside the rules list). The inner
-// one uses this controller as "sortable-sublist": Stimulus does not pass a
-// controller events from inside a nested controller of the same name, and
-// the outer list needs the dragover and drop events over the inner one to
-// move a whole group. Each list handles only drags of its own items.
+// A list can hold another list (the account sidebar's groups hold account
+// lists, rule groups hold rules). Each nesting level uses this controller
+// under its own name: Stimulus does not pass a controller events from inside
+// a nested controller of the same name, and the outer list needs the dragover
+// and drop events over the inner one to move a whole group. Items of every
+// level carry their id in data-sortable-list-id. Each list handles only drags
+// of its own items.
 // A second finger anywhere on the page means a pinch zoom, not a reorder,
 // also when it lands outside the items. One document listener serves every
 // connected list.
 const connectedLists = new Set();
+
+// The order the server confirmed, per list element. A list reconnects when an
+// outer list moves it; its unsaved moves must not become the confirmed order.
+const confirmedOrders = new WeakMap();
 
 function cancelOnSecondFinger(event) {
   if (event.touches.length < 2) return;
@@ -58,11 +64,20 @@ export default class extends Controller {
     this.currentTouchX = 0;
     this.currentTouchY = 0;
     this.isTouching = false;
-    this.keyboardGrabbedElement = null;
+    // A row held with the keyboard stays held when an outer list moves this
+    // list, so its release still saves the move.
+    this.keyboardGrabbedElement =
+      this.itemTargets.find(
+        (item) =>
+          item.getAttribute("aria-grabbed") === "true" &&
+          item.classList.contains("ring-2"),
+      ) ?? null;
     this.holdTimer = null;
     this.holdActivated = false;
     // What the server has; a save that cannot reach it puts this back.
-    this.savedOrder = this.currentOrder();
+    if (!confirmedOrders.has(this.element)) {
+      this.savedOrder = this.currentOrder();
+    }
 
     if (connectedLists.size === 0) {
       document.addEventListener("touchstart", cancelOnSecondFinger, {
@@ -90,6 +105,22 @@ export default class extends Controller {
       this.queueController().sendPendingOrderNow();
     };
     window.addEventListener("pagehide", this.releaseGrab);
+
+    // Leaving the sort mode drops a row still held with the keyboard where it
+    // is and saves it.
+    this.releaseOnSortModeStop = () => this.releaseKeyboardGrab();
+    window.addEventListener(
+      "account-sort-mode:stop",
+      this.releaseOnSortModeStop,
+    );
+  }
+
+  get savedOrder() {
+    return confirmedOrders.get(this.element) ?? [];
+  }
+
+  set savedOrder(order) {
+    confirmedOrders.set(this.element, order);
   }
 
   disconnect() {
@@ -101,6 +132,10 @@ export default class extends Controller {
     }
     document.removeEventListener("turbo:morph", this.refreshSavedOrder);
     window.removeEventListener("pagehide", this.releaseGrab);
+    window.removeEventListener(
+      "account-sort-mode:stop",
+      this.releaseOnSortModeStop,
+    );
     this.cancelHold();
     // An item still grabbed with the keyboard (e.g. the list is removed from
     // the page) keeps the place it was moved to.
@@ -141,6 +176,10 @@ export default class extends Controller {
   }
 
   dragEnd(event) {
+    // The end of a nested list's drag also bubbles up to this list's item
+    // around it, which may be held with the keyboard.
+    if (event.currentTarget !== this.draggedElement) return;
+
     event.currentTarget.classList.remove("opacity-50");
     event.currentTarget.setAttribute("aria-grabbed", "false");
     this.clearPlaceholders();
@@ -612,8 +651,10 @@ export default class extends Controller {
       ...document.querySelectorAll(`[data-controller~='${this.identifier}']`),
     ].filter(
       (list) =>
-        list.dataset.sortableListUrlValue === this.urlValue &&
-        list.dataset.sortableListParamValue === this.paramValue,
+        list.getAttribute(`data-${this.identifier}-url-value`) ===
+          this.urlValue &&
+        list.getAttribute(`data-${this.identifier}-param-value`) ===
+          this.paramValue,
     );
   }
 

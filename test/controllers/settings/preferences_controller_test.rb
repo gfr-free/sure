@@ -11,6 +11,13 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "planning switches are named by their titles" do
+    get settings_preferences_url
+
+    assert_select "#budgets_enabled_label", text: I18n.t("settings.preferences.show.budgets_enabled")
+    assert_select "[aria-labelledby='budgets_enabled_label']"
+  end
+
   test "shows the saved timezone instead of another city sharing its zone" do
     users(:family_admin).family.update!(timezone: "Europe/Moscow")
 

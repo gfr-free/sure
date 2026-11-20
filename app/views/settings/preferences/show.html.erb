@@ -55,23 +55,25 @@
         <%= form.fields_for :family do |family_form| %>
           <div class="flex items-center justify-between">
             <div class="space-y-1">
-              <p class="text-sm"><%= t(".budgets_enabled") %></p>
+              <p class="text-sm" id="budgets_enabled_label"><%= t(".budgets_enabled") %></p>
               <p class="text-secondary text-sm"><%= t(".budgets_enabled_hint") %></p>
             </div>
             <%= family_form.toggle :budgets_enabled,
+                "aria-labelledby": "budgets_enabled_label",
                 data: { auto_submit_form_target: "auto" } %>
           </div>
 
           <% if preview_features_enabled? %>
             <div class="flex items-center justify-between">
               <div class="space-y-1">
-                <p class="text-sm flex items-center gap-1.5">
+                <p class="text-sm flex items-center gap-1.5" id="plan_enabled_label">
                   <%= t(".plan_enabled") %>
                   <%= render DS::Pill.new(label: t("shared.preview"), size: :sm) %>
                 </p>
                 <p class="text-secondary text-sm"><%= t(".plan_enabled_hint") %></p>
               </div>
               <%= family_form.toggle :plan_enabled,
+                  "aria-labelledby": "plan_enabled_label",
                   data: { auto_submit_form_target: "auto" } %>
             </div>
           <% end %>

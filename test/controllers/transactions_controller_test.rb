@@ -818,6 +818,37 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=checkbox][name='q[active_accounts_only]'][value=false][checked]"
   end
 
+  test "index row cache does not carry read-only state across disabled account changes" do
+    original_store = TransactionsController.cache_store
+    original_caching = TransactionsController.perform_caching
+    TransactionsController.cache_store = ActiveSupport::Cache::MemoryStore.new
+    TransactionsController.perform_caching = true
+    account = accounts(:depository)
+    row = "##{dom_id(@entry)}"
+    disabled_filter = { q: { search: @entry.name, active_accounts_only: "false" } }
+
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account"), count: 0
+    end
+
+    account.disable!
+    get transactions_url(disabled_filter)
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account")
+    end
+
+    account.update!(status: "active")
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account"), count: 0
+      assert_select "input[type=checkbox][disabled]##{dom_id(@entry, "selection")}", count: 0
+    end
+  ensure
+    TransactionsController.cache_store = original_store
+    TransactionsController.perform_caching = original_caching
+  end
+
   test "index treats any other active_accounts_only value as the default" do
     accounts(:depository).disable!
 

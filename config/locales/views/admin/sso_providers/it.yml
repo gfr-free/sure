@@ -90,6 +90,7 @@ it:
         saml_sp_callback_url_help: "Configura questo URL come URL del servizio di asserzione del consumatore nel tuo IdP"
         copy_button: "Copia"
         copied: "Copiato!"
+        copy_failed: "Copia non riuscita"
         cancel: "Annulla"
         submit: "Salva provider"
         create_provider: "Crea provider"

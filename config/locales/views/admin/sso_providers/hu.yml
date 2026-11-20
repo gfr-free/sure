@@ -90,6 +90,7 @@ hu:
         saml_sp_callback_url_help: "Ezt az URL-t kell megadni az Assertion Consumer Service URL-ként az IdP-ben"
         copy_button: "Másolás"
         copied: "Másolva!"
+        copy_failed: "A másolás nem sikerült"
         cancel: "Mégse"
         submit: "Szolgáltató mentése"
         create_provider: "Szolgáltató létrehozása"

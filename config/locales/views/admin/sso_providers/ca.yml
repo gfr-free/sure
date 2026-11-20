@@ -27,6 +27,7 @@ ca:
         client_secret_placeholder_new: el-teu-secret-de-client
         copy_button: Copia
         copied: "Copiat!"
+        copy_failed: "No s'ha pogut copiar"
         create_provider: Crea el proveïdor
         default_role_help: Rol assignat als usuaris creats mitjançant l'aprovisionament
           de comptes SSO just-in-time (JIT). Per defecte és Membre.

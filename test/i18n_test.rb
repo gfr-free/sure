@@ -195,14 +195,16 @@ class I18nTest < ActiveSupport::TestCase
   end
 
   # The SSO callback copy button flips its label to "copied"; a locale that
-  # translates the button must translate the confirmation too.
+  # translates the button must translate the confirmation and the failure too.
   def test_sso_provider_copied_label_exists_beside_copy_button
     sibling = "admin.sso_providers.form.copy_button"
     locales = I18n.available_locales.select { |locale| I18n.t(sibling, locale: locale, fallback: false, default: nil) }
     assert_includes locales, :de
 
-    missing = locales.reject { |locale| I18n.t("admin.sso_providers.form.copied", locale: locale, fallback: false, default: nil) }
-    assert_empty missing, "admin.sso_providers.form.copied is missing for: #{missing.join(", ")}"
+    %w[copied copy_failed].each do |key|
+      missing = locales.reject { |locale| I18n.t("admin.sso_providers.form.#{key}", locale: locale, fallback: false, default: nil) }
+      assert_empty missing, "admin.sso_providers.form.#{key} is missing for: #{missing.join(", ")}"
+    end
   end
 
   # A placeholder the English string does not have is never passed by the

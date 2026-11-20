@@ -92,6 +92,7 @@ pt-PT:
         saml_sp_callback_url_help: "Configure este URL como o URL do Assertion Consumer Service no seu IdP"
         copy_button: "Copiar"
         copied: "Copiado!"
+        copy_failed: "Falha ao copiar"
         cancel: "Cancelar"
         submit: "Guardar serviço"
         create_provider: "Criar serviço"

@@ -28,6 +28,7 @@ ru:
         client_secret_placeholder_new: ваш-client-secret
         copy_button: Копировать
         copied: "Скопировано!"
+        copy_failed: "Не удалось скопировать"
         create_provider: Создать поставщика
         default_role_help: Роль, назначаемая пользователям, созданным через JIT предоставление
           учётных записей SSO. По умолчанию — Участник.

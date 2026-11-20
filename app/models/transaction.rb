@@ -15,6 +15,9 @@ class Transaction < ApplicationRecord
     attachable.variant :thumbnail, resize_to_limit: [ 150, 150 ]
   end
 
+  # Documents linked from Paperless-ngx; the files stay in Paperless
+  has_many :paperless_links, as: :linkable, dependent: :destroy
+
   # Attachment validation constants
   MAX_ATTACHMENTS_PER_TRANSACTION = 10
   MAX_ATTACHMENT_SIZE = 10.megabytes
@@ -718,6 +721,18 @@ class Transaction < ApplicationRecord
 
       new_tags = from.tags.where.not(id: to.tags.select(:id))
       to.tags << new_tags if new_tags.any?
+
+      # A document already linked to the posted transaction through the same
+      # connection would collide with the unique index once re-pointed.
+      from.paperless_links.where(<<~SQL.squish, to.id).delete_all
+        EXISTS (
+          SELECT 1 FROM paperless_links posted_links
+          WHERE posted_links.linkable_type = 'Transaction' AND posted_links.linkable_id = ?
+            AND posted_links.paperless_connection_id = paperless_links.paperless_connection_id
+            AND posted_links.document_id = paperless_links.document_id
+        )
+      SQL
+      from.paperless_links.update_all(linkable_id: to.id, updated_at: Time.current)
     end
 
     def attachment_count_after_merge(from:, to:)

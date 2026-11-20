@@ -53,6 +53,7 @@ es:
       contract_price_increase: Contrato
       contract_charges_after_end: Contrato
       contract_price_guarantee_ending: Contrato
+      fixed_commitments_ratio: Compromisos fijos
     meta:
       next_n_days:
         one: Próximo día
@@ -74,6 +75,7 @@ es:
       on_pace: al ritmo previsto
       of_budget: del presupuesto
       need_attention: requieren atención
+      of_income: de tus ingresos
       days_overdue:
         one: "%{count} día de retraso"
         other: "%{count} días de retraso"
@@ -97,6 +99,7 @@ es:
       loan_payment_change: Ver préstamo
       bank_fees: Ver comisiones
       contract: Ver contrato
+      fixed_commitments_ratio: Revisar transacciones recurrentes
     titles:
       spending_anomaly:
         above: El gasto en %{category} va en aumento
@@ -124,6 +127,9 @@ es:
       contract_price_increase: "%{name} es más caro"
       contract_charges_after_end: "%{name} te sigue cobrando"
       contract_price_guarantee_ending: "La garantía de precio de %{name} termina"
+      fixed_commitments_ratio:
+        up: Tus compromisos fijos pesan más en tus ingresos
+        over_half: Tus compromisos fijos ya se llevan la mitad o más de tus ingresos
     templates:
       spending_anomaly:
         above: Vas camino de gastar %{projected_spend} en %{category} este mes, aproximadamente un %{deviation_pct}% más que tu promedio mensual reciente de %{baseline_spend}.
@@ -156,3 +162,10 @@ es:
         plain: "%{name} pasó de %{previous_amount} a %{new_amount} el %{effective_on}."
       contract_charges_after_end: "%{name} terminó el %{ends_on}, pero aún se hicieron %{count} pagos por un total de %{amount}, el último el %{latest_on}. Puede que te deban un reembolso."
       contract_price_guarantee_ending: "La garantía de precio de %{name} termina el %{guarantee_until}. Después el proveedor puede subir el precio, así que es buen momento para comparar ofertas."
+      fixed_commitments_ratio: "Tus compromisos recurrentes, %{commitments} al mes, se llevan el %{current_ratio}% de tus ingresos mensuales habituales (%{income}), frente al %{previous_ratio}% de hace seis meses. %{explanation}"
+    fixed_commitments_ratio:
+      contributors: "Lo que más ha cambiado: %{list}."
+      contributor:
+        new: "%{name} (pago nuevo, %{amount} al mes)"
+        raised: "%{name} (%{amount} más al mes)"
+      income_fell: Tus ingresos mensuales habituales han bajado de %{previous_income} a %{current_income}.

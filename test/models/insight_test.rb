@@ -82,6 +82,21 @@ class InsightTest < ActiveSupport::TestCase
     end
   end
 
+  test "an insight for one member notifies only that member" do
+    owner, other = users(:family_admin), users(:family_member)
+    [ owner, other ].each { |user| user.update!(preferences: user.preferences.merge("preview_features_enabled" => true)) }
+    insight = insights(:cash_flow_warning)
+    assert insight.priority_high?
+
+    assert insight.notifies?(owner)
+    assert insight.notifies?(other)
+
+    insight.update_columns(user_id: owner.id)
+
+    assert insight.notifies?(owner)
+    assert_not insight.notifies?(other)
+  end
+
   test "ordered puts high priority first, then most recent" do
     high = insights(:cash_flow_warning)
 

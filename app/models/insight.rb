@@ -19,6 +19,13 @@ class Insight < ApplicationRecord
   # Set for insights about something private to one member (a contract they
   # own); nil keeps the insight family-wide, as every insight used to be.
   belongs_to :user, optional: true
+  has_many :push_deliveries, dependent: :destroy
+
+  # A new insight, or a new notification_version (GenerateInsightsJob bumps it
+  # when the signal materially changes), is one event for push recipients. They
+  # are recorded in the save's transaction and enqueued once it commits.
+  after_save -> { PushDelivery.record_for_insight!(self) }, if: :new_notification_version?
+  after_commit -> { PushDelivery.enqueue_insight_deliveries(self) }, on: [ :create, :update ], if: :new_notification_version?
 
   TYPES = %w[
     spending_anomaly
@@ -37,6 +44,7 @@ class Insight < ApplicationRecord
     contract_price_increase
     contract_charges_after_end
     contract_price_guarantee_ending
+    fixed_commitments_ratio
   ].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)
@@ -114,6 +122,18 @@ class Insight < ApplicationRecord
       .order(generated_at: :desc)
   }
 
+  # The one push policy, read by every channel: high-priority insights, plus
+  # near-limit (medium) budget warnings for users who opt in. Tenancy and
+  # shared-account visibility mirror the feed.
+  def notifies?(user)
+    return false unless active? && user.active? && user.family_id == family_id && user.preview_features_enabled?
+    # An insight about one member's private record (a contract) only reaches them.
+    return false if user_id.present? && user_id != user.id
+    return false unless priority_high? || (insight_type == "budget_at_risk" && priority_medium? && user.push_budget_warnings_enabled?)
+
+    Insight.about_shared_accounts.exists?(id)
+  end
+
   def mark_read!
     return unless active?
 
@@ -135,4 +155,9 @@ class Insight < ApplicationRecord
 
     update!(status: :read, dismissed_at: nil, read_at: read_at || Time.current)
   end
+
+  private
+    def new_notification_version?
+      previously_new_record? || saved_change_to_notification_version?
+    end
 end

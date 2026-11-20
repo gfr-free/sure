@@ -14,6 +14,7 @@ module InsightsHelper
     "bill_not_covered" => "calendar-x",
     "loan_payment_change" => "landmark",
     "bank_fees" => "receipt",
+    "fixed_commitments_ratio" => "scale",
     "contract_notice_deadline" => "calendar-clock",
     "contract_price_increase" => "trending-up",
     "contract_charges_after_end" => "receipt",
@@ -102,6 +103,8 @@ module InsightsHelper
       facts["amount"] && [ facts["amount"], t("insights.figures.payments", count: facts["count"].to_i) ]
     when "contract_price_guarantee_ending"
       facts["days_left"] && [ facts["guarantee_until"], t("insights.figures.days_left", count: facts["days_left"].to_i) ]
+    when "fixed_commitments_ratio"
+      facts["current_ratio"] && [ "#{facts["current_ratio"]}%", t("insights.figures.of_income") ]
     end
   end
 
@@ -131,8 +134,8 @@ module InsightsHelper
                                      start_date: insight.period_start.to_s, end_date: insight.period_end.to_s }) }
     when "subscription_audit"
       { text: t("insights.actions.subscription_audit"), href: recurring_transactions_path }
-    when "cash_flow_warning"
-      { text: t("insights.actions.cash_flow_warning"), href: recurring_transactions_path }
+    when "cash_flow_warning", "fixed_commitments_ratio"
+      { text: t("insights.actions.#{insight.insight_type}"), href: recurring_transactions_path }
     when "savings_rate_change"
       return nil unless insight.period_start && insight.period_end
       { text: t("insights.actions.savings_rate_change"),
@@ -218,7 +221,7 @@ module InsightsHelper
       :negative
     when "loan_payment_change"
       metadata["new_payment"].to_f < metadata["previous_payment"].to_f ? :positive : :warning
-    when "budget_at_risk", "maintained_goal_depleted", "bank_fees", "contract_notice_deadline",
+    when "budget_at_risk", "maintained_goal_depleted", "bank_fees", "fixed_commitments_ratio", "contract_notice_deadline",
          "contract_price_increase", "contract_price_guarantee_ending"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.

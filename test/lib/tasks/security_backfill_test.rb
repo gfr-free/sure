@@ -53,6 +53,7 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     eb_item = EnableBankingItem.create!(
       family: families(:dylan_family), name: "Backfill EB", country_code: "FI", application_id: "app", client_certificate: "cert"
     )
+    eb_account = EnableBankingAccount.create!(enable_banking_item: eb_item, name: "Checking", uid: "uid_backfill", currency: "EUR")
     akahu_account = AkahuAccount.create!(
       akahu_item: AkahuItem.create!(family: families(:dylan_family), name: "Backfill Akahu", app_token: "app", user_token: "user"),
       name: "Everyday", account_id: "acc_backfill", currency: "NZD"
@@ -63,12 +64,16 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     connection.execute(ActiveRecord::Base.sanitize_sql([
       "UPDATE enable_banking_items SET last_psu_ip = ? WHERE id = ?", "203.0.113.7", eb_item.id ]))
     connection.execute(ActiveRecord::Base.sanitize_sql([
+      "UPDATE enable_banking_accounts SET iban = ? WHERE id = ?", "FI2112345600000785", eb_account.id ])) # pipelock:ignore IBAN
+    connection.execute(ActiveRecord::Base.sanitize_sql([
       "UPDATE akahu_accounts SET formatted_account = ? WHERE id = ?", "12-3456-7654321-00", akahu_account.id ]))
 
     capture_io { Rake::Task["security:backfill_encryption"].invoke("500", "false") }
 
     assert_equal "203.0.113.7", eb_item.reload.last_psu_ip
     assert_equal "12-3456-7654321-00", akahu_account.reload.formatted_account
+    assert_equal "FI2112345600000785", eb_account.reload.iban # pipelock:ignore IBAN
+    refute_includes eb_account.read_attribute_before_type_cast(:iban).to_s, "12345600000785"
     refute_includes eb_item.read_attribute_before_type_cast(:last_psu_ip).to_s, "203.0.113.7"
     refute_includes akahu_account.read_attribute_before_type_cast(:formatted_account).to_s, "7654321"
   end
@@ -379,7 +384,10 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     8 => "a4d113aa214e8754361484267d377174b2aeda3fe01c5ca0c553f9ab76ef2ab0",
     9 => "9f814939a5125a6903d9ba4e96392056ffafe9f6110b10b5c1cae0d87a564ac7",
     10 => "0bcaa72ed675acde5d5ae2ce72305bf73375c0faa5580fe80e3985e88aa4f9e4",
-    11 => "41994a93c96220ed800577ccb1e44106d8a2a990802b0c0ced684fbb3d46bca1"
+    11 => "e706a4aba7b25ef1ec3d9dacbd6ca489e4abe577b54875ac377a48138890b450",
+    12 => "4122d5a8520c242fb5bad505511319806da13ed45996b47df2cb2ee34a4c041f",
+    13 => "72593348d2ae17c23317f826de2e65b983356766c09fa3bcf92af01c26d54aa0",
+    14 => "7f2e53f823911c03887a7c21f5d52a904ab9b66c605788a35f44868ce237523e"
   }.freeze
 
   test "backfill manifest changes come with a CURRENT_BACKFILL_VERSION bump" do

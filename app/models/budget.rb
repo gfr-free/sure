@@ -309,7 +309,10 @@ class Budget < ApplicationRecord
         expected_income: source_budget.expected_income
       )
 
-      target_by_category = budget_categories.index_by(&:category_id)
+      # Locked so a concurrent recompute can't store a carried overspend
+      # between this read and the update below: the carry toggle is written
+      # against the stored amount, which the check constraint compares.
+      target_by_category = budget_categories.lock.index_by(&:category_id)
 
       source_budget.budget_categories.each do |source_bc|
         target_bc = target_by_category[source_bc.category_id]

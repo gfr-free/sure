@@ -1,6 +1,11 @@
 ---
 de:
   entries:
+    family_currency_total:
+      converted: "≈ %{amount}"
+      converted_tooltip: Zum letzten verfügbaren Kurs bis zum jeweiligen Tag in %{currency} umgerechnet
+      missing_rate: Kein %{currency}-Kurs
+      missing_rate_tooltip: Für diesen Tag fehlt ein Wechselkurs nach %{currency}, daher wird keine umgerechnete Summe angezeigt. Kurse werden beim Konto-Sync geladen.
     create:
       success: Buchung erstellt
     destroy:

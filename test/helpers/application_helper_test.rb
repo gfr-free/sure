@@ -104,6 +104,32 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "-$3.00 | €7.00", totals_by_currency(collection: [ @account1, @account2, @account3 ], money_method: :balance_money, negate: true)
   end
 
+  test "#converted_total converts each entry at its own date" do
+    day = Date.new(2026, 3, 10)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: day, rate: 1.2)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: day - 1.day, rate: 1.1)
+    entries = [
+      Entry.new(currency: "USD", amount: 5, date: day, entryable: Transaction.new),
+      Entry.new(currency: "EUR", amount: 10, date: day, entryable: Transaction.new),
+      Entry.new(currency: "EUR", amount: 10, date: day - 1.day, entryable: Transaction.new)
+    ]
+    rates = ExchangeRate::Lookup.new(currencies: entries.map(&:currency), dates: entries.map(&:date), to: "USD")
+
+    assert_equal Money.new(28, "USD"), converted_total(collection: entries, money_method: :amount_money, rates:)
+    assert_equal Money.new(-28, "USD"), converted_total(collection: entries, money_method: :amount_money, rates:, negate: true)
+  end
+
+  test "#converted_total is nil when a rate is missing" do
+    day = Date.new(2026, 3, 10)
+    entries = [
+      Entry.new(currency: "USD", amount: 5, date: day, entryable: Transaction.new),
+      Entry.new(currency: "GBP", amount: 10, date: day, entryable: Transaction.new)
+    ]
+    rates = ExchangeRate::Lookup.new(currencies: entries.map(&:currency), dates: entries.map(&:date), to: "USD")
+
+    assert_nil converted_total(collection: entries, money_method: :amount_money, rates:)
+  end
+
   test "#currency_picker_options_for_family returns enabled family currencies" do
     family = families(:dylan_family)
     family.update!(currency: "SGD", enabled_currencies: [ "USD" ])

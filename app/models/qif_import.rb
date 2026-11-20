@@ -507,7 +507,8 @@ class QifImport < Import
           balance: 0,
           currency: default_currency,
           accountable_type: accountable_type_for_qif_type(qif_type),
-          import: self
+          import: self,
+          owner: account_owner
         },
         skip_initial_sync: true
       )

@@ -40,7 +40,8 @@ class Api::V1::ImportSessionsController < Api::V1::BaseController
       client_chunk_id: params[:client_chunk_id].presence,
       content: content,
       filename: filename,
-      content_type: content_type
+      content_type: content_type,
+      user: current_resource_owner
     )
 
     @import_session.reload

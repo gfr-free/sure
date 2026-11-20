@@ -150,7 +150,7 @@ class ImportSession < ApplicationRecord
   end
   private_class_method :normalize_positive_integer
 
-  def attach_chunk!(sequence:, content:, filename:, content_type:, client_chunk_id: nil)
+  def attach_chunk!(sequence:, content:, filename:, content_type:, client_chunk_id: nil, user: nil)
     sequence = self.class.send(:normalize_positive_integer, sequence)
     raise ConflictError, "sequence must be a positive integer" unless sequence.positive?
     raise ConflictError, "sequence exceeds expected_chunks" if expected_chunks.present? && sequence > expected_chunks
@@ -185,7 +185,8 @@ class ImportSession < ApplicationRecord
           checksum: checksum,
           content: content,
           filename: filename,
-          content_type: content_type
+          content_type: content_type,
+          user: user
         )
       end
     end
@@ -210,9 +211,10 @@ class ImportSession < ApplicationRecord
     raise ConflictError, "chunk already exists with different content"
   end
 
-  def create_chunk!(sequence:, client_chunk_id:, checksum:, content:, filename:, content_type:)
+  def create_chunk!(sequence:, client_chunk_id:, checksum:, content:, filename:, content_type:, user:)
     imports.create!(
       family: family,
+      user: user,
       type: "SureImport",
       sequence: sequence,
       client_chunk_id: client_chunk_id,

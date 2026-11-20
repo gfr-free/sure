@@ -42,7 +42,7 @@ class ImportsController < ApplicationController
     # step that needs a new choice.
     return redirect_to import_path(@import) if @import.failed? && !@import.publishable?
 
-    @import.publish_later
+    @import.publish_later(user: Current.user)
 
     redirect_to import_path(@import), notice: t(".started")
   rescue Import::MaxRowCountExceededError
@@ -117,6 +117,7 @@ class ImportsController < ApplicationController
     import = Current.family.imports.create!(
       type: type,
       account: account,
+      user: Current.user,
       date_format: Current.family.date_format,
     )
 
@@ -348,7 +349,7 @@ class ImportsController < ApplicationController
         return
       end
 
-      import = Current.family.imports.create!(type: "SureImport")
+      import = Current.family.imports.create!(type: "SureImport", user: Current.user)
       import.ndjson_file.attach(
         io: StringIO.new(content),
         filename: file.original_filename,

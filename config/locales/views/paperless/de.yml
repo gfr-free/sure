@@ -39,6 +39,7 @@ de:
       untitled: "Dokument #%{id}"
     create:
       already_linked: Dieses Dokument ist bereits mit der Buchung verknüpft.
+      connection_changed: Deine Paperless-Verbindung hat sich seit dieser Suche geändert. Bitte suche erneut.
       failed: "Dokument konnte nicht verknüpft werden: %{error}"
       invalid_document: Das ist kein gültiges Paperless-Dokument.
       success: Dokument verknüpft.
@@ -57,7 +58,7 @@ de:
             per_user: Jedes Mitglied verbindet sein eigenes Paperless-Konto
             family: Eine gemeinsame Verbindung für die ganze Familie
           help:
-            per_user: Jeder sieht nur die Dokumente, die sein eigener Paperless-Nutzer sehen darf. Empfohlen.
+            per_user: Die Suche zeigt nur Dokumente, die der eigene Paperless-Nutzer sehen darf. Ein verknüpftes Dokument können alle öffnen, die die Buchung sehen. Empfohlen.
             family: Alle Mitglieder sehen alle Dokumente, auf die das gemeinsame Token Zugriff hat. Nur Admins können diese Verbindung ändern.
         connection:
           title: Verbindung zu Paperless-ngx
@@ -74,7 +75,7 @@ de:
           verify: Verbindung testen
           disconnect: Trennen
           disconnect_confirm_title: Paperless trennen?
-          disconnect_confirm_body: Bestehende Verknüpfungen behalten Titel und Datum, aber Vorschauen funktionieren erst nach erneutem Verbinden wieder.
+          disconnect_confirm_body: Bestehende Verknüpfungen behalten Titel und Datum, zeigen aber keine Vorschau mehr. Erneutes Verbinden stellt sie nicht wieder her; verknüpfe die Dokumente dafür neu.
           connected: "Verbunden mit Paperless %{version} (zuletzt geprüft %{time})."
           error_title: Verbindungsproblem
           managed_by_admin: "Deine Familie nutzt eine gemeinsame Verbindung zu %{url}, die ein Admin verwaltet."

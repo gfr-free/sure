@@ -46,10 +46,16 @@ class PaperlessLink < ApplicationRecord
 
   # Fetches a file (thumb, preview or download) through the connection that
   # created the link, so members without their own connection can view it too.
+  #
+  # The connection is read in one query through the stored link: changing the
+  # address detaches links in the same transaction, so the query sees either the
+  # old address with the link attached or the link detached, never the new
+  # address for a document id that came from the old one.
   def file(kind)
-    raise Provider::Paperless::Error.new("Paperless connection was removed", :not_connected) if paperless_connection.nil?
+    connection = PaperlessConnection.joins(:paperless_links).find_by(paperless_links: { id: id })
+    raise Provider::Paperless::Error.new("Paperless connection was removed", :not_connected) if connection.nil?
 
-    paperless_connection.client.file(document_id, kind: kind)
+    connection.client.file(document_id, kind: kind)
   end
 
   def document_url

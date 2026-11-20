@@ -322,6 +322,19 @@ class Transaction::MergeWithDuplicateTest < ActiveSupport::TestCase
     assert_equal "receipt", posted_tx.attachments.first.download
   end
 
+  test "moves the pending transaction's Paperless links to the posted transaction" do
+    connection = paperless_connections(:admin_connection)
+    pending_tx = @pending_entry.transaction
+    posted_tx = @posted_entry.transaction
+    PaperlessLink.create!(family: @family, linkable: pending_tx, paperless_connection: connection, document_id: 7, title: "Receipt")
+    PaperlessLink.create!(family: @family, linkable: pending_tx, paperless_connection: connection, document_id: 8, title: "Invoice")
+    PaperlessLink.create!(family: @family, linkable: posted_tx, paperless_connection: connection, document_id: 8, title: "Invoice")
+
+    assert pending_tx.merge_with_duplicate!
+
+    assert_equal [ 7, 8 ], posted_tx.reload.paperless_links.order(:document_id).pluck(:document_id)
+  end
+
   test "adds the pending transaction's tags to the posted transaction" do
     shared = @family.tags.create!(name: "Shared")
     reimbursable = @family.tags.create!(name: "Reimbursable")

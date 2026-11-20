@@ -8,7 +8,7 @@ class TransactionPaperlessLinksController < ApplicationController
   before_action :set_connection, only: %i[new create]
 
   def new
-    @text = params[:text].to_s.strip
+    @text = params.key?(:text) ? params[:text].to_s.strip : @entry.name.to_s.strip
     @created_from = parse_date(params[:created_from]) || @entry.date - SEARCH_WINDOW_DAYS
     @created_to = parse_date(params[:created_to]) || @entry.date + SEARCH_WINDOW_DAYS
     @linked_document_ids = @transaction.paperless_links.where(paperless_connection: @connection).pluck(:document_id)
@@ -23,6 +23,11 @@ class TransactionPaperlessLinksController < ApplicationController
   def create
     document_id = Integer(params.require(:document_id), 10, exception: false)
     return redirect_back_or_to(transactions_path, alert: t(".invalid_document")) unless document_id&.positive?
+    # The result was found through one connection and address; linking it
+    # through another would point the id at a different document.
+    unless ActiveSupport::SecurityUtils.secure_compare(params[:source].to_s, @connection.source_fingerprint)
+      return redirect_back_or_to(transactions_path, alert: t(".connection_changed"))
+    end
 
     PaperlessLink.link!(linkable: @transaction, connection: @connection, document_id: document_id, user: Current.user)
     redirect_back_or_to transactions_path, notice: t(".success")

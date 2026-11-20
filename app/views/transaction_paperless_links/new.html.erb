@@ -38,7 +38,7 @@
               <% else %>
                 <%= render DS::Button.new(text: t(".link"), icon: "link", variant: :outline, size: :sm,
                                           href: transaction_paperless_links_path(@entry), method: :post,
-                                          params: { document_id: document[:id] },
+                                          params: { document_id: document[:id], source: @connection.source_fingerprint },
                                           data: { turbo_frame: "_top" }) %>
               <% end %>
             </li>

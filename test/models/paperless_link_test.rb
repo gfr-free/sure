@@ -67,6 +67,18 @@ class PaperlessLinkTest < ActiveSupport::TestCase
     assert_not private_link.visible_to?(users(:family_member))
   end
 
+  test "file does not follow a connection whose address changed after the link was loaded" do
+    link = PaperlessLink.create!(family: @family, linkable: transactions(:one), paperless_connection: @connection, document_id: 5)
+    loaded = PaperlessLink.find(link.id)
+    loaded.paperless_connection
+    Provider::Paperless::HostGuard.stubs(:check!)
+    PaperlessConnection.find(@connection.id).update!(base_url: "https://other.example.com")
+    Provider::Paperless.any_instance.expects(:file).never
+
+    error = assert_raises(Provider::Paperless::Error) { loaded.file("thumb") }
+    assert_equal :not_connected, error.error_type
+  end
+
   test "file fails clearly when the connection was removed" do
     link = PaperlessLink.create!(family: @family, linkable: transactions(:one), document_id: 5)
 

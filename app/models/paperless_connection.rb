@@ -23,6 +23,12 @@ class PaperlessConnection < ApplicationRecord
     user_id.nil?
   end
 
+  # Names the connection and address a search ran against, so a result can only
+  # be linked while both are unchanged.
+  def source_fingerprint
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.key_generator.generate_key("paperless_source"), "#{id}:#{base_url}")
+  end
+
   def client
     Provider::Paperless.new(base_url: base_url, api_token: api_token, verify_ssl: verify_ssl, allow_private_hosts: private_hosts_allowed?)
   end

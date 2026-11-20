@@ -8,7 +8,10 @@ correspondent, file type).
 ## 1. Create an API Token in Paperless
 
 1. In Paperless, open your profile (top right) and create an **API Auth Token**.
-2. Copy the token. Sure sends it as an `Authorization` header and stores it encrypted.
+2. Copy the token. Sure sends it as an `Authorization` header. It stores the token encrypted
+   when Active Record encryption keys are configured (see
+   [Encrypting sensitive data](docker.md#encrypting-sensitive-data)); without them the token is
+   stored in plain text.
 
 Sure only sees the documents the Paperless user behind the token may see.
 

@@ -32,10 +32,43 @@ class TransactionPaperlessLinksControllerTest < ActionDispatch::IntegrationTest
     Provider::Paperless.any_instance.stubs(:document).returns(id: 7, title: "Rewe Kassenbon", created_on: @entry.date, correspondent_name: "REWE", mime_type: "application/pdf")
 
     assert_difference -> { @entry.transaction.paperless_links.count }, 1 do
-      post transaction_paperless_links_url(@entry), params: { document_id: 7 }
+      post transaction_paperless_links_url(@entry), params: { document_id: 7, source: admin_connection.source_fingerprint }
     end
 
     assert_equal "Rewe Kassenbon", @entry.transaction.paperless_links.last.title
+  end
+
+  test "a search result is not linked after the connection's address changed" do
+    source = admin_connection.source_fingerprint
+    Provider::Paperless::HostGuard.stubs(:check!)
+    admin_connection.update!(base_url: "https://other.example.com")
+    Provider::Paperless.any_instance.expects(:document).never
+
+    assert_no_difference -> { PaperlessLink.count } do
+      post transaction_paperless_links_url(@entry), params: { document_id: 7, source: source }
+    end
+
+    assert_equal I18n.t("transaction_paperless_links.create.connection_changed"), flash[:alert]
+  end
+
+  test "the first search uses the transaction's name, and a cleared field stays cleared" do
+    Provider::Paperless.any_instance.expects(:search_documents)
+      .with(text: @entry.name, created_from: @entry.date - 30, created_to: @entry.date + 30).returns([])
+    get new_transaction_paperless_link_url(@entry)
+    assert_response :success
+
+    Provider::Paperless.any_instance.expects(:search_documents)
+      .with(text: "", created_from: @entry.date - 30, created_to: @entry.date + 30).returns([])
+    get new_transaction_paperless_link_url(@entry), params: { text: "" }
+    assert_response :success
+  end
+
+  test "search thumbnails are not cached" do
+    Provider::Paperless.any_instance.stubs(:file).returns([ "img", "image/webp" ])
+
+    get thumb_transaction_paperless_links_url(@entry, document_id: 7)
+
+    assert_equal "no-store", response.headers["Cache-Control"]
   end
 
   test "a malformed document id is rejected without calling Paperless" do
@@ -124,4 +157,9 @@ class TransactionPaperlessLinksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Stromrechnung"
     assert_includes response.body, new_transaction_paperless_link_path(@entry)
   end
+
+  private
+    def admin_connection
+      paperless_connections(:admin_connection)
+    end
 end

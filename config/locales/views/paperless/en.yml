@@ -39,6 +39,7 @@ en:
       untitled: "Document #%{id}"
     create:
       already_linked: This document is already linked to the transaction.
+      connection_changed: Your Paperless connection changed since this search. Please search again.
       failed: "Could not link the document: %{error}"
       invalid_document: This is not a valid Paperless document.
       success: Document linked.
@@ -57,7 +58,7 @@ en:
             per_user: Each member connects their own Paperless account
             family: One shared connection for the whole family
           help:
-            per_user: Everyone only sees the documents their own Paperless user may see. Recommended.
+            per_user: Searches only show the documents each member's own Paperless user may see. A linked document can be opened by everyone who can see the transaction. Recommended.
             family: Every member sees all documents the shared token can access. Only admins can change this connection.
         connection:
           title: Paperless-ngx connection
@@ -74,7 +75,7 @@ en:
           verify: Test connection
           disconnect: Disconnect
           disconnect_confirm_title: Disconnect Paperless?
-          disconnect_confirm_body: Existing links keep their title and date, but previews stop working until you connect again.
+          disconnect_confirm_body: Existing links keep their title and date but no longer show a preview. Connecting again does not restore them; link the documents again to see their previews.
           connected: "Connected to Paperless %{version} (last checked %{time})."
           error_title: Connection problem
           managed_by_admin: "Your family uses a shared connection to %{url}, managed by an admin."

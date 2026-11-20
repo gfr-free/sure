@@ -20,6 +20,22 @@ class Provider::PaperlessTest < ActiveSupport::TestCase
     assert_equal 42, info[:document_count]
   end
 
+  test "server_info rejects a page that is not a Paperless document list" do
+    stub_request(:get, "#{BASE}/api/documents/").with(query: hash_including({}))
+      .to_return(status: 200, body: "<html>Login</html>", headers: { "Content-Type" => "text/html" })
+
+    error = assert_raises(Provider::Paperless::Error) { @client.server_info }
+    assert_equal :invalid_response, error.error_type
+  end
+
+  test "requests keep the path prefix of a Paperless served under a sub path" do
+    client = Provider::Paperless.new(base_url: "#{BASE}/paperless", api_token: "secret-token")
+    stub_request(:get, "#{BASE}/paperless/api/documents/").with(query: hash_including({}))
+      .to_return(status: 200, body: { count: 0, results: [] }.to_json, headers: { "Content-Type" => "application/json" })
+
+    assert_equal 0, client.server_info[:document_count]
+  end
+
   test "search_documents filters by text and dates and resolves correspondent names" do
     stub_request(:get, "#{BASE}/api/documents/")
       .with(query: hash_including("title_content" => "Rewe", "created__gte" => "2026-09-01", "created__lte" => "2026-09-30"))

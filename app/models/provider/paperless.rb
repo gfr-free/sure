@@ -26,6 +26,11 @@ class Provider::Paperless
   # Paperless answers every authenticated request with its version in X-Version.
   def server_info
     response = get("/api/documents/", page_size: 1, fields: "id")
+    # A proxy's login page can answer 200 too; only a document list counts.
+    unless response.body.is_a?(Hash) && response.body["count"].is_a?(Integer) && response.body["results"].is_a?(Array)
+      raise Error.new("Paperless sent an unexpected response", :invalid_response)
+    end
+
     {
       version: response.headers["x-version"],
       api_version: response.headers["x-api-version"],
@@ -107,7 +112,8 @@ class Provider::Paperless
     def request(method, path, params, raw: false, &block)
       pinned_ip = HostGuard.check!(base_url, allow_private: allow_private_hosts)
 
-      response = connection(raw: raw, pinned_ip: pinned_ip).public_send(method, path, params, &block)
+      # Relative, so a Paperless served under a path prefix keeps it.
+      response = connection(raw: raw, pinned_ip: pinned_ip).public_send(method, path.delete_prefix("/"), params, &block)
       handle_status!(response)
       response
     rescue HostGuard::BlockedHost => e

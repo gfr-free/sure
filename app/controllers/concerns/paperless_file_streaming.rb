@@ -11,7 +11,9 @@ module PaperlessFileStreaming
       extension = Mime::Type.lookup(type).symbol if known_type
       basename = filename.to_s.parameterize.presence || "document"
 
-      response.headers["Cache-Control"] = "private, max-age=3600" if kind.to_s == "thumb"
+      # Not cached: a search thumbnail's URL only names the document id, which
+      # points at another document once the connection changes.
+      response.headers["Cache-Control"] = "no-store" if kind.to_s == "thumb"
       send_data bytes, type: type, disposition: inline ? "inline" : "attachment",
                        filename: [ basename, extension ].compact.join(".")
     end

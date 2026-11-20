@@ -865,6 +865,134 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert @entry.entryable.locked?(:tag_ids)
   end
 
+  test "index hides disabled accounts unless the filter shows them read-only" do
+    account = accounts(:depository)
+    account.disable!
+    row = "##{dom_id(@entry)}"
+
+    get transactions_url(q: { search: @entry.name })
+    assert_response :success
+    assert_select row, count: 0
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+    assert_response :success
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account")
+      assert_select "input[type=checkbox][disabled]##{dom_id(@entry, "selection")}"
+      # The category and tag menus load their frames on open; the triggers are what must be missing.
+      assert_select "[data-ds--popover-frame-id-value='category_dropdown']", count: 0
+      assert_select "[data-ds--popover-frame-id-value='tag_dropdown']", count: 0
+    end
+    assert_select "#transaction-search-filters", text: /#{I18n.t("transactions.searches.filters.badge.disabled_accounts")}/
+
+    get filters_transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+    assert_response :success
+    assert_select "input[type=checkbox][name='q[active_accounts_only]'][value=false][checked]"
+
+    account.enable!
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "[data-ds--popover-frame-id-value='category_dropdown']"
+      assert_select "[data-ds--popover-frame-id-value='tag_dropdown']"
+    end
+  end
+
+  test "a read-only row shows the reconcile status without the toggle" do
+    @user.family.update!(manual_reconciliation: true)
+    account = accounts(:depository)
+    account.disable!
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+
+    assert_select "##{dom_id(@entry)}" do
+      assert_select "a[href='#{reconcile_transaction_path(@entry.transaction)}']", count: 0
+      assert_select "span[aria-label='#{I18n.t("transactions.reconcile.statuses.#{@entry.reconciled_status}")}']"
+    end
+
+    account.enable!
+    get transactions_url(q: { search: @entry.name })
+    assert_select "##{dom_id(@entry)} a[href='#{reconcile_transaction_path(@entry.transaction)}']"
+  end
+
+  test "index row cache does not carry read-only state across disabled account changes" do
+    original_store = TransactionsController.cache_store
+    original_caching = TransactionsController.perform_caching
+    TransactionsController.cache_store = ActiveSupport::Cache::MemoryStore.new
+    TransactionsController.perform_caching = true
+    account = accounts(:depository)
+    row = "##{dom_id(@entry)}"
+    disabled_filter = { q: { search: @entry.name, active_accounts_only: "false" } }
+
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account"), count: 0
+    end
+
+    account.disable!
+    get transactions_url(disabled_filter)
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account")
+    end
+
+    account.update!(status: "active")
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "span", text: I18n.t("transactions.transaction.disabled_account"), count: 0
+      assert_select "input[type=checkbox][disabled]##{dom_id(@entry, "selection")}", count: 0
+    end
+  ensure
+    TransactionsController.cache_store = original_store
+    TransactionsController.perform_caching = original_caching
+  end
+
+  test "index treats any other active_accounts_only value as the default" do
+    accounts(:depository).disable!
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "true" })
+
+    assert_response :success
+    assert_select "##{dom_id(@entry)}", count: 0
+    assert_select "#transaction-search-filters li", count: 1
+  end
+
+  test "showing disabled accounts keeps account share limits" do
+    sign_in users(:family_member)
+    shared_entry = create_transaction(account: accounts(:credit_card), name: "Disabled shared row")
+    unshared_entry = create_transaction(account: accounts(:investment), name: "Disabled unshared row")
+    accounts(:credit_card).disable!
+    accounts(:investment).disable!
+
+    get transactions_url(q: { search: "Disabled", active_accounts_only: "false" })
+
+    assert_response :success
+    assert_select "##{dom_id(shared_entry)}"
+    assert_select "##{dom_id(unshared_entry)}", count: 0
+  end
+
+  test "a row saved from the drawer keeps its edit controls on a disabled account" do
+    accounts(:depository).disable!
+
+    patch transaction_url(@entry), params: { entry: { name: "Renamed" } }, as: :turbo_stream
+
+    assert_response :success
+    assert_no_match I18n.t("transactions.transaction.disabled_account"), response.body
+    assert_select "turbo-stream[target=?] input[type=checkbox]##{dom_id(@entry, "selection")}:not([disabled])", dom_id(@entry)
+  end
+
+  test "showing disabled accounts lists a transfer by its leg on the active account" do
+    Entry.where(name: "Moved money").destroy_all
+    transfer = create_transfer(from_account: accounts(:depository), to_account: accounts(:credit_card), amount: 75).reload
+    transfer.outflow_transaction.entry.update!(name: "Moved money")
+    transfer.inflow_transaction.entry.update!(name: "Moved money")
+    accounts(:depository).disable!
+
+    get transactions_url(q: { search: "Moved money", active_accounts_only: "false" })
+
+    assert_response :success
+    assert_select "##{dom_id(transfer.inflow_transaction.entry)}"
+    assert_select "##{dom_id(transfer.outflow_transaction.entry)}", count: 0
+  end
+
   test "tag-only endpoint replaces a bare tag set under the row lock" do
     other_family_tag = users(:empty).family.tags.create!(name: "Other family")
     @entry.entryable.update!(tag_ids: [ tags(:one).id ], locked_attributes: {})

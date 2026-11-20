@@ -178,6 +178,8 @@ module TransactionsHelper
       split_parent,
       # The "Transfer?" hint is drawn inside the cached row.
       @transfer_hint_transaction_ids&.include?(transaction.id) || false,
+      # Disabled accounts are drawn read-only when the list opts into showing them.
+      @disabled_accounts_shown && entry.account.disabled?,
       can_annotate_account?(entry.account),
       Current.family&.manual_reconciliation?,
       can_reconcile_account?(entry.account),

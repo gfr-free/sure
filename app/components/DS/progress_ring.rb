@@ -14,6 +14,7 @@ class DS::ProgressRing < DesignSystemComponent
     success: "var(--color-success)",
     warning: "var(--color-warning)",
     destructive: "var(--color-destructive)",
+    info: "var(--color-info)",
     neutral: "var(--color-gray-400)"
   }.freeze
 
@@ -39,6 +40,12 @@ class DS::ProgressRing < DesignSystemComponent
     [ [ @percent.to_i, 0 ].max, 100 ].min
   end
 
+  # The arc keeps the fraction, so 0.4% still shows a sliver and 12.5% is not
+  # drawn as 12%. The label and progressbar value use the whole number above.
+  def arc_percent
+    @percent.to_f.clamp(0.0, 100.0)
+  end
+
   def stroke_color
     TONES.fetch(@tone, TONES[:neutral])
   end
@@ -61,7 +68,7 @@ class DS::ProgressRing < DesignSystemComponent
 
   # Length of the dash gap that hides the unfilled portion of the arc.
   def dash_offset
-    circumference * (1 - clamped_percent / 100.0)
+    circumference * (1 - arc_percent / 100.0)
   end
 
   # Center label scales with the ring so 64px reads ~11px (the goal card's size)

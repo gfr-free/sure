@@ -11,6 +11,7 @@ class Merchant < ApplicationRecord
 
   has_many :transactions, dependent: :nullify
   has_many :recurring_transactions, dependent: :destroy
+  has_many :contracts, dependent: :nullify
 
   # Declared here rather than on FamilyMerchant so lists mixing both types can preload it.
   has_one_attached :logo, dependent: :purge_later do |attachable|

@@ -71,13 +71,27 @@ class UI::AccountPage < ApplicationComponent
       [ :activity ]
     end
 
-    base_tabs + [ :statements ] + preview_tabs
+    base_tabs + [ :statements ] + (contracts.any? ? [ :contracts ] : []) + preview_tabs
   end
 
   # "Details" lists the rules that apply to the account (Account::RuleDetails).
   # Preview only.
   def preview_tabs
     Current.user&.preview_features_enabled? ? [ :details ] : []
+  end
+
+  # Contracts tied to this account (the car's insurance, the flat's rent) that
+  # the viewer may see. Behind the Bills gates like the contract register, and
+  # empty for broadcast renders, which have no viewer.
+  def contracts
+    @contracts ||= begin
+      user = Current.user
+      if user&.preview_features_enabled? && !account.family.recurring_transactions_disabled?
+        account.family.contracts.accessible_by(user).where(account: account).includes(:merchant).alphabetically.to_a
+      else
+        []
+      end
+    end
   end
 
   def fx_coverage_start_date
@@ -133,6 +147,8 @@ class UI::AccountPage < ApplicationComponent
       render_statement_tab
     when :details
       render "accounts/show/details", account: account
+    when :contracts
+      render "contracts/account_tab", account: account, contracts: contracts
     end
   end
 

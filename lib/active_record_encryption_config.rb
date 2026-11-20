@@ -165,7 +165,8 @@ module ActiveRecordEncryptionConfig
     api_keys: [ "ApiKey", %i[display_key] ],
     sso_providers: [ "SsoProvider", %i[client_secret] ],
     sso_identity_blocks: [ "SsoIdentityBlock", %i[identity_label uid legacy_digest_key] ],
-    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ]
+    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ],
+    contracts: [ "Contract", %i[contract_number customer_number] ]
   }.freeze
 
   module_function

@@ -21,7 +21,7 @@ class ChatsController < ApplicationController
     )
     # "Dig in with AI" prefills the message so the user can edit it before sending.
     # Same account check as InsightsController, so a hidden insight stays hidden.
-    @insight = Current.family.insights.about_shared_accounts.find_by(id: params[:insight_id]) if params[:insight_id]
+    @insight = Current.family.insights.for_user(Current.user).about_shared_accounts.find_by(id: params[:insight_id]) if params[:insight_id]
   end
 
   def create

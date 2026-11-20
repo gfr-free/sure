@@ -84,6 +84,20 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Stale household total", response.body
   end
 
+  test "new chat ignores an insight addressed to another member" do
+    insight = families(:dylan_family).insights.create!(
+      insight_type: "contract_notice_deadline", priority: "high", status: "active",
+      title: "Notice deadline for Member's insurance", body: "Private reminder",
+      dedup_key: "contract_notice_deadline:chat-private", generated_at: Time.current, user: users(:family_member)
+    )
+
+    get new_chat_url(insight_id: insight.id)
+
+    assert_response :success
+    assert_select "textarea[name='chat[content]']", text: ""
+    assert_no_match "Member&#39;s insurance", response.body
+  end
+
   # Hidden from everyone, owner included, same as the feed.
   test "new chat ignores an insight about a private account for its owner too" do
     insight = create_private_account_insight

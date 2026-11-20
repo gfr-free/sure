@@ -1,0 +1,25 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title", name: @contract.name)) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with url: contract_ending_path(@contract), method: :post, scope: :ending, class: "space-y-4" do |f| %>
+      <% if @error %>
+        <%= render DS::Alert.new(variant: :error, message: @error) %>
+      <% end %>
+
+      <p class="text-sm text-secondary"><%= t(".intro") %></p>
+
+      <%= f.date_field :ends_on, label: t(".ends_on"), value: @ends_on, required: true %>
+
+      <% successors = successor_options.alphabetically.map { |contract| [ contract.name, contract.id ] } %>
+      <%= f.select :replaced_by_id, [ [ t(".new_successor"), "new" ] ] + successors,
+            { label: t(".successor"), include_blank: t(".no_successor"), selected: @successor_id } %>
+      <p class="text-xs text-secondary"><%= t(".successor_hint") %></p>
+
+      <% if @ends_bills %>
+        <p class="text-xs text-secondary"><%= t(".bills_hint") %></p>
+      <% end %>
+
+      <%= f.submit t(".submit") %>
+    <% end %>
+  <% end %>
+<% end %>

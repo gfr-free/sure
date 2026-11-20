@@ -16,7 +16,8 @@ class Insight::GeneratorRegistry
     Insight::Generators::BillNotCoveredGenerator,
     Insight::Generators::LoanRepaymentChangeGenerator,
     Insight::Generators::BankFeesGenerator,
-    Insight::Generators::FixedCommitmentsRatioGenerator
+    Insight::Generators::FixedCommitmentsRatioGenerator,
+    Insight::Generators::ContractGenerator
   ].freeze
 
   Result = Data.define(:insights, :succeeded_types)

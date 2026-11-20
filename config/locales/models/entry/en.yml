@@ -1,6 +1,9 @@
 ---
 en:
   activerecord:
+    attributes:
+      entry/entryable:
+        attachments: Attachments
     errors:
       models:
         entry:

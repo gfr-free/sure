@@ -14,37 +14,7 @@
             attachment_upload_max_size_value: Transaction::MAX_ATTACHMENT_SIZE
           } do |form| %>
       <div class="space-y-3">
-        <div>
-          <div class="flex flex-col items-center justify-center w-full py-8 border border-secondary border-dashed rounded-xl cursor-pointer bg-surface-inset hover:bg-surface-inset-hover transition-colors text-center px-4"
-               data-action="click->attachment-upload#triggerFileInput">
-
-            <div data-attachment-upload-target="uploadText" class="flex flex-col items-center">
-              <%= icon "plus", size: "lg", class: "mb-2 text-secondary" %>
-              <p class="text-sm font-medium text-primary"><%= t(".browse_to_add") %></p>
-            </div>
-
-            <div data-attachment-upload-target="fileName" class="flex flex-col items-center hidden w-full px-2">
-              <%= icon "file-text", size: "lg", class: "mb-2 text-secondary" %>
-              <p class="text-sm font-medium text-primary truncate w-full"></p>
-            </div>
-
-            <%= form.file_field :attachments,
-                  multiple: true,
-                  accept: Transaction::ALLOWED_CONTENT_TYPES.join(","),
-                  class: "hidden",
-                  data: {
-                    attachment_upload_target: "fileInput",
-                    action: "change->attachment-upload#updateSubmitButton"
-                  } %>
-          </div>
-
-          <p class="text-[10px] text-secondary mt-1 text-center">
-            <%= t(".select_up_to",
-                  count: Transaction::MAX_ATTACHMENTS_PER_TRANSACTION,
-                  size: Transaction::MAX_ATTACHMENT_SIZE / 1.megabyte,
-                  used: transaction.attachments.count) %>
-          </p>
-        </div>
+        <%= render "transactions/attachment_dropzone", form: form, used: transaction.attachments.count %>
 
         <div class="flex justify-end">
           <%= render DS::Button.new(

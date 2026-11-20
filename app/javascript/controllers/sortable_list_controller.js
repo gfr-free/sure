@@ -83,8 +83,12 @@ export default class extends Controller {
     document.addEventListener("turbo:morph", this.refreshSavedOrder);
 
     // A full page load or closing the tab skips disconnect(), so release
-    // the grab on pagehide too.
-    this.releaseGrab = () => this.releaseKeyboardGrab();
+    // the grab on pagehide too, and send an order still waiting behind an
+    // unfinished save before the page is gone.
+    this.releaseGrab = () => {
+      this.releaseKeyboardGrab();
+      this.queueController().sendPendingOrderNow();
+    };
     window.addEventListener("pagehide", this.releaseGrab);
   }
 
@@ -615,6 +619,18 @@ export default class extends Controller {
 
   currentOrder() {
     return this.itemTargets.map((item) => item.dataset.sortableListId);
+  }
+
+  // The queue normally waits for the save in flight, so an older order never
+  // lands after a newer one. When the page goes away the waiting order would
+  // be lost instead; it is sent right away (keepalive), after the earlier
+  // request, which the server usually handles first.
+  sendPendingOrderNow() {
+    if (!this.saving || !this.pendingOrder) return;
+
+    const order = this.pendingOrder;
+    this.pendingOrder = null;
+    this.sendOrder(order);
   }
 
   async flushSaves() {

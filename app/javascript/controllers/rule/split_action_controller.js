@@ -28,8 +28,7 @@ export default class extends Controller {
 
   addRow(e) {
     e.preventDefault();
-    // Without this, the click bubbles up to the dialog's "click outside to close"
-    // listener and (harmlessly on its own) counts as an outside click.
+    // Keeps the click away from the dialog's "click outside to close" listener.
     e.stopPropagation();
 
     // Seeded from Date.now() (so it can't collide with existing server-rendered row indices,
@@ -51,11 +50,9 @@ export default class extends Controller {
 
   removeRow(e) {
     e.preventDefault();
-    // Critical here: this handler removes the clicked element from the DOM. Without
-    // stopPropagation, the click event keeps bubbling to the dialog's "click outside to
-    // close" listener, which checks whether e.target is still contained in the dialog —
-    // but the target we just removed no longer is, so the whole "New rule" dialog would
-    // incorrectly close itself.
+    // Keeps the click away from the dialog's "click outside to close" listener. That
+    // listener goes by where the press started and ended, not by e.target, which this
+    // handler removes from the DOM.
     e.stopPropagation();
 
     if (this.rowTargets.length <= this.constructor.MIN_ROWS) return;

@@ -174,6 +174,21 @@ module ApplicationHelper
     )
   end
 
+  # People the user pays for or gets money from, with their open balances.
+  # Preview-gated and desktop-only, like the portfolio hub.
+  def counterparties_nav_item
+    preview_gated_nav_item(
+      {
+        name: t("layouts.application.nav.people"),
+        path: counterparties_path,
+        icon: "users",
+        icon_custom: false,
+        active: page_active?(counterparties_path),
+        desktop_only: true
+      }
+    )
+  end
+
   # Wrapper around I18n.l to support custom date formats
   def format_date(object, format = :default, options = {})
     date = object.to_date

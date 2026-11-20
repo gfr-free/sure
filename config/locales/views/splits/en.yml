@@ -17,6 +17,8 @@ en:
       uncategorized: "(uncategorized)"
       merchant_label: Merchant
       no_merchant: "(transaction's merchant)"
+      counterparty_label: Person
+      no_counterparty: "(my own share)"
       tags_label: Tags
       original_name: "Name:"
       original_date: "Date:"

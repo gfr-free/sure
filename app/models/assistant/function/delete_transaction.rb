@@ -77,6 +77,12 @@ class Assistant::Function::DeleteTransaction < Assistant::Function
     entry = transaction.entry
     return error("split_child", "Split child transactions cannot be deleted individually. Delete the split parent instead.") if entry.split_child?
 
+    # Deleting the entry also deletes the clearing leg of a booking to a person,
+    # which may sit on another member's private account.
+    unless Counterparty::Assignment.legs_deletable_by?(entry, user)
+      return error("forbidden", "This transaction is booked to a person whose account you can't change, so it can't be deleted.")
+    end
+
     # Snapshot before destruction so the response never reads destroyed
     # associations or triggers lazy loads on a deleted record.
     snapshot = serialize(transaction, entry)

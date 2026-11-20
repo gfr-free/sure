@@ -14,7 +14,7 @@
     Re-renders from other actions (account page, drawer saves) leave the row as it always was. %>
 <% read_only = @disabled_accounts_shown && entry.account.disabled? %>
 <% open_path = if transaction.transfer?
-     transaction.transfer.present? ? transfer_path(transaction.transfer) : entry_path(entry)
+     transaction.transfer.present? && !person_transfer?(transaction) ? transfer_path(transaction.transfer) : entry_path(entry)
    else
      in_split_group ? entry_path(entry, grouped: true) : entry_path(entry)
    end %>

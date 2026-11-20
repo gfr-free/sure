@@ -4018,6 +4018,7 @@ components:
           - import_rows
           - import_mappings
           - accounts
+          - counterparties
           - account_shares
           - account_providers
           - entries
@@ -4070,6 +4071,9 @@ components:
               type: integer
               minimum: 0
             accounts:
+              type: integer
+              minimum: 0
+            counterparties:
               type: integer
               minimum: 0
             account_shares:
@@ -10151,6 +10155,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Split"
+        '422':
+          description: a part is booked to a person; such splits are edited in the
+            web app
       requestBody:
         content:
           application/json:
@@ -10166,6 +10173,9 @@ paths:
       responses:
         '204':
           description: split removed
+        '422':
+          description: a part is booked to a person; such splits are edited in the
+            web app
         '404':
           description: transaction is not split
   "/api/v1/syncs":

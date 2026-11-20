@@ -1,0 +1,14 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title", name: @counterparty.name)) %>
+  <% dialog.with_body do %>
+    <%= styled_form_with url: counterparty_forgiveness_path(@counterparty), scope: :forgiveness, class: "space-y-4", data: { turbo_frame: :_top } do |f| %>
+      <%= f.hidden_field :account_id, value: @account.id %>
+      <p class="text-sm text-primary">
+        <%= @account.balance.positive? ? t(".you_forgive", amount: @account.balance_money.format, name: @counterparty.name) : t(".they_forgive", amount: @account.balance_money.abs.format, name: @counterparty.name) %>
+      </p>
+      <%= f.collection_select :category_id, @categories, :id, :display_name,
+            { include_blank: t(".no_category"), label: t(".category_label") } %>
+      <%= f.submit t(".submit") %>
+    <% end %>
+  <% end %>
+<% end %>

@@ -67,6 +67,17 @@ class SplitsControllerCounterpartyTest < ActionDispatch::IntegrationTest
     assert_equal @person, Counterparty::Assignment.new(child).counterparty
   end
 
+  test "a part of a transaction on a person's own account can't be booked to a person" do
+    clearing = @person.clearing_account_for!("USD", user: @user)
+    entry = create_transaction(amount: 100, name: "Paid for me", account: clearing)
+
+    post transaction_split_path(entry), params: split_params([ [ "Mine", "-60", "" ], [ "Alex", "-40", @person.id ] ])
+
+    assert_redirected_to transactions_path
+    assert_equal I18n.t("transactions.counterparties.update.not_assignable"), flash[:alert]
+    assert_not entry.reload.split_parent?
+  end
+
   private
     def split_params(rows)
       { split: { splits: rows.map { |name, amount, person_id| { name: name, amount: amount, category_id: "", counterparty_id: person_id } } } }

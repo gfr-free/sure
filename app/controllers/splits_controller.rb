@@ -26,6 +26,8 @@ class SplitsController < ApplicationController
     redirect_back_or_to transactions_path, notice: t("splits.create.success")
   rescue ActiveRecord::RecordInvalid => e
     redirect_back_or_to transactions_path, alert: e.message
+  rescue Counterparty::Assignment::NotAssignable
+    redirect_back_or_to transactions_path, alert: t("transactions.counterparties.update.not_assignable")
   end
 
   def edit
@@ -70,6 +72,8 @@ class SplitsController < ApplicationController
     redirect_to transactions_path, notice: t("splits.update.success")
   rescue ActiveRecord::RecordInvalid => e
     redirect_to transactions_path, alert: e.message
+  rescue Counterparty::Assignment::NotAssignable
+    redirect_to transactions_path, alert: t("transactions.counterparties.update.not_assignable")
   end
 
   def destroy

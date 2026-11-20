@@ -52,6 +52,27 @@ class Assistant::Function::DeleteTransactionTest < ActiveSupport::TestCase
     assert Transaction.exists?(transaction.id)
   end
 
+  test "does not delete a transaction booked to a person the user can't write to" do
+    owner = users(:family_admin)
+    member = users(:family_member)
+    account = accounts(:depository)
+    person = account.family.counterparties.create!(name: "Alice", default_currency: account.currency, created_by: owner)
+    entry = account.entries.create!(
+      name: "Concert", date: Date.current, amount: 60, currency: account.currency, entryable: Transaction.new
+    )
+    leg = Counterparty::Assignment.new(entry).update!(person, user: owner)
+
+    result = Assistant::Function::DeleteTransaction.new(member).call("id" => entry.transaction.id)
+
+    assert_equal false, result[:success]
+    assert_equal "forbidden", result[:error]
+    assert Entry.exists?(entry.id)
+    assert Entry.exists?(leg.id)
+
+    assert Assistant::Function::DeleteTransaction.new(owner).call("id" => entry.transaction.id)[:success]
+    assert_not Entry.exists?(leg.id)
+  end
+
   test "does not let a user from a different family delete a transaction" do
     # josh belongs to the `empty` family; the transaction belongs to
     # `dylan_family`. Cross-family ids are structurally unresolvable and must

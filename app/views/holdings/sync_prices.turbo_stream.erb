@@ -15,7 +15,7 @@
   <%= turbo_stream.replace dom_id(@holding, :market_value) do %>
     <div id="<%= dom_id(@holding, :market_value) %>" class="flex items-center justify-between text-sm">
       <dt class="text-secondary"><%= t("holdings.show.market_value_label") %></dt>
-      <dd class="text-primary"><%= format_money(@holding.amount_money) %></dd>
+      <dd class="text-primary privacy-sensitive"><%= format_money(@holding.amount_money) %></dd>
     </div>
   <% end %>
   <%= turbo_stream.replace dom_id(@holding, :total_return) do %>

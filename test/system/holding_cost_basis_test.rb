@@ -132,6 +132,7 @@ class HoldingCostBasisTest < ApplicationSystemTestCase
 
     within "#confirm-dialog" do
       assert_text I18n.t("holdings.cost_basis_cell.overwrite_confirm_title")
+      assert_selector "[data-confirm-dialog-target=subtitle].privacy-sensitive"
       find("button[value=cancel]").click
     end
 
@@ -144,10 +145,54 @@ class HoldingCostBasisTest < ApplicationSystemTestCase
   test "the drawer editor moves focus in on open and back to the pencil on cancel" do
     open_cost_basis_editor
     assert_equal per_share_field_id, active_element_id
+    assert_selector "[data-drawer-cost-basis-target=opener][aria-expanded=true]"
 
     find(per_share_field).ancestor("form").click_on I18n.t("holdings.cost_basis_cell.cancel")
     assert_no_selector per_share_field
     assert page.evaluate_script("document.activeElement.matches('[data-drawer-cost-basis-target=opener]')")
+    assert_selector "[data-drawer-cost-basis-target=opener][aria-expanded=false]"
+  end
+
+  test "unlocking the cost basis asks first and keeps the lock when cancelled" do
+    @holding.update!(qty: 10, cost_basis: 12.5, cost_basis_source: "manual", cost_basis_locked: true)
+
+    # The overwrite confirmation blurs its body; the next confirmation on the
+    # same page must not keep that blur.
+    open_cost_basis_editor
+    find(per_share_field).ancestor("form").click_on I18n.t("holdings.cost_basis_cell.save")
+    within("#confirm-dialog") { find("button[value=cancel]").click }
+
+    click_on I18n.t("holdings.show.unlock_cost_basis")
+    within "#confirm-dialog" do
+      assert_text I18n.t("holdings.show.unlock_confirm_title")
+      assert_no_selector "[data-confirm-dialog-target=subtitle].privacy-sensitive"
+      assert_selector "button[value=confirm]", text: I18n.t("layouts.shared.confirm_dialog.confirm"), visible: true
+      find("button[value=cancel]").click
+    end
+    assert @holding.reload.cost_basis_locked?
+
+    click_on I18n.t("holdings.show.unlock_cost_basis")
+    within("#confirm-dialog") { find("button[value=confirm]", visible: true).click }
+    assert_text I18n.t("holdings.unlock_cost_basis.success")
+    assert_not @holding.reload.cost_basis_locked?
+  end
+
+  test "resetting a remapped security asks first and keeps the mapping when cancelled" do
+    @holding.update!(provider_security: securities(:msft))
+    Account.any_instance.stubs(:linked?).returns(true)
+
+    visit holding_path(@holding)
+    click_on I18n.t("holdings.show.reset_to_provider")
+    within "#confirm-dialog" do
+      assert_text I18n.t("holdings.show.reset_confirm_title")
+      find("button[value=cancel]").click
+    end
+    assert_equal securities(:aapl), @holding.reload.security
+
+    click_on I18n.t("holdings.show.reset_to_provider")
+    within("#confirm-dialog") { find("button[value=confirm]", visible: true).click }
+    assert_text I18n.t("holdings.reset_security.success")
+    assert_equal securities(:msft), @holding.reload.security
   end
 
   private

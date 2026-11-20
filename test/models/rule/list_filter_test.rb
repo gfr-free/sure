@@ -64,9 +64,12 @@ class Rule::ListFilterTest < ActiveSupport::TestCase
   test "leaves out accounts the user cannot see" do
     other = @family.users.create!(email: "other-member@example.com", password: "password123456", first_name: "Other", role: "member")
     hidden = @family.accounts.create!(name: "Private", balance: 0, currency: "USD", owner: other, accountable: Depository.new)
+    # Saved by a job (no viewer), since the current user may not choose this account.
+    Current.stubs(:user).returns(nil)
     rule = @family.rules.create!(name: "Private rule", resource_type: "transaction",
       conditions: [ Rule::Condition.new(condition_type: "transaction_account", operator: "=", value: hidden.id) ],
       actions: [ Rule::Action.new(action_type: "exclude_transaction") ])
+    Current.stubs(:user).returns(users(:empty))
 
     filter = Rule::ListFilter.new(@family.rules.includes(:actions, conditions: :sub_conditions))
 

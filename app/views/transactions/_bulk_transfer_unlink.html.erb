@@ -1,0 +1,24 @@
+<%= form_with url: transactions_bulk_transfer_unlink_path,
+              class: "hidden",
+              data: {
+                bulk_select_target: "transferAction",
+                turbo_confirm: CustomConfirm.new(
+                  title: t("transactions.selection_bar.unlink_transfers_confirm_title"),
+                  body: t("transactions.selection_bar.unlink_transfers_confirm_body"),
+                  btn_text: t("transactions.selection_bar.unlink_transfers"),
+                  destructive: true
+                ).to_data_attribute,
+                turbo_frame: "_top"
+              } do %>
+  <%= render DS::Button.new(
+        variant: :icon,
+        size: :sm,
+        icon: "unlink",
+        title: t("transactions.selection_bar.unlink_transfers"),
+        aria_label: t("transactions.selection_bar.unlink_transfers"),
+        data: {
+          action: "bulk-select#submitBulkRequest",
+          bulk_select_scope_param: "bulk_transfer_unlink"
+        }
+      ) %>
+<% end %>

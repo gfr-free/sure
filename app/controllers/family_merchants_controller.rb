@@ -1,4 +1,5 @@
 class FamilyMerchantsController < ApplicationController
+  include StreamExtensions
   include AiFeatureGuard
 
   before_action :require_non_guest!, except: %i[index]
@@ -150,7 +151,7 @@ class FamilyMerchantsController < ApplicationController
     )
 
     if merger.merge!
-      redirect_to family_merchants_path, notice: t(".success", count: merger.merged_count)
+      frame_redirect_to family_merchants_path, notice: t(".success", count: merger.merged_count)
     else
       redirect_to merge_family_merchants_path, alert: t(".no_merchants_selected")
     end

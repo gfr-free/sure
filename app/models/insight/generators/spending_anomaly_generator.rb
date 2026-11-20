@@ -136,7 +136,9 @@ class Insight::Generators::SpendingAnomalyGenerator < Insight::Generator
         allocated -= fenced_allocated
       end
 
-      (spent - allocated.clamp(0, nil) / pace_factor).clamp(0, envelope.rolled_over_amount.to_d)
+      # A carried overspend is a negative amount and has no savings to draw.
+      carried = [ envelope.rolled_over_amount.to_d, 0 ].max
+      (spent - allocated.clamp(0, nil) / pace_factor).clamp(0, carried)
     end
 
     # [spent, allocated] for a budget line this month, less the bills it paid.

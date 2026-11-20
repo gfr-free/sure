@@ -12,6 +12,7 @@ json.subcategory budget_category.subcategory?
 json.inherits_parent_budget budget_category.inherits_parent_budget?
 
 json.rollover_enabled budget_category.rollover_enabled?
+json.carry_overspend budget_category.carry_overspend?
 
 json.budgeted_spending budget_category.budgeted_spending_money.format
 json.budgeted_spending_cents money_to_minor_units.call(budget_category.budgeted_spending_money)

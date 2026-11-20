@@ -407,7 +407,23 @@ class RecurringTransactionsController < ApplicationController
     # An auto-posting transfer books its next entries into the destination, so
     # changing its amount, schedule or status needs write access there as well.
     def ensure_auto_post_destination_writable_for_edit
+      return if stops_auto_posting?
+
       raise ActiveRecord::RecordNotFound unless @recurring_transaction.auto_post_destination_writable_by?(Current.user)
+    end
+
+    # Pausing, or an edit that switches auto-posting off, writes nothing into
+    # the destination.
+    def stops_auto_posting?
+      case action_name
+      when "toggle_status"
+        @recurring_transaction.active?
+      when "update"
+        submitted = params.dig(:recurring_transaction, :auto_post)
+        !submitted.nil? && !ActiveModel::Type::Boolean.new.cast(submitted)
+      else
+        false
+      end
     end
 
     # name, amount and account are handled by apply_editable_identity rather

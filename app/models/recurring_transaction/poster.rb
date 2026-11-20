@@ -57,8 +57,14 @@ class RecurringTransaction
       end
 
       # One balance recalculation per account instead of one per entry.
-      # Transfer::Creator already schedules its own syncs.
-      sync_from.each { |account, date| account.sync_later(window_start_date: date) }
+      # Transfer::Creator already schedules its own syncs. The entries are
+      # committed either way, so one account's failure must not leave the
+      # others unsynced.
+      sync_from.each do |account, date|
+        account.sync_later(window_start_date: date)
+      rescue => e
+        capture_sync_failure(account, e)
+      end
 
       posted
     end
@@ -107,11 +113,22 @@ class RecurringTransaction
 
         RecurringOccurrence.transaction do
           occurrence.lock!
+          # The accounts as they are now, held so that linking a bank or
+          # changing the currency waits until this post is written.
+          Account.where(id: [ series.account_id, series.destination_account_id ].compact).order(:id).lock("FOR SHARE").load
+          series.reload
+          next nil unless series.postable_now?
+          # An open date kept from before a currency change still holds its
+          # amount in the old currency.
+          next nil unless occurrence.currency == series.currency
           # A pause, snooze or switch-off saved while the nightly run was under
           # way wins over what the run loaded before.
           unless repost
             next nil unless occurrence.effective_due_on <= today
             next nil unless family.recurring_transactions.auto_posting.exists?(series.id)
+            # Dates posted earlier in this run settle their cycle, which can
+            # turn a later open date into one the user decides on.
+            next nil if series.auto_post_needs_decision?(occurrence)
           end
           date ||= occurrence.effective_due_on
           # Re-checked under the lock. Any existing allocation means the user
@@ -214,6 +231,17 @@ class RecurringTransaction
             currency: series.currency,
             account_currency: series.account&.currency
           }
+        )
+      end
+
+      def capture_sync_failure(account, error)
+        DebugLogEntry.capture(
+          category: "recurring_auto_post",
+          level: "error",
+          message: "Account##{account.id}: balance sync after auto-posting failed: #{error.class} - #{error.message}",
+          source: "recurring_transaction_poster",
+          family: family,
+          account: account
         )
       end
 

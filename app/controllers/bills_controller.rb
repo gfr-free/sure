@@ -675,8 +675,11 @@ class BillsController < ApplicationController
                                    # Income never reviews here: the matcher no longer suggests it, and
                                    # this filter also retires any suggestion written before that rule.
                                    .merge(RecurringTransaction.not_typed_income)
+      # The posted entry itself must be readable too: a bill moved to a shared
+      # account keeps the allocations it posted on the old, private one.
       posted = RecurringAllocation.from_auto_posted
                                   .where(pending_review: true)
+                                  .where(entry_id: Current.accessible_entries.select(:id))
                                   .joins(:recurring_occurrence)
                                   .where(recurring_occurrences: { recurring_transaction_id: Current.family.recurring_transactions.accessible_by(Current.user).select(:id) })
 

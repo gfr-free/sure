@@ -81,7 +81,7 @@
             <p class="text-xs text-secondary"><%= income ? t(".income_auto_post_hint") : t(".auto_post_hint") %></p>
             <p class="text-xs text-secondary hidden" data-recurring-auto-post-target="unavailable"><%= t(".auto_post_manual_only") %></p>
           </div>
-          <%= f.toggle :auto_post, data: { recurring_auto_post_target: "toggle" } %>
+          <%= f.toggle :auto_post, aria: { label: t(".auto_post_label") }, data: { recurring_auto_post_target: "toggle" } %>
         </div>
       <% end %>
     </div>

@@ -237,9 +237,9 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
   end
 
   test "catches up on dates missed while the job did not run" do
-    later = occurrence_on(@rent, @today + 7)
+    later = occurrence_on(@rent, @today + 31)
 
-    assert_equal 2, post!(today: @today + 8)
+    assert_equal 2, post!(today: @today + 32)
     assert later.reload.paid?
   end
 
@@ -662,6 +662,76 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     end
 
     assert_not @rent.recurring_occurrences.open_status.exists?(due_on: @today + 31)
+  end
+
+  test "moving the bill's day keeps a payable row on the new date of a reopened posted cycle" do
+    future = occurrence_on(@rent, @today + 31)
+    post_now!(future).destroy!
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      @rent.update!(expected_day_of_month: 10)
+      RecurringTransaction::OccurrenceGenerator.new(@rent).regenerate_future!
+    end
+
+    moved = @rent.recurring_occurrences.find_by(original_due_on: Date.new(2026, 11, 10))
+    assert moved&.scheduled?, "the cycle keeps a row the user can pay"
+    assert moved.auto_posted_at.present?, "and it does not post again"
+
+    travel_to(@today.in_time_zone.change(hour: 6)) do
+      RecurringTransaction::OccurrenceGenerator.new(@rent).generate!
+    end
+    assert moved.reload.scheduled?
+    assert_equal 1, @rent.recurring_occurrences.where(due_on: Date.new(2026, 11, 1)..Date.new(2026, 11, 30)).count
+  end
+
+  test "an open date kept from before a currency change is not posted" do
+    @account.update_columns(currency: "EUR")
+    @rent.update_columns(currency: "EUR")
+
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+    assert @occurrence.reload.scheduled?
+    assert_not @occurrence.postable_now?
+  end
+
+  test "a date that a post earlier in the same run turns into a decision waits" do
+    moved = occurrence_on(@rent, @today + 5)
+
+    assert_difference -> { Entry.count }, 1 do
+      post!(today: @today + 5)
+    end
+    assert_empty moved.reload.allocations
+    assert_includes RecurringTransaction.late_auto_post_occurrences(@family, users(:family_admin), @today + 5), moved
+  end
+
+  test "an account changed during the run stops the post" do
+    RecurringTransaction::Matcher.any_instance.stubs(:run!).with { @account.update_columns(currency: "EUR"); true }
+
+    assert_no_difference -> { Entry.count } do
+      post!
+    end
+    assert @occurrence.reload.scheduled?
+  end
+
+  test "a failing balance sync is logged and the posts stay" do
+    Account.any_instance.stubs(:sync_later).raises(StandardError, "queue down")
+
+    assert_difference -> { DebugLogEntry.where(category: "recurring_auto_post").count }, 1 do
+      assert_equal 1, post!
+    end
+    assert_equal 1, @occurrence.reload.allocations.count
+  end
+
+  test "discarding with a user refuses an entry in an account they cannot write" do
+    post!
+    allocation = @occurrence.reload.allocations.sole
+    Account.stubs(:writable_by).returns(Account.none)
+
+    assert_raises(ActiveRecord::RecordNotFound) do
+      RecurringTransaction::Allocator.new(@occurrence).discard_posted!(allocation, user: users(:family_member))
+    end
+    assert RecurringAllocation.exists?(allocation.id)
   end
 
   private

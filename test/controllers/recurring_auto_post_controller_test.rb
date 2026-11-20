@@ -118,6 +118,29 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     assert_match reject_recurring_allocation_path(allocation), response.body
   end
 
+  test "editing a provisional post keeps its review buttons on the replaced row" do
+    occurrence = post_provisionally!
+    allocation = occurrence.allocations.sole
+
+    patch transaction_url(allocation.entry), params: { entry: { notes: "checked" } }, as: :turbo_stream
+
+    assert_response :success
+    assert_match reject_recurring_allocation_path(allocation), response.body
+  end
+
+  test "a provisional post's row is not served from the row cache" do
+    occurrence = post_provisionally!
+    allocation = occurrence.allocations.sole
+    ApplicationController.any_instance.stubs(:perform_caching).returns(true)
+    ApplicationController.any_instance.stubs(:cache_store).returns(ActiveSupport::Cache::MemoryStore.new)
+
+    get transactions_url
+    RecurringTransaction::Allocator.new(occurrence).confirm_posted!(allocation)
+    get transactions_url
+
+    assert_no_match confirm_recurring_allocation_path(allocation), response.body
+  end
+
   test "the transaction list marks a confirmed post without review buttons" do
     occurrence = post_provisionally!
     allocation = occurrence.allocations.sole
@@ -301,8 +324,6 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
 
     patch recurring_transaction_url(@series), params: { recurring_transaction: { notes: "more" } }
     assert_response :not_found
-    post toggle_status_recurring_transaction_url(@series)
-    assert_response :not_found
     patch override_amount_recurring_occurrence_url(occurrence), params: { amount: "9999" }
     assert_response :not_found
     assert_nil occurrence.reload.expected_amount
@@ -315,6 +336,39 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     # Stopping it writes nothing into the destination.
     post toggle_auto_post_recurring_transaction_url(@series)
     assert_not @series.reload.auto_post?
+  end
+
+  test "a read-only destination still lets the user pause an auto-posting transfer or switch it off in the form" do
+    @series.update_columns(destination_account_id: accounts(:credit_card).id, bill_type: "transfer", auto_post: true)
+    Account.stubs(:writable_by).returns(Account.where(id: accounts(:depository).id))
+
+    patch recurring_transaction_url(@series), params: { recurring_transaction: { auto_post: "0" } }
+    assert_not @series.reload.auto_post?
+
+    @series.update_columns(auto_post: true)
+    post toggle_status_recurring_transaction_url(@series)
+    assert @series.reload.inactive?
+
+    # Resuming shapes the next post, so it still needs the destination.
+    post toggle_status_recurring_transaction_url(@series)
+    assert_response :not_found
+    assert @series.reload.inactive?
+  end
+
+  test "the bills review queue leaves out a provisional post on an entry the user cannot read" do
+    post_provisionally!
+    Current.stubs(:accessible_entries).returns(Entry.none)
+
+    get bills_url
+
+    assert_response :success
+    assert_no_match I18n.t("bills.index.auto_posted_discard"), response.body
+  end
+
+  test "the auto-post switch is named for screen readers" do
+    get edit_recurring_transaction_url(@series), headers: { "Turbo-Frame" => "modal" }
+
+    assert_select "input[name='recurring_transaction[auto_post]'][aria-label=?]", I18n.t("recurring_transactions.form.auto_post_label")
   end
 
   test "a read-only destination blocks reopening a date of an auto-posting transfer through its payments" do

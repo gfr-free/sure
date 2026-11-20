@@ -242,13 +242,21 @@ class RecurringTransaction
     # payment is recorded on it. Checked again under the lock, so a confirm
     # that won the race is never undone. Returns each account whose balance
     # needs a resync, with the earliest date it changed from.
-    def discard_posted!(allocation)
+    #
+    # With a user, every account an entry is deleted from must be writable by
+    # them: the transfer's legs are read live, and a re-matched leg can sit in
+    # an account the bill does not name.
+    def discard_posted!(allocation, user: nil)
       occurrence.with_lock do
         allocation.reload
         raise NotPendingReviewError unless allocation.from_auto_posted? && allocation.pending_review?
 
         with_entry_lock(allocation.entry) do
           entries = posted_entries(allocation.entry)
+          if user
+            account_ids = entries.map(&:account_id).uniq
+            raise ActiveRecord::RecordNotFound unless Account.writable_by(user).where(id: account_ids).count == account_ids.size
+          end
           allocation.destroy!
           entries.each(&:destroy!)
 

@@ -64,7 +64,7 @@ class RecurringAllocationsController < ApplicationController
     # refused under the lock below, never treated as a rejected match.
     if allocation.from_auto_posted?
       ensure_posted_entries_writable(allocation)
-      resync = RecurringTransaction::Allocator.new(occurrence).discard_posted!(allocation)
+      resync = RecurringTransaction::Allocator.new(occurrence).discard_posted!(allocation, user: Current.user)
       resync.each { |account, date| account.sync_later(window_start_date: date) }
       redirect_with_return notice: t("recurring_allocations.discard.success")
     else

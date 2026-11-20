@@ -116,7 +116,8 @@ class RecurringOccurrence < ApplicationRecord
   # something to pay, and a series that may post at all. Poster#post_now!
   # checks the same again under the row lock.
   def postable_now?
-    scheduled? && allocations.none? && resolved_expected_amount.positive? && recurring_transaction.postable_now?
+    scheduled? && allocations.none? && resolved_expected_amount.positive? &&
+      currency == recurring_transaction.currency && recurring_transaction.postable_now?
   end
 
   # effective_due_on as SQL, for queries that select by it. GREATEST skips a

@@ -212,6 +212,8 @@ class TransactionsController < ApplicationController
           # The row draws the "Transfer?" hint, and its cache key records
           # whether it applies, so the hint is worked out as the list does.
           @transfer_hint_transaction_ids = Current.family.transaction_ids_with_transfer_candidates([ @entry.transaction ], user: Current.user)
+          # Same for a provisional post's badge and review buttons.
+          load_auto_posted_markers([ @entry.id ])
           render turbo_stream: [
             turbo_stream.replace(
               dom_id(@entry, :header),

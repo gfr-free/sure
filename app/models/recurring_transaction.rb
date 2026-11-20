@@ -387,6 +387,9 @@ class RecurringTransaction < ApplicationRecord
     recurring_occurrences
       .open_status
       .where(auto_posted_at: nil)
+      # A date kept from before a currency change holds an amount in the old
+      # currency; it stays open on the Bills page for the user to settle.
+      .where(currency: currency)
       .where("recurring_occurrences.due_on >= ?", auto_post_from)
       .where("#{RecurringOccurrence::EFFECTIVE_DUE_ON_SQL} <= ?", today)
       .order(:due_on)
@@ -430,6 +433,7 @@ class RecurringTransaction < ApplicationRecord
           .select do |occurrence|
             # Only what "Post on due date" can actually post, as in the drawer.
             occurrence.recurring_transaction.postable_now? &&
+              occurrence.currency == occurrence.recurring_transaction.currency &&
               occurrence.resolved_expected_amount.positive? &&
               occurrence.recurring_transaction.auto_post_needs_decision?(occurrence)
           end
@@ -1089,10 +1093,11 @@ class RecurringTransaction < ApplicationRecord
 
   private
     # Raw dates of this bill's settled occurrences: closed, or posted once.
+    # Read fresh on every call: a nightly run settles dates as it goes.
     def settled_original_due_dates
-      @settled_original_due_dates ||= recurring_occurrences
-                                        .where.not(status: :scheduled).or(recurring_occurrences.where.not(auto_posted_at: nil))
-                                        .pluck(:original_due_on)
+      recurring_occurrences
+        .where.not(status: :scheduled).or(recurring_occurrences.where.not(auto_posted_at: nil))
+        .pluck(:original_due_on)
     end
 
     # Issue #1590: a recurring transfer's future occurrences rarely share the

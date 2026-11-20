@@ -745,6 +745,20 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal users(:sure_support_staff).id, audit_log.metadata.fetch("actor_user_id")
   end
 
+  test "removal returns to the list slice the confirmation was opened from" do
+    target = users(:family_member)
+
+    get deletion_admin_user_url(target, q: "dylan", page: 2)
+    assert_response :success
+    assert_select "form[action='#{admin_user_path(target, q: "dylan", page: 2)}']"
+
+    delete admin_user_url(target, q: "dylan", page: 2),
+      params: { confirmation_email: target.email },
+      headers: { "HTTP_REFERER" => deletion_admin_user_url(target, q: "dylan", page: 2) }
+
+    assert_redirected_to admin_users_path(q: "dylan", page: 2)
+  end
+
   test "super admin cannot remove themselves" do
     me = users(:sure_support_staff)
 

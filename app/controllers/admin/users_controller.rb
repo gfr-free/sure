@@ -193,8 +193,10 @@ module Admin
         true
       end
 
+      # The removed user's own pages are gone, so return to the list slice the
+      # confirmation was opened from rather than to the referring page.
       if removed
-        redirect_back_or_to admin_users_path, notice: t(".success")
+        redirect_to admin_users_path(list_params), notice: t(".success")
       else
         redirect_back_or_to admin_users_path, alert: @user.errors.full_messages.to_sentence.presence || t(".failure")
       end

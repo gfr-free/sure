@@ -98,12 +98,19 @@ class User < ApplicationRecord
   end
 
   # Families with the most entries first, members of one family kept together.
-  # The correlated count only runs for users left after filtering, and is
-  # exposed as #family_entries_count.
+  # Entries are counted once per family, only for families of users left after
+  # filtering, and exposed as #family_entries_count.
   def self.ordered_by_family_activity
-    entries_count = Entry.joins(:account).where("accounts.family_id = users.family_id").select("COUNT(*)").to_sql
+    entry_counts = Entry.joins(:account)
+      .where(accounts: { family_id: unscope(:select, :order).select(:family_id) })
+      .group("accounts.family_id")
+      .select("accounts.family_id, COUNT(*) AS entries_count")
 
-    select("users.*, (#{entries_count}) AS family_entries_count")
+    # A CTE rather than an inline subquery join: the subquery repeats this
+    # relation's own joins, and Rails would alias them in the outer query.
+    with(family_entry_counts: entry_counts)
+      .joins("LEFT JOIN family_entry_counts ON family_entry_counts.family_id = users.family_id")
+      .select("users.*, COALESCE(family_entry_counts.entries_count, 0) AS family_entries_count")
       .order(Arel.sql("family_entries_count DESC, users.family_id ASC, users.email ASC, users.id ASC"))
   end
 

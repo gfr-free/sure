@@ -235,7 +235,7 @@
                                 <div class="border-t border-primary pt-3">
                                   <%= render DS::Button.new(
                                         text: t(".remove"),
-                                        href: deletion_admin_user_path(user),
+                                        href: deletion_admin_user_path(user, list_params),
                                         method: :get,
                                         frame: "modal",
                                         variant: :outline_destructive,

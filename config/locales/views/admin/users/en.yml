@@ -110,7 +110,7 @@ en:
           title: "Usage"
           description: "Counts for the user's family/group. Balances, account names and transactions are not shown."
           accounts: "Accounts"
-          entries: "Transactions"
+          entries: "Entries"
           syncs: "Syncs"
           failed_syncs: "Failed syncs"
           last_successful_sync: "Last successful sync: %{time}"

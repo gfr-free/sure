@@ -30,6 +30,13 @@ class Insight::Generators::MaintainedGoalDepletedGeneratorTest < ActiveSupport::
                  "Bis zum Zielstand fehlen #{generated.facts[:missing]}.", body
   end
 
+  test "says nothing while the family has Plan switched off" do
+    reserve(name: "Precaution", balance: 4_000, target: 6_000)
+    @family.update!(plan_enabled: false)
+
+    assert_empty generate
+  end
+
   test "says nothing about a reserve sitting at its level" do
     reserve(name: "Whole", balance: 6_000, target: 6_000)
 

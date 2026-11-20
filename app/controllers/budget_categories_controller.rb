@@ -1,6 +1,7 @@
 class BudgetCategoriesController < ApplicationController
   include BudgetOwnership
 
+  before_action :ensure_budgets_enabled
   before_action :set_budget
   before_action :ensure_budget_editable!, only: %i[index update move]
 

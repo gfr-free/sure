@@ -102,6 +102,25 @@ class Assistant::FunctionToolCallerTest < ActiveSupport::TestCase
     assert_includes result.function_result["hint"], "YYYY-MM-DD"
   end
 
+  test "a budget or plan tool the family switched off after the turn began is unknown" do
+    user = users(:family_admin)
+    budget_tool = Assistant::Function::GetBudget.new(user)
+    plan_tool = Assistant::Function::CreateGoal.new(user)
+    tool_caller = Assistant::FunctionToolCaller.new([ budget_tool, plan_tool, EchoFunction.new(user) ], user: user)
+
+    user.family.update!(budgets_enabled: false, plan_enabled: false)
+
+    results = tool_caller.fulfill_requests(
+      [ budget_tool.name, plan_tool.name, "echo" ].map do |name|
+        FunctionRequest.new(id: name, call_id: name, function_name: name, function_args: "{}")
+      end
+    ).map(&:function_result)
+
+    assert_equal "Unknown tool: #{budget_tool.name}", results[0]["error"]
+    assert_equal "Unknown tool: #{plan_tool.name}", results[1]["error"]
+    assert_equal({}, results[2])
+  end
+
   test "unexpected failures return a do-not-retry error result" do
     caller = Assistant::FunctionToolCaller.new([ ExplodingFunction.new(nil) ])
     request = FunctionRequest.new(

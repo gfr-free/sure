@@ -10,7 +10,7 @@ class CoinbaseAccount::ProcessorTest < ActiveSupport::TestCase
       family: @family,
       name: "Coinbase",
       api_key: "k",
-      api_secret: "s"
+      api_secret: coinbase_api_secret
     )
     @coinbase_account = @item.coinbase_accounts.create!(
       name: "Bitcoin Wallet",

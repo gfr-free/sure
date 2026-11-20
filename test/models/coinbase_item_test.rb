@@ -7,7 +7,7 @@ class CoinbaseItemTest < ActiveSupport::TestCase
       family: @family,
       name: "Test Coinbase Connection",
       api_key: "test_key",
-      api_secret: "test_secret"
+      api_secret: coinbase_api_secret
     )
   end
 
@@ -31,13 +31,13 @@ class CoinbaseItemTest < ActiveSupport::TestCase
   end
 
   test "validates presence of name" do
-    item = CoinbaseItem.new(family: @family, api_key: "key", api_secret: "secret")
+    item = CoinbaseItem.new(family: @family, api_key: "key", api_secret: coinbase_api_secret)
     assert_not item.valid?
     assert_includes item.errors[:name], "can't be blank"
   end
 
   test "validates presence of api_key" do
-    item = CoinbaseItem.new(family: @family, name: "Test", api_secret: "secret")
+    item = CoinbaseItem.new(family: @family, name: "Test", api_secret: coinbase_api_secret)
     assert_not item.valid?
     assert_includes item.errors[:api_key], "can't be blank"
   end
@@ -46,6 +46,39 @@ class CoinbaseItemTest < ActiveSupport::TestCase
     item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key")
     assert_not item.valid?
     assert_includes item.errors[:api_secret], "can't be blank"
+  end
+
+  test "accepts an ECDSA key pasted with its line breaks turned into spaces" do
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: coinbase_api_secret.tr("\n", " "))
+
+    assert item.valid?
+  end
+
+  test "accepts an Ed25519 secret" do
+    key = OpenSSL::PKey.generate_key("ED25519")
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: Base64.strict_encode64(key.raw_private_key + key.raw_public_key))
+
+    assert item.valid?
+  end
+
+  test "rejects an ECDSA key on a curve other than P-256" do
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: OpenSSL::PKey::EC.generate("secp384r1").to_pem)
+
+    assert_not item.valid?
+    assert_includes item.errors.details[:api_secret], { error: :invalid_key }
+  end
+
+  test "rejects a secret that is neither an Ed25519 secret nor an ECDSA private key" do
+    item = CoinbaseItem.new(family: @family, name: "Test", api_key: "key", api_secret: "not a key")
+
+    assert_not item.valid?
+    assert_includes item.errors.details[:api_secret], { error: :invalid_key }
+  end
+
+  test "checks the secret only when it changes" do
+    @coinbase_item.update_column(:api_secret, "legacy secret")
+
+    assert @coinbase_item.reload.update(name: "Renamed")
   end
 
   test "can be marked for deletion" do
@@ -67,7 +100,7 @@ class CoinbaseItemTest < ActiveSupport::TestCase
       family: @family,
       name: "Delete Me",
       api_key: "test_key",
-      api_secret: "test_secret",
+      api_secret: coinbase_api_secret,
       scheduled_for_deletion: true,
       created_at: 1.day.ago
     )

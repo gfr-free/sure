@@ -357,7 +357,9 @@ class AccountManualOrderTest < ApplicationSystemTestCase
       handle.send_keys(:enter)
     end
 
-    assert_eventually { @user.reload.manual_list_order("accounts", "currency").first(2) == [ plaid.id, checking.id ] }
+    # The stored list starts from the shown order of every account, so only
+    # the relative order of the moved pair is fixed.
+    assert_eventually { (@user.reload.manual_list_order("accounts", "currency") & [ plaid.id, checking.id ]) == [ plaid.id, checking.id ] }
     group_key = "asset_#{AccountGrouping.group_key("currency", "USD")}"
     assert_eventually { @user.reload.manual_list_order("subgroups", "account_type", scope: group_key).first == Digest::SHA256.hexdigest("Investment").first(12) }
     assert_empty @user.manual_account_order, "the account type order stays as it was"

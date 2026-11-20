@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -433,6 +433,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
     t.index ["user_id"], name: "index_chats_on_user_id"
   end
 
+  create_table "clearings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "counterparty_id", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "locked_attributes", default: {}
+    t.string "subtype"
+    t.datetime "updated_at", null: false
+    t.index ["counterparty_id"], name: "index_clearings_on_counterparty_id"
+  end
+
   create_table "coinbase_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "account_id"
     t.string "account_status"
@@ -553,6 +562,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
     t.index ["family_id", "exchange_portfolio_id"], name: "index_coinstats_items_on_family_id_and_exchange_portfolio_id", unique: true, where: "(exchange_portfolio_id IS NOT NULL)"
     t.index ["family_id"], name: "index_coinstats_items_on_family_id"
     t.index ["status"], name: "index_coinstats_items_on_status"
+  end
+
+  create_table "counterparties", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id"
+    t.string "default_currency", null: false
+    t.uuid "family_id", null: false
+    t.string "name", null: false
+    t.text "note"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_counterparties_on_created_by_id"
+    t.index "family_id, created_by_id, lower((name)::text)", name: "index_counterparties_on_family_creator_and_lower_name", unique: true
+    t.index ["family_id"], name: "index_counterparties_on_family_id"
   end
 
   create_table "credit_cards", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3173,12 +3196,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_120000) do
   add_foreign_key "categorization_comparisons", "families"
   add_foreign_key "categorization_comparisons", "transactions", on_delete: :nullify
   add_foreign_key "chats", "users"
+  add_foreign_key "clearings", "counterparties"
   add_foreign_key "coinbase_accounts", "coinbase_items"
   add_foreign_key "coinbase_items", "families"
   add_foreign_key "coinspot_accounts", "coinspot_items"
   add_foreign_key "coinspot_items", "families"
   add_foreign_key "coinstats_accounts", "coinstats_items"
   add_foreign_key "coinstats_items", "families"
+  add_foreign_key "counterparties", "families"
+  add_foreign_key "counterparties", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "debug_log_entries", "account_providers", on_delete: :nullify
   add_foreign_key "debug_log_entries", "accounts", on_delete: :nullify
   add_foreign_key "debug_log_entries", "families", on_delete: :nullify

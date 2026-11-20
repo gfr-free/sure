@@ -9,7 +9,7 @@
 <% cache_unless transaction.transfer&.pending?, transaction_row_cache_key(entry, view_ctx: view_ctx, in_split_group: in_split_group), expires_in: 12.hours, skip_digest: true do %>
 <% transaction_security_logo_url = transaction.activity_security&.display_logo_url %>
 <% open_path = if transaction.transfer?
-     transaction.transfer.present? ? transfer_path(transaction.transfer) : entry_path(entry)
+     transaction.transfer.present? && !person_transfer?(transaction) ? transfer_path(transaction.transfer) : entry_path(entry)
    else
      in_split_group ? entry_path(entry, grouped: true) : entry_path(entry)
    end %>

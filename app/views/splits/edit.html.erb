@@ -43,6 +43,8 @@
                      category_id: child.entryable.try(:category_id),
                      merchant_id: child.entryable.try(:merchant_id),
                      tag_ids: child.entryable.try(:tag_ids) || [],
+                     counterparty: @child_counterparties&.dig(child.id),
+                     counterparties: @counterparties,
                      categories: @categories,
                      merchants: @merchants,
                      tags: @tags %>
@@ -52,6 +54,7 @@
       <template data-split-transaction-target="rowTemplate">
         <%= render "splits/row",
                    index: "ROW_IDX_PLACEHOLDER",
+                   counterparties: @counterparties,
                    categories: @categories,
                    merchants: @merchants,
                    tags: @tags %>

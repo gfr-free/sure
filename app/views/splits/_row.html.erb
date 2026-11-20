@@ -1,4 +1,4 @@
-<%# locals: (index:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], removable: true) %>
+<%# locals: (index:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], counterparties: [], counterparty: nil, removable: true) %>
 
 <%# Styled builder fields and DS pickers, the same controls as the transaction form. %>
 <div class="p-3 rounded-lg border border-secondary bg-container space-y-2" data-split-transaction-target="row">
@@ -56,6 +56,16 @@
               include_blank: t("splits.new.no_merchant")
             ) %>
       </div>
+
+      <% if counterparties.any? || counterparty %>
+        <div class="min-w-0 md:col-span-2">
+          <%= row.collection_select :counterparty_id,
+                (counterparties + [ counterparty ]).compact.uniq,
+                :id,
+                :name,
+                { selected: counterparty&.id, include_blank: t("splits.new.no_counterparty"), label: t("splits.new.counterparty_label"), scoped_ids: true } %>
+        </div>
+      <% end %>
 
       <div class="min-w-0 md:col-span-2">
         <%= render DS::TagSelect.new(

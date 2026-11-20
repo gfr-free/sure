@@ -6,7 +6,11 @@ class Transactions::BulkDeletionsController < ApplicationController
     entries_scope = Current.family.entries
                       .where(account_id: writable_account_ids)
                       .where(parent_entry_id: nil)
-    destroyed = entries_scope.destroy_by(id: bulk_delete_params[:entry_ids])
+    # Entries whose person legs sit on clearing accounts the user can't write stay.
+    deletable_ids = entries_scope.where(id: bulk_delete_params[:entry_ids]).includes(:entryable).select do |entry|
+      Counterparty::Assignment.legs_deletable_by?(entry, Current.user)
+    end.map(&:id)
+    destroyed = entries_scope.destroy_by(id: deletable_ids)
     destroyed.map(&:account).uniq.each(&:sync_later)
     redirect_back_or_to transactions_url, notice: "#{destroyed.count} transaction#{destroyed.count == 1 ? "" : "s"} deleted"
   end

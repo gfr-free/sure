@@ -953,7 +953,7 @@ class Account < ApplicationRecord
   # "Investment" = A mix of both, including brokerage cash (liquid) and holdings (illiquid)
   def balance_type
     case accountable_type
-    when "Depository", "CreditCard"
+    when "Depository", "CreditCard", "Clearing"
       :cash
     when "Property", "Vehicle", "OtherAsset", "Loan", "OtherLiability"
       :non_cash
@@ -1007,6 +1007,9 @@ class Account < ApplicationRecord
   end
 
   def auto_share_with_family!
+    # A person's clearing account stays with the user who keeps it.
+    return if clearing?
+
     # Guests get read_only, everyone else read_write. This mirrors
     # Family#auto_share_existing_accounts_with so a guest's permission on an
     # account is the same whether they joined before or after it was created.

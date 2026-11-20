@@ -1,0 +1,57 @@
+<div class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <%= link_to t(".back"), counterparties_path, class: "text-sm text-secondary hover:text-primary" %>
+      <div class="flex items-center gap-2 mt-1">
+        <h1 class="text-2xl font-semibold text-primary truncate"><%= @counterparty.name %></h1>
+        <% if @counterparty.archived? %>
+          <%= render DS::Pill.new(label: t(".archived"), size: :md) %>
+        <% end %>
+      </div>
+      <% if @counterparty.note.present? %>
+        <p class="text-sm text-secondary mt-1"><%= @counterparty.note %></p>
+      <% end %>
+    </div>
+    <% if @counterparty.manageable_by?(Current.user) %>
+      <div class="flex flex-wrap gap-2">
+        <%= render DS::Link.new(text: t(".edit"), variant: "outline", href: edit_counterparty_path(@counterparty), icon: "pencil-line", frame: :modal) %>
+        <% if @counterparty.archived? %>
+          <%= render DS::Button.new(text: t(".unarchive"), variant: "outline", href: unarchive_counterparty_path(@counterparty), method: :patch, icon: "archive-restore") %>
+        <% elsif @counterparty.archivable? %>
+          <%= render DS::Button.new(text: t(".archive"), variant: "outline", href: archive_counterparty_path(@counterparty), method: :patch, icon: "archive") %>
+        <% end %>
+      </div>
+    <% end %>
+  </header>
+
+  <%= render DS::Card.new(class: "gap-3") do %>
+    <% if @accounts.empty? %>
+      <p class="text-sm text-secondary"><%= t(".no_accounts") %></p>
+    <% end %>
+    <% @accounts.each_with_index do |account, index| %>
+      <%= render "shared/ruler" if index.positive? %>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="space-y-0.5">
+          <p class="text-sm font-medium text-primary"><%= account.name %> · <%= account.currency %></p>
+          <p class="text-lg"><%= render "counterparties/balance", money: account.balance_money %></p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <%= render DS::Link.new(text: t(".history"), variant: "outline", href: account_path(account), icon: "list") %>
+          <% if AccountPolicy.new(Current.user, account).update? %>
+            <%= render DS::Link.new(text: t(".paid_for_me"), variant: "outline", href: new_transaction_path(account_id: account.id, nature: "outflow"), icon: "plus", frame: :modal) %>
+            <% unless account.balance.zero? %>
+              <%= render DS::Link.new(text: t(".forgive"), variant: "outline", href: new_counterparty_forgiveness_path(@counterparty, account_id: account.id), icon: "hand-heart", frame: :modal) %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <div class="bg-container-inset rounded-xl p-4 text-sm text-secondary space-y-1">
+    <p class="font-medium text-primary"><%= t(".how_title") %></p>
+    <p><%= t(".how_assign") %></p>
+    <p><%= t(".how_settle") %></p>
+    <p><%= t(".how_paid_for_me") %></p>
+  </div>
+</div>

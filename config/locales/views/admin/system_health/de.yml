@@ -254,7 +254,8 @@ de:
           no_queues: Es sind keine Warteschlangen registriert. Möglicherweise läuft der Worker nicht.
         ai:
           run_checks: Prüfungen erneut ausführen
-          last_checked: "Live-Prüfungen vor %{time_ago} abgeschlossen. Die Ergebnisse werden kurz zwischengespeichert."
+          last_checked: "Die Live-Prüfungen liegen %{time_ago} zurück. Die Ergebnisse bleiben bis %{expires_at} im Cache; danach prüft das Neuladen der Seite erneut."
+          last_checked_expired: "Die Live-Prüfungen liegen %{time_ago} zurück. Ihr Cache ist abgelaufen, das nächste Neuladen der Seite prüft erneut."
           not_checked_help: Öffne die KI-Status-URL direkt oder führ die Prüfungen aus, um die Erreichbarkeit der Dienste zu bestätigen.
           loading: "Live-Prüfungen laufen…"
           alerts:
@@ -325,6 +326,7 @@ de:
             pdf_vision_processing: PDF-Bild- bzw. native Verarbeitung
             llm_request_timeout: Zeitlimit für LLM-Anfragen
             probe_request_timeout: Zeitlimit für Statusprüfungen
+            probe_cache_ttl: Cache-Dauer der Prüfergebnisse
             openai_credentials: OpenAI-Zugangsdaten
             openai_compatible_credentials: Zugangsdaten für die OpenAI-kompatible API
             anthropic_credentials: Anthropic-Zugangsdaten

@@ -642,6 +642,54 @@ class HoldingTest < ActiveSupport::TestCase
     assert_not @amzn.security_remapped?
   end
 
+  test "remappable_to? rejects cash on either side" do
+    cash = Security.cash_for(@account)
+    goog = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+
+    assert @amzn.remappable_to?(goog)
+    assert_not @amzn.remappable_to?(nil)
+    assert_not @amzn.remappable_to?(cash)
+
+    @amzn.security = cash
+    assert_not @amzn.remappable_to?(goog)
+  end
+
+  test "remap_security_and_materialize! remaps and recalculates the new security" do
+    goog = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    materializer = mock("materializer")
+    materializer.expects(:materialize_balances).once
+    Balance::Materializer.expects(:new).with(@account, strategy: :forward, security_ids: [ goog.id ]).returns(materializer)
+
+    @amzn.remap_security_and_materialize!(goog)
+
+    assert_equal goog, @amzn.security
+  end
+
+  test "remap_security_and_materialize! skips the recalculation when the security is unchanged" do
+    Balance::Materializer.expects(:new).never
+
+    @amzn.remap_security_and_materialize!(@amzn.security)
+  end
+
+  # A concurrent remap can move this row to another security while this one
+  # waits for the account lock; the waiting remap then starts from there.
+  test "remap_security_and_materialize! works from the security the row has under the lock" do
+    goog = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])
+    nflx = create_security("NFLX", prices: [ { date: Date.current, price: 100.00 } ])
+    stale = Holding.find(@amzn.id)
+    @amzn.remap_security!(goog)
+
+    stale.remap_security_and_materialize!(nflx)
+
+    assert_equal nflx, @amzn.reload.security
+    assert_not @account.holdings.where(security: goog).exists?
+  end
+
+  test "remap_security_and_materialize! refuses cash securities" do
+    assert_raises(ArgumentError) { @amzn.remap_security_and_materialize!(Security.cash_for(@account)) }
+    assert_not_equal "CASH-#{@account.id}".upcase, @amzn.reload.ticker
+  end
+
   test "remap_security! changes holding security and locks it" do
     old_security = @amzn.security
     new_security = create_security("GOOG", prices: [ { date: Date.current, price: 100.00 } ])

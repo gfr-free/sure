@@ -264,6 +264,21 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("registrations.local_signup_disabled"), flash[:alert]
   end
 
+  test "create rechecks local registration under the lock for the invite-only default family" do
+    Setting.onboarding_state = "invite_only"
+    Setting.invite_only_default_family_id = families(:dylan_family).id
+    AuthConfig.stubs(:local_registration_allowed?).returns(true).then.returns(false)
+
+    assert_no_difference "User.count" do
+      post registration_url, params: { user: {
+        email: "default-family-race@example.com",
+        password: "Password1!" } }
+    end
+
+    assert_redirected_to new_session_path
+    assert_equal I18n.t("registrations.local_signup_disabled"), flash[:alert]
+  end
+
   # Invitees join through SSO instead; the invitation stays pending for that.
   test "create does not register an invited user when local login is disabled" do
     AuthConfig.stubs(:local_login_enabled?).returns(false)

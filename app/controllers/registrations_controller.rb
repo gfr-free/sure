@@ -66,15 +66,16 @@ class RegistrationsController < ApplicationController
       success = false
 
       ActiveRecord::Base.transaction do
-        if @creating_new_family
+        unless @invitation
           User.lock_first_user_role!
           # The first-account exception is only decided under the lock: a
-          # concurrent bootstrap signup may have committed meanwhile.
+          # concurrent bootstrap signup (new family or invite-only default
+          # family) may have committed meanwhile.
           unless AuthConfig.local_registration_allowed?
             @local_registration_closed = true
             raise ActiveRecord::Rollback
           end
-          @user.role = User.role_for_new_family_creator
+          @user.role = User.role_for_new_family_creator if @creating_new_family
         end
 
         unless @user.save

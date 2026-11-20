@@ -808,14 +808,39 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select row do
       assert_select "span", text: I18n.t("transactions.transaction.disabled_account")
       assert_select "input[type=checkbox][disabled]##{dom_id(@entry, "selection")}"
-      assert_select "turbo-frame#category_dropdown", count: 0
-      assert_select "turbo-frame#tag_dropdown", count: 0
+      # The category and tag menus load their frames on open; the triggers are what must be missing.
+      assert_select "[data-ds--popover-frame-id-value='category_dropdown']", count: 0
+      assert_select "[data-ds--popover-frame-id-value='tag_dropdown']", count: 0
     end
     assert_select "#transaction-search-filters", text: /#{I18n.t("transactions.searches.filters.badge.disabled_accounts")}/
 
     get filters_transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
     assert_response :success
     assert_select "input[type=checkbox][name='q[active_accounts_only]'][value=false][checked]"
+
+    account.enable!
+    get transactions_url(q: { search: @entry.name })
+    assert_select row do
+      assert_select "[data-ds--popover-frame-id-value='category_dropdown']"
+      assert_select "[data-ds--popover-frame-id-value='tag_dropdown']"
+    end
+  end
+
+  test "a read-only row shows the reconcile status without the toggle" do
+    @user.family.update!(manual_reconciliation: true)
+    account = accounts(:depository)
+    account.disable!
+
+    get transactions_url(q: { search: @entry.name, active_accounts_only: "false" })
+
+    assert_select "##{dom_id(@entry)}" do
+      assert_select "a[href='#{reconcile_transaction_path(@entry.transaction)}']", count: 0
+      assert_select "span[aria-label='#{I18n.t("transactions.reconcile.statuses.#{@entry.reconciled_status}")}']"
+    end
+
+    account.enable!
+    get transactions_url(q: { search: @entry.name })
+    assert_select "##{dom_id(@entry)} a[href='#{reconcile_transaction_path(@entry.transaction)}']"
   end
 
   test "index row cache does not carry read-only state across disabled account changes" do

@@ -113,7 +113,7 @@
                     <% end %>
 
                     <%# Manual reconciliation status (manual accounts only) %>
-                    <%= render "transactions/reconcile_badge", entry: entry, compact: true %>
+                    <%= render "transactions/reconcile_badge", entry: entry, compact: true, read_only: read_only %>
 
                     <%# Scheduled (future-dated) indicator %>
                     <% if entry.scheduled? %>

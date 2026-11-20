@@ -81,6 +81,15 @@ export default class extends Controller {
       queue.savedOrder = this.savedOrder;
     };
     document.addEventListener("turbo:morph", this.refreshSavedOrder);
+
+    // A full page load or closing the tab skips disconnect(), so release
+    // the grab on pagehide too, and send an order still waiting behind an
+    // unfinished save before the page is gone.
+    this.releaseGrab = () => {
+      this.releaseKeyboardGrab();
+      this.queueController().sendPendingOrderNow();
+    };
+    window.addEventListener("pagehide", this.releaseGrab);
   }
 
   disconnect() {
@@ -91,7 +100,11 @@ export default class extends Controller {
       });
     }
     document.removeEventListener("turbo:morph", this.refreshSavedOrder);
+    window.removeEventListener("pagehide", this.releaseGrab);
     this.cancelHold();
+    // An item still grabbed with the keyboard (e.g. the list is removed from
+    // the page) keeps the place it was moved to.
+    this.releaseKeyboardGrab();
   }
 
   // ===== Mouse Drag Events =====
@@ -608,6 +621,18 @@ export default class extends Controller {
     return this.itemTargets.map((item) => item.dataset.sortableListId);
   }
 
+  // The queue normally waits for the save in flight, so an older order never
+  // lands after a newer one. When the page goes away the waiting order would
+  // be lost instead; it is sent right away (keepalive), after the earlier
+  // request, which the server usually handles first.
+  sendPendingOrderNow() {
+    if (!this.saving || !this.pendingOrder) return;
+
+    const order = this.pendingOrder;
+    this.pendingOrder = null;
+    this.sendOrder(order);
+  }
+
   async flushSaves() {
     this.saving = true;
     while (this.pendingOrder) {
@@ -630,6 +655,8 @@ export default class extends Controller {
     try {
       const response = await fetch(this.urlValue, {
         method: "PATCH",
+        // Lets the save finish when it is sent while the page unloads.
+        keepalive: true,
         headers,
         body: JSON.stringify(this.buildBody(order)),
         signal:
@@ -651,7 +678,7 @@ export default class extends Controller {
         // Show the order that is actually saved instead of the unsaved one,
         // e.g. when the list changed in another tab.
         this.pendingOrder = null;
-        Turbo.visit(window.location.href, { action: "replace" });
+        this.reloadIfStillShown();
       }
     } catch (error) {
       console.error("[Sortable List] Network error saving order:", error);
@@ -661,7 +688,7 @@ export default class extends Controller {
       // A timed-out request may still have been saved, so show what the
       // server has.
       if (error?.name === "TimeoutError") {
-        Turbo.visit(window.location.href, { action: "replace" });
+        this.reloadIfStillShown();
         return;
       }
 
@@ -677,6 +704,14 @@ export default class extends Controller {
         this.rollBack(lists);
       }
       this.showSaveFailed();
+    }
+  }
+
+  // A save sent on the way out (see disconnect) can fail after the next page
+  // is shown; reloading then would reload that page, not this list.
+  reloadIfStillShown() {
+    if (this.element.isConnected) {
+      Turbo.visit(window.location.href, { action: "replace" });
     }
   }
 

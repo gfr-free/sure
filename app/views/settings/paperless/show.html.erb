@@ -1,0 +1,85 @@
+<%= content_for :page_title, t(".page_title") %>
+
+<div class="space-y-4">
+  <%= settings_section title: t(".mode.title"), subtitle: t(".mode.subtitle") do %>
+    <% if Current.user.admin? %>
+      <%= styled_form_with url: mode_settings_paperless_path,
+                           method: :patch,
+                           data: { controller: "auto-submit-form", auto_submit_form_trigger_event_value: "change" } do |form| %>
+        <%= form.select :paperless_connection_mode,
+                        Family::PaperlessConnectable::PAPERLESS_CONNECTION_MODES.map { |mode| [ t(".mode.options.#{mode}"), mode ] },
+                        { label: t(".mode.label"), selected: Current.family.paperless_connection_mode },
+                        { data: { auto_submit_form_target: "auto" } } %>
+      <% end %>
+    <% else %>
+      <p class="text-sm text-primary"><%= t(".mode.options.#{Current.family.paperless_connection_mode}") %></p>
+    <% end %>
+    <p class="text-sm text-secondary"><%= t(".mode.help.#{Current.family.paperless_connection_mode}") %></p>
+  <% end %>
+
+  <%= settings_section title: t(".connection.title"), subtitle: t(".connection.subtitle") do %>
+    <% if @connection&.last_error.present? %>
+      <%= render DS::Alert.new(variant: :warning, title: t(".connection.error_title"), message: @connection.last_error) %>
+    <% elsif @connection&.last_connected_at.present? %>
+      <%= render DS::Alert.new(variant: :success,
+                               message: t(".connection.connected", version: @connection.server_version.presence || "?",
+                                          time: l(@connection.last_connected_at, format: :long))) %>
+    <% end %>
+
+    <% if @can_manage %>
+      <%= styled_form_with model: @connection || PaperlessConnection.new,
+                           url: settings_paperless_path,
+                           method: :patch,
+                           scope: :paperless_connection,
+                           class: "space-y-4" do |form| %>
+        <%= form.text_field :base_url,
+                            label: t(".connection.base_url_label"),
+                            placeholder: "https://paperless.example.com",
+                            autocomplete: "off",
+                            autocapitalize: "none",
+                            spellcheck: "false",
+                            inputmode: "url",
+                            required: true %>
+        <% if @connection %>
+          <p class="text-xs text-secondary"><%= t(".connection.base_url_help") %></p>
+        <% end %>
+        <%= form.password_field :api_token,
+                                label: t(".connection.api_token_label"),
+                                placeholder: @connection ? t(".connection.api_token_keep") : t(".connection.api_token_placeholder"),
+                                value: nil,
+                                autocomplete: "off",
+                                required: @connection.nil? %>
+        <p class="text-xs text-secondary"><%= t(".connection.api_token_help") %></p>
+
+        <div class="flex items-center justify-between gap-4">
+          <div class="space-y-1">
+            <p class="text-sm text-primary"><%= t(".connection.verify_ssl_label") %></p>
+            <p class="text-sm text-secondary"><%= t(".connection.verify_ssl_help") %></p>
+          </div>
+          <%= form.toggle :verify_ssl, checked: @connection.nil? || @connection.verify_ssl %>
+        </div>
+
+        <div class="flex justify-end">
+          <%= render DS::Button.new(text: t(".connection.save"), variant: :primary, type: :submit) %>
+        </div>
+      <% end %>
+
+      <% if @connection %>
+        <div class="flex flex-wrap justify-end gap-2 pt-2 border-t border-primary">
+          <%= render DS::Button.new(text: t(".connection.verify"), variant: :outline, icon: "refresh-cw",
+                                    href: verify_settings_paperless_path, method: :post) %>
+          <%= render DS::Button.new(text: t(".connection.disconnect"), variant: :outline_destructive, icon: "unplug",
+                                    href: settings_paperless_path, method: :delete,
+                                    confirm: CustomConfirm.new(title: t(".connection.disconnect_confirm_title"),
+                                                               body: t(".connection.disconnect_confirm_body"),
+                                                               btn_text: t(".connection.disconnect"),
+                                                               destructive: true)) %>
+        </div>
+      <% end %>
+    <% elsif @connection %>
+      <p class="text-sm text-secondary"><%= t(".connection.managed_by_admin", url: @connection.base_url) %></p>
+    <% else %>
+      <p class="text-sm text-secondary"><%= t(".connection.not_set_up_by_admin") %></p>
+    <% end %>
+  <% end %>
+</div>

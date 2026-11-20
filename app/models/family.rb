@@ -17,6 +17,7 @@ class Family < ApplicationRecord
   include OnchainWalletConnectable
   include SharesightConnectable
   include AiPromptable
+  include PaperlessConnectable
   include AiSettings
 
   DATE_FORMATS = [

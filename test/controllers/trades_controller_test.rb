@@ -546,6 +546,36 @@ class TradesControllerTest < ActionDispatch::IntegrationTest
     assert_equal spec.security, Entry.order(created_at: :desc).first.trade.security
   end
 
+  test "a ticker of another family's custom coin is not accepted as a security" do
+    other = BullionSpec.create_custom!(family: families(:empty), name: "Private coin", metal: "XAU", fine_weight_grams: 5)
+
+    assert_no_difference "Trade.count" do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "security", manual_ticker: other.security.ticker,
+          date: Date.current, qty: 1, price: 700, currency: "USD"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "a ticker of the family's own custom coin resolves to that coin" do
+    spec = BullionSpec.create_custom!(family: @user.family, name: "Own coin", metal: "XAU", fine_weight_grams: 5)
+
+    assert_difference "Trade.count", 1 do
+      post trades_url(account_id: @entry.account_id), params: {
+        model: {
+          type: "buy", holding_kind: "security", manual_ticker: spec.security.ticker,
+          date: Date.current, qty: 1, price: 700, currency: "USD"
+        }
+      }
+    end
+
+    assert_equal spec.security, Entry.order(created_at: :desc).first.trade.security
+  end
+
   test "an invalid custom coin creates neither the coin nor the trade" do
     assert_no_difference [ "Entry.count", "BullionSpec.count", "Security.count" ] do
       post trades_url(account_id: @entry.account_id), params: {

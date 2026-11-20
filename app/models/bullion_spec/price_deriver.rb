@@ -92,11 +92,12 @@ class BullionSpec::PriceDeriver
     @security_ids = security_ids
   end
 
+  # Returns the number of prices written in this run.
   def derive_all
     specs = BullionSpec.all
     specs = specs.where(security_id: security_ids) unless security_ids.nil?
 
-    specs.group_by(&:metal).each do |metal, metal_specs|
+    specs.group_by(&:metal).sum do |metal, metal_specs|
       derive_metal(metal, metal_specs)
     end
   end
@@ -106,7 +107,7 @@ class BullionSpec::PriceDeriver
 
     def derive_metal(metal, specs)
       reference = self.class.reference_security(metal)
-      return if reference.nil?
+      return 0 if reference.nil?
 
       start_date = start_date_for(specs)
       if reference.provider_status == :provider_unavailable
@@ -138,12 +139,19 @@ class BullionSpec::PriceDeriver
         end
       end
       capture_missing_rates(metal, rates.missing) if rates.missing.any?
-      return if rows.empty?
+      return 0 if rows.empty?
 
-      Security::Price.upsert_all(rows, unique_by: %i[security_id date currency])
+      Security::Price.transaction do
+        Security::Price.upsert_all(rows, unique_by: %i[security_id date currency])
 
-      # A reference currency change must not leave a second, stale row per date.
-      Security::Price.where(security_id: specs.map(&:security_id)).where.not(currency: rows.map { |row| row[:currency] }.uniq).delete_all
+        # A reference currency change must not leave a second, stale row on a
+        # replaced date. Older dates keep their prices until they are replaced.
+        rows.group_by { |row| row[:currency] }.each do |currency, currency_rows|
+          Security::Price.where(security_id: specs.map(&:security_id), date: currency_rows.map { |row| row[:date] }.uniq)
+            .where.not(currency: currency).delete_all
+        end
+      end
+      rows.size
     rescue StandardError => e
       Rails.logger.error("Bullion price derivation failed for #{metal}: #{e.class}: #{e.message}")
       DebugLogEntry.capture(
@@ -153,6 +161,7 @@ class BullionSpec::PriceDeriver
         source: self.class.name,
         metadata: { metal: metal, reference_security_id: reference&.id, error: "#{e.class}: #{e.message}" }
       )
+      0
     end
 
     # Without this the sync succeeds silently and coins keep their last price.
@@ -186,13 +195,17 @@ class BullionSpec::PriceDeriver
 
     # Daily exchange rates for converting face values. A day without its own
     # rate takes the most recent one from up to five days before, as
-    # ExchangeRate.find_or_fetch_rate does. Rate history is only loaded for a
-    # coin whose face value could matter, so a Maple Leaf (50 CAD against
-    # thousands in gold) costs one cached rate, not a year of CAD rates.
+    # ExchangeRate.find_or_fetch_rate does. Within a month, rate history is
+    # only loaded for a coin whose face value could matter, so a daily run for
+    # a Maple Leaf (50 CAD against thousands in gold) costs one cached rate.
+    # Longer windows load the history once, since the latest rate does not
+    # bound older ones.
     class FaceValueRates
       LOOKBACK_DAYS = 5
-      # Exchange rates move, but not by half within the window.
+      # Exchange rates move, but not by half within a month. Longer windows
+      # check every day's rate instead of the latest one.
       SAFETY_FACTOR = 2
+      SHORT_WINDOW_DAYS = 31
 
       attr_reader :missing
 
@@ -203,14 +216,19 @@ class BullionSpec::PriceDeriver
         @missing = Hash.new { |hash, key| hash[key] = [] }
       end
 
-      # False when the face value stays far below the lowest metal value at
-      # the latest rate, so no day's floor can apply.
+      # False when the face value stays below the lowest metal value on every
+      # day, so no day's floor can apply.
       def floor_possible?(money, to:, lowest_metal_value:)
         from = money.currency.iso_code
         return true if from == to
 
-        rate = latest_rate(from, to)
-        rate.nil? || money.amount * rate * SAFETY_FACTOR >= lowest_metal_value
+        if short_window?
+          rate = latest_rate(from, to)
+          return rate.nil? || money.amount * rate * SAFETY_FACTOR >= lowest_metal_value
+        end
+
+        highest_rate = rates_for(from, to).map(&:last).max
+        highest_rate.nil? || money.amount * highest_rate >= lowest_metal_value
       end
 
       # The amount in `to` on `date`, or nil when no rate is known.
@@ -239,8 +257,16 @@ class BullionSpec::PriceDeriver
           nil
         end
 
+        def short_window?
+          (end_date - start_date).to_i <= SHORT_WINDOW_DAYS
+        end
+
+        def rates_for(from, to)
+          @rates[[ from, to ]] ||= load_rates(from, to)
+        end
+
         def rate_on(from, to, date)
-          dated = (@rates[[ from, to ]] ||= load_rates(from, to))
+          dated = rates_for(from, to)
           # The last rate on or before the date.
           position = (dated.bsearch_index { |(rate_date, _)| rate_date > date } || dated.size) - 1
           return nil if position.negative?
@@ -259,7 +285,8 @@ class BullionSpec::PriceDeriver
 
         def covered?(from, to)
           dates = stored(from, to).map(&:first)
-          dates.any? && dates.first <= start_date && dates.last >= end_date - LOOKBACK_DAYS
+          dates.any? && dates.first <= start_date && dates.last >= end_date - LOOKBACK_DAYS &&
+            dates.each_cons(2).all? { |earlier, later| (later - earlier).to_i <= LOOKBACK_DAYS }
         end
 
         # [date, rate] pairs, oldest first. A pair stored only the other way

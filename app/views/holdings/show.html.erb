@@ -194,7 +194,7 @@
         </div>
       </div>
     <% end %>
-    <% if @holding.cost_basis_locked? || (@holding.security_remapped? && @holding.account.linked?) || @holding.account.can_delete_holdings? || !@holding.security.offline? || @holding.security.provider_status == :provider_unavailable %>
+    <% if @holding.cost_basis_locked? || (@holding.security_remapped? && @holding.account.linked?) || @holding.account.can_delete_holdings? || !@holding.security.offline? || @holding.security.bullion_spec || @holding.security.provider_status == :provider_unavailable %>
       <% dialog.with_section(title: t(".settings"), open: true) do %>
         <div class="pb-4">
           <% if @holding.security.provider_status == :provider_unavailable %>

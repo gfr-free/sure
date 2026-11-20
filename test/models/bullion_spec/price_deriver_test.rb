@@ -131,8 +131,43 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
 
     BullionSpec::PriceDeriver.new.derive_all
 
-    assert_equal [ "EUR" ], @coin.prices.pluck(:currency).uniq
-    assert_equal 1, @coin.prices.where(date: 2.days.ago.to_date).count
+    assert_equal [ "EUR" ], @coin.prices.where(date: 2.days.ago.to_date).pluck(:currency)
+    # A date the new reference has no price for keeps its old price.
+    assert_equal [ "USD" ], @coin.prices.where(date: 1.day.ago.to_date).pluck(:currency)
+  end
+
+  test "returns the number of prices written in this run" do
+    assert_equal 2, BullionSpec::PriceDeriver.new(security_ids: [ @coin.id ]).derive_all
+
+    @reference.prices.destroy_all
+    assert_equal 0, BullionSpec::PriceDeriver.new(security_ids: [ @coin.id ]).derive_all
+  end
+
+  test "a long window applies the face value floor at a past day's higher rate" do
+    # 0.0031 g gold at 4000 USD is about 0.40 USD; the face value of 100 TRY
+    # is 20 USD at the old rate and only 0.10 USD at the latest one.
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "Lira", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 100, face_value_currency: "TRY").security
+    @reference.prices.create!(date: 400.days.ago.to_date, price: 4000, currency: "USD")
+    ExchangeRate.create!(from_currency: "TRY", to_currency: "USD", date: 400.days.ago.to_date, rate: 0.2)
+    ExchangeRate.create!(from_currency: "TRY", to_currency: "USD", date: 2.days.ago.to_date, rate: 0.001)
+    ExchangeRate.stubs(:import_provider_rates).returns(0)
+
+    BullionSpec::PriceDeriver.new(start_date: 400.days.ago.to_date).derive_all
+
+    assert_in_delta 20, coin.prices.find_by!(date: 400.days.ago.to_date).price, 0.0001
+  end
+
+  test "stored rates with a gap in the middle are not taken as complete" do
+    coin = BullionSpec.create_custom!(family: families(:dylan_family), name: "20 Euro", metal: "XAU",
+                                      fine_weight_grams: BigDecimal("0.0031"), face_value: 20, face_value_currency: "EUR").security
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 40.days.ago.to_date, rate: 1.1)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 1.day.ago.to_date, rate: 1.1)
+    ExchangeRate.expects(:import_provider_rates).with(has_entries(from: "EUR", to: "USD")).once.returns(0)
+
+    BullionSpec::PriceDeriver.new(start_date: 40.days.ago.to_date).derive_all
+
+    assert coin.prices.exists?
   end
 
   test "limits derivation to the given securities" do

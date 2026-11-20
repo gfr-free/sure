@@ -172,10 +172,12 @@ class HoldingsController < ApplicationController
   def remap_bullion
     return redirect_to(account_path(@holding.account, tab: "holdings")) unless @holding.security.bullion_spec
 
-    account = @holding.account
+    account = Account.find(@holding.account_id)
     new_security = nil
-    # A new custom coin is only kept when the position moves to it.
-    Holding.transaction do
+    # A new custom coin is only kept when the position moves to it. The account
+    # row lock serializes overlapping remaps of the same position.
+    account.with_lock do
+      @holding.reload
       new_security = bullion_choice_security
       @holding.remap_bullion!(new_security) if new_security
     end
@@ -241,11 +243,9 @@ class HoldingsController < ApplicationController
       ).security
     end
 
-    # The number of this piece's prices in the window after derivation; zero
-    # means the reference had none to derive from.
+    # The number of prices this refresh wrote; zero means it derived nothing.
     def derive_bullion_prices(security, start_date:)
       BullionSpec::PriceDeriver.new(start_date: start_date, security_ids: [ security.id ]).derive_all
-      security.prices.where(date: start_date..).count
     end
 
 

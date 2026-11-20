@@ -73,7 +73,7 @@ de:
       missing_data: Fehlende Daten
     show:
       bullion_price_source: "Abgeleitet aus %{metal} (%{source}) × %{ounces} oz Feingewicht"
-      bullion_face_value: "Nennwert %{value}: Die Münze wird nie darunter bewertet."
+      bullion_face_value: "Nennwert %{value}: Die Münze wird nicht darunter bewertet, sofern ein für die Umrechnung nötiger Wechselkurs vorliegt."
       pieces_label: Stück
       trade_history_entry_pieces: "%{qty} Stück %{security} zu %{price}"
       avg_cost_label: Durchschnittlicher Einstandspreis

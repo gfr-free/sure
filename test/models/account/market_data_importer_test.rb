@@ -220,6 +220,10 @@ class Account::MarketDataImporterTest < ActiveSupport::TestCase
     Security.stubs(:provider).returns(nil)
     @provider.stubs(:fetch_exchange_rate)
              .returns(provider_success_response(OpenStruct.new(from: "AUD", to: "USD", date: Date.current, rate: 0.66)))
+    # Over months the latest rate is no bound for the face value, so the
+    # window's rate history is loaded.
+    @provider.expects(:fetch_exchange_rates).with(has_entries(from: "AUD", to: "USD")).once
+             .returns(provider_success_response([]))
 
     Account::MarketDataImporter.new(account).import_security_prices
 

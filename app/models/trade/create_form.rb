@@ -60,6 +60,10 @@ class Trade::CreateForm
     def security
       parsed = ticker.present? ? Security.parse_combobox_id(ticker) : { ticker: manual_ticker }
       return nil if parsed[:ticker].blank?
+      # Custom coins belong to one family; only the bullion picker reaches them.
+      if parsed[:ticker].to_s.upcase.start_with?(BullionSpec::CUSTOM_TICKER_PREFIX)
+        return account.family.bullion_specs.custom.joins(:security).find_by(securities: { ticker: parsed[:ticker].to_s.upcase })&.security
+      end
 
       Security::Resolver.new(
         parsed[:ticker],

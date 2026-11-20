@@ -438,6 +438,39 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("holdings.sync_prices.provider_error"), flash[:alert]
   end
 
+  test "sync_prices reports an error when the refresh derives nothing for a coin with older prices" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+    coin.prices.create!(date: 2.days.ago.to_date, price: 4000, currency: "USD")
+
+    post sync_prices_holding_path(holding)
+
+    assert_equal I18n.t("holdings.sync_prices.provider_error"), flash[:alert]
+  end
+
+  test "sync_prices keeps a coin's face value in the refreshed market data" do
+    coin = BullionCatalog.security_for(:philharmonic, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    reference = Security.create!(ticker: "GC=F", exchange_operating_mic: "CMX", offline: true)
+    reference.prices.create!(date: 2.days.ago.to_date, price: 4100, currency: "USD")
+
+    post sync_prices_holding_path(holding), as: :turbo_stream
+
+    assert_includes response.body, I18n.t("holdings.show.bullion_face_value", value: Money.new(100, "EUR").format)
+  end
+
+  test "a coin holding in a linked account shows its market data" do
+    coin = BullionCatalog.security_for(:krugerrand, "1oz")
+    holding = @account.holdings.create!(security: coin, date: Date.current, qty: 1, price: 4000, amount: 4000, currency: "USD")
+    Account.any_instance.stubs(:can_delete_holdings?).returns(false)
+    Holding.any_instance.stubs(:cost_basis_locked?).returns(false)
+
+    get holding_path(holding)
+
+    assert_select "##{dom_id(holding, :market_data_section)}"
+  end
+
   test "sync_prices redirects with alert for offline security" do
     @holding.security.update!(offline: true)
 

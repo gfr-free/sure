@@ -392,7 +392,9 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
 
     users(:sure_support_staff).family.update!(timezone: "America/New_York")
 
-    freeze_time do
+    # Midday in the viewer's zone, so the expiry stays on the same day and is
+    # shown without a date.
+    travel_to Time.find_zone!("America/New_York").local(2026, 6, 15, 12) do
       # Another admin's request wrote the cached results in a different zone.
       stub_all_probes(probe_result(:passing).with(checked_at: Time.current.in_time_zone("Asia/Tokyo")))
 

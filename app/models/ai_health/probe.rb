@@ -14,7 +14,7 @@ class AiHealth
   # settings, headers, proxy and error mapping as production calls, and can't
   # drift from them. The probe builds no client of its own.
   class Probe
-    CACHE_NAMESPACE = "ai_health/probes/v2"
+    CACHE_NAMESPACE = "ai_health/probes/v3"
     DEFAULT_CACHE_TTL = 60.seconds
     DEFAULT_TIMEOUT = 5
     # 4xx statuses that mean "not now" or "not you" rather than "not this
@@ -23,7 +23,14 @@ class AiHealth
     TRANSIENT_HTTP_STATUSES = [ 401, 402, 403, 408, 429 ].freeze
     PDF_MAX_RESPONSE_TOKENS = 512
 
-    Result = Data.define(:status, :checked_at, :failure_code, :http_status) do
+    # expires_at is when the cache entry holding this result lapses, fixed when
+    # it is written: a later TTL change does not shorten or extend entries
+    # already in the cache.
+    Result = Data.define(:status, :checked_at, :failure_code, :http_status, :expires_at) do
+      def initialize(status:, checked_at:, failure_code:, http_status:, expires_at: nil)
+        super
+      end
+
       def passing?
         status == :passing
       end
@@ -243,13 +250,16 @@ class AiHealth
 
       def perform(component:, provider_key:, endpoint:, model:)
         yield
-        Result.new(status: :passing, checked_at: Time.current, failure_code: nil, http_status: nil)
+        checked_at = Time.current
+        Result.new(status: :passing, checked_at:, failure_code: nil, http_status: nil, expires_at: checked_at + cache_ttl)
       rescue StandardError => error
+        checked_at = Time.current
         result = Result.new(
           status: :failing,
-          checked_at: Time.current,
+          checked_at:,
           failure_code: failure_code(error),
-          http_status: http_status(error)
+          http_status: http_status(error),
+          expires_at: checked_at + cache_ttl
         )
         record_failure(component:, provider_key:, endpoint:, model:, error:, result:)
         result

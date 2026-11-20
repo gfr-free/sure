@@ -187,6 +187,36 @@ class AiHealthTest < ActiveSupport::TestCase
     end
   end
 
+  test "cache expiry follows the TTL each result was cached with" do
+    freeze_time do
+      written = Time.current - 60.seconds
+      cached_under_old_ttl = result(:passing).with(checked_at: written, expires_at: written + 300.seconds)
+      AiHealth::Probe.any_instance.stubs(:llm).returns(cached_under_old_ttl)
+      AiHealth::Probe.any_instance.stubs(:function_calling).returns(cached_under_old_ttl)
+      AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(cached_under_old_ttl)
+      AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(cached_under_old_ttl)
+      AiHealth::Probe.any_instance.stubs(:openai_vector_store).returns(cached_under_old_ttl)
+
+      health = ClimateControl.modify(
+        AI_ENVIRONMENT.merge("OPENAI_ACCESS_TOKEN" => "test-token", "AI_HEALTH_PROBE_CACHE_TTL" => "30")
+      ) { AiHealth.new }
+
+      assert_equal written + 300.seconds, health.cache_expires_at
+    end
+  end
+
+  test "a fresh probe result carries the expiry of its cache entry" do
+    freeze_time do
+      probe = AiHealth::Probe.new(force: true, cache: ActiveSupport::Cache::MemoryStore.new)
+      result = ClimateControl.modify("AI_HEALTH_PROBE_CACHE_TTL" => "120") do
+        probe.send(:run, component: "llm", provider_key: :openai) { true }
+      end
+
+      assert result.passing?
+      assert_equal Time.current + 120.seconds, result.expires_at
+    end
+  end
+
   test "cache expiry is unknown until a live check has run" do
     health = ClimateControl.modify(AI_ENVIRONMENT) { AiHealth.new(run_probes: false) }
 

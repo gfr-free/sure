@@ -131,22 +131,29 @@ class AiHealth
     probe_checked_at.max
   end
 
-  # Each result expires one cache TTL after its own check, so the oldest one
-  # decides when the next page load runs a live check again. Nil once that
-  # moment has passed, e.g. when slow probes outlast the TTL. A cached result
-  # keeps the zone of the request that wrote it, so convert to the viewer's.
+  # The earliest-expiring cached result decides when the next page load runs
+  # a live check again. Each result carries the expiry it was cached with, so
+  # a TTL changed since then does not misreport entries still in the cache;
+  # results without one expire one current TTL after their check. Nil once
+  # that moment has passed, e.g. when slow probes outlast the TTL. A cached
+  # result keeps the zone of the request that wrote it, so convert to the
+  # viewer's.
   def cache_expires_at
-    oldest = probe_checked_at.min
-    return unless oldest
+    expires_at = checked_probe_results.map { |result| result.expires_at || result.checked_at + probe_cache_ttl }.min
+    return unless expires_at
 
-    expires_at = (oldest + probe_cache_ttl).in_time_zone
+    expires_at = expires_at.in_time_zone
     expires_at if expires_at.future?
   end
 
   private
-    def probe_checked_at
+    def checked_probe_results
       [ llm_probe, function_calling_probe, pdf_text_extraction_probe, pdf_vision_processing_probe, vector_store_probe,
-        embedding_probe ].filter_map(&:checked_at)
+        embedding_probe ].select(&:checked_at)
+    end
+
+    def probe_checked_at
+      checked_probe_results.map(&:checked_at)
     end
 
     def load_llm_status

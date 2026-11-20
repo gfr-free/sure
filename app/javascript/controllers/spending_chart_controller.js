@@ -10,7 +10,7 @@ import SettledResize from "utils/settled_resize";
 // (install/teardown, ResizeObserver, turbo:load reinstall, page-relative
 // tooltip positioning).
 const CURRENT_COLOR = "var(--color-success)";
-const PREVIOUS_COLOR = "var(--color-gray-400)";
+const PREVIOUS_COLOR = "var(--utility-bg-subdued)";
 
 // The axis column on the right is part of the margin.
 const MARGIN = { top: 8, right: 48, bottom: 20, left: 4 };
@@ -162,7 +162,7 @@ export default class extends Controller {
       .attr("x2", innerWidth)
       .attr("y1", (d) => y(d))
       .attr("y2", (d) => y(d))
-      .attr("stroke", "var(--color-gray-300)")
+      .attr("stroke", "var(--utility-border-primary)")
       .attr("stroke-dasharray", "4, 4")
       .attr("stroke-opacity", 0.6);
 

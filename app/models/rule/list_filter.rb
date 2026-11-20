@@ -1,12 +1,12 @@
 # What the rules page needs to search and filter its list in the browser: a
-# search text per rule and the values of each filter. Option lists are read
-# once per condition or action type, not once per rule, so the page stays at
-# a fixed number of queries however many rules there are.
+# search text per rule and the values of each filter. Condition option lists
+# are read once per type; action option lists are shared across the rules
+# (see Rule.share_option_lists), so the page stays at a fixed number of
+# queries however many rules there are.
 class Rule::ListFilter
   def initialize(rules)
     @rules = rules.to_a
     @condition_options = {}
-    @action_options = {}
   end
 
   # The rule's name with the labels and values of its conditions and actions,
@@ -91,7 +91,7 @@ class Rule::ListFilter
 
       # A free-text action (e.g. set the name) has no options: its value is
       # the text itself.
-      options = action_options_for(action)
+      options = action.options
       return action.value if options.nil?
       return if options.empty?
 
@@ -103,12 +103,6 @@ class Rule::ListFilter
     def condition_options_for(condition)
       @condition_options.fetch(condition.condition_type) do
         @condition_options[condition.condition_type] = condition.options
-      end
-    end
-
-    def action_options_for(action)
-      @action_options.fetch(action.action_type) do
-        @action_options[action.action_type] = action.options
       end
     end
 end

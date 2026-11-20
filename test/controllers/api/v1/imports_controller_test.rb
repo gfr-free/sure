@@ -1491,6 +1491,29 @@ class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "member cannot list or read an import into an account not shared with them" do
+    member = users(:family_member)
+    key = ApiKey.create!(user: member, name: "Member Read Key", scopes: [ "read" ],
+      display_key: "test_member_#{SecureRandom.hex(8)}", source: "web")
+    hidden = @family.imports.create!(
+      type: "TransactionImport", account: accounts(:investment),
+      raw_file_str: "date,amount,name\n2024-01-01,10,Hidden row\n",
+      date_col_label: "date", amount_col_label: "amount", name_col_label: "name", date_format: "%Y-%m-%d"
+    )
+    hidden.generate_rows_from_csv
+
+    get api_v1_imports_url, headers: { "X-Api-Key" => key.display_key }
+    assert_response :success
+    assert_not_includes response.parsed_body["data"].map { |import| import["id"] }, hidden.id
+
+    get api_v1_import_url(hidden), headers: { "X-Api-Key" => key.display_key }
+    assert_response :not_found
+
+    get rows_api_v1_import_url(hidden), headers: { "X-Api-Key" => key.display_key }
+    assert_response :not_found
+    assert_not_includes response.body, "Hidden row"
+  end
+
   private
 
     def build_ndjson(records)

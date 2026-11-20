@@ -22,4 +22,14 @@ class Import::CleansControllerTest < ActionDispatch::IntegrationTest
     get import_clean_path(import)
     assert_redirected_to import_configuration_path(import)
   end
+
+  test "hides an import into an account not shared with the member" do
+    sign_in users(:family_member)
+    import = imports(:transaction)
+    import.update!(account: accounts(:investment))
+    TransactionImport.any_instance.stubs(:configured?).returns(true)
+
+    get import_clean_path(import)
+    assert_response :not_found
+  end
 end

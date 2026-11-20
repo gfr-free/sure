@@ -79,4 +79,16 @@ class Import::MappingsControllerTest < ActionDispatch::IntegrationTest
     assert mapping.create_when_empty, "the create-new sentinel must still set create_when_empty"
     assert_nil mapping.mappable
   end
+
+  test "member cannot map rows to an account they cannot write to" do
+    sign_in users(:family_member)
+    mapping = @import.mappings.create!(type: "Import::AccountMapping", key: "Brokerage")
+
+    patch import_mapping_path(@import, mapping), params: {
+      import_mapping: { mappable_id: accounts(:investment).id, key: "Brokerage" }
+    }
+
+    assert_response :unprocessable_entity
+    assert_nil mapping.reload.mappable
+  end
 end

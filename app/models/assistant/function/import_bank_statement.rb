@@ -55,7 +55,7 @@ class Assistant::Function::ImportBankStatement < Assistant::Function
   end
 
   def call(params = {})
-    pdf_import = family.imports.find_by(id: params["pdf_import_id"], type: "PdfImport")
+    pdf_import = family.imports.visible_to(user).find_by(id: params["pdf_import_id"], type: "PdfImport")
 
     unless pdf_import
       return {

@@ -3,7 +3,7 @@
 # (the same threshold SyncCleanerJob uses to reap them).
 class WeeklyCleanup::Detectors::StaleImports < WeeklyCleanup::Detector
   def generate
-    imports = family.imports.where(account_id: [ nil, *accounts.select(:id) ])
+    imports = user ? family.imports.visible_to(user) : family.imports
     failed = imports.where(status: "failed").where("imports.updated_at >= ?", window_start)
     stuck = imports.where(status: %w[importing reverting]).where("imports.updated_at < ?", Import::STUCK_AFTER.ago)
     scope = failed.or(stuck)

@@ -85,7 +85,7 @@ RSpec.describe 'API V1 Imports', type: :request do
 
   path '/api/v1/imports' do
     get 'List imports' do
-      description 'List all imports for the user\'s family with pagination and filtering.'
+      description 'List the imports of the user\'s family with pagination and filtering. Imports that touch an account not shared with the user are left out.'
       tags 'Imports'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'
@@ -332,7 +332,7 @@ RSpec.describe 'API V1 Imports', type: :request do
         run_test!
       end
 
-      response '404', 'import not found' do
+      response '404', 'import not found or touches an account not shared with the user' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:id) { SecureRandom.uuid }
@@ -379,7 +379,7 @@ RSpec.describe 'API V1 Imports', type: :request do
         run_test!
       end
 
-      response '404', 'import not found' do
+      response '404', 'import not found or touches an account not shared with the user' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
 
         let(:id) { SecureRandom.uuid }

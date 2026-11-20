@@ -94,6 +94,19 @@ class Rule::AccountValueTest < ActiveSupport::TestCase
     assert_not_includes condition.options.map(&:first), label
   end
 
+  test "switching a stored value to an account choice adds no placeholder for an account the viewer can't choose" do
+    action = stored(@rule.actions, action_type: "set_transaction_name", value: @hidden.id)
+    condition = stored(@rule.conditions, condition_type: "transaction_name", operator: "=", value: @hidden.id)
+
+    action.action_type = "set_as_transfer_or_payment"
+    condition.condition_type = "transaction_account"
+
+    assert_not action.valid?
+    assert_not_includes action.options.map(&:first), label
+    assert_not condition.valid?
+    assert_not_includes condition.options.map(&:first), label
+  end
+
   test "a missing account gets the same error as a hidden one" do
     action = @rule.actions.build(action_type: "set_as_transfer_or_payment", value: SecureRandom.uuid)
 

@@ -101,7 +101,7 @@ class Rule::Condition < ApplicationRecord
     filter_options = rule.option_list([ :condition, condition_type ]) { filter.options }
     return filter_options if filter_options.nil? || value.blank?
     return filter_options if filter_options.any? { |_label, id| id.to_s == value.to_s }
-    return filter_options if will_save_change_to_value? && !filter.selectable_value?(value)
+    return filter_options if (will_save_change_to_value? || will_save_change_to_condition_type?) && !filter.selectable_value?(value)
 
     saved_option = rule.option_list([ :saved_condition_option, condition_type, value.to_s ]) { filter.option_for(value) }
     saved_option ? filter_options + [ saved_option ] : filter_options

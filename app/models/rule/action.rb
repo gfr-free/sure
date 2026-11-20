@@ -107,7 +107,7 @@ class Rule::Action < ApplicationRecord
     executor_options = rule.option_list([ :action, action_type ]) { executor.options }
     return executor_options if executor_options.nil? || value.blank?
     return executor_options if executor_options.any? { |_label, id| id.to_s == value.to_s }
-    return executor_options if will_save_change_to_value? && !executor.selectable_value?(value)
+    return executor_options if (will_save_change_to_value? || will_save_change_to_action_type?) && !executor.selectable_value?(value)
 
     # Shared across the rules of a page (see Rule.share_option_lists), so a
     # saved value outside the options is looked up once per request.

@@ -26,6 +26,7 @@ class DS::ExpandToggleTest < ViewComponent::TestCase
 
   test "renders the balance-sheet marker without a shrink class" do
     render_inline(DS::ExpandToggle.new(
+      variant: :ghost,
       expand_label: "Expand all",
       collapse_label: "Collapse all",
       data: { balance_sheet_expand_all: true }
@@ -47,5 +48,33 @@ class DS::ExpandToggleTest < ViewComponent::TestCase
     ))
 
     assert_selector "button.shrink-0.border.border-primary.bg-container.text-primary"
+  end
+
+  test "ghost variant renders the borderless header icon without the outline style" do
+    render_inline(DS::ExpandToggle.new(
+      variant: :ghost,
+      expand_label: "Expand all",
+      collapse_label: "Collapse all",
+      data: { balance_sheet_expand_all: true },
+      class_name: "opacity-0"
+    ))
+
+    assert_selector "button.w-6.h-6.text-secondary.opacity-0[data-balance-sheet-expand-all][aria-expanded='false']"
+    assert_no_selector "button.border"
+    assert_no_selector "button.bg-container"
+    assert_selector "button [data-icon='expand'] svg[class*='!w-3.5']"
+    assert_selector "button [data-icon='collapse'] svg[class*='!w-3.5']", visible: :all
+  end
+
+  test "falls back to the outline variant when none is given" do
+    render_inline(DS::ExpandToggle.new(variant: nil, expand_label: "a", collapse_label: "b", data: { x: true }))
+
+    assert_selector "button.border.border-primary"
+  end
+
+  test "rejects an unknown variant" do
+    assert_raises(ArgumentError) do
+      DS::ExpandToggle.new(variant: :bogus, expand_label: "a", collapse_label: "b", data: { x: true })
+    end
   end
 end

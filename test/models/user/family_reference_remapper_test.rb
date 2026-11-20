@@ -122,6 +122,17 @@ class User::FamilyReferenceRemapperTest < ActiveSupport::TestCase
     assert_equal Category.column_defaults["color"], category.color
   end
 
+  test "transfer_to_family! copies a tag whose stored color no longer validates" do
+    tags(:one).update_column(:color, "blue")
+    entry = create_transaction(account: @account, tags: [ tags(:one) ])
+
+    @user.transfer_to_family!(@new_family, role: "admin")
+
+    tag = entry.reload.entryable.tags.sole
+    assert_equal @new_family, tag.family
+    assert_equal Tag.column_defaults["color"], tag.color
+  end
+
   test "transfer_to_family! leaves entries of accounts that stay behind untouched" do
     staying = create_transaction(account: accounts(:depository), category: categories(:food_and_drink),
                                  merchant: merchants(:netflix), tags: [ tags(:one) ])

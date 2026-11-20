@@ -81,7 +81,7 @@ class User::FamilyReferenceRemapper
 
       foreign_tags.each do |tag|
         target = find_or_create_by_name(new_family.tags, tag.name) do
-          new_family.tags.create!(name: tag.name, color: valid_color(tag.color))
+          new_family.tags.create!(name: tag.name, color: valid_color(tag.color) || Tag.column_defaults["color"])
         end
 
         # A transaction that already carries the target tag keeps just one tagging.

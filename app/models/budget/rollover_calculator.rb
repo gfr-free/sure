@@ -42,16 +42,21 @@ class Budget::RolloverCalculator
     end
   end
 
+  # Takes the chain lock for the surrounding transaction. A caller that locks
+  # budget_categories rows and then recomputes must take this first: the
+  # recompute holds this lock while it waits for those rows, so the reverse
+  # order deadlocks. The lock is reentrant, so the later recompute! still
+  # gets it.
+  def lock_chain!
+    BudgetCategory.connection.execute(
+      BudgetCategory.sanitize_sql_array(
+        [ "SELECT pg_advisory_xact_lock(?, hashtext(?))", LOCK_NAMESPACE, chain_key ]
+      )
+    )
+  end
+
   private
     attr_reader :family, :user
-
-    def lock_chain!
-      BudgetCategory.connection.execute(
-        BudgetCategory.sanitize_sql_array(
-          [ "SELECT pg_advisory_xact_lock(?, hashtext(?))", LOCK_NAMESPACE, chain_key ]
-        )
-      )
-    end
 
     def chain_key
       "budget_rollover:#{family.id}:#{user&.id}"

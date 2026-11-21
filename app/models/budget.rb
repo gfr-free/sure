@@ -303,15 +303,20 @@ class Budget < ApplicationRecord
     raise ArgumentError, "source budget must belong to the same user" unless source_budget.user_id == user_id
     raise ArgumentError, "source budget must precede target budget" unless source_budget.start_date < start_date
 
+    rollover = Budget::RolloverCalculator.new(family: family, user: user)
+
     Budget.transaction do
+      rollover.lock_chain!
+
       update!(
         budgeted_spending: source_budget.budgeted_spending,
         expected_income: source_budget.expected_income
       )
 
-      # Locked so a concurrent recompute can't store a carried overspend
-      # between this read and the update below: the carry toggle is written
-      # against the stored amount, which the check constraint compares.
+      # Read under the chain lock, so no recompute can store a carried
+      # overspend between this read and the update below: the carry toggle is
+      # written against the stored amount, which the check constraint
+      # compares. The row lock keeps a concurrent toggle change out too.
       target_by_category = budget_categories.lock.index_by(&:category_id)
 
       source_budget.budget_categories.each do |source_bc|
@@ -330,7 +335,7 @@ class Budget < ApplicationRecord
       # Copying the toggle changes what the chain should hold, and this runs
       # after find_or_bootstrap already recomputed it. Recompute again so the
       # target doesn't sit on a zero carry until the next page load.
-      Budget::RolloverCalculator.new(family: family, user: user).recompute!
+      rollover.recompute!
     end
   end
 

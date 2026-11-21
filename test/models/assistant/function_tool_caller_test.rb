@@ -121,6 +121,24 @@ class Assistant::FunctionToolCallerTest < ActiveSupport::TestCase
     assert_equal({}, results[2])
   end
 
+  test "a switch turned off in another process is seen despite the query cache" do
+    user = users(:family_admin)
+    budget_tool = Assistant::Function::GetBudget.new(user)
+    # A tool body that writes would clear the query cache and hide the problem.
+    budget_tool.stubs(:call).returns({ "ok" => true })
+    tool_caller = Assistant::FunctionToolCaller.new([ budget_tool ], user: user)
+    request = FunctionRequest.new(id: "1", call_id: "1", function_name: budget_tool.name, function_args: "{}")
+
+    ActiveRecord::Base.cache do
+      assert_equal({ "ok" => true }, tool_caller.fulfill_requests([ request ]).first.function_result)
+
+      # A raw write stands in for another process: it bypasses this connection's query cache.
+      ActiveRecord::Base.connection.raw_connection.exec_params("UPDATE families SET budgets_enabled = false WHERE id = $1", [ user.family_id ])
+
+      assert_equal "Unknown tool: #{budget_tool.name}", tool_caller.fulfill_requests([ request ]).first.function_result["error"]
+    end
+  end
+
   test "unexpected failures return a do-not-retry error result" do
     caller = Assistant::FunctionToolCaller.new([ ExplodingFunction.new(nil) ])
     request = FunctionRequest.new(

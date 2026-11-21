@@ -88,7 +88,11 @@ class Assistant::FunctionToolCaller
       plan_tool = Assistant::PLAN_FUNCTION_CLASSES.include?(fn.class)
       return false unless budget_tool || plan_tool
 
-      budgets_enabled, plan_enabled = Family.where(id: @user.family_id).pick(:budgets_enabled, :plan_enabled)
+      # Uncached: the response job's query cache may still hold the switches
+      # from before an admin changed them in another process.
+      budgets_enabled, plan_enabled = Family.uncached do
+        Family.where(id: @user.family_id).pick(:budgets_enabled, :plan_enabled)
+      end
       (budget_tool && budgets_enabled == false) || (plan_tool && plan_enabled == false)
     end
 end

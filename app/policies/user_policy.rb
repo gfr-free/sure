@@ -6,6 +6,10 @@ class UserPolicy < ApplicationPolicy
     user&.super_admin?
   end
 
+  def show?
+    user&.super_admin?
+  end
+
   def update?
     user&.super_admin?
   end

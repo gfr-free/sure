@@ -69,6 +69,10 @@ class Assistant::Function::UpdateBill < Assistant::Function
     series, error = find_writable_series(params["bill_id"])
     return error if error
 
+    if (error = auto_post_destination_error(series))
+      return error
+    end
+
     changed = []
 
     # Each step returns an error hash or nil; the first error aborts the call

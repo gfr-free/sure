@@ -130,6 +130,18 @@ class Assistant::Function::UpdateBillTest < ActiveSupport::TestCase
     assert_equal "Shared Sub", series.reload.name
   end
 
+  test "an auto-posting transfer into a read-only account cannot be updated" do
+    series = create_series(name: "Card payoff", amount: 50, bill_type: "transfer",
+                           destination_account: accounts(:credit_card))
+    series.update_columns(auto_post: true)
+    member = users(:family_member)
+
+    result = Assistant::Function::UpdateBill.new(member).call("bill_id" => series.id.to_s, "amount" => 5000)
+
+    assert_match(/read-only/, result[:error])
+    assert_equal 50, series.reload.amount.to_f
+  end
+
   test "the reassignment target must be writable" do
     series = create_series(name: "Wandering", amount: 9, account: nil)
     member = users(:family_member)

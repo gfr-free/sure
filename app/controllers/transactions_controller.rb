@@ -1,5 +1,6 @@
 class TransactionsController < ApplicationController
   include EntryableResource
+  include AutoPostedMarkers
   include FilterClearable
 
   before_action :set_entry_for_unlock, only: :unlock
@@ -74,6 +75,8 @@ class TransactionsController < ApplicationController
 
     # Preload which entries on this page are split parents (have children) to avoid N+1
     @split_parent_entry_ids = Entry.split_parent_ids_among(entry_ids)
+
+    load_auto_posted_markers(entry_ids)
 
     # Counts what the categorize wizard can act on, so read-only shares don't
     # keep the "Categorize" menu item visible.
@@ -209,6 +212,8 @@ class TransactionsController < ApplicationController
           # The row draws the "Transfer?" hint, and its cache key records
           # whether it applies, so the hint is worked out as the list does.
           @transfer_hint_transaction_ids = Current.family.transaction_ids_with_transfer_candidates([ @entry.transaction ], user: Current.user)
+          # Same for a provisional post's badge and review buttons.
+          load_auto_posted_markers([ @entry.id ])
           render turbo_stream: [
             turbo_stream.replace(
               dom_id(@entry, :header),

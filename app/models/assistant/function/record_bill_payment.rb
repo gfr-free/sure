@@ -49,6 +49,10 @@ class Assistant::Function::RecordBillPayment < Assistant::Function
     series, error = find_writable_series(params["bill_id"])
     return error if error
 
+    if (error = auto_post_destination_error(series))
+      return error
+    end
+
     # Settling means the amount was not provided at all. A present-but-blank
     # amount is malformed input, not a request to settle: it falls through to
     # parse_amount and is rejected there.

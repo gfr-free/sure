@@ -1,6 +1,11 @@
 ---
 en:
   entries:
+    family_currency_total:
+      converted: "≈ %{amount}"
+      converted_tooltip: Converted to %{currency} at the latest exchange rate on or before each day
+      missing_rate: No %{currency} rate
+      missing_rate_tooltip: An exchange rate to %{currency} is missing for this day, so no converted total is shown. Rates are loaded during account sync.
     create:
       success: Entry created
     destroy:

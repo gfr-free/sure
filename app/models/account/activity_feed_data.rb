@@ -2,7 +2,7 @@
 # This data object is useful for avoiding N+1 queries and having an easy way to pass around the required data to the
 # activity feed component in controllers and background jobs that refresh it.
 class Account::ActivityFeedData
-  ActivityDateData = Data.define(:date, :entries, :balance, :projected_balance_money, :transfers, :split_parents)
+  ActivityDateData = Data.define(:date, :entries, :balance, :projected_balance_money, :transfers, :split_parents, :rates)
 
   attr_reader :account, :entries, :split_parents
 
@@ -26,7 +26,8 @@ class Account::ActivityFeedData
           # with nothing to show.
           projected_balance_money: balance ? nil : projected_balance_money_for(date),
           transfers: transfers_for_date(date),
-          split_parents: split_parents
+          split_parents: split_parents,
+          rates: family_currency_rates
         )
       end
     end
@@ -45,6 +46,19 @@ class Account::ActivityFeedData
 
     def transfers_for_date(date)
       transfers_by_date[date] || []
+    end
+
+    # Rates to show each day's balance in the family currency as well, loaded
+    # once for every date on the page. Nil when the account already uses it.
+    def family_currency_rates
+      return @family_currency_rates if defined?(@family_currency_rates)
+
+      family_currency = account.family.primary_currency_code
+      @family_currency_rates = if account.currency == family_currency
+        nil
+      else
+        ExchangeRate::Lookup.new(currencies: [ account.currency ], dates: grouped_entries.keys, to: family_currency)
+      end
     end
 
     def grouped_entries

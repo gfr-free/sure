@@ -18,9 +18,9 @@ class RecurringTransactionsController < ApplicationController
   before_action :ensure_recurring_enabled, only: %i[new create edit update confirm dismiss toggle_auto_post]
   before_action :set_recurring_transaction, only: %i[edit update toggle_status toggle_auto_post destroy confirm dismiss]
   before_action :ensure_series_writable, only: %i[update toggle_status toggle_auto_post destroy confirm dismiss]
-  # Pausing, ending, deleting or switching auto-posting off write nothing into
-  # the destination, so only edits that shape the next post need it.
-  before_action :ensure_auto_post_destination_writable_for_edit, only: %i[update toggle_status]
+  # An auto-posting transfer decides what its destination gets, so editing,
+  # pausing, resuming, switching it off or deleting it needs write access there.
+  before_action :ensure_auto_post_destination_writable_for_edit, only: %i[update toggle_status toggle_auto_post destroy]
 
   helper_method :series_writable?, :separate_bill_chosen?
 
@@ -404,26 +404,10 @@ class RecurringTransactionsController < ApplicationController
       series.account_id.nil? || Account.writable_by(Current.user).where(id: series.account_id).exists?
     end
 
-    # An auto-posting transfer books its next entries into the destination, so
-    # changing its amount, schedule or status needs write access there as well.
+    # Checked against the stored series, before any submitted change: stopping
+    # an auto-posting transfer also decides what its destination gets.
     def ensure_auto_post_destination_writable_for_edit
-      return if stops_auto_posting?
-
       raise ActiveRecord::RecordNotFound unless @recurring_transaction.auto_post_destination_writable_by?(Current.user)
-    end
-
-    # Pausing, or an edit that switches auto-posting off, writes nothing into
-    # the destination.
-    def stops_auto_posting?
-      case action_name
-      when "toggle_status"
-        @recurring_transaction.active?
-      when "update"
-        submitted = params.dig(:recurring_transaction, :auto_post)
-        !submitted.nil? && !ActiveModel::Type::Boolean.new.cast(submitted)
-      else
-        false
-      end
     end
 
     # name, amount and account are handled by apply_editable_identity rather

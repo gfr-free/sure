@@ -69,13 +69,8 @@ class Assistant::Function::UpdateBill < Assistant::Function
     series, error = find_writable_series(params["bill_id"])
     return error if error
 
-    # An auto-posting transfer books into its destination, so changing it
-    # needs write access there too, as on the bill pages.
-    unless series.auto_post_destination_writable_by?(user)
-      return {
-        error: "#{series.display_name} posts into an account shared with you read-only",
-        hint: "You can read this bill but not change it. Do not retry."
-      }
+    if (error = auto_post_destination_error(series))
+      return error
     end
 
     changed = []

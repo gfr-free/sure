@@ -332,27 +332,35 @@ class RecurringAutoPostControllerTest < ActionDispatch::IntegrationTest
     post mark_paid_recurring_occurrence_url(occurrence)
     assert_response :not_found
     assert occurrence.reload.scheduled?
-
-    # Stopping it writes nothing into the destination.
-    post toggle_auto_post_recurring_transaction_url(@series)
-    assert_not @series.reload.auto_post?
   end
 
-  test "a read-only destination still lets the user pause an auto-posting transfer or switch it off in the form" do
+  test "a read-only destination blocks pausing, switching off or deleting an auto-posting transfer" do
     @series.update_columns(destination_account_id: accounts(:credit_card).id, bill_type: "transfer", auto_post: true)
     Account.stubs(:writable_by).returns(Account.where(id: accounts(:depository).id))
 
     patch recurring_transaction_url(@series), params: { recurring_transaction: { auto_post: "0" } }
-    assert_not @series.reload.auto_post?
-
-    @series.update_columns(auto_post: true)
-    post toggle_status_recurring_transaction_url(@series)
-    assert @series.reload.inactive?
-
-    # Resuming shapes the next post, so it still needs the destination.
+    assert_response :not_found
+    post toggle_auto_post_recurring_transaction_url(@series)
+    assert_response :not_found
     post toggle_status_recurring_transaction_url(@series)
     assert_response :not_found
+    delete recurring_transaction_url(@series)
+    assert_response :not_found
+
+    @series.reload
+    assert @series.auto_post?
+    assert @series.active?
+  end
+
+  test "a read-only destination does not block pausing or deleting a transfer that does not auto-post" do
+    @series.update_columns(destination_account_id: accounts(:credit_card).id, bill_type: "transfer", auto_post: false)
+    Account.stubs(:writable_by).returns(Account.where(id: accounts(:depository).id))
+
+    post toggle_status_recurring_transaction_url(@series)
     assert @series.reload.inactive?
+
+    delete recurring_transaction_url(@series)
+    assert_not RecurringTransaction.where(id: @series.id, status: %w[active inactive]).exists?
   end
 
   test "the bills review queue leaves out a provisional post on an entry the user cannot read" do

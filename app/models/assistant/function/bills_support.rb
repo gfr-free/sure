@@ -65,6 +65,17 @@ module Assistant::Function::BillsSupport
       [ series, nil ]
     end
 
+    # An auto-posting transfer books into its destination, so changing it or
+    # settling one of its dates needs write access there too, as on the pages.
+    def auto_post_destination_error(series)
+      return if series.auto_post_destination_writable_by?(user)
+
+      {
+        error: "#{series.display_name} posts into an account shared with you read-only",
+        hint: "You can read this bill but not change it. Do not retry."
+      }
+    end
+
     def display_status(series)
       case series.status
       when "inactive", "paused" then "paused"

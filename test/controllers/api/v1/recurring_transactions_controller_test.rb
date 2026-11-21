@@ -134,6 +134,17 @@ class Api::V1::RecurringTransactionsControllerTest < ActionDispatch::Integration
     assert_equal "record_not_found", JSON.parse(response.body)["error"]
     assert_equal 15, @recurring_transaction.reload.expected_day_of_month
 
+    # Pausing or deleting it also decides what the destination gets.
+    patch api_v1_recurring_transaction_url(@recurring_transaction),
+          params: { recurring_transaction: { status: "inactive" } },
+          headers: api_headers(member_api_key)
+    assert_response :not_found
+    assert @recurring_transaction.reload.active?
+    assert_no_difference("@family.recurring_transactions.count") do
+      delete api_v1_recurring_transaction_url(@recurring_transaction), headers: api_headers(member_api_key)
+    end
+    assert_response :not_found
+
     # Without auto-posting nothing is booked there, so the own account suffices.
     @recurring_transaction.update_columns(auto_post: false)
     patch api_v1_recurring_transaction_url(@recurring_transaction),

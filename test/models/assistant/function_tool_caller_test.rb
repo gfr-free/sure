@@ -102,6 +102,43 @@ class Assistant::FunctionToolCallerTest < ActiveSupport::TestCase
     assert_includes result.function_result["hint"], "YYYY-MM-DD"
   end
 
+  test "a budget or plan tool the family switched off after the turn began is unknown" do
+    user = users(:family_admin)
+    budget_tool = Assistant::Function::GetBudget.new(user)
+    plan_tool = Assistant::Function::CreateGoal.new(user)
+    tool_caller = Assistant::FunctionToolCaller.new([ budget_tool, plan_tool, EchoFunction.new(user) ], user: user)
+
+    user.family.update!(budgets_enabled: false, plan_enabled: false)
+
+    results = tool_caller.fulfill_requests(
+      [ budget_tool.name, plan_tool.name, "echo" ].map do |name|
+        FunctionRequest.new(id: name, call_id: name, function_name: name, function_args: "{}")
+      end
+    ).map(&:function_result)
+
+    assert_equal "Unknown tool: #{budget_tool.name}", results[0]["error"]
+    assert_equal "Unknown tool: #{plan_tool.name}", results[1]["error"]
+    assert_equal({}, results[2])
+  end
+
+  test "a switch turned off in another process is seen despite the query cache" do
+    user = users(:family_admin)
+    budget_tool = Assistant::Function::GetBudget.new(user)
+    # A tool body that writes would clear the query cache and hide the problem.
+    budget_tool.stubs(:call).returns({ "ok" => true })
+    tool_caller = Assistant::FunctionToolCaller.new([ budget_tool ], user: user)
+    request = FunctionRequest.new(id: "1", call_id: "1", function_name: budget_tool.name, function_args: "{}")
+
+    ActiveRecord::Base.cache do
+      assert_equal({ "ok" => true }, tool_caller.fulfill_requests([ request ]).first.function_result)
+
+      # A raw write stands in for another process: it bypasses this connection's query cache.
+      ActiveRecord::Base.connection.raw_connection.exec_params("UPDATE families SET budgets_enabled = false WHERE id = $1", [ user.family_id ])
+
+      assert_equal "Unknown tool: #{budget_tool.name}", tool_caller.fulfill_requests([ request ]).first.function_result["error"]
+    end
+  end
+
   test "unexpected failures return a do-not-retry error result" do
     caller = Assistant::FunctionToolCaller.new([ ExplodingFunction.new(nil) ])
     request = FunctionRequest.new(

@@ -62,6 +62,40 @@ class AccountManualOrderTest < ApplicationSystemTestCase
     assert_eventually { @user.reload.manual_account_order["depository"]&.first(2) == [ plaid.id, checking.id ] }
   end
 
+  test "a row held with the keyboard is still saved after its group moves" do
+    first_id, second_id = hold_second_investment_account_up
+
+    within_testid("account-sidebar-tabs") do
+      move_investments_group_up
+      find("[data-sortable-list-target='item'][data-sortable-list-id='#{second_id}'] button").send_keys(:enter)
+    end
+
+    assert_eventually { @user.reload.manual_account_order["investment"]&.first(2) == [ second_id, first_id ] }
+  end
+
+  test "a failed save after its group moved puts back the confirmed order" do
+    first_id, second_id = hold_second_investment_account_up
+
+    within_testid("account-sidebar-tabs") do
+      move_investments_group_up
+
+      # Account order saves now end without a response, like a lost connection.
+      page.execute_script(<<~JS)
+        window.realFetch = window.fetch;
+        window.fetch = (url, options = {}) => {
+          if (!String(url).includes("/accounts/reorder?")) return window.realFetch(url, options);
+          return Promise.reject(new TypeError("Failed to fetch"));
+        };
+      JS
+
+      find("[data-sortable-list-target='item'][data-sortable-list-id='#{second_id}'] button").send_keys(:enter)
+
+      assert_eventually { visible_account_ids("investment").first(2) == [ first_id, second_id ] }
+    end
+
+    assert_nil @user.reload.manual_account_order["investment"]
+  end
+
   test "following an account link saves a row still held with the keyboard" do
     checking = accounts(:depository)
     plaid = accounts(:connected)
@@ -366,6 +400,39 @@ class AccountManualOrderTest < ApplicationSystemTestCase
   end
 
   private
+    # Opens sort mode with a second investment account and holds it, moved
+    # above the first, with the keyboard. Returns the ids in their old order.
+    def hold_second_investment_account_up
+      @user.family.accounts.create!(name: "Second brokerage", currency: "USD", balance: 0, accountable: Investment.new, owner: @user)
+      visit account_path(accounts(:depository))
+
+      within_testid("account-sidebar-tabs") do
+        find("button[aria-label='#{I18n.t("accounts.sidebar.sort_mode.start")}']", visible: true).click
+
+        first_id, second_id = visible_account_ids("investment").first(2)
+        handle = find("[data-sortable-list-target='item'][data-sortable-list-id='#{second_id}'] button")
+        handle.send_keys(:enter)
+        handle.send_keys(:up)
+        assert_equal [ second_id, first_id ], visible_account_ids("investment").first(2)
+
+        [ first_id, second_id ]
+      end
+    end
+
+    # Moving the investments group moves (and reconnects) its account list.
+    def move_investments_group_up
+      group = find_group_handle("investment")
+      group.send_keys(:enter)
+      group.send_keys(:up)
+      group.send_keys(:enter)
+      assert_eventually { @user.reload.manual_list_order("groups", "account_type").first(2) == %w[investment depository] }
+    end
+
+    def visible_account_ids(group)
+      list = all("[data-sortable-list-url-value='#{reorder_accounts_path(dimension: "account_type", group: group)}']", visible: true).first
+      list.all("[data-sortable-list-target='item']").map { |item| item["data-sortable-list-id"] }
+    end
+
     def find_group_handle(key)
       find("[data-sortable-group-list-target='item'][data-sortable-list-id='#{key}'] > button", match: :first)
     end

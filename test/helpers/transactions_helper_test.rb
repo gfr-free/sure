@@ -259,6 +259,18 @@ class TransactionsHelperTest < ActionView::TestCase
     assert_equal({ "someprovider" => { "a" => 1 } }, JSON.parse(details[:raw]))
   end
 
+  test "the convert-to-trade picker looks a shared rate up once for all its securities" do
+    securities = [ securities(:aapl), securities(:msft) ]
+    securities.each do |security|
+      security.stubs(:find_or_fetch_price).returns(Security::Price.new(price: 200, currency: "USD", date: Date.current))
+    end
+    ExchangeRate.expects(:find_or_fetch_rate).once.returns(ExchangeRate.new(rate: 0.9))
+
+    options = convert_to_trade_security_options(securities, "EUR")
+
+    assert_equal [ "18000", "18000" ], options.map { |option| option.last["data-price-cents"].to_s }
+  end
+
   test "investment_activity_label_name translates the stored label" do
     I18n.with_locale(:ru) do
       assert_equal "Перевод", investment_activity_label_name("Transfer")

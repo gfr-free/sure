@@ -507,16 +507,16 @@ Pass the variable only to these commands, never put it into `.env` or `compose.y
 
 If you already changed `SECRET_KEY_BASE` and logins or syncs broke, run step 2 with the old value in `ACTIVE_RECORD_ENCRYPTION_PREVIOUS_SECRET_KEY_BASE`, then re-encrypt the settings as described next.
 
-Changing `SECRET_KEY_BASE` also affects settings. API keys and tokens saved on the self-hosting settings page (OpenAI and Anthropic tokens, market data and property valuation keys, and similar) are encrypted with a key derived from `SECRET_KEY_BASE` itself, not with the Active Record keys above, so the `previous` scheme does not cover them. Right after the change those settings no longer decrypt: the app does not show an error, it sends the stored ciphertext as the key and the provider rejects it. Re-encrypt them once, with the old value in `OLD_SECRET_KEY_BASE`:
+Changing `SECRET_KEY_BASE` can also affect settings. API keys and tokens saved on the self-hosting settings page (OpenAI and Anthropic tokens, market data and property valuation keys, and similar) move to the Active Record keys above the first time `security:backfill_encryption[100,0]` runs, and from then on follow those keys like every other encrypted field. Until that run they are encrypted with a key derived from `SECRET_KEY_BASE` itself, which the `previous` scheme does not cover. If you changed `SECRET_KEY_BASE` before that run, give the backfill the old value in `OLD_SECRET_KEY_BASE` as well:
 
 ```bash
 read -rs OLD_SECRET_KEY_BASE && export OLD_SECRET_KEY_BASE   # paste the previous value; keeps it out of your shell history
-docker compose run --rm -e OLD_SECRET_KEY_BASE web bin/rails "security:rotate_setting_secrets[1]"   # dry run: lists what would change
-docker compose run --rm -e OLD_SECRET_KEY_BASE web bin/rails "security:rotate_setting_secrets[0]"   # writes
+docker compose run --rm -e OLD_SECRET_KEY_BASE web bin/rails "security:backfill_encryption[100,1]"   # dry run
+docker compose run --rm -e OLD_SECRET_KEY_BASE web bin/rails "security:backfill_encryption[100,0]"   # writes
 unset OLD_SECRET_KEY_BASE
 ```
 
-Check that the dry run's report shows `"dry_run":true`. It marks fields it would move as `would_reencrypt`; after the second command they read `reencrypted`. If nothing decrypts with the value you gave, the task stops with `old_secret_key_base_did_not_match`: check the value. Anything listed under `not_decryptable` was saved under neither value (or as plaintext before settings encryption existed); re-enter those keys on the settings page. If you prefer not to run the task, note the keys before the change and re-enter them afterwards.
+The report's `settings_secrets` entry counts the settings by where they came from (`plaintext`, `legacy`, `previous_key`) and lists any that no key opens under `not_decryptable`, by name only. Those are left unchanged and do not fail the run; re-enter them on the settings page, or run the command again with the old value in `OLD_SECRET_KEY_BASE`. A setting that no key opens reads as empty in the app instead of being sent to the provider. See [Settings secrets](encryption.md#settings-secrets) for going back to an older release.
 
 ### Re-encrypting data after an encryption-related update
 

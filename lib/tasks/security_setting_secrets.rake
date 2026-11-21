@@ -51,4 +51,54 @@ namespace :security do
       not_decryptable: not_decryptable
     }.to_json)
   end
+
+  desc "Write secret settings back in the format releases before the Active Record " \
+       "switch read (only needed before running an older release). Args: dry_run (default 1)"
+  task :downgrade_setting_secrets, [ :dry_run ] => :environment do |_, args|
+    raw_dry = args[:dry_run].presence || ENV["DRY_RUN"].presence
+    dry_run = !%w[0 false no n].include?(raw_dry.to_s.strip.downcase)
+
+    results = {}
+    failed = []
+
+    Setting.where(var: Setting.secret_setting_vars).order(:var).each do |row|
+      raw = row[:value]
+      value = row.value
+      unless Setting::SecretCodec.format_of(value) == :active_record
+        results[row.var] = :unchanged
+        next
+      end
+
+      plaintext = Setting::SecretCodec.decrypt(value)
+      if dry_run
+        results[row.var] = :would_downgrade
+        next
+      end
+
+      old_form = Setting::SecretCodec.encrypt_legacy(plaintext)
+      if Setting.where(id: row.id, value: raw).update_all(value: old_form.to_yaml, updated_at: Time.current) == 1
+        results[row.var] = :downgraded
+      else
+        failed << row.var
+        results[row.var] = :changed_concurrently
+      end
+    rescue Setting::SecretCodec::Undecryptable, ActiveRecord::Encryption::Errors::Base
+      failed << row.var
+      results[row.var] = :not_decryptable
+    end
+
+    unless dry_run
+      Setting.settings_secrets_format = Setting::SECRETS_FORMAT_LEGACY if failed.empty?
+      Setting.clear_cache
+    end
+
+    puts({
+      ok: failed.empty?,
+      dry_run: dry_run,
+      secrets_format: Setting.settings_secrets_format,
+      results: results,
+      failed: failed
+    }.to_json)
+    exit 1 unless failed.empty?
+  end
 end

@@ -74,9 +74,10 @@ Rails.application.config.after_initialize do
         explicitly configured and are NOT derived from SECRET_KEY_BASE, so
         they are unaffected by this. Rotate SECRET_KEY_BASE to a unique
         value regardless. Note this invalidates existing sessions and any
-        Setting-stored values encrypted under the old one. Re-encrypt those
-        with bin/rails "security:rotate_setting_secrets[0]", with the old
-        value in the OLD_SECRET_KEY_BASE environment variable (see
+        Setting-stored values still encrypted under the old one. Move those
+        to ActiveRecord Encryption with
+        bin/rails "security:backfill_encryption[100,0]", with the old value
+        in the OLD_SECRET_KEY_BASE environment variable (see
         docs/hosting/encryption.md; keep it out of your shell history).
       WARN
     else
@@ -106,10 +107,10 @@ Rails.application.config.after_initialize do
         When every model reports failed_count 0, start the app without that
         variable: while it is set, Rails writes deterministically encrypted
         values (emails, tokens, API keys) with the old key.
-        Changing SECRET_KEY_BASE afterwards also changes the key for API keys
-        and tokens saved in the settings (not covered by the previous scheme):
-        re-encrypt them with bin/rails "security:rotate_setting_secrets[0]",
-        with the old value in the OLD_SECRET_KEY_BASE environment variable.
+        The same backfill run moves API keys and tokens saved in the settings
+        to ActiveRecord Encryption. If SECRET_KEY_BASE was already changed,
+        also pass its old value in the OLD_SECRET_KEY_BASE environment
+        variable for that command.
       WARN
     end
   end

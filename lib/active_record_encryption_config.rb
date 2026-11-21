@@ -290,9 +290,9 @@ module ActiveRecordEncryptionConfig
   # about SECRET_KEY_BASE itself, not about whether Active Record Encryption's
   # own keys happen to be derived from it. Explicit AR keys only mean AR
   # encryption isn't affected - SECRET_KEY_BASE also signs/encrypts Rails
-  # session cookies and is the sole key source for Setting's own encryptor
-  # (app/models/setting.rb's setting_encryptor), independently of AR
-  # encryption config. A previous version of this method returned false
+  # session cookies and is the key source for secret settings still in
+  # their legacy form (Setting::SecretCodec), until
+  # `security:backfill_encryption` moves them to AR encryption. A previous version of this method returned false
   # whenever explicitly_configured? was true, which suppressed the warning
   # in config/initializers/encryption_warning.rb entirely for installs with
   # explicit AR keys - even though their sessions and Setting-encrypted

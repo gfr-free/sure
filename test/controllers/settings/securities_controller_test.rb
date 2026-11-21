@@ -65,7 +65,7 @@ class Settings::SecuritiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, I18n.t("settings.securities.show.compromised_secret_warning.title")
-    assert_includes response.body, "security:rotate_setting_secrets"
+    assert_includes response.body, "OLD_SECRET_KEY_BASE"
   end
 
   # Explicit keys are not derived from SECRET_KEY_BASE, so the banner's

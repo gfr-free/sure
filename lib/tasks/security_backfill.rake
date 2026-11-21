@@ -58,6 +58,7 @@ namespace :security do
 
     results[:sessions] = backfill_model(Session, Session.encrypted_attributes.to_a, batch_size, dry_run)
     results[:session_ip_digests] = backfill_session_ip_digests(batch_size, dry_run)
+    results[:settings_secrets] = backfill_setting_secrets(dry_run)
 
     all_succeeded = results.values.all? { |r| r[:failed_count].zero? }
 
@@ -250,6 +251,91 @@ namespace :security do
     else
       raw
     end
+  end
+
+  # Moves secret settings (provider API keys and tokens, see
+  # Setting.secret_setting_vars) to Active Record Encryption under the
+  # current key: plaintext, values under the legacy settings key (current
+  # SECRET_KEY_BASE, or OLD_SECRET_KEY_BASE after a change) and values under
+  # a `previous` Active Record key. Each new value is decrypted again and
+  # compared before it is written, and only replaces the exact value that was
+  # read. Values no key opens are listed under not_decryptable and left
+  # as they are. A clean write pass switches new writes to the Active Record format
+  # (Setting.settings_secrets_format); this setting is not covered by
+  # CURRENT_BACKFILL_VERSION because the settings code reads every format
+  # itself, independently of support_unencrypted_data.
+  def backfill_setting_secrets(dry_run)
+    counts = Hash.new(0)
+    failed = []
+    not_decryptable = []
+    # Legacy values were keyed from SECRET_KEY_BASE: the current one, the one
+    # before a change (OLD_SECRET_KEY_BASE), or the one the rotation guide
+    # passes for the Active Record keys derived from it.
+    legacy_secret_key_bases = [
+      Rails.application.secret_key_base,
+      ENV["OLD_SECRET_KEY_BASE"].to_s.strip,
+      ENV[ActiveRecordEncryptionConfig::PREVIOUS_SECRET_KEY_BASE_ENV].to_s.strip
+    ]
+
+    rows = Setting.where(var: Setting.secret_setting_vars).order(:var).to_a
+    rows.each do |row|
+      raw = row[:value]
+      plaintext, source = Setting::SecretCodec.inspect_value(row.value, legacy_secret_key_bases: legacy_secret_key_bases)
+      counts[source] += 1
+      next if %i[blank current].include?(source) || dry_run
+
+      ciphertext = Setting::SecretCodec.encrypt_active_record(plaintext)
+      unless setting_secret_round_trips?(ciphertext, plaintext)
+        failed << { var: row.var, error: "verification_failed", message: "#{row.var} did not decrypt back to its value after re-encryption; it was left unchanged" }
+        next
+      end
+
+      if Setting.where(id: row.id, value: raw).update_all(value: ciphertext.to_yaml, updated_at: Time.current) == 1
+        counts[:converted] += 1
+      else
+        failed << { var: row.var, error: "changed_concurrently", message: "#{row.var} changed while the backfill ran; run the task again" }
+      end
+    rescue Setting::SecretCodec::Undecryptable, ActiveRecord::Encryption::Errors::Base
+      # Already unreadable before this run (the app reads it as empty), and
+      # left untouched, so a later run with the old key can still convert
+      # it. Not a failure: a key lost to an earlier SECRET_KEY_BASE change
+      # must not hold back the backfill of every other model.
+      not_decryptable << row.var
+    end
+
+    unless dry_run
+      Setting.settings_secrets_format = Setting::SECRETS_FORMAT_ACTIVE_RECORD if failed.empty?
+      Setting.clear_cache
+    end
+
+    {
+      processed: rows.size,
+      updated: counts[:converted],
+      plaintext: counts[:plaintext],
+      legacy: counts[:legacy],
+      previous_key: counts[:previous_key],
+      current: counts[:current],
+      secrets_format: Setting.settings_secrets_format,
+      not_decryptable: not_decryptable,
+      not_decryptable_message: ("Re-enter these on the settings page, or run again with the old key in OLD_SECRET_KEY_BASE or ACTIVE_RECORD_ENCRYPTION_PREVIOUS_*." if not_decryptable.any?),
+      unused_plaintext_settings: Setting.where(var: legacy_plaintext_setting_vars)
+        .where.not(value: Setting::SecretCodec::EMPTY_STORED_VALUES).pluck(:var),
+      failed_count: failed.size,
+      failed_samples: failed.take(3)
+    }
+  end
+
+  def setting_secret_round_trips?(ciphertext, plaintext)
+    Setting::SecretCodec.decrypt(ciphertext) == plaintext
+  rescue Setting::SecretCodec::Undecryptable, ActiveRecord::Encryption::Errors::Base
+    false
+  end
+
+  # Old instance-wide credentials nothing reads any more (the Lunch Flow key
+  # moved to lunchflow_items in lib/tasks/data_migration.rake). Reported so
+  # the operator can delete them; never rewritten.
+  def legacy_plaintext_setting_vars
+    %w[dynamic:lunchflow_api_key]
   end
 
   # Hashes legacy session IP addresses into ip_address_digest. The encrypted

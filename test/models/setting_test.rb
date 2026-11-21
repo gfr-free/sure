@@ -279,9 +279,9 @@ class SettingTest < ActiveSupport::TestCase
 
   test "reencrypt_secrets_from leaves current and undecryptable values alone" do
     Setting.where(var: "twelve_data_api_key").delete_all
-    Setting.openai_access_token = "sk-current"
     other_ciphertext = old_setting_encryptor("unrelated-" + "c" * 64).encrypt_and_sign("sk-lost")
     store_raw_setting("anthropic_access_token", other_ciphertext)
+    Setting.openai_access_token = "sk-current"
 
     results = Setting.reencrypt_secrets_from("old-secret-key-base-" + "d" * 64, dry_run: false)
 
@@ -299,11 +299,86 @@ class SettingTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { Setting.reencrypt_secrets_from("") }
   end
 
+  test "reencrypt_secrets_from leaves Active Record values alone" do
+    store_raw_setting("openai_access_token", Setting::SecretCodec.encrypt_active_record("sk-ar"))
+
+    results = Setting.reencrypt_secrets_from("old-secret-key-base-" + "f" * 64, dry_run: false)
+
+    assert_equal :active_record, results[:openai_access_token]
+    assert_equal "sk-ar", Setting.openai_access_token
+  ensure
+    Setting.openai_access_token = nil
+  end
+
+  test "a secret no configured key decrypts reads as nil, not as its ciphertext" do
+    store_raw_setting("openai_access_token", old_setting_encryptor("unrelated-" + "g" * 64).encrypt_and_sign("sk-lost"))
+
+    assert_nil Setting.openai_access_token
+  ensure
+    Setting.openai_access_token = nil
+  end
+
+  test "secrets keep the legacy format until the install is switched" do
+    store_raw_setting("anthropic_access_token", old_setting_encryptor(Rails.application.secret_key_base).encrypt_and_sign("sk-existing"))
+
+    Setting.openai_access_token = "sk-legacy-write"
+
+    assert_equal Setting::SECRETS_FORMAT_LEGACY, Setting.settings_secrets_format
+    assert_equal :legacy, Setting::SecretCodec.format_of(Setting.find_by(var: "openai_access_token").value)
+    assert_equal "sk-legacy-write", Setting.openai_access_token
+  ensure
+    Setting.openai_access_token = nil
+    Setting.anthropic_access_token = nil
+  end
+
+  test "switched installs write secrets with Active Record Encryption and cache only ciphertext" do
+    with_secrets_format(Setting::SECRETS_FORMAT_ACTIVE_RECORD) do
+      Setting.openai_access_token = "sk-ar-write"
+
+      stored = Setting.find_by(var: "openai_access_token").value
+      assert_equal :active_record, Setting::SecretCodec.format_of(stored)
+      assert_equal "sk-ar-write", Setting.openai_access_token
+      assert_not_includes Setting.send(:_all_settings).values.map(&:to_s), "sk-ar-write"
+    end
+  ensure
+    Setting.openai_access_token = nil
+  end
+
+  test "a fresh install without stored secrets switches to Active Record Encryption on the first write" do
+    Setting.where(var: Setting.secret_setting_vars).delete_all
+    Setting.clear_cache
+
+    Setting.openai_access_token = "sk-first"
+
+    assert_equal Setting::SECRETS_FORMAT_ACTIVE_RECORD, Setting.settings_secrets_format
+    assert_equal :active_record, Setting::SecretCodec.format_of(Setting.find_by(var: "openai_access_token").value)
+  ensure
+    Setting.openai_access_token = nil
+    Setting.settings_secrets_format = Setting::SECRETS_FORMAT_LEGACY
+  end
+
+  test "secret_setting_vars lists the declared secrets and leaves provider fields alone" do
+    vars = Setting.secret_setting_vars
+
+    assert_equal Setting::EncryptedSettingFields::ENCRYPTED_FIELDS.map(&:to_s).sort, vars.sort
+    assert_not_includes vars, "encryption_backfill_completed_version"
+    assert_not_includes vars, "settings_secrets_format"
+    assert(vars.none? { |var| var.start_with?("dynamic:") })
+  end
+
   private
 
     def old_setting_encryptor(secret_key_base)
       key = ActiveSupport::KeyGenerator.new(secret_key_base).generate_key("setting_encryption", 32)
       ActiveSupport::MessageEncryptor.new(key)
+    end
+
+    def with_secrets_format(format)
+      original = Setting.settings_secrets_format
+      Setting.settings_secrets_format = format
+      yield
+    ensure
+      Setting.settings_secrets_format = original
     end
 
     def store_raw_setting(var, value)

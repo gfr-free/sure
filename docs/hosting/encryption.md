@@ -85,23 +85,23 @@ flow.
 
 ## 4. Settings and `SECRET_KEY_BASE`
 
-`SECRET_KEY_BASE` itself also signs session cookies and is the key source
-for values saved on the self-hosting settings page (AI and market-data
-provider keys). Once the steps above are done, it is safe to change it.
-Stop the app again and take a fresh database backup first: the app has
-been running since step 3, and a later rollback to the first backup would
-lose what was written in between.
-Existing sessions are signed out. Re-encrypt the settings once, with the
-old value in `OLD_SECRET_KEY_BASE`:
+`SECRET_KEY_BASE` itself also signs session cookies; changing it signs
+everyone out. API keys and tokens saved in the settings no longer depend on
+it once step 2 has run (see [Settings secrets](#settings-secrets)). Once the
+steps above are done, it is safe to change it. Stop the app again and take a
+fresh database backup first: the app has been running since step 3, and a
+later rollback to the first backup would lose what was written in between.
+If `SECRET_KEY_BASE` changed before the settings were converted, pass the old
+value in `OLD_SECRET_KEY_BASE` to the backfill command of step 2 as well:
 
 ```sh
 read -rs OLD_SECRET_KEY_BASE && export OLD_SECRET_KEY_BASE
-bin/rails "security:rotate_setting_secrets[1]"     # dry run, check "dry_run":true
-bin/rails "security:rotate_setting_secrets[0]"     # writes
+bin/rails "security:backfill_encryption[100,1]"     # dry run
+bin/rails "security:backfill_encryption[100,0]"     # writes
 unset OLD_SECRET_KEY_BASE
 ```
 
-Re-enter any key the task lists under `not_decryptable`. Then start the
+Re-enter any key the task lists under `settings_secrets.not_decryptable`. Then start the
 app (web and worker) and check a login and a provider sync.
 
 Re-encrypting does not revoke anything. If the old key was publicly known
@@ -152,3 +152,41 @@ before the rotation:
 Do not roll back by only putting the old keys back without the backup: rows
 the write pass already moved are encrypted with the new keys and would no
 longer decrypt.
+
+## Settings secrets
+
+API keys and tokens saved on the settings pages (AI, market data and
+property valuation keys, and similar) are encrypted with
+Active Record Encryption once `security:backfill_encryption` has converted
+them. Before that run, existing values keep their old form: encrypted with a
+key derived from `SECRET_KEY_BASE`, or plaintext if they were saved before
+that encryption existed. The app
+reads both forms, so the conversion is optional and can wait for a
+convenient maintenance window.
+
+The conversion is part of the normal backfill, with the app stopped:
+
+```sh
+bin/rails "security:backfill_encryption[100,1]"     # dry run
+bin/rails "security:backfill_encryption[100,0]"     # writes
+```
+
+Each value is decrypted, encrypted again, checked to decrypt back to the
+same value, and only then written, and only if nobody changed it in the
+meantime. Values no configured key opens are left untouched and listed by
+name under `settings_secrets.not_decryptable`; they do not fail the run, and
+a later run with the old key still converts them. After a write pass
+without failures, new values are written with
+Active Record Encryption too. A fresh install without saved API keys
+does that from the start.
+
+Releases before this change cannot read the new form. Before going back to
+one, write the old form again with the app stopped:
+
+```sh
+bin/rails "security:downgrade_setting_secrets[1]"   # dry run
+bin/rails "security:downgrade_setting_secrets[0]"   # writes
+```
+
+`security:rotate_setting_secrets` still re-encrypts values in the old form
+after a `SECRET_KEY_BASE` change; it leaves converted values alone.

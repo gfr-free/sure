@@ -50,6 +50,23 @@ class Account::DestroyLaterTest < ActiveSupport::TestCase
     assert_not_equal pending_version, family.accounts_status_version, "totals cached while pending must not be reused"
   end
 
+  test "a failed enqueue changes the version even when another account has the newest timestamp" do
+    family = @account.family
+    other = family.accounts.where.not(id: @account.id).first
+    pending_version = nil
+    # While the mark is in place another account is touched later than the restore will be.
+    DestroyJob.queue_adapter.stubs(:enqueue).with {
+      other.update_column(:updated_at, 1.hour.from_now)
+      pending_version = family.accounts_status_version
+      true
+    }.raises(ActiveJob::EnqueueError, "rejected")
+
+    assert_equal false, @account.destroy_later
+
+    assert_not_nil pending_version
+    assert_not_equal pending_version, family.accounts_status_version, "totals cached while pending must not be reused"
+  end
+
   test "restores a disabled account to disabled when the enqueue fails" do
     @account.update_column(:status, "disabled")
     DestroyJob.queue_adapter.stubs(:enqueue).raises(RedisClient::CannotConnectError, "Connection refused")

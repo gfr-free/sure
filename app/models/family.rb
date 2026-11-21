@@ -762,10 +762,18 @@ class Family < ApplicationRecord
   # Used for invalidating caches whose results depend on which accounts are
   # active/draft vs. disabled (e.g. AccountsController#toggle_active changes
   # nothing on entries, but changes which entries `uncategorized_transactions`
-  # considers accessible).
+  # considers accessible). The per-status counts change with every status
+  # move, even one whose timestamp is not the newest (a restore after a failed
+  # deletion that waited on a row lock while another account was touched).
   def accounts_status_version
-    count, max_at = accounts.pick(Arel.sql("count(*)"), Arel.sql('max("accounts"."updated_at")'))
-    "#{count}-#{max_at&.to_f}"
+    count, draft, disabled, pending, max_at = accounts.pick(
+      Arel.sql("count(*)"),
+      Arel.sql(%q{count(*) FILTER (WHERE "accounts"."status" = 'draft')}),
+      Arel.sql(%q{count(*) FILTER (WHERE "accounts"."status" = 'disabled')}),
+      Arel.sql(%q{count(*) FILTER (WHERE "accounts"."status" = 'pending_deletion')}),
+      Arel.sql('max("accounts"."updated_at")')
+    )
+    "#{count}-#{draft}-#{disabled}-#{pending}-#{max_at&.to_f}"
   end
 
   # Used for invalidating caches that render merchant name/logo for recurring

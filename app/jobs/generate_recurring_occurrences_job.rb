@@ -1,7 +1,8 @@
 # Nightly sweep keeping every family's occurrence window materialized (the
 # sync-triggered pipeline covers synced families; this catches manual-only
-# families that never sync). Runs before GenerateInsightsJob so generators
-# see fresh occurrences.
+# families that never sync), then posting the entries of auto-posting series
+# that fell due. Runs before GenerateInsightsJob so generators see fresh
+# occurrences.
 class GenerateRecurringOccurrencesJob < ApplicationJob
   queue_as :scheduled
   sidekiq_options lock: :until_executed, on_conflict: :log
@@ -34,6 +35,9 @@ class GenerateRecurringOccurrencesJob < ApplicationJob
         family.recurring_transactions.active.includes(:recurrence_rules).find_each do |series|
           RecurringTransaction::OccurrenceGenerator.new(series).generate!
         end
+
+        # After generation, so today's occurrence exists before it posts.
+        RecurringTransaction::Poster.new(family).post_due!
       end
     end
 end

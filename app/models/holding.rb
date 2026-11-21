@@ -393,7 +393,6 @@ class Holding < ApplicationRecord
   # Callers run inside the family timezone, so Date.current is correct.
   def remap_security_and_materialize!(new_security)
     raise ArgumentError, "cannot remap to or from a cash security" unless remappable_to?(new_security)
-    return if new_security.id == security_id
 
     # The remap and the re-materialization with the new security's prices
     # commit together under the account row lock, taken first as a sync and a
@@ -402,7 +401,8 @@ class Holding < ApplicationRecord
     locked_account = Account.find(account_id)
     locked_account.with_lock do
       # A concurrent remap may have moved (or merged away) this row while we
-      # waited for the lock, so work from its current security.
+      # waited for the lock, so work from its current security. The no-op
+      # check lives here only: before the lock the security may be stale.
       reload
       return if new_security.id == security_id
       raise ArgumentError, "cannot remap to or from a cash security" unless remappable_to?(new_security)

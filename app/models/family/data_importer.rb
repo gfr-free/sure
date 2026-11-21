@@ -114,6 +114,7 @@ class Family::DataImporter
     @pending_replacements = {}
     @created_account_ids = []
     @created_entry_ids = []
+    @rollover_user_ids = Set.new
     @summary = Hash.new { |hash, key| hash[key] = empty_summary_bucket }
   end
 
@@ -148,6 +149,8 @@ class Family::DataImporter
       import_budget_categories(records["BudgetCategory"] || [])
       import_rules(records["Rule"] || [])
     end
+
+    recompute_rollover_chains
 
     { account_ids: @created_account_ids, entry_ids: @created_entry_ids, summary: compact_summary }
   end
@@ -376,10 +379,6 @@ class Family::DataImporter
           notes: data["notes"],
           status: importable_account_status(data["status"])
         )
-        # Older or hand-built files omit iban; don't clear an existing one.
-        # Types without an IBAN (vehicle, property, ...) drop it on save
-        # (Account#clear_unsupported_iban).
-        account.iban = data["iban"] if data.key?("iban")
         # `Account#subtype=` writes through to the accountable, so assigning a
         # nil top-level subtype would wipe the nested one. The nested value
         # wins, matching SureImport::Preflight#validate_accountables.
@@ -387,6 +386,10 @@ class Family::DataImporter
         account.subtype = imported_subtype if imported_subtype
         # A file from before the setting existed leaves the account's own.
         account.cost_basis_method = data["cost_basis_method"] if Account.cost_basis_methods.key?(data["cost_basis_method"])
+        # Older or hand-built files omit iban; don't clear an existing one.
+        # Types without an IBAN (vehicle, property, ...) drop it on save
+        # (Account#clear_unsupported_iban).
+        account.iban = data["iban"] if data.key?("iban")
         # Older exports predate the choice and keep the account's own.
         account.logo_selection = data["logo_selection"] if Account.logo_selections.key?(data["logo_selection"])
 
@@ -1054,7 +1057,7 @@ class Family::DataImporter
     def mapped_tag_ids(old_tag_ids, record_type:)
       Array(old_tag_ids).map do |old_tag_id|
         mapped_id(:tags, old_tag_id, record_type: record_type)
-      end.compact
+      end.compact.uniq
     end
 
     def importable_split_rows(data)
@@ -1522,14 +1525,43 @@ class Family::DataImporter
 
         budget_category = budget.budget_categories.find_or_initialize_by(category_id: new_category_id)
         created = budget_category.new_record?
+        # Only budget_id/category_id are required. A budgeted amount or
+        # rollover flag the line leaves out (or leaves blank) keeps its current
+        # value -- both columns are NOT NULL, so assigning nil would fail the
+        # save; a new row with no amount budgets 0.
+        rollover = ActiveModel::Type::Boolean.new.cast(data["rollover_enabled"])
         budget_category.assign_attributes(
           category_id: new_category_id,
-          budgeted_spending: data["budgeted_spending"].to_d,
+          budgeted_spending: data["budgeted_spending"].present? ? data["budgeted_spending"].to_d : (budget_category.budgeted_spending || 0),
+          rollover_enabled: rollover.nil? ? budget_category.rollover_enabled : rollover,
           currency: data["currency"] || budget.currency
         )
 
         budget_category.save!
+        @rollover_user_ids << budget.user_id
         increment_summary("BudgetCategory", created ? :created : :updated)
+      end
+    end
+
+    # The carried-over amount is derived state that only the calculator
+    # writes, so restoring the toggle refreshes each affected chain (household,
+    # or one member's personal budgets). It runs after the import's transaction
+    # has committed, because the calculator takes an advisory lock. The data is
+    # already in by then and the next budget load recomputes the same chain, so
+    # a failure is logged rather than failing an import that has committed.
+    def recompute_rollover_chains
+      @rollover_user_ids.each do |user_id|
+        owner = user_id && @family.users.find_by(id: user_id)
+        Budget::RolloverCalculator.new(family: @family, user: owner).recompute!
+      rescue StandardError => e
+        DebugLogEntry.capture(
+          category: "import",
+          level: "warn",
+          message: "Could not recompute rollover amounts after a budget import",
+          source: self.class.name,
+          family: @family,
+          metadata: { user_id: user_id, error_class: e.class.name, error_message: e.message }
+        )
       end
     end
 

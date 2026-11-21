@@ -1,0 +1,16 @@
+---
+de:
+  activerecord:
+    attributes:
+      bullion_spec:
+        face_value: Nennwert
+        face_value_currency: Währung des Nennwerts
+        fine_weight_grams: Feingewicht
+        metal: Metall
+        name: Name
+    errors:
+      models:
+        bullion_spec:
+          attributes:
+            base:
+              in_use: wird noch von Trades oder Beständen verwendet

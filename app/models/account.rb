@@ -1,5 +1,5 @@
 class Account < ApplicationRecord
-  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Encryptable, IbanNormalizable, Logoable
+  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Encryptable, IbanNormalizable, Liquidity, Logoable
 
   # Not deterministic: an IBAN is never looked up by value in SQL. Code that
   # matches IBANs loads the family's few accounts and compares in Ruby, so
@@ -1064,6 +1064,13 @@ class Account < ApplicationRecord
 
     def clear_unsupported_iban
       self.iban = nil if iban.present? && !supports_iban?
+    end
+
+    # Account::Liquidity locks `liquidity` itself, only when the user picks a
+    # level. Locking it whenever it changed would freeze the subtype default
+    # written on create as if the user had chosen it.
+    def ignored_enrichable_attributes
+      super + %w[liquidity locked_attributes]
     end
 
     # [date, signed amount in account currency] for each scheduled entry that

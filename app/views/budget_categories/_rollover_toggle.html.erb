@@ -1,0 +1,11 @@
+<%# locals: (budget_category:, attribute:, label:, title:) %>
+
+<div class="flex items-center gap-1.5" title="<%= title %>">
+  <%= label_tag dom_id(budget_category, attribute), label, class: "text-xs text-secondary cursor-pointer" %>
+  <%= render DS::Toggle.new(
+        id: dom_id(budget_category, attribute),
+        name: "budget_category[#{attribute}]",
+        checked: budget_category.public_send(attribute),
+        data: { auto_submit_form_target: "auto" }
+      ) %>
+</div>

@@ -65,8 +65,12 @@
           <% end %>
         </div>
         <% if budget_category.rolled_over? %>
-          <div class="whitespace-nowrap w-full sm:w-auto text-xs text-secondary privacy-sensitive">
-            <%= t("budget_categories.budget_category.rolled_over", amount: format_money(Money.new(budget_category.display_rolled_over_amount, budget_category.currency))) %>
+          <div class="<%= class_names("whitespace-nowrap w-full sm:w-auto text-xs privacy-sensitive", budget_category.overspend_carried_over? ? "text-destructive" : "text-secondary") %>">
+            <% if budget_category.overspend_carried_over? %>
+              <%= t("budget_categories.budget_category.overspend_carried_over", amount: format_money(budget_category.display_rolled_over_money.abs)) %>
+            <% else %>
+              <%= t("budget_categories.budget_category.rolled_over", amount: format_money(budget_category.display_rolled_over_money)) %>
+            <% end %>
           </div>
         <% end %>
         <% if budget_category.suggested_daily_spending.present? %>

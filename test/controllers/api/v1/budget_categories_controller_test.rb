@@ -3,6 +3,8 @@
 require "test_helper"
 
 class Api::V1::BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     @user = users(:family_admin)
     @family = @user.family
@@ -112,6 +114,40 @@ class Api::V1::BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     # and has nothing to account for the difference.
     assert_equal 50_000, response_data["budgeted_spending_cents"]
     assert_equal 70_000, response_data["available_to_spend_cents"]
+  end
+
+  test "show exposes a carried overspend as a negative rollover" do
+    previous_budget = @family.budgets.create!(
+      start_date: 6.months.ago.beginning_of_month.to_date,
+      end_date: 6.months.ago.end_of_month.to_date,
+      budgeted_spending: 3000,
+      expected_income: 5000,
+      currency: "USD"
+    )
+    previous_budget.budget_categories.create!(
+      category: @category,
+      budgeted_spending: 0,
+      currency: "USD",
+      rollover_enabled: true,
+      carry_overspend: true
+    )
+    create_transaction(
+      date: previous_budget.start_date,
+      account: accounts(:depository),
+      amount: 120,
+      category: @category
+    )
+    @budget_category.update!(rollover_enabled: true, carry_overspend: true)
+    Budget::RolloverCalculator.new(family: @family, user: nil).recompute!
+
+    get api_v1_budget_category_url(@budget_category), headers: api_headers(@api_key)
+
+    assert_response :success
+    response_data = JSON.parse(response.body)
+
+    assert_equal true, response_data["carry_overspend"]
+    assert_equal(-12_000, response_data["rolled_over_amount_cents"])
+    assert_equal 38_000, response_data["available_to_spend_cents"]
   end
 
   test "show exposes ring-fenced child carry included in parent availability" do

@@ -3,8 +3,10 @@
 class Api::V1::HoldingsController < Api::V1::BaseController
   include Pagy::Backend
 
-  before_action :ensure_read_scope
+  before_action :ensure_read_scope, only: [ :index, :show ]
+  before_action :ensure_write_scope, only: [ :remap_security ]
   before_action :set_holding, only: [ :show ]
+  before_action :set_writable_holding, only: [ :remap_security ]
 
   def index
     holdings_query = accessible_holdings
@@ -32,6 +34,36 @@ class Api::V1::HoldingsController < Api::V1::BaseController
     log_and_render_error("show", e)
   end
 
+  # Moves the holding, the account's other holdings of the same security and
+  # its trades to another security, as the holding drawer in the app does.
+  def remap_security
+    new_security = requested_security
+
+    unless @holding.remappable_to?(new_security)
+      render_validation_error("Security not found", [ "Provide the security_id or ticker of a non-cash security; cash holdings cannot be remapped" ])
+      return
+    end
+
+    account = @holding.account
+    date = @holding.date
+    currency = @holding.currency
+    @holding.remap_security_and_materialize!(new_security)
+
+    # The remap can merge this row into an existing one of the new security
+    # (or recalculation can replace it), so answer with the new security's
+    # holding for that day, falling back to its latest one.
+    remapped = account.holdings.where(security: new_security)
+    @holding = remapped.find_by(date: date, currency: currency) || remapped.order(date: :desc).first
+    return head(:no_content) unless @holding
+
+    render :show
+  rescue ActiveRecord::RecordNotFound
+    # A concurrent remap merged this holding into another row meanwhile.
+    render json: { error: "not_found", message: "Holding not found" }, status: :not_found
+  rescue => e
+    log_and_render_error("remap_security", e)
+  end
+
   private
 
     def set_holding
@@ -49,12 +81,43 @@ class Api::V1::HoldingsController < Api::V1::BaseController
         .where(accounts: { status: %w[draft active], id: accessible_account_ids })
     end
 
+    def set_writable_holding
+      @holding = Holding
+        .joins(:account)
+        .where(accounts: { status: %w[draft active], id: current_resource_owner.family.accounts.writable_by(current_resource_owner).select(:id) })
+        .find(params[:id])
+    rescue ActiveRecord::RecordNotFound
+      render json: { error: "not_found", message: "Holding not found" }, status: :not_found
+    end
+
+    def remap_params
+      return {} unless params[:holding].is_a?(ActionController::Parameters)
+
+      params[:holding].permit(:security_id, :ticker, :exchange_operating_mic)
+    end
+
+    # Only string identifiers count: permit also lets booleans and numbers
+    # through, and `true` must not become a ticker named "TRUE".
+    def requested_security
+      security_id, ticker, mic = remap_params.values_at(:security_id, :ticker, :exchange_operating_mic)
+
+      if security_id.present?
+        Security.find_by(id: security_id) if security_id.is_a?(String)
+      elsif ticker.is_a?(String) && (mic.nil? || mic.is_a?(String))
+        Security.resolve_typed_ticker(ticker, exchange_operating_mic: mic)
+      end
+    end
+
     def accessible_account_ids
       @accessible_account_ids ||= current_resource_owner.family.accounts.accessible_by(current_resource_owner).select(:id)
     end
 
     def ensure_read_scope
       authorize_scope!(:read)
+    end
+
+    def ensure_write_scope
+      authorize_scope!(:write)
     end
 
     def apply_filters(query)

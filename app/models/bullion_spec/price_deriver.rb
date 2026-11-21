@@ -116,7 +116,7 @@ class BullionSpec::PriceDeriver
         reference.import_provider_prices(start_date: start_date, end_date: end_date)
       end
 
-      reference_prices = Security::Price.where(security_id: reference.id, date: start_date..end_date).to_a
+      reference_prices = one_price_per_date(Security::Price.where(security_id: reference.id, date: start_date..end_date).to_a)
       rates = FaceValueRates.new(start_date: start_date, end_date: end_date)
       lowest_reference = reference_prices.min_by(&:price)
       rows = specs.flat_map do |spec|
@@ -162,6 +162,16 @@ class BullionSpec::PriceDeriver
         metadata: { metal: metal, reference_security_id: reference&.id, error: "#{e.class}: #{e.message}" }
       )
       0
+    end
+
+    # A reference that changed currency can hold a price in each currency for
+    # the same date. One derived row per date, in the currency of the newest
+    # price; otherwise the currency cleanup removes both.
+    def one_price_per_date(prices)
+      current = prices.max_by { |price| [ price.date, price.updated_at ] }&.currency
+      prices.group_by(&:date).map do |_date, same_day|
+        same_day.find { |price| price.currency == current } || same_day.min_by(&:currency)
+      end
     end
 
     # Without this the sync succeeds silently and coins keep their last price.

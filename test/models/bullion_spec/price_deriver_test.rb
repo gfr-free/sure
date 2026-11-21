@@ -136,6 +136,18 @@ class BullionSpec::PriceDeriverTest < ActiveSupport::TestCase
     assert_equal [ "USD" ], @coin.prices.where(date: 1.day.ago.to_date).pluck(:currency)
   end
 
+  test "a date the reference holds in two currencies keeps one derived price" do
+    travel_to(1.minute.from_now) do
+      @reference.prices.create!(date: 2.days.ago.to_date, price: 3600, currency: "EUR")
+      @reference.prices.create!(date: 1.day.ago.to_date, price: 3700, currency: "EUR")
+    end
+
+    BullionSpec::PriceDeriver.new.derive_all
+
+    assert_equal [ "EUR" ], @coin.prices.where(date: 2.days.ago.to_date).pluck(:currency)
+    assert_in_delta 1800, @coin.prices.find_by!(date: 2.days.ago.to_date).price, 0.01
+  end
+
   test "returns the number of prices written in this run" do
     assert_equal 2, BullionSpec::PriceDeriver.new(security_ids: [ @coin.id ]).derive_all
 

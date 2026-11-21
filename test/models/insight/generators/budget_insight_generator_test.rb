@@ -113,6 +113,16 @@ class Insight::Generators::BudgetInsightGeneratorTest < ActiveSupport::TestCase
     assert_not_equal before, generated_digest
   end
 
+  test "says nothing while the family has budgets switched off" do
+    budget_category(@budget)
+    create_transaction(category: @category, amount: 95, date: Date.current)
+    assert_includes generated_types, "budget_at_risk"
+
+    @family.update!(budgets_enabled: false)
+
+    assert_empty generate
+  end
+
   # A personal budget is visible to its owner and whoever they shared it with,
   # never to the whole family, so it must not reach the shared feed.
   test "a personal budget is not reported" do

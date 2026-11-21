@@ -16,6 +16,8 @@ class Insight::Generators::MaintainedGoalDepletedGenerator < Insight::Generator
   MAX_INSIGHTS = 2
 
   def generate
+    return [] unless family.plan_enabled?
+
     depleted_reserves.first(MAX_INSIGHTS).map do |goal|
       missing = goal.remaining_amount_money
 

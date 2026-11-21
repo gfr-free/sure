@@ -46,6 +46,12 @@ class UserTest < ActiveSupport::TestCase
     assert_nil User.authenticate_by_email(email: "missing@example.com", password: "x")
   end
 
+  test "admin_search finds a legacy plaintext email row by its full email" do
+    email = store_legacy_plaintext_email(@user)
+
+    assert_includes User.joins(:family).admin_search(" #{email.upcase} "), @user
+  end
+
   test "find_by_email_with_legacy_fallback does not match a row by its stored ciphertext" do
     ciphertext = User.connection.select_value(
       User.sanitize_sql([ "SELECT email FROM users WHERE id = ?", @user.id ])

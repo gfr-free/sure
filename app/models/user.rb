@@ -86,7 +86,9 @@ class User < ApplicationRecord
     pattern = "%#{sanitize_sql_like(term)}%"
 
     if encryption_ready?
-      email_ids = User.unscoped.where(email: term.downcase).pluck(:id)
+      # The legacy fallback also matches rows not yet backfilled, which a plain
+      # where(email:) misses for this normalized attribute.
+      email_ids = [ User.unscoped { User.find_by_email_with_legacy_fallback(term) }&.id ].compact
       where("users.id IN (:ids) OR families.name ILIKE :pattern", ids: email_ids, pattern: pattern)
     else
       where(

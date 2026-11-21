@@ -3,6 +3,12 @@ de:
   settings:
     preferences:
       show:
+        planning_features_title: "Budgets und Plan"
+        planning_features_subtitle: "Schalte Planungsfunktionen für alle in deiner %{moniker} ein oder aus"
+        budgets_enabled: "Budgets"
+        budgets_enabled_hint: "Zeigt Budgets in der Navigation, in Berichten, Hinweisen, im Assistenten und in der API. Beim Ausschalten bleiben deine Budgetdaten erhalten."
+        plan_enabled: "Plan"
+        plan_enabled_hint: "Zeigt den Plan-Bereich und die Ziele. Beim Ausschalten bleiben deine Ziele erhalten."
         country: Land
         currency: Währung
         date_format: Datumsformat

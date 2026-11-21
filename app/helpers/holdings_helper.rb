@@ -37,7 +37,7 @@ module HoldingsHelper
   def bullion_price_source(spec)
     ticker, _mic = BullionSpec::PriceDeriver.reference_symbol(spec.metal)
     provider = BullionSpec::PriceDeriver.reference_provider
-    source = [ ticker, t("securities.providers.#{provider}", default: provider.humanize) ].compact.join(" · ")
+    source = [ ticker, security_price_provider_name(provider) ].compact.join(" · ")
 
     t("holdings.show.bullion_price_source",
       metal: t("trades.form.metals.#{spec.metal}"),

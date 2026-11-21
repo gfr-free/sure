@@ -25,7 +25,10 @@ class Account < ApplicationRecord
   # counterparty's last four characters; the raw rows still hold the full one.
   after_save_commit :rematch_counterparty_transactions_later, if: :saved_change_to_iban?
 
+  normalizes :custom_group, with: ->(value) { value.squish.presence }
+
   validates :name, :balance, :currency, presence: true
+  validates :custom_group, length: { maximum: AccountGrouping::CUSTOM_GROUP_MAX_LENGTH }, allow_nil: true
   validate :owner_belongs_to_family, if: -> { owner_id.present? && family_id.present? }
 
   belongs_to :family

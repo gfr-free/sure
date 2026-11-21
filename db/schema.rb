@@ -95,15 +95,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.integer "account_providers_count", default: 0, null: false
     t.uuid "accountable_id"
     t.string "accountable_type"
-    t.boolean "auto_renew", default: false, null: false
-    t.date "available_on"
     t.decimal "balance", precision: 19, scale: 4
     t.decimal "cash_balance", precision: 19, scale: 4, default: "0.0"
     t.virtual "classification", type: :string, as: "\nCASE\n    WHEN ((accountable_type)::text = ANY (ARRAY[('Loan'::character varying)::text, ('CreditCard'::character varying)::text, ('OtherLiability'::character varying)::text])) THEN 'liability'::text\n    ELSE 'asset'::text\nEND", stored: true
     t.string "cost_basis_method", default: "average", null: false
     t.datetime "created_at", null: false
     t.string "currency"
-    t.string "custom_group"
     t.datetime "disabled_at"
     t.boolean "enable_category_matcher", default: true, null: false
     t.boolean "exclude_from_reports", default: false, null: false
@@ -111,18 +108,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.uuid "import_id"
     t.string "institution_domain"
     t.string "institution_name"
-    t.string "liquidity", default: "immediate", null: false
     t.jsonb "locked_attributes", default: {}
     t.string "logo_selection", default: "automatic", null: false
     t.string "name"
     t.text "notes"
     t.uuid "owner_id"
     t.uuid "plaid_account_id"
-    t.integer "renewal_term_months"
     t.uuid "simplefin_account_id"
     t.string "status", default: "active"
     t.string "subtype"
     t.datetime "updated_at", null: false
+    t.string "iban"
+    t.string "liquidity", default: "immediate", null: false
+    t.date "available_on"
+    t.boolean "auto_renew", default: false, null: false
+    t.integer "renewal_term_months"
+    t.string "custom_group"
     t.index ["accountable_id", "accountable_type"], name: "index_accounts_on_accountable_id_and_accountable_type"
     t.index ["accountable_type"], name: "index_accounts_on_accountable_type"
     t.index ["currency"], name: "index_accounts_on_currency"
@@ -402,16 +403,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   end
 
   create_table "bullion_specs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "security_id", null: false
+    t.uuid "family_id"
+    t.string "metal", null: false
+    t.decimal "fine_weight_grams", precision: 12, scale: 4, null: false
     t.string "catalog_key"
+    t.string "size_key"
     t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.decimal "face_value", precision: 19, scale: 4
     t.string "face_value_currency"
-    t.uuid "family_id"
-    t.decimal "fine_weight_grams", precision: 12, scale: 4, null: false
-    t.string "metal", null: false
-    t.uuid "security_id", null: false
-    t.string "size_key"
-    t.datetime "updated_at", null: false
     t.index ["catalog_key", "size_key"], name: "index_bullion_specs_on_catalog_product", unique: true, where: "(family_id IS NULL)"
     t.index ["family_id"], name: "index_bullion_specs_on_family_id"
     t.index ["security_id"], name: "index_bullion_specs_on_security_id", unique: true
@@ -754,8 +755,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.index ["account_id", "source", "external_id"], name: "index_entries_on_account_source_and_external_id", unique: true, where: "((external_id IS NOT NULL) AND (source IS NOT NULL))"
     t.index ["currency", "amount", "date", "account_id"], name: "index_entries_on_transfer_match_lookup", where: "(((entryable_type)::text = 'Transaction'::text) AND (excluded = false))"
     t.index ["date"], name: "index_entries_on_date"
-    t.index ["entryable_type"], name: "index_entries_on_entryable_type"
     t.index ["entryable_type", "entryable_id"], name: "index_entries_on_entryable_type_and_entryable_id"
+    t.index ["entryable_type"], name: "index_entries_on_entryable_type"
     t.index ["import_id"], name: "index_entries_on_import_id"
     t.index ["import_locked"], name: "index_entries_on_import_locked_true", where: "(import_locked = true)"
     t.index ["parent_entry_id"], name: "index_entries_on_parent_entry_id"
@@ -766,9 +767,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   end
 
   create_table "entry_reads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.uuid "entry_id", null: false
     t.uuid "user_id", null: false
+    t.uuid "entry_id", null: false
+    t.datetime "created_at", null: false
     t.index ["entry_id"], name: "index_entry_reads_on_entry_id"
     t.index ["user_id", "entry_id"], name: "index_entry_reads_on_user_id_and_entry_id", unique: true
   end
@@ -875,7 +876,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.boolean "auto_sync_on_login", default: true, null: false
     t.jsonb "bayes_settings", default: {}, null: false
     t.string "bills_feed_token"
-    t.boolean "budgets_enabled", default: true, null: false
     t.boolean "categories_locked", default: false, null: false
     t.decimal "categorization_confidence_threshold", precision: 3, scale: 2, default: "0.7", null: false
     t.string "categorization_provider", default: "llm", null: false
@@ -899,12 +899,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
     t.boolean "personal_budgets", default: false, null: false
-    t.boolean "plan_enabled", default: true, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
     t.string "timezone"
     t.datetime "updated_at", null: false
     t.string "vector_store_id"
+    t.boolean "budgets_enabled", default: true, null: false
+    t.boolean "plan_enabled", default: true, null: false
     t.index ["bills_feed_token"], name: "index_families_on_bills_feed_token", unique: true
     t.check_constraint "categorization_confidence_threshold >= 0::numeric AND categorization_confidence_threshold <= 1::numeric", name: "chk_families_categorization_confidence_threshold"
     t.check_constraint "categorization_provider::text = ANY (ARRAY['llm'::character varying::text, 'jev'::character varying::text])", name: "chk_families_categorization_provider"
@@ -1722,6 +1723,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.string "type", null: false
     t.datetime "updated_at", null: false
     t.string "website_url"
+    t.string "iban"
     t.index ["family_id", "name"], name: "index_merchants_on_family_id_and_name", unique: true, where: "((type)::text = 'FamilyMerchant'::text)"
     t.index ["family_id"], name: "index_merchants_on_family_id"
     t.index ["provider_merchant_id", "source"], name: "index_merchants_on_provider_merchant_id_and_source", unique: true, where: "((provider_merchant_id IS NOT NULL) AND ((type)::text = 'ProviderMerchant'::text))"
@@ -2052,7 +2054,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.index ["subscription_type", "subscription_id"], name: "index_push_deliveries_on_subscription"
     t.check_constraint "insight_id IS NULL AND insight_version IS NULL OR insight_id IS NOT NULL AND insight_version IS NOT NULL AND insight_version > 0", name: "chk_push_deliveries_insight_version"
     t.check_constraint "provider_attempts >= 0", name: "chk_push_deliveries_provider_attempts"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'skipped'::character varying, 'rejected'::character varying, 'failed'::character varying, 'enqueue_failed'::character varying]::text[])", name: "chk_push_deliveries_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'accepted'::character varying::text, 'skipped'::character varying::text, 'rejected'::character varying::text, 'failed'::character varying::text, 'enqueue_failed'::character varying::text])", name: "chk_push_deliveries_status"
   end
 
   create_table "push_subscriptions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2149,13 +2151,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.decimal "match_confidence", precision: 5, scale: 4
     t.jsonb "match_signals", default: {}, null: false
     t.date "paid_on"
-    t.boolean "pending_review", default: false, null: false
     t.uuid "recurring_occurrence_id", null: false
     t.string "source", null: false
     t.decimal "source_amount", precision: 19, scale: 4
     t.string "source_currency"
     t.string "state", default: "confirmed", null: false
     t.datetime "updated_at", null: false
+    t.boolean "pending_review", default: false, null: false
     t.index ["entry_id"], name: "index_recurring_allocations_on_entry_id"
     t.index ["recurring_occurrence_id", "entry_id"], name: "idx_recurring_allocations_entry_once", unique: true, where: "(entry_id IS NOT NULL)"
     t.index ["recurring_occurrence_id"], name: "index_recurring_allocations_on_recurring_occurrence_id"
@@ -2174,7 +2176,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   end
 
   create_table "recurring_occurrences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.datetime "auto_posted_at"
     t.datetime "closed_at"
     t.string "closed_source"
     t.datetime "created_at", null: false
@@ -2188,6 +2189,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.date "snoozed_until"
     t.string "status", default: "scheduled", null: false
     t.datetime "updated_at", null: false
+    t.datetime "auto_posted_at"
     t.index ["family_id", "due_on"], name: "index_recurring_occurrences_on_family_id_and_due_on"
     t.index ["family_id", "status", "due_on"], name: "index_recurring_occurrences_on_family_id_and_status_and_due_on"
     t.index ["id", "currency"], name: "idx_recurring_occurrences_id_currency", unique: true
@@ -2217,8 +2219,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.string "amount_strategy", default: "fixed", null: false
     t.decimal "amount_tolerance_pct", precision: 5, scale: 2, default: "7.5", null: false
     t.date "anchor_date"
-    t.boolean "auto_post", default: false, null: false
-    t.date "auto_post_from"
     t.boolean "autopay", default: false, null: false
     t.string "bill_type", default: "bill", null: false
     t.date "cancelled_on"
@@ -2256,6 +2256,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.integer "upcoming_window_days"
     t.datetime "updated_at", null: false
     t.string "weekend_adjust", default: "none", null: false
+    t.boolean "auto_post", default: false, null: false
+    t.date "auto_post_from"
     t.index ["account_id"], name: "index_recurring_transactions_on_account_id"
     t.index ["category_id"], name: "index_recurring_transactions_on_category_id"
     t.index ["destination_account_id"], name: "index_recurring_transactions_on_destination_account_id"
@@ -2935,8 +2937,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.string "provider_entry_reference"
     t.uuid "transfer_id"
     t.datetime "updated_at", null: false
+    t.string "counterparty_iban_last4"
+    t.string "counterparty_reference_last4"
+    t.uuid "counterparty_own_account_id"
     t.index "(((extra -> 'goal'::text) ->> 'pledge_id'::text))", name: "ix_transactions_extra_goal_pledge_id", unique: true, where: "(((extra -> 'goal'::text) ->> 'pledge_id'::text) IS NOT NULL)"
     t.index ["category_id"], name: "index_transactions_on_category_id"
+    t.index ["counterparty_own_account_id"], name: "index_transactions_on_counterparty_own_account_id"
     t.index ["external_id"], name: "index_transactions_on_external_id"
     t.index ["extra"], name: "index_transactions_on_extra", using: :gin
     t.index ["investment_activity_label"], name: "index_transactions_on_investment_activity_label"
@@ -3081,11 +3087,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.boolean "show_ai_sidebar", default: true
     t.boolean "show_sidebar", default: true
     t.string "theme", default: "system"
-    t.datetime "transactions_read_before", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.string "ui_layout"
     t.string "unconfirmed_email"
     t.datetime "updated_at", null: false
     t.string "webauthn_id"
+    t.datetime "transactions_read_before", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.index ["default_account_id"], name: "index_users_on_default_account_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["family_id"], name: "index_users_on_family_id"
@@ -3384,6 +3390,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   add_foreign_key "trades", "securities"
   add_foreign_key "trading212_accounts", "trading212_items"
   add_foreign_key "trading212_items", "families"
+  add_foreign_key "transactions", "accounts", column: "counterparty_own_account_id", on_delete: :nullify
   add_foreign_key "transactions", "categories", on_delete: :nullify
   add_foreign_key "transactions", "merchants"
   add_foreign_key "transactions", "transfers"

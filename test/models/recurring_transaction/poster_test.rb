@@ -714,6 +714,25 @@ class RecurringTransaction::PosterTest < ActiveSupport::TestCase
     assert @occurrence.reload.scheduled?
   end
 
+  test "a post locks the account the bill was moved to during the run" do
+    card = accounts(:credit_card)
+    RecurringTransaction::Matcher.any_instance.stubs(:run!).with { @rent.update_columns(account_id: card.id); true }
+    locked = []
+    record_lock = lambda do |*, payload|
+      next unless payload[:sql].include?("FOR SHARE") && payload[:sql].include?('"accounts"')
+
+      binds = payload[:type_casted_binds]
+      binds = binds.call if binds.respond_to?(:call)
+      locked << "#{payload[:sql]} #{Array(binds).flatten.join(' ')}"
+    end
+
+    ActiveSupport::Notifications.subscribed(record_lock, "sql.active_record") { post! }
+
+    assert_equal 1, @occurrence.reload.allocations.count
+    assert locked.any? { |statement| statement.include?(card.id) }, "the new account is held while the post is written"
+    assert locked.none? { |statement| statement.include?(@account.id) }
+  end
+
   test "a failing balance sync is logged and the posts stay" do
     Account.any_instance.stubs(:sync_later).raises(StandardError, "queue down")
 

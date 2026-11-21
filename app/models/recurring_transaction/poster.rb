@@ -113,10 +113,13 @@ class RecurringTransaction
 
         RecurringOccurrence.transaction do
           occurrence.lock!
-          # The accounts as they are now, held so that linking a bank or
-          # changing the currency waits until this post is written.
-          Account.where(id: [ series.account_id, series.destination_account_id ].compact).order(:id).lock("FOR SHARE").load
+          # The accounts the bill posts into now, held so that linking a bank
+          # or changing the currency waits until this post is written. A move
+          # to another account in between waits for the next run.
           series.reload
+          account_ids = [ series.account_id, series.destination_account_id ].compact
+          Account.where(id: account_ids).order(:id).lock("FOR SHARE").load
+          next nil unless RecurringTransaction.where(id: series.id).pick(:account_id, :destination_account_id).compact == account_ids
           next nil unless series.postable_now?
           # An open date kept from before a currency change still holds its
           # amount in the old currency.

@@ -384,9 +384,9 @@ class Family::DataImporter
         # wins, matching SureImport::Preflight#validate_accountables.
         imported_subtype = accountable_data["subtype"].presence || data["subtype"].presence
         account.subtype = imported_subtype if imported_subtype
+        assign_imported_liquidity(account, data)
         # A file from before the setting existed leaves the account's own.
         account.cost_basis_method = data["cost_basis_method"] if Account.cost_basis_methods.key?(data["cost_basis_method"])
-        assign_imported_liquidity(account, data)
         # Older exports predate the choice and keep the account's own.
         account.logo_selection = data["logo_selection"] if Account.logo_selections.key?(data["logo_selection"])
 
@@ -448,7 +448,7 @@ class Family::DataImporter
     def importable_integer(value, range)
       integer = Integer(value.to_s, exception: false)
       integer if integer && range.cover?(integer)
-      end
+    end
 
     # What the property form edits. Provider links (avm_*) are left out: the
     # restored family has to link its own provider. A missing or null value

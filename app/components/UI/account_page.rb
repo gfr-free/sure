@@ -74,10 +74,18 @@ class UI::AccountPage < ApplicationComponent
     base_tabs + [ :statements ] + preview_tabs
   end
 
-  # "Details" lists the rules that apply to the account (Account::RuleDetails).
-  # Preview only.
+  # "Details" lists the rules that apply to the account (Account::RuleDetails);
+  # "Forecast" what is left after the expected payments (Account::Forecast),
+  # for accounts whose money is reachable today. Preview only.
   def preview_tabs
-    Current.user&.preview_features_enabled? ? [ :details ] : []
+    return [] unless Current.user&.preview_features_enabled?
+
+    forecast_tab = Account::Forecast.forecastable?(account) ? [ :forecast ] : []
+    forecast_tab + [ :details ]
+  end
+
+  def forecast
+    @forecast ||= Account::Forecast.for_account(account, user: Current.user)
   end
 
   def fx_coverage_start_date
@@ -131,6 +139,8 @@ class UI::AccountPage < ApplicationComponent
              extra_repayment: extra_repayment
     when :statements
       render_statement_tab
+    when :forecast
+      render "accounts/show/forecast", account: account, forecast: forecast
     when :details
       render "accounts/show/details", account: account
     end

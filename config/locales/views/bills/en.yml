@@ -39,6 +39,7 @@ en:
       around: "around %{date}"
       overview: Overview
       rules: How this bill is matched
+      once_kind_hint: Mark the transaction as one-time to keep it out of your averages.
       rule_named: "%{name}"
       rule_amount_range: "from %{min} to %{max}"
       rule_aliases: "Also matches %{names}"
@@ -67,6 +68,12 @@ en:
       cancelled_chip: "Cancelled %{date}"
       price_changes: Price changes
       price_change_line: "%{from} → %{to}"
+    account_coverage:
+      title: Accounts after expected payments
+      covered: Covered until %{date}
+      short: Falls below zero on %{date}, top up by %{by}
+      left_over: "%{amount} left"
+      missing: "%{amount} short"
     month_pulse:
       bill_count:
         one: 1 bill

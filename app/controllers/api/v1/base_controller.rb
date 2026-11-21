@@ -256,6 +256,17 @@ class Api::V1::BaseController < ApplicationController
       false
     end
 
+    # Preview-only endpoints answer like the web app: not for users who have
+    # not opted into preview features.
+    def require_preview_features_for_api
+      return if current_resource_owner.preview_features_enabled?
+
+      render_json(
+        { error: "feature_disabled", message: "Preview features are not enabled for this user" },
+        status: :forbidden
+      )
+    end
+
     # Consistent JSON response method
     def render_json(data, status: :ok)
       render json: data, status: status
@@ -313,6 +324,15 @@ class Api::V1::BaseController < ApplicationController
       date = Date.iso8601(value)
       date if date.year.positive?
     rescue Date::Error
+      nil
+    end
+
+    # A finite decimal, or nil for anything else. String#to_d would read "abc"
+    # as 0 and "12abc" as 12. exception: false does not cover a NUL byte.
+    def parse_decimal(raw)
+      value = BigDecimal(raw.to_s.strip, exception: false)
+      value if value&.finite?
+    rescue ArgumentError
       nil
     end
 

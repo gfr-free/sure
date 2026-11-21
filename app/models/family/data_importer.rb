@@ -386,6 +386,10 @@ class Family::DataImporter
         account.subtype = imported_subtype if imported_subtype
         # A file from before the setting existed leaves the account's own.
         account.cost_basis_method = data["cost_basis_method"] if Account.cost_basis_methods.key?(data["cost_basis_method"])
+        # Older or hand-built files omit iban; don't clear an existing one.
+        # Types without an IBAN (vehicle, property, ...) drop it on save
+        # (Account#clear_unsupported_iban).
+        account.iban = data["iban"] if data.key?("iban")
         # Older exports predate the choice and keep the account's own.
         account.logo_selection = data["logo_selection"] if Account.logo_selections.key?(data["logo_selection"])
 
@@ -569,6 +573,8 @@ class Family::DataImporter
         )
         # Older or hand-built files omit website_url; don't clear an existing one.
         merchant.website_url = data["website_url"] if data.key?("website_url")
+        # Same for iban; normalized on save.
+        merchant.iban = data["iban"] if data.key?("iban")
         merchant.save!
         map_source!(:merchants, old_id, merchant)
         increment_summary("Merchant", created ? :created : :updated)

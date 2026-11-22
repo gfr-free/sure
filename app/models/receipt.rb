@@ -30,6 +30,8 @@ class Receipt < ApplicationRecord
   CANDIDATE_DATE_WINDOW = 30
   MAX_CANDIDATES = 20
   FIELDS = %w[merchant_name date amount currency].freeze
+  # Fits numeric(19,4), the type of receipts.amount and entries.amount.
+  MAX_AMOUNT = 10**15
 
   if encryption_ready?
     encrypts :raw_text
@@ -48,7 +50,7 @@ class Receipt < ApplicationRecord
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
   validates :content_type, inclusion: { in: ALLOWED_CONTENT_TYPES }
   validates :byte_size, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
-  validates :amount, numericality: { greater_than: 0, less_than: 10**15 }, allow_nil: true
+  validates :amount, numericality: { greater_than: 0, less_than: MAX_AMOUNT }, allow_nil: true
   validates :merchant_name, length: { maximum: 200 }
   validate :currency_is_valid
   validate :linked_transaction_belongs_to_family
@@ -177,11 +179,10 @@ class Receipt < ApplicationRecord
   # receipt is then marked failed instead of reading forever, and stays usable
   # by hand.
   def extract_later
-    ReceiptExtractionJob.perform_later(self)
+    job = ReceiptExtractionJob.perform_later(self)
+    enqueue_failed!("not enqueued") unless job&.successfully_enqueued?
   rescue StandardError => e
-    DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{e.class}",
-                          source: "receipt_extraction", family: family, user_id: uploaded_by_id)
-    update_columns(extraction_status: "failed", extraction_error: "enqueue_failed", updated_at: Time.current)
+    enqueue_failed!(e.class)
   end
 
   # Reads the header data from the file. Fields the user has already edited by
@@ -269,7 +270,7 @@ class Receipt < ApplicationRecord
   # Records the receipt as a new expense on `account`, then links it.
   def create_transaction!(account:, user:, name:, date:, amount:, currency:)
     raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
-    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date) && known_currency?(currency)
+    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && amount < MAX_AMOUNT && date.is_a?(Date) && known_currency?(currency)
 
     entry = nil
     with_file_copy do |copy|
@@ -303,6 +304,12 @@ class Receipt < ApplicationRecord
   end
 
   private
+    def enqueue_failed!(reason)
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{reason}",
+                            source: "receipt_extraction", family: family, user_id: uploaded_by_id)
+      update_columns(extraction_status: "failed", extraction_error: "enqueue_failed", updated_at: Time.current)
+    end
+
     # The transaction's copy is uploaded before the database work, so a storage
     # error fails the link instead of leaving it pointing at a missing file. The
     # copy is removed again when the link does not happen.

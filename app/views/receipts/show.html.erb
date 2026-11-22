@@ -48,10 +48,7 @@
           <% if (hint = receipt_field_hint(@receipt, :merchant_name)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
           <%= form.date_field :date, label: t(".date") %>
           <% if (hint = receipt_field_hint(@receipt, :date)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
-          <div class="grid grid-cols-[1fr_6rem] gap-3">
-            <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: "any", min: 0, class: "privacy-sensitive" %>
-            <%= form.text_field :currency, label: t(".currency"), maxlength: 3 %>
-          </div>
+          <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency %>
           <% if (hint = receipt_field_hint(@receipt, :amount)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
           <div class="flex justify-end">
             <%= render DS::Button.new(text: t(".save"), type: :submit) %>
@@ -109,10 +106,7 @@
               <%= form.select :account_id, @accounts.map { |account| [ account.name, account.id ] }, { label: t(".account") }, name: "account_id" %>
               <%= form.text_field :name, label: t(".name"), value: @receipt.merchant_name %>
               <%= form.date_field :date, label: t(".date"), value: @receipt.date || Date.current, required: true %>
-              <div class="grid grid-cols-[1fr_6rem] gap-3">
-                <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: "any", min: 0, required: true, class: "privacy-sensitive" %>
-                <%= form.text_field :currency, label: t(".currency"), value: @receipt.currency, maxlength: 3 %>
-              </div>
+              <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency, required: true %>
               <% if @bank_wait %>
                 <p class="text-xs text-secondary"><%= t(".bank_wait_hint", date: l(@receipt.bank_wait_until, format: :long)) %></p>
               <% else %>

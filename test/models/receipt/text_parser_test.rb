@@ -94,6 +94,24 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 4, 3), parse("Datum 03/04/2026\n", currency_hint: "EUR")["date"][:value]
   end
 
+  test "reads slash dates by the currency printed on the receipt, not the hint" do
+    assert_equal Date.new(2026, 4, 3), parse("Total 5,00 EUR\nDate 03/04/2026\n", currency_hint: "USD")["date"][:value]
+  end
+
+  test "a zero total leaves the amount blank instead of taking the change" do
+    fields = parse("Total 0.00\nCash 50.00\nChange 50.00\n")
+
+    assert_nil fields["amount"]
+  end
+
+  test "the fallback skips change and tax lines" do
+    assert_equal BigDecimal("12.00"), parse("Coffee 12.00\nChange 38.00\n")["amount"][:value]
+  end
+
+  test "ignores amounts too large to store" do
+    assert_nil parse("Total 9999999999999999.00\n")["amount"]
+  end
+
   test "ignores dates in the future or older than two years" do
     fields = parse("Gueltig bis 31.12.2027\nAlt 01.01.2020\nKauf 05.11.2026\n")
 

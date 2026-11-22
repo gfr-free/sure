@@ -210,6 +210,15 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal "enqueue_failed", receipt.extraction_error
   end
 
+  test "a receipt whose job is silently not enqueued is marked failed" do
+    ReceiptExtractionJob.stubs(:perform_later).returns(false)
+
+    receipt = upload([ "Total 2.00" ])
+
+    assert receipt.reload.extraction_failed?
+    assert_equal "enqueue_failed", receipt.extraction_error
+  end
+
   test "extract! marks the receipt failed when a read value cannot be saved" do
     receipt = upload([ "Total 2.00" ])
     result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("1e16"), confidence: 0.9, source: "pdf_text" } }, raw_text: "x")
@@ -262,6 +271,16 @@ class ReceiptTest < ActiveSupport::TestCase
       receipt.create_transaction!(account: @account, user: @admin, name: "Shop", date: Date.current, amount: BigDecimal("15"), currency: "XYZ")
     end
     assert_nil receipt.reload.transaction_id
+  end
+
+  test "create_transaction! refuses an amount too large to store" do
+    receipt = upload([ "Total 2.00" ])
+
+    assert_no_difference -> { @account.entries.count } do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Huge", date: Date.current, amount: BigDecimal("1e20"), currency: "USD")
+      end
+    end
   end
 
   test "create_transaction! refuses an amount that is not positive" do

@@ -61,7 +61,7 @@ run at the same time.
 
 ## Privacy
 
-Sure keeps a received mail only until its attachments are stored as receipts.
-Deletion is scheduled one hour after the mail has been processed, so it can
-happen later when background workers are delayed. Refused mail gets no reply, so a forged sender
+Sure stores only the attachments of a received mail as receipts, never its
+text. The raw mail itself is deleted one hour after it has been processed; when
+background workers are delayed, this happens later. Refused mail gets no reply, so a forged sender
 never receives mail from Sure.

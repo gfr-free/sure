@@ -34,7 +34,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
   test "hands unread mail to Action Mailbox, then deletes it from the mailbox" do
     source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
     expect_session(uids: [ 7 ], size: source.bytesize, source: source)
-    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
     @imap.expects(:expunge)
 
     with_receipt_inbox(IMAP_ENV) do
@@ -48,7 +48,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
     expect_session(uids: [ 7 ], size: source.bytesize, source: source)
     @imap.stubs(:capability).returns(%w[IMAP4REV1 UIDPLUS])
-    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
     @imap.expects(:uid_expunge).with([ 7 ])
     @imap.expects(:expunge).never
 
@@ -61,7 +61,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     @imap.stubs(:uid_fetch).with(5, "BODY.PEEK[]").returns([ fetch_data("BODY[]" => "") ])
     ActionMailbox::InboundEmail.expects(:create_and_extract_message_id!).twice.raises(RuntimeError).then.returns(nil)
     @imap.expects(:uid_store).with(5, "+FLAGS", [ :Seen ])
-    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
     @imap.expects(:expunge)
 
     with_receipt_inbox(IMAP_ENV) do
@@ -75,7 +75,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     inbound = ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
     inbound.update_column(:status, ActionMailbox::InboundEmail.statuses[:pending])
     expect_session(uids: [ 7 ], size: source.bytesize, source: source)
-    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
     @imap.expects(:expunge)
 
     with_receipt_inbox(IMAP_ENV) do
@@ -83,6 +83,25 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
         assert_enqueued_with(job: ActionMailbox::RoutingJob, args: [ inbound ]) do
           assert_equal 1, Receipt::ImapFetcher.new.fetch
         end
+      end
+    end
+  end
+
+  test "a failed expunge leaves the message unread for the next run" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
+    @imap.expects(:expunge).raises(IOError)
+
+    with_receipt_inbox(IMAP_ENV) { assert_equal 0, Receipt::ImapFetcher.new.fetch }
+
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Deleted ])
+    @imap.expects(:expunge)
+
+    with_receipt_inbox(IMAP_ENV) do
+      assert_no_difference -> { ActionMailbox::InboundEmail.count } do
+        assert_equal 1, Receipt::ImapFetcher.new.fetch
       end
     end
   end

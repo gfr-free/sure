@@ -7,8 +7,8 @@ require "net/imap"
 # which routes it like mail from an ingress, and is then deleted from the
 # mailbox (or only marked read when RECEIPT_INBOX_IMAP_KEEP is set).
 #
-# In delete mode a message stays unread until the end of the run, so a run that
-# breaks off leaves it for the next one, which finds it already stored and only
+# In delete mode a message is never marked read, so a run that breaks off before
+# the expunge leaves it for the next one, which finds it already stored and only
 # makes sure it was routed.
 class Receipt::ImapFetcher
   MAX_MESSAGES_PER_RUN = 50
@@ -116,20 +116,27 @@ class Receipt::ImapFetcher
     # A message stored by an earlier, interrupted run is not stored again, which
     # would leave its raw mail behind unattached. If that run could not queue
     # the routing, it is queued now; a failure here leaves the message unread.
+    # The lock keeps two overlapping runs from storing the same message at once.
     def store(source)
-      existing = ActionMailbox::InboundEmail.find_by(message_checksum: OpenSSL::Digest::SHA1.hexdigest(source))
-      if existing.nil?
-        ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
-      elsif existing.pending?
-        existing.route_later
+      checksum = OpenSSL::Digest::SHA1.hexdigest(source)
+      existing = ActionMailbox::InboundEmail.transaction do
+        ActionMailbox::InboundEmail.connection.execute(
+          ActionMailbox::InboundEmail.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "receipt_imap:#{checksum}" ])
+        )
+        ActionMailbox::InboundEmail.find_by(message_checksum: checksum).tap do |found|
+          ActionMailbox::InboundEmail.create_and_extract_message_id!(source) if found.nil?
+        end
       end
+      existing.route_later if existing&.pending?
     end
 
     # Removes only this run's messages where the server can (UIDPLUS); otherwise
     # every message flagged deleted goes, which is why the mailbox should serve
     # receipts only.
+    # Not marked read, so a failed expunge leaves the messages for the next run,
+    # which finds them already stored.
     def delete(imap, uids)
-      imap.uid_store(uids, "+FLAGS", [ :Seen, :Deleted ])
+      imap.uid_store(uids, "+FLAGS", [ :Deleted ])
       if imap.capability.include?("UIDPLUS")
         imap.uid_expunge(uids)
       else

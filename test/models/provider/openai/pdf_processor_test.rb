@@ -271,6 +271,13 @@ class Provider::Openai::PdfProcessorTest < ActiveSupport::TestCase
     assert_equal [], processor.send(:convert_pdf_to_images)
   end
 
+  test "asks for contract terms but never for contract numbers" do
+    instructions = Provider::Openai::PdfProcessor.new(nil, max_response_tokens: 100).instructions
+
+    assert_includes instructions, '"notice_period_value"'
+    assert_includes instructions, "Never include contract, policy"
+  end
+
   test "text extraction omits response_format when json_mode is none" do
     client = mock
     client.expects(:chat).with do |request|

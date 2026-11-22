@@ -99,9 +99,10 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "extract! reads a photo with text recognition" do
+    card = "4242" * 4
     Receipt::Ocr.stubs(:available?).returns(true)
     Receipt::Ocr.any_instance.expects(:read_image).with(anything, content_type: "image/png").returns(
-      Receipt::Ocr::Result.new(text: "Corner Bakery\nTOTAL 8.40 USD\nDate #{Date.current.iso8601} 09:12\nVISA ************4242", confidence: 0.8)
+      Receipt::Ocr::Result.new(text: "Corner Bakery\nTOTAL 8.40 USD\nDate #{Date.current.iso8601} 09:12\nVISA #{card}", confidence: 0.8)
     )
     receipt = upload_photo
 
@@ -114,7 +115,7 @@ class ReceiptTest < ActiveSupport::TestCase
     # The rule's 70% is scaled by Tesseract's 80% word confidence.
     assert_equal 0.56, receipt.field_confidence(:amount)
     assert_includes receipt.raw_text, "Corner Bakery"
-    assert_not_includes receipt.raw_text, "4242424242424242"
+    assert_not_includes receipt.raw_text, card
     assert_not receipt.text_recognition_unavailable?
   end
 

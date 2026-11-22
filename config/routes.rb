@@ -866,6 +866,8 @@ Rails.application.routes.draw do
           get :candidates
           post :link
           post :create_transaction
+          post :confirm
+          post :reject
           post :dismiss
           post :reopen
         end

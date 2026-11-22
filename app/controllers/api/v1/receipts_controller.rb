@@ -9,7 +9,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
   wrap_parameters false
 
   READ_ACTIONS = %i[index show file candidates].freeze
-  STATUSES = %w[reading open linked dismissed].freeze
+  STATUSES = %w[reading open suggested linked dismissed].freeze
 
   before_action :ensure_read_scope, only: READ_ACTIONS
   before_action :ensure_write_scope, except: READ_ACTIONS
@@ -20,7 +20,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
   helper_method :accessible_account_ids
 
   def index
-    receipts = own_receipts.includes(linked_transaction: { entry: :account }).ordered
+    receipts = own_receipts.includes(:family, linked_transaction: { entry: :account }).ordered
     receipts = apply_filters(receipts)
 
     @per_page = safe_per_page_param
@@ -107,6 +107,22 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
     render_record_invalid(e.record)
   end
 
+  # Accepts the transaction Sure suggested: the file is copied onto it.
+  def confirm
+    @receipt.confirm_match!(user: current_resource_owner)
+    render :show
+  rescue ActiveRecord::RecordInvalid => e
+    render_record_invalid(e.record)
+  end
+
+  # Turns the suggestion down; Sure will not suggest that transaction again.
+  def reject
+    @receipt.reject_match!
+    render :show
+  rescue ActiveRecord::RecordInvalid => e
+    render_record_invalid(e.record)
+  end
+
   def dismiss
     @receipt.dismiss!
     render :show
@@ -149,11 +165,12 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
         status = params[:status].to_s
         raise InvalidFilterError, "status must be one of: #{STATUSES.join(", ")}" unless STATUSES.include?(status)
 
-        # Same precedence as Receipt#status: dismissed, linked, reading, open.
+        # Same precedence as Receipt#status: dismissed, suggested, linked, reading, open.
         undismissed = scope.where(dismissed_at: nil)
         scope = case status
         when "dismissed" then scope.where.not(dismissed_at: nil)
-        when "linked" then undismissed.where.not(transaction_id: nil)
+        when "suggested" then undismissed.where.not(transaction_id: nil).where(match_status: "pending")
+        when "linked" then undismissed.where.not(transaction_id: nil).where(match_status: [ nil, "confirmed" ])
         when "reading" then undismissed.where(transaction_id: nil, extraction_status: "pending")
         when "open" then undismissed.where(transaction_id: nil).where.not(extraction_status: "pending")
         end

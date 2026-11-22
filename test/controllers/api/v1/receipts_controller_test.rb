@@ -137,8 +137,12 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     linked_then_dismissed = upload_for(@admin, "linked-dismissed.pdf")
     linked_then_dismissed.link_to!(entry.transaction, user: @admin)
     linked_then_dismissed.dismiss!
+    suggested = suggest(upload_for(@admin, "suggested.pdf"), entry)
 
-    expected = { "reading" => [ reading ], "open" => [ open_receipt ], "linked" => [ linked ], "dismissed" => [ linked_then_dismissed ] }
+    expected = {
+      "reading" => [ reading ], "open" => [ open_receipt ], "suggested" => [ suggested ],
+      "linked" => [ linked ], "dismissed" => [ linked_then_dismissed ]
+    }
     expected.each do |status, receipts|
       get api_v1_receipts_url, params: { status: status }, headers: api_headers(@api_key)
 
@@ -352,6 +356,62 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "confirms a suggested transaction" do
+    entry = @account.entries.create!(name: "Shop", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    receipt = suggest(upload_for(@admin, "suggested.pdf"), entry)
+
+    get api_v1_receipt_url(receipt), headers: api_headers(@read_only_api_key)
+    data = response.parsed_body["data"]
+    assert_equal "suggested", data["status"]
+    assert_equal "pending", data["match_status"]
+    assert_equal entry.transaction.id, data["transaction"]["id"]
+
+    post confirm_api_v1_receipt_url(receipt), headers: api_headers(@read_only_api_key)
+    assert_response :forbidden
+
+    post confirm_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+
+    assert_response :ok
+    assert_equal "linked", response.parsed_body["data"]["status"]
+    assert_equal "confirmed", response.parsed_body["data"]["match_status"]
+    assert receipt.reload.match_confirmed?
+    assert_equal 1, entry.transaction.attachments.count
+  end
+
+  test "rejects a suggested transaction" do
+    entry = @account.entries.create!(name: "Shop", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    receipt = suggest(upload_for(@admin, "suggested.pdf"), entry)
+
+    post reject_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+
+    assert_response :ok
+    assert_nil response.parsed_body["data"]["transaction"]
+    assert_nil receipt.reload.transaction_id
+    assert receipt.rejected_matches.exists?(transaction_id: entry.transaction.id)
+    assert_equal 0, entry.transaction.attachments.count
+  end
+
+  test "confirm and reject need a pending suggestion" do
+    receipt = upload_for(@admin, "plain.pdf")
+
+    post confirm_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+
+    post reject_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+  end
+
+  test "cannot confirm a suggestion on an account the caller can no longer write to" do
+    entry = accounts(:credit_card).entries.create!(name: "Card", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    receipt = suggest(upload_for(@member, "member.pdf"), entry)
+
+    post confirm_api_v1_receipt_url(receipt), headers: api_headers(@member_api_key)
+
+    assert_response :not_found
+    assert receipt.reload.match_pending?
+    assert_equal 0, entry.transaction.attachments.count
+  end
+
   test "dismisses, reopens and deletes a receipt" do
     receipt = upload_for(@admin, "gone.pdf")
 
@@ -380,6 +440,11 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
 
     def upload_for(user, filename)
       Receipt.create_from_upload!(family: user.family, user: user, file: receipt_upload(filename: filename))
+    end
+
+    def suggest(receipt, entry)
+      receipt.update!(extraction_status: "completed", linked_transaction: entry.transaction, match_status: "pending", linked_at: Time.current)
+      receipt
     end
 
     def create_api_key(user, scope)

@@ -238,7 +238,7 @@ RSpec.configure do |config|
                          created_transaction created_at updated_at],
             properties: {
               id: { type: :string, format: :uuid },
-              status: { type: :string, enum: %w[reading open linked dismissed] },
+              status: { type: :string, enum: %w[reading open suggested linked dismissed] },
               source: { type: :string, enum: %w[web api] },
               filename: { type: :string },
               content_type: { type: :string },
@@ -262,6 +262,14 @@ RSpec.configure do |config|
                 allOf: [ { '$ref' => '#/components/schemas/ReceiptTransaction' } ],
                 nullable: true,
                 description: 'Linked transaction, while the caller can see its account'
+              },
+              match_status: {
+                type: :string, enum: %w[pending confirmed], nullable: true,
+                description: 'pending: Sure suggested the transaction and waits for confirm or reject; confirmed: linked for good'
+              },
+              bank_wait_until: {
+                type: :string, format: :date, nullable: true,
+                description: 'While set, a new transaction from this receipt is refused on bank-synced accounts, because the bank booking usually arrives later'
               },
               created_transaction: { type: :boolean, description: 'True when the linked transaction was created from this receipt' },
               linked_at: { type: :string, format: :'date-time', nullable: true },

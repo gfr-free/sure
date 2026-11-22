@@ -36,6 +36,8 @@ if transaction && accessible_account_ids.include?(transaction.entry.account_id)
 else
   json.transaction nil
 end
+json.match_status receipt.transaction_id? ? receipt.match_status : nil
+json.bank_wait_until receipt.awaiting_bank? ? receipt.bank_wait_until.iso8601 : nil
 json.created_transaction receipt.created_transaction
 json.linked_at receipt.linked_at&.iso8601
 json.dismissed_at receipt.dismissed_at&.iso8601

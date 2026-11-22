@@ -347,6 +347,7 @@ components:
           enum:
           - reading
           - open
+          - suggested
           - linked
           - dismissed
         source:
@@ -401,6 +402,20 @@ components:
           - "$ref": "#/components/schemas/ReceiptTransaction"
           nullable: true
           description: Linked transaction, while the caller can see its account
+        match_status:
+          type: string
+          enum:
+          - pending
+          - confirmed
+          nullable: true
+          description: 'pending: Sure suggested the transaction and waits for confirm
+            or reject; confirmed: linked for good'
+        bank_wait_until:
+          type: string
+          format: date
+          nullable: true
+          description: While set, a new transaction from this receipt is refused on
+            bank-synced accounts, because the bank booking usually arrives later
         created_transaction:
           type: boolean
           description: True when the linked transaction was created from this receipt
@@ -9267,10 +9282,11 @@ paths:
           enum:
           - reading
           - open
+          - suggested
           - linked
           - dismissed
         description: 'Same values as a receipt''s status: reading (fields still being
-          read), open, linked or dismissed'
+          read), open, suggested (a transaction awaits confirmation), linked or dismissed'
       - name: extraction_status
         in: query
         required: false
@@ -9632,6 +9648,70 @@ paths:
                 currency:
                   type: string
         required: true
+  "/api/v1/receipts/{id}/confirm":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Confirm the suggested transaction
+      description: Accepts the transaction Sure matched automatically and copies the
+        file onto it. Needs write access to its account.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: suggestion confirmed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '404':
+          description: receipt not found, or its account is no longer writable
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: no pending suggestion
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/receipts/{id}/reject":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Reject the suggested transaction
+      description: Unlinks the suggested transaction; Sure does not suggest it for
+        this receipt again.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: suggestion rejected
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '422':
+          description: no pending suggestion
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
   "/api/v1/receipts/{id}/dismiss":
     parameters:
     - name: id

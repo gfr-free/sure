@@ -65,6 +65,12 @@ RSpec.describe 'API V1 Receipts', type: :request do
     end
   end
 
+  let(:suggested_receipt) do
+    Receipt.create_from_upload!(family: family, user: user, file: receipt_file('Total 9.99 USD', filename: 'suggested.pdf')).tap do |receipt|
+      receipt.update!(extraction_status: 'completed', linked_transaction: entry.transaction, match_status: 'pending', linked_at: Time.current)
+    end
+  end
+
   path '/api/v1/receipts' do
     get 'List your receipts' do
       description 'Lists receipts the caller uploaded, newest first. Receipts are private to their uploader. ' \
@@ -74,8 +80,8 @@ RSpec.describe 'API V1 Receipts', type: :request do
       produces 'application/json'
 
       parameter name: :status, in: :query, required: false,
-                schema: { type: :string, enum: %w[reading open linked dismissed] },
-                description: 'Same values as a receipt\'s status: reading (fields still being read), open, linked or dismissed'
+                schema: { type: :string, enum: %w[reading open suggested linked dismissed] },
+                description: 'Same values as a receipt\'s status: reading (fields still being read), open, suggested (a transaction awaits confirmation), linked or dismissed'
       parameter name: :extraction_status, in: :query, required: false,
                 schema: { type: :string, enum: %w[pending completed failed] }
       parameter name: :content_sha256, in: :query, type: :string, required: false,
@@ -361,6 +367,58 @@ RSpec.describe 'API V1 Receipts', type: :request do
         schema '$ref' => '#/components/schemas/ErrorResponse'
         let(:id) { receipt.id }
         let(:body) { { account_id: account.id, amount: 'abc' } }
+        run_test!
+      end
+    end
+  end
+
+  path '/api/v1/receipts/{id}/confirm' do
+    parameter name: :id, in: :path, type: :string, format: :uuid, required: true
+
+    post 'Confirm the suggested transaction' do
+      description 'Accepts the transaction Sure matched automatically and copies the file onto it. Needs write access to its account.'
+      tags 'Receipts'
+      security [ { apiKeyAuth: [] } ]
+      produces 'application/json'
+
+      response '200', 'suggestion confirmed' do
+        schema '$ref' => '#/components/schemas/ReceiptResponse'
+        let(:id) { suggested_receipt.id }
+        run_test!
+      end
+
+      response '404', 'receipt not found, or its account is no longer writable' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+        let(:id) { SecureRandom.uuid }
+        run_test!
+      end
+
+      response '422', 'no pending suggestion' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+        let(:id) { receipt.id }
+        run_test!
+      end
+    end
+  end
+
+  path '/api/v1/receipts/{id}/reject' do
+    parameter name: :id, in: :path, type: :string, format: :uuid, required: true
+
+    post 'Reject the suggested transaction' do
+      description 'Unlinks the suggested transaction; Sure does not suggest it for this receipt again.'
+      tags 'Receipts'
+      security [ { apiKeyAuth: [] } ]
+      produces 'application/json'
+
+      response '200', 'suggestion rejected' do
+        schema '$ref' => '#/components/schemas/ReceiptResponse'
+        let(:id) { suggested_receipt.id }
+        run_test!
+      end
+
+      response '422', 'no pending suggestion' do
+        schema '$ref' => '#/components/schemas/ErrorResponse'
+        let(:id) { receipt.id }
         run_test!
       end
     end

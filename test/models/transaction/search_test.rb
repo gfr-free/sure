@@ -547,7 +547,7 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     key2 = search2.cache_key_base
 
     assert_equal key1, key2
-    assert_not_nil cache.read("transaction_search_totals/v4/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{key2}")
+    assert_not_nil cache.read("transaction_search_totals/v5/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{key2}")
     assert_equal result1, search2.totals
   end
 
@@ -614,6 +614,35 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal 1, totals.count
     assert_equal Money.new(100, "USD"), totals.expense_money
     assert_equal Money.new(0, "USD"), totals.income_money
+  end
+
+  test "uncategorized totals count loan payments as expenses like the cash flow Sankey" do
+    @family.update!(investment_contributions_as_spending: true)
+    create_transaction(account: @checking_account, amount: 100, kind: "standard")
+    create_transaction(account: @checking_account, amount: 400, kind: "loan_payment")
+    create_transaction(account: @checking_account, amount: 300, kind: "investment_contribution")
+    create_transaction(account: @checking_account, amount: -25, kind: "standard")
+
+    totals = Transaction::Search.new(@family, filters: { categories: [ Category::UNCATEGORIZED_FILTER_VALUE ] }).totals
+
+    sankey = IncomeStatement::Sankey.new(IncomeStatement.new(@family), period: Period.custom(start_date: Date.current, end_date: Date.current)).as_json
+    uncategorized_node = sankey[:nodes].find { |node| node[:id] == "expense_uncategorized" }
+
+    assert_equal Money.new(800, "USD"), totals.expense_money
+    assert_equal Money.new(25, "USD"), totals.income_money
+    assert_equal Money.new(0, "USD"), totals.transfer_outflow_money
+    assert_equal (totals.expense_money - totals.income_money).amount, uncategorized_node[:value].to_d
+  end
+
+  test "totals keep investment contributions out of expenses when they do not count as spending" do
+    @family.update!(investment_contributions_as_spending: false)
+    create_transaction(account: @checking_account, amount: 400, kind: "loan_payment")
+    create_transaction(account: @checking_account, amount: 300, kind: "investment_contribution")
+
+    totals = Transaction::Search.new(@family).totals
+
+    assert_equal Money.new(400, "USD"), totals.expense_money
+    assert_equal Money.new(300, "USD"), totals.transfer_outflow_money
   end
 
   test "totals handles empty results" do

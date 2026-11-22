@@ -48,7 +48,7 @@ class Receipt < ApplicationRecord
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
   validates :content_type, inclusion: { in: ALLOWED_CONTENT_TYPES }
   validates :byte_size, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
-  validates :amount, numericality: { greater_than: 0 }, allow_nil: true
+  validates :amount, numericality: { greater_than: 0, less_than: 10**15 }, allow_nil: true
   validates :merchant_name, length: { maximum: 200 }
   validate :currency_is_valid
   validate :linked_transaction_belongs_to_family
@@ -173,8 +173,15 @@ class Receipt < ApplicationRecord
     field_sources.dig(field.to_s, "confidence")
   end
 
+  # Runs after the commit, so an unreachable queue cannot undo the upload. The
+  # receipt is then marked failed instead of reading forever, and stays usable
+  # by hand.
   def extract_later
     ReceiptExtractionJob.perform_later(self)
+  rescue StandardError => e
+    DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{e.class}",
+                          source: "receipt_extraction", family: family, user_id: uploaded_by_id)
+    update_columns(extraction_status: "failed", extraction_error: "enqueue_failed", updated_at: Time.current)
   end
 
   # Reads the header data from the file. Fields the user has already edited by
@@ -199,13 +206,14 @@ class Receipt < ApplicationRecord
       update!(attrs.merge(field_sources: sources))
     end
   rescue Receipt::Extraction::Error => e
-    update!(extraction_status: "failed", extraction_error: e.code)
+    reload.update!(extraction_status: "failed", extraction_error: e.code)
   rescue StandardError => e
     # The receipt stays usable: the user enters the details by hand. The message
-    # names the error class only, never text read from the receipt.
+    # names the error class only, never text read from the receipt. The reload
+    # drops whatever read value made the save fail, so this save does not too.
     DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: extraction failed: #{e.class}",
                           source: "receipt_extraction", family: family, user_id: uploaded_by_id)
-    update!(extraction_status: "failed", extraction_error: "unexpected_error")
+    reload.update!(extraction_status: "failed", extraction_error: "unexpected_error")
   end
 
   # Applies the user's own corrections and marks each changed field as manual.
@@ -315,7 +323,10 @@ class Receipt < ApplicationRecord
           refuse!(:too_many_attachments, max: Transaction::MAX_ATTACHMENTS_PER_TRANSACTION)
         end
 
-        transaction.attachments.attach(copy)
+        unless transaction.attachments.attach(copy)
+          errors.merge!(transaction.errors)
+          raise ActiveRecord::RecordInvalid, self
+        end
         update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created)
       end
     end

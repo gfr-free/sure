@@ -460,6 +460,7 @@ class User < ApplicationRecord
       accounts_to_move.each(&:lock!)
 
       account_shares.delete_all
+      User::CrossFamilyLinks.new(accounts_to_move, new_family).resolve!
 
       update!(family: new_family, role: role, default_account: moving_default_account ? default_account : nil)
 

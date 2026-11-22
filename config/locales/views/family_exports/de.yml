@@ -41,8 +41,11 @@ de:
       dialog_subtitle: Lad alle deine Finanzdaten herunter
       dialog_title: Daten exportieren
       export_data: Daten exportieren
+      include_files_description: Legt die Dateien von Belegen, Buchungsanhängen und Dokumenten mit in die ZIP-Datei. Der Export kann dadurch deutlich größer werden.
+      include_files_label: Angehängte Dateien mitexportieren
       investment_trades: Wertpapiergeschäfte
       note_description: Der Export enthält all deine Daten, aber nur ein Teil davon lässt sich über den CSV-Import zurückspielen. Unterstützt werden Konten, Transaktionen samt Kategorie und Tags sowie Wertpapiergeschäfte. Die übrigen Kontodaten sind nur für deine Unterlagen gedacht.
       note_label: Hinweis
+      receipts_and_attachments: Belege und die Liste der angehängten Dateien
       transaction_history: Transaktionsverlauf
       whats_included: 'Enthalten sind:'

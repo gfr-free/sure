@@ -5,13 +5,22 @@ class Family::DataExporter
   EXPORT_VERSION = 2
   TRANSACTIONS_CSV_HEADERS = [ "date", "account_name", "amount", "name", "category", "tags", "notes", "currency" ].freeze
 
-  def initialize(family)
+  FILES_DIRECTORY = "files"
+
+  # include_files adds the attachment files themselves under files/; without it
+  # attachments.json lists them only.
+  # on_progress is called after each attachment file, so a long export can show
+  # it is still alive.
+  def initialize(family, include_files: false, on_progress: nil)
     @family = family
+    @include_files = include_files
+    @on_progress = on_progress
   end
 
-  def generate_export
-    # Create a StringIO to hold the zip data in memory
-    zip_data = Zip::OutputStream.write_buffer do |zipfile|
+  # Writes the ZIP to `io`, a StringIO by default. A file-backed io keeps large
+  # exports with attachment files out of memory.
+  def generate_export(io = StringIO.new)
+    zip_data = Zip::OutputStream.write_buffer(io) do |zipfile|
       # Add export version marker for downstream tooling
       zipfile.put_next_entry("version.txt")
       zipfile.write generate_version_txt
@@ -40,9 +49,12 @@ class Family::DataExporter
       zipfile.put_next_entry("rules.csv")
       zipfile.write generate_rules_csv
 
-      # Add attachment manifest metadata. Binary file payloads are not included.
+      # Attachment files go in first, so the manifest can say which made it in.
+      manifest_items = attachment_manifest_items
+      write_attachment_files(zipfile, manifest_items) if @include_files
+
       zipfile.put_next_entry("attachments.json")
-      zipfile.write generate_attachments_manifest
+      zipfile.write generate_attachments_manifest(manifest_items)
 
       # Add all.ndjson
       zipfile.put_next_entry("all.ndjson")
@@ -202,17 +214,59 @@ class Family::DataExporter
       end
     end
 
-    def generate_attachments_manifest
+    def generate_attachments_manifest(items)
       {
         version: 1,
-        binary_included: false,
-        attachments: attachment_manifest_items
+        binary_included: @include_files && items.all? { |item| item[:binary_included] },
+        attachments: items.map { |item| item.except(:attachment) }
       }.to_json
     end
 
     def attachment_manifest_items
-      (transaction_attachment_manifest_items + family_document_attachment_manifest_items)
+      (transaction_attachment_manifest_items + family_document_attachment_manifest_items + receipt_attachment_manifest_items)
         .sort_by { |item| [ item[:record_type], item[:record_id].to_s, item[:filename].to_s, item[:id].to_s ] }
+    end
+
+    # One file at a time, so memory holds at most one attachment. A file that
+    # cannot be read from storage is left out and stays marked as not included,
+    # so one bad blob does not fail the whole export.
+    def write_attachment_files(zipfile, items)
+      skipped = Hash.new(0)
+
+      items.each do |item|
+        path = attachment_file_path(item)
+        content = item[:attachment].blob.download
+
+        zipfile.put_next_entry(path)
+        zipfile.write content
+        item[:binary_included] = true
+        item[:path] = path
+      rescue StandardError => e
+        skipped[e.class.name] += 1
+      ensure
+        @on_progress&.call
+      end
+
+      log_skipped_attachment_files(skipped, items.size) if skipped.any?
+    end
+
+    # Counts and error classes only: filenames can be personal.
+    def log_skipped_attachment_files(skipped, total)
+      DebugLogEntry.capture(
+        category: "family_export",
+        level: "warn",
+        message: "Family export left out #{skipped.values.sum} of #{total} attachment files that could not be read",
+        source: self.class.name,
+        family: @family,
+        metadata: { skipped_by_error: skipped }
+      )
+    end
+
+    # The record and attachment ids keep two files with the same name apart;
+    # the sanitized filename cannot contain a path separator.
+    def attachment_file_path(item)
+      filename = ActiveStorage::Filename.new(item[:filename].presence || "file").sanitized
+      [ FILES_DIRECTORY, item[:record_type], item[:record_id], "#{item[:id]}-#{filename}" ].join("/")
     end
 
     def transaction_attachment_manifest_items
@@ -249,9 +303,25 @@ class Family::DataExporter
       end
     end
 
+    def receipt_attachment_manifest_items
+      @family.receipts.with_attached_file.filter_map do |receipt|
+        next unless receipt.file.attached?
+
+        attachment_manifest_item(
+          receipt.file.attachment,
+          record_type: "Receipt",
+          record_id: receipt.id,
+          extra: {
+            transaction_id: receipt.transaction_id
+          }
+        )
+      end
+    end
+
     def attachment_manifest_item(attachment, record_type:, record_id:, extra: {})
       blob = attachment.blob
       {
+        attachment: attachment,
         id: attachment.id,
         record_type: record_type,
         record_id: record_id,
@@ -592,7 +662,24 @@ class Family::DataExporter
         }.to_json
       end
 
+      # Receipts with the header data read from them; their files are listed
+      # in attachments.json.
+      @family.receipts.find_each do |receipt|
+        lines << {
+          type: "Receipt",
+          data: serialize_receipt_for_export(receipt)
+        }.to_json
+      end
+
       lines.join("\n")
+    end
+
+    def serialize_receipt_for_export(receipt)
+      receipt.as_json(only: %w[
+        id transaction_id uploaded_by_id source filename content_type byte_size content_sha256
+        merchant_name date amount currency field_sources extraction_status extraction_error raw_text
+        created_transaction linked_at dismissed_at created_at updated_at
+      ])
     end
 
     def exportable_transactions

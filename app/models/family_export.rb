@@ -27,8 +27,8 @@ class FamilyExport < ApplicationRecord
 
   # Escape hatch for exports whose background job died mid-flight; the
   # with_lock re-check means a job finishing between render and click wins.
-  # Export generation is in-memory, so nothing is left behind — the user
-  # simply creates a new export.
+  # The export is built in a temp file that the job removes, so nothing is left
+  # behind — the user simply creates a new export.
   def force_fail!
     with_lock do
       return false unless presumed_lost?

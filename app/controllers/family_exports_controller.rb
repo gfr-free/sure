@@ -9,7 +9,7 @@ class FamilyExportsController < ApplicationController
   end
 
   def create
-    @export = Current.family.family_exports.create!
+    @export = Current.family.family_exports.create!(export_params)
     FamilyDataExportJob.perform_later(@export)
 
     respond_to do |format|
@@ -55,6 +55,11 @@ class FamilyExportsController < ApplicationController
   end
 
   private
+
+    def export_params
+      export = params[:family_export]
+      export.respond_to?(:permit) ? export.permit(:include_files) : {}
+    end
 
     def set_export
       @export = Current.family.family_exports.find(params[:id])

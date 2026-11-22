@@ -22,12 +22,24 @@
             <%= icon "check", class: "shrink-0 mt-0.5 text-positive" %>
             <span><%= t(".categories_tags_rules") %></span>
           </li>
+          <li class="flex items-start gap-2">
+            <%= icon "check", class: "shrink-0 mt-0.5 text-positive" %>
+            <span><%= t(".receipts_and_attachments") %></span>
+          </li>
         </ul>
       </div>
 
       <%= render DS::Alert.new(title: t(".note_label"), message: t(".note_description"), variant: :warning) %>
 
       <%= form_with url: family_exports_path, method: :post, class: "space-y-4" do |form| %>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <%= label_tag "family_export_include_files", t(".include_files_label"), class: "text-sm font-medium text-primary cursor-pointer" %>
+            <p class="text-sm text-secondary"><%= t(".include_files_description") %></p>
+          </div>
+          <%= render DS::Toggle.new(id: "family_export_include_files", name: "family_export[include_files]") %>
+        </div>
+
         <div class="flex gap-3">
           <%= link_to t(".cancel"), "#", class: "flex-1 text-center px-4 py-2 text-primary bg-surface border border-primary rounded-lg hover:bg-surface-hover", data: { action: "click->modal#close" } %>
           <%= form.submit t(".export_data"), class: "flex-1 bg-inverse text-inverse rounded-lg px-4 py-2 cursor-pointer hover:bg-inverse-hover" %>

@@ -33,6 +33,18 @@ class Receipt::QrParserTest < ActiveSupport::TestCase
     assert_empty Receipt::QrParser.parse([ "V0;KASSE;SonstigerVorgang;x;1;2;3;4;5;6;7;8" ]).fields
   end
 
+  test "a till without a total leaves the currency to the code that has the amount" do
+    till = german_till_payload(gross: "-8.40_0.00_0.00_0.00_0.00")
+    lines = [ "SPC", "0200", "1", ReceiptQrHelper::DEMO_SWISS_IBAN, "S", "Demo Verlag AG", "", "", "8000", "Zürich", "CH",
+              "", "", "", "", "", "", "", "100.00", "CHF", "S", "Kunde", "", "", "", "", "", "NON", "", "", "EPD" ]
+
+    result = Receipt::QrParser.parse([ till, lines.join("\n") ])
+
+    assert_equal BigDecimal("100"), result.fields["amount"][:value]
+    assert_equal "CHF", result.fields["currency"][:value]
+    assert_equal Date.new(2026, 11, 20), result.fields["date"][:value]
+  end
+
   test "keeps the amount but drops an implausible date" do
     result = Receipt::QrParser.parse([ german_till_payload(time: "2019-07-10T18:41:04.000Z") ])
 

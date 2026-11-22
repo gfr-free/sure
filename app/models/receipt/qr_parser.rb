@@ -73,7 +73,7 @@ class Receipt::QrParser
       fields["amount"] = signed(total) if total
       date = plausible(time_to_date(parts[7].presence || parts[6]))
       fields["date"] = signed(date) if date
-      fields["currency"] = signed("EUR") if fields.any?
+      fields["currency"] = signed("EUR") if fields.key?("amount")
 
       identifiers = []
       if parts[1].present? && parts[11].present?
@@ -93,7 +93,7 @@ class Receipt::QrParser
       fields["amount"] = signed(total) if total
       date = plausible(local_date(parts[4]))
       fields["date"] = signed(date) if date
-      fields["currency"] = signed("EUR") if fields.any?
+      fields["currency"] = signed("EUR") if fields.key?("amount")
 
       identifiers = []
       identifiers << identifier("rksv", "#{parts[11]}:#{parts[2]}") if parts[2].present? && parts[11].present?

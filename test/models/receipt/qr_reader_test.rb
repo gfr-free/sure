@@ -1,4 +1,5 @@
 require "test_helper"
+require "vips"
 
 class Receipt::QrReaderTest < ActiveSupport::TestCase
   include ReceiptQrHelper
@@ -28,6 +29,17 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
     payload = german_till_payload
 
     assert_equal [ payload ], Receipt::QrReader.read(receipt_qr_pdf(payload), content_type: "application/pdf")
+  end
+
+  test "keeps a code on one PDF page when another page has none" do
+    payload = german_till_payload
+    Receipt::QrReader.any_instance.stubs(:render_pdf).with do |dir|
+      File.binwrite(File.join(dir, "page-1.png"), receipt_qr_png(payload))
+      File.binwrite(File.join(dir, "page-2.png"), file_fixture("square-placeholder.png").binread)
+      true
+    end.returns([ "page-1.png", "page-2.png" ])
+
+    assert_equal [ payload ], Receipt::QrReader.read("%PDF-1.4", content_type: "application/pdf")
   end
 
   test "returns nothing for an image without a code or a file it cannot decode" do

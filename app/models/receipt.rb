@@ -165,6 +165,11 @@ class Receipt < ApplicationRecord
     field_sources.dig(field.to_s, "source")
   end
 
+  # Whether reading the file filled any field, from its text or a QR code.
+  def fields_read?
+    raw_text.present? || field_sources.values.any? { |source| source["source"].present? && source["source"] != "manual" }
+  end
+
   def field_confidence(field)
     field_sources.dig(field.to_s, "confidence")
   end

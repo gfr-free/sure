@@ -73,12 +73,13 @@ class Receipt::QrReader
       Dir.glob(File.join(dir, "page*.png")).sort
     end
 
-    # zbarimg exits 4 when it finds no code. Its XML output keeps line breaks
-    # inside a code intact, which the plain output would not.
+    # zbarimg exits 4 when at least one image has no code, so a code on page 1
+    # still counts when page 2 has none. Its XML output keeps line breaks inside
+    # a code intact, which the plain output would not.
     def scan(images, dir)
       output, status = Receipt::ExternalCommand.run("zbarimg", "--quiet", "--xml", "-Sdisable", "-Sqrcode.enable",
                                                     *images.map { |path| File.basename(path) }, timeout: TIMEOUT, chdir: dir)
-      return [] unless status.zero?
+      return [] unless [ 0, 4 ].include?(status)
 
       Nokogiri::XML(output).remove_namespaces!.xpath("//symbol/data").first(MAX_CODES).filter_map do |node|
         data = node["format"] == "base64" ? Base64.decode64(node.text) : node.text

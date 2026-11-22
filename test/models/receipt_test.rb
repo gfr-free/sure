@@ -93,6 +93,7 @@ class ReceiptTest < ActiveSupport::TestCase
     assert receipt.extraction_completed?
     assert_nil receipt.amount
     assert_nil receipt.raw_text
+    assert_not receipt.fields_read?
     assert_equal :open, receipt.status
   end
 
@@ -109,6 +110,7 @@ class ReceiptTest < ActiveSupport::TestCase
       assert_equal "qr", receipt.field_source(:amount)
       assert_nil receipt.merchant_name
       assert_nil receipt.raw_text
+      assert receipt.fields_read?
       assert_equal [ "tse" ], receipt.merchant_identifiers.map { |identifier| identifier["kind"] }
     end
   end

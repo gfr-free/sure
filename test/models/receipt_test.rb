@@ -232,7 +232,88 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_includes @family.receipts.open, receipt
   end
 
+  test "extract! reads an XRechnung XML file with its invoice details" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    assert receipt.xml?
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_equal "Demo Energy AG", receipt.merchant_name
+    assert_equal Date.new(2026, 10, 30), receipt.date
+    assert_equal BigDecimal("49.98"), receipt.amount
+    assert_equal "EUR", receipt.currency
+    assert_equal "DEMO-UBL-7", receipt.invoice_number
+    assert_equal Date.new(2026, 11, 13), receipt.due_date
+    assert_equal BigDecimal("7.98"), receipt.tax_amount
+    assert_equal "einvoice", receipt.field_source(:amount)
+    assert_equal 1.0, receipt.field_confidence(:amount)
+    assert receipt.read_any_field?
+  end
+
+  test "extract! takes a hybrid PDF's values from its XML, not its printed text" do
+    travel_to Date.new(2026, 11, 22) do
+      receipt = upload_content(receipt_pdf([ "Other Shop", "Total 5.00", "Date 2026-11-20" ], attachments: { "factur-x.xml" => e_invoice_xml("cii_invoice") }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_equal BigDecimal("119.00"), receipt.amount
+      assert_equal Date.new(2026, 11, 5), receipt.date
+      assert_equal "einvoice", receipt.field_source(:merchant_name)
+      assert_nil receipt.raw_text
+    end
+  end
+
+  test "extract! does not guess a credit note's amount from the PDF text" do
+    travel_to Date.new(2026, 11, 22) do
+      credit_note = e_invoice_xml("cii_invoice").sub("<ram:TypeCode>380", "<ram:TypeCode>381")
+      receipt = upload_content(receipt_pdf([ "Credit note", "Total 119.00" ], attachments: { "factur-x.xml" => credit_note }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_nil receipt.amount
+      assert_nil receipt.tax_amount
+    end
+  end
+
+  test "extract! clears invoice details the file no longer has" do
+    receipt = upload([ "Total 1.00" ])
+    receipt.update!(invoice_number: "OLD-1", due_date: Date.current, tax_amount: 1)
+
+    receipt.extract!
+
+    assert_nil receipt.invoice_number
+    assert_nil receipt.due_date
+    assert_nil receipt.tax_amount
+  end
+
+  test "an XML that is not an e-invoice completes with nothing read" do
+    receipt = upload_xml("<note><to>Demo</to></note>")
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_nil receipt.amount
+    assert_not receipt.read_any_field?
+  end
+
+  test "link_to! attaches an e-invoice XML to the transaction" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    transaction = create_transaction(account: @account, amount: 49.98, date: Date.current)
+
+    receipt.link_to!(transaction, user: @admin)
+
+    assert_equal 1, transaction.reload.attachments.count
+    assert_includes Transaction::XML_CONTENT_TYPES, transaction.attachments.first.content_type
+  end
+
   private
+    def upload_xml(content)
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(content, filename: "invoice.xml", content_type: "application/xml"))
+    end
+
     def upload(lines)
       upload_content(receipt_pdf(lines))
     end

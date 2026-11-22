@@ -4,8 +4,9 @@
 # least. Each stage fills only the fields the earlier ones left blank, and the run
 # stops once amount and date are both known.
 #
-# Today the only stage is the text layer of a PDF. Images keep their fields blank
-# until a stage that can read them exists; the user fills them in by hand.
+# Stages today: the e-invoice XML (a plain XML file or the one embedded in a
+# ZUGFeRD/Factur-X PDF), then the text layer of a PDF. Images keep their fields
+# blank until a stage that can read them exists; the user fills them in by hand.
 class Receipt::Extraction
   class Error < StandardError
     attr_reader :code
@@ -23,6 +24,9 @@ class Receipt::Extraction
   MAX_RAW_TEXT_LENGTH = 20_000
   MAX_PDF_PAGES = 5
   REQUIRED_FIELDS = %w[amount date].freeze
+  # An e-invoice is the invoice itself: what it leaves out (the amount of a
+  # credit note) must not be guessed from the PDF text printed from it.
+  FINAL_SOURCES = %w[einvoice].freeze
 
   attr_reader :receipt
 
@@ -34,15 +38,13 @@ class Receipt::Extraction
     fields = {}
     texts = []
 
-    stages.each do |stage|
-      text = stage[:read].call
-      next if text.blank?
-
-      texts << text
-      parsed = Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names)
-      parsed.each do |field, value|
-        fields[field] ||= value.merge(source: stage[:source])
+    stages.each do |source, read|
+      parsed, text = read.call
+      texts << text if text.present?
+      parsed.to_h.each do |field, value|
+        fields[field] ||= value.merge(source: source)
       end
+      break if parsed.present? && FINAL_SOURCES.include?(source)
       break if REQUIRED_FIELDS.all? { |field| fields.key?(field) }
     end
 
@@ -50,10 +52,26 @@ class Receipt::Extraction
   end
 
   private
+    # Each stage returns the fields it read and, when it read text, that text.
     def stages
-      [
-        { source: "pdf_text", read: -> { pdf_text if receipt.pdf? } }
-      ]
+      {
+        "einvoice" => -> { [ einvoice_fields ] },
+        "pdf_text" => -> { text_fields(pdf_text) if receipt.pdf? }
+      }
+    end
+
+    def einvoice_fields
+      if receipt.xml?
+        Receipt::EInvoice.parse(content)
+      elsif receipt.pdf?
+        Receipt::EInvoice.from_pdf(content)
+      end
+    end
+
+    def text_fields(text)
+      return if text.blank?
+
+      [ Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names), text ]
     end
 
     def pdf_text

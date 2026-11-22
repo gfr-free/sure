@@ -338,7 +338,7 @@ de:
       max_reached: Maximale Dateizahl erreicht (%{count}/%{max}). Lösche eine Datei, um eine neue hochzuladen.
       no_attachments: Noch keine Anhänge
       no_files_selected: Keine Dateien ausgewählt
-      select_up_to: Bis zu %{count} Dateien wählen (Bilder oder PDFs, je max. %{size} MB) • %{used} von %{count} genutzt
+      select_up_to: Bis zu %{count} Dateien wählen (Bilder, PDFs oder E-Rechnungen als XML, je max. %{size} MB) • %{used} von %{count} genutzt
       upload: Hochladen
       upload_failed: Der Anhang ließ sich nicht hochladen. Versuch es noch einmal oder wende dich an den Support.
       uploaded_many: "%{count} Anhänge hochgeladen"

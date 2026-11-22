@@ -9,6 +9,7 @@ de:
       open: Zu prüfen
       reading: Wird gelesen
     sources:
+      einvoice: E-Rechnung
       pdf_text: PDF-Text
     table:
       amount: Betrag
@@ -20,7 +21,7 @@ de:
       title: Belege
       preview: Vorschau
       upload_title: Belege hinzufügen
-      upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Sure liest Händler, Datum und Betrag aus, danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
+      upload_description: Fotos (JPEG, PNG, WebP, GIF), PDFs oder E-Rechnungen (ZUGFeRD, XRechnung als XML), je bis %{max_size} MB. Sure liest Händler, Datum und Betrag aus, danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
       files_label: Dateien
       camera_label: Foto aufnehmen
       upload: Hochladen
@@ -46,6 +47,11 @@ de:
       amount: Betrag
       currency: Währung
       save: Speichern
+      invoice_title: Rechnungsdaten
+      invoice_number: Rechnungsnummer
+      due_date: Fällig am
+      tax_amount: Darin Steuer
+      invoice_hint: Aus der E-Rechnung gelesen.
       linked_title: Zugeordnete Buchung
       created_title: Angelegte Buchung
       candidates_title: Passende Buchungen
@@ -66,8 +72,8 @@ de:
         one: 1 Datei war schon in deinen Belegen.
         other: "%{count} Dateien waren schon in deinen Belegen."
       invalid:
-        one: 1 Datei war kein unterstütztes Bild oder PDF.
-        other: "%{count} Dateien waren keine unterstützten Bilder oder PDFs."
+        one: 1 Datei war kein unterstütztes Bild, PDF oder E-Rechnung.
+        other: "%{count} Dateien waren keine unterstützten Bilder, PDFs oder E-Rechnungen."
     update:
       updated: Angaben gespeichert.
     link:

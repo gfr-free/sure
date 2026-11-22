@@ -25,11 +25,15 @@ class Receipt < ApplicationRecord
 
   MAX_FILE_SIZE = Transaction::MAX_ATTACHMENT_SIZE
   ALLOWED_CONTENT_TYPES = Transaction::ALLOWED_CONTENT_TYPES
+  # File pickers do not all map the XML types to the extension.
+  UPLOAD_ACCEPT = (ALLOWED_CONTENT_TYPES + %w[.xml]).join(",").freeze
   # The manual search reaches further than an automatic match would, like the
   # transfer dialog: the user confirms the pick themselves.
   CANDIDATE_DATE_WINDOW = 30
   MAX_CANDIDATES = 20
   FIELDS = %w[merchant_name date amount currency].freeze
+  # Read from e-invoices only and shown as read; not edited by hand.
+  DETAIL_FIELDS = %w[invoice_number due_date tax_amount].freeze
 
   if encryption_ready?
     encrypts :raw_text
@@ -50,6 +54,7 @@ class Receipt < ApplicationRecord
   validates :byte_size, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
   validates :amount, numericality: { greater_than: 0 }, allow_nil: true
   validates :merchant_name, length: { maximum: 200 }
+  validates :invoice_number, length: { maximum: 100 }
   validate :currency_is_valid
   validate :linked_transaction_belongs_to_family
 
@@ -131,6 +136,15 @@ class Receipt < ApplicationRecord
     content_type == "application/pdf"
   end
 
+  def xml?
+    Transaction::XML_CONTENT_TYPES.include?(content_type)
+  end
+
+  # Whether reading the file filled any field, as opposed to the user typing it.
+  def read_any_field?
+    field_sources.values.any? { |info| info["source"] != "manual" }
+  end
+
   def amount_money
     return nil if amount.nil? || currency.blank?
 
@@ -166,6 +180,12 @@ class Receipt < ApplicationRecord
 
         attrs[field] = value[:value]
         sources[field] = { "source" => value[:source], "confidence" => value[:confidence] }
+      end
+
+      DETAIL_FIELDS.each do |field|
+        value = result.fields[field]
+        attrs[field] = value&.dig(:value)
+        sources[field] = { "source" => value[:source], "confidence" => value[:confidence] } if value
       end
 
       update!(attrs.merge(field_sources: sources))

@@ -10,7 +10,8 @@ class Transaction < ApplicationRecord
   has_many :receipts, inverse_of: :linked_transaction
 
   # File attachments (receipts, invoices, etc.) using Active Storage
-  # Supports images (JPEG, PNG, GIF, WebP) and PDFs up to 10MB each
+  # Supports images (JPEG, PNG, GIF, WebP), PDFs and e-invoice XML (XRechnung,
+  # where the XML is the original invoice) up to 10MB each
   # Maximum 10 attachments per transaction, family-scoped access
   has_many_attached :attachments do |attachable|
     attachable.variant :thumbnail, resize_to_limit: [ 150, 150 ]
@@ -19,10 +20,11 @@ class Transaction < ApplicationRecord
   # Attachment validation constants
   MAX_ATTACHMENTS_PER_TRANSACTION = 10
   MAX_ATTACHMENT_SIZE = 10.megabytes
-  ALLOWED_CONTENT_TYPES = %w[
+  XML_CONTENT_TYPES = %w[application/xml text/xml].freeze
+  ALLOWED_CONTENT_TYPES = (%w[
     image/jpeg image/jpg image/png image/gif image/webp
     application/pdf
-  ].freeze
+  ] + XML_CONTENT_TYPES).freeze
 
   validate :validate_attachments, if: -> { attachments.attached? }
 

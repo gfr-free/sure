@@ -24,9 +24,11 @@
       <% if @receipt.image? %>
         <%= image_tag file_receipt_path(@receipt), alt: @receipt.filename, class: "w-full rounded-lg" %>
       <% else %>
-        <%= render DS::EmptyState.new(icon: "file-text", title: @receipt.filename, description: number_to_human_size(@receipt.byte_size)) do |empty_state| %>
-          <% empty_state.with_action do %>
-            <%= render DS::Link.new(text: t(".open_pdf"), icon: "external-link", variant: "outline", href: file_receipt_path(@receipt), target: "_blank") %>
+        <%= render DS::EmptyState.new(icon: receipt_file_icon(@receipt), title: @receipt.filename, description: number_to_human_size(@receipt.byte_size)) do |empty_state| %>
+          <% if @receipt.pdf? %>
+            <% empty_state.with_action do %>
+              <%= render DS::Link.new(text: t(".open_pdf"), icon: "external-link", variant: "outline", href: file_receipt_path(@receipt), target: "_blank") %>
+            <% end %>
           <% end %>
         <% end %>
       <% end %>
@@ -37,7 +39,7 @@
         <%= render DS::Alert.new(message: t(".reading"), variant: :info) %>
       <% elsif @receipt.extraction_failed? %>
         <%= render DS::Alert.new(message: t(".extraction_failed"), variant: :warning) %>
-      <% elsif @receipt.raw_text.blank? %>
+      <% elsif @receipt.raw_text.blank? && !@receipt.read_any_field? %>
         <%= render DS::Alert.new(message: t(".nothing_read"), variant: :info) %>
       <% end %>
 
@@ -56,6 +58,27 @@
           <div class="flex justify-end">
             <%= render DS::Button.new(text: t(".save"), type: :submit) %>
           </div>
+        <% end %>
+      <% end %>
+
+      <% if @receipt.invoice_number? || @receipt.due_date? || @receipt.tax_amount? %>
+        <%= render DS::Card.new(class: "gap-3") do %>
+          <h2 class="text-sm font-medium text-primary"><%= t(".invoice_title") %></h2>
+          <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <% if @receipt.invoice_number? %>
+              <dt class="text-secondary"><%= t(".invoice_number") %></dt>
+              <dd class="text-primary break-all"><%= @receipt.invoice_number %></dd>
+            <% end %>
+            <% if @receipt.due_date? %>
+              <dt class="text-secondary"><%= t(".due_date") %></dt>
+              <dd class="text-primary"><%= l(@receipt.due_date, format: :long) %></dd>
+            <% end %>
+            <% if @receipt.tax_amount? && @receipt.currency.present? %>
+              <dt class="text-secondary"><%= t(".tax_amount") %></dt>
+              <dd class="text-primary privacy-sensitive"><%= format_money(Money.new(@receipt.tax_amount, @receipt.currency)) %></dd>
+            <% end %>
+          </dl>
+          <p class="text-xs text-secondary"><%= t(".invoice_hint") %></p>
         <% end %>
       <% end %>
 

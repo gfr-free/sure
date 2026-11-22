@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2088,15 +2088,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.string "currency", limit: 3
     t.date "date"
     t.datetime "dismissed_at"
+    t.date "due_date"
     t.string "extraction_error", limit: 100
     t.string "extraction_status", default: "pending", null: false
     t.uuid "family_id", null: false
     t.jsonb "field_sources", default: {}, null: false
     t.string "filename", limit: 255, null: false
+    t.string "invoice_number", limit: 100
     t.datetime "linked_at"
     t.string "merchant_name", limit: 200
     t.text "raw_text"
     t.string "source", default: "web", null: false
+    t.decimal "tax_amount", precision: 19, scale: 4
     t.uuid "transaction_id"
     t.datetime "updated_at", null: false
     t.uuid "uploaded_by_id"

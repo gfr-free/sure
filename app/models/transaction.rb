@@ -712,7 +712,8 @@ class Transaction < ApplicationRecord
 
   private
     # Moves the pending transaction's attachments (the attachment rows themselves, so the
-    # blobs are not purged with the pending entry) and adds its tags to the posted one.
+    # blobs are not purged with the pending entry), its tags and its linked receipts
+    # to the posted one.
     def carry_over_user_additions(from:, to:)
       if from.attachments.attached?
         # A blob already attached to the posted transaction would collide with the

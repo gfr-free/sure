@@ -20,6 +20,7 @@ class ReceiptsController < ApplicationController
     # Bank accounts are offered once the wait for the bank's own booking is over.
     @bank_wait = @receipt.awaiting_bank? && bank_accounts_writable?
     @accounts = @accounts.where.not(id: Current.family.accounts.linked.select(:id)) if @bank_wait
+    @linked_entry = visible_linked_entry
     @breadcrumbs = [
       [ t("breadcrumbs.home"), root_path ],
       [ t("receipts.index.title"), receipts_path ],
@@ -149,6 +150,13 @@ class ReceiptsController < ApplicationController
 
     def set_receipt
       @receipt = Current.family.receipts.uploaded_by(Current.user).find(params[:id])
+    end
+
+    # A linked transaction stays on the receipt after its account stops being
+    # shared with the uploader; its details are then no longer shown.
+    def visible_linked_entry
+      entry = @receipt.linked_transaction&.entry
+      entry if entry && Current.family.accounts.accessible_by(Current.user).where(id: entry.account_id).exists?
     end
 
     def receipt_params

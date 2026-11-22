@@ -48,6 +48,7 @@ en:
       currency: Currency
       save: Save
       linked_title: Linked transaction
+      linked_hidden: The transaction is on an account you can no longer see.
       created_title: Created transaction
       candidates_title: Matching transactions
       link: Link

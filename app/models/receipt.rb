@@ -181,16 +181,20 @@ class Receipt < ApplicationRecord
   end
 
   # Applies the user's own corrections and marks each changed field as manual.
+  # Locked like the merge in extract!, so a read finishing at the same time
+  # cannot drop the manual marks.
   def update_fields!(attrs)
     attrs = attrs.to_h.stringify_keys.slice(*FIELDS)
-    assign_attributes(attrs)
-    normalize_fields
-    sources = field_sources.dup
-    FIELDS.each do |field|
-      sources[field] = { "source" => "manual", "confidence" => 1.0 } if will_save_change_to_attribute?(field)
+    with_lock do
+      assign_attributes(attrs)
+      normalize_fields
+      sources = field_sources.dup
+      FIELDS.each do |field|
+        sources[field] = { "source" => "manual", "confidence" => 1.0 } if will_save_change_to_attribute?(field)
+      end
+      self.field_sources = sources
+      save!
     end
-    self.field_sources = sources
-    save!
   end
 
   # Transactions on accounts the user may write to, near the receipt's date and,
@@ -221,7 +225,9 @@ class Receipt < ApplicationRecord
   def link_to!(transaction, user:)
     raise ActiveRecord::RecordNotFound unless writable_account?(transaction.entry.account, user)
 
-    with_lock { attach_to!(transaction, created: false) }
+    with_file_copy do |copy|
+      with_lock { attach_to!(transaction, copy, created: false) }
+    end
   end
 
   # Records the receipt as a new expense on `account`, then links it.
@@ -230,17 +236,19 @@ class Receipt < ApplicationRecord
     refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date) && known_currency?(currency)
 
     entry = nil
-    with_lock do
-      refuse!(:already_linked) if transaction_id?
+    with_file_copy do |copy|
+      with_lock do
+        refuse!(:already_linked) if transaction_id?
 
-      entry = account.entries.create!(
-        name: name,
-        date: date,
-        amount: amount,
-        currency: currency,
-        entryable: Transaction.new(merchant: merchant_for(name))
-      )
-      attach_to!(entry.transaction, created: true)
+        entry = account.entries.create!(
+          name: name,
+          date: date,
+          amount: amount,
+          currency: currency,
+          entryable: Transaction.new(merchant: merchant_for(name))
+        )
+        attach_to!(entry.transaction, copy, created: true)
+      end
     end
 
     entry.sync_account_later
@@ -279,8 +287,19 @@ class Receipt < ApplicationRecord
   end
 
   private
+    # The transaction's copy is uploaded before the database work, so a storage
+    # error fails the link instead of leaving it pointing at a missing file. The
+    # copy is removed again when the link does not happen.
+    def with_file_copy
+      copy = ActiveStorage::Blob.create_and_upload!(io: StringIO.new(file.download), filename: filename, content_type: content_type)
+      yield copy
+    rescue StandardError
+      copy&.purge
+      raise
+    end
+
     # Runs inside the receipt's row lock, so two clicks cannot link it twice.
-    def attach_to!(transaction, created:)
+    def attach_to!(transaction, copy, created:)
       refuse!(:already_linked) if transaction_id?
 
       transaction.with_lock do
@@ -288,7 +307,7 @@ class Receipt < ApplicationRecord
           refuse!(:too_many_attachments, max: Transaction::MAX_ATTACHMENTS_PER_TRANSACTION)
         end
 
-        transaction.attachments.attach(io: StringIO.new(file.download), filename: filename, content_type: content_type)
+        transaction.attachments.attach(copy)
         update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created)
       end
     end

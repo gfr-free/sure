@@ -217,6 +217,27 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal 1, transaction.reload.attachments.count
   end
 
+  test "link_to! fails without linking when the copy cannot be stored" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    ActiveStorage::Blob.stubs(:create_and_upload!).raises(Errno::ECONNREFUSED)
+
+    assert_raises(Errno::ECONNREFUSED) { receipt.link_to!(transaction, user: @admin) }
+    assert_nil receipt.reload.transaction_id
+    assert_equal 0, transaction.reload.attachments.count
+  end
+
+  test "a refused link removes the copy it uploaded" do
+    receipt = upload([ "Total 9.99" ])
+    other = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.link_to!(other, user: @admin)
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(transaction, user: @admin) }
+    end
+  end
+
   test "link_to! refuses an account the user cannot write to" do
     receipt = upload([ "Total 9.99" ])
     transaction = create_transaction(account: accounts(:credit_card), amount: 9.99, date: Date.current)

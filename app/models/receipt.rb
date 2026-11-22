@@ -39,6 +39,8 @@ class Receipt < ApplicationRecord
   AUTO_MATCH_DAYS_BEFORE = 1
   AUTO_MATCH_DAYS_AFTER = 5
   BANK_WAIT_DAY_OPTIONS = [ 0, 3, 5, 7, 10, 14, 21, 30 ].freeze
+  # Fits numeric(19,4), the type of receipts.amount and entries.amount.
+  MAX_AMOUNT = 10**15
 
   if encryption_ready?
     encrypts :raw_text
@@ -62,7 +64,7 @@ class Receipt < ApplicationRecord
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
   validates :content_type, inclusion: { in: ALLOWED_CONTENT_TYPES }
   validates :byte_size, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
-  validates :amount, numericality: { greater_than: 0, less_than: 10**15 }, allow_nil: true
+  validates :amount, numericality: { greater_than: 0, less_than: MAX_AMOUNT }, allow_nil: true
   validates :merchant_name, length: { maximum: 200 }
   validate :currency_is_valid
   validate :linked_transaction_belongs_to_family
@@ -222,11 +224,10 @@ class Receipt < ApplicationRecord
   # receipt is then marked failed instead of reading forever, and stays usable
   # by hand.
   def extract_later
-    ReceiptExtractionJob.perform_later(self)
+    job = ReceiptExtractionJob.perform_later(self)
+    enqueue_failed!("not enqueued") unless job&.successfully_enqueued?
   rescue StandardError => e
-    DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{e.class}",
-                          source: "receipt_extraction", family: family, user_id: uploaded_by_id)
-    update_columns(extraction_status: "failed", extraction_error: "enqueue_failed", updated_at: Time.current)
+    enqueue_failed!(e.class)
   end
 
   # Reads the header data from the file. Fields the user has already edited by
@@ -391,7 +392,7 @@ class Receipt < ApplicationRecord
   # Records the receipt as a new expense on `account`, then links it.
   def create_transaction!(account:, user:, name:, date:, amount:, currency:)
     raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
-    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date) && known_currency?(currency)
+    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && amount < MAX_AMOUNT && date.is_a?(Date) && known_currency?(currency)
     refuse!(:awaiting_bank, date: I18n.l(bank_wait_until)) if account.linked? && awaiting_bank?
 
     entry = nil
@@ -441,6 +442,12 @@ class Receipt < ApplicationRecord
   end
 
   private
+    def enqueue_failed!(reason)
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{reason}",
+                            source: "receipt_extraction", family: family, user_id: uploaded_by_id)
+      update_columns(extraction_status: "failed", extraction_error: "enqueue_failed", updated_at: Time.current)
+    end
+
     def auto_matchable?
       # A receipt that could not be read is matched once the user has typed in its details.
       !transaction_id? && !dismissed_at? && !extraction_pending? && uploaded_by_id? && amount.present? && date.present? && currency.present?

@@ -223,11 +223,11 @@ class ReceiptTest < ActiveSupport::TestCase
 
   test "extract! masks a card number read as the merchant" do
     receipt = upload([ "Total 2.00" ])
-    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop 4111 1111 1111 1111", confidence: 0.3 } })
+    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop 4111 1111 1111 1234", confidence: 0.3 } })
 
     receipt.extract!
 
-    assert_equal "Shop ****1111", receipt.reload.merchant_name
+    assert_equal "Shop ****1234", receipt.reload.merchant_name
   end
 
   test "link_to! does not link when the transaction refuses the attachment" do

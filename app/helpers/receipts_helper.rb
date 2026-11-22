@@ -19,7 +19,8 @@ module ReceiptsHelper
   def suggested_receipts_for(transaction)
     return [] unless receipts_available?
 
-    transaction.receipts.suggested.uploaded_by(Current.user).to_a
+    @suggested_receipts_for ||= {}
+    @suggested_receipts_for[transaction.id] ||= transaction.receipts.suggested.uploaded_by(Current.user).to_a
   end
 
   def receipt_file_icon(receipt)

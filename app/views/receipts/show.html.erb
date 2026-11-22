@@ -38,7 +38,7 @@
       <% elsif @receipt.extraction_failed? %>
         <%= render DS::Alert.new(message: t(".extraction_failed"), variant: :warning) %>
       <% elsif @receipt.raw_text.blank? %>
-        <%= render DS::Alert.new(message: t(".nothing_read"), variant: :info) %>
+        <%= render DS::Alert.new(message: Receipt::Ocr.available? ? t(".nothing_read") : t(".ocr_unavailable"), variant: :info) %>
       <% end %>
 
       <%= render DS::Card.new(class: "gap-3") do %>

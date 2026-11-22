@@ -904,8 +904,8 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-testid='configuration-health'] > :last-child[data-testid='optional-services']" do
       assert_select "h2", text: "Optional services"
-      assert_select "details:not([open])", count: 6
-      %w[Langfuse Sentry Skylight Stripe PostHog Logtail].each do |name|
+      assert_select "details:not([open])", count: 7
+      [ "Langfuse", "Sentry", "Skylight", "Stripe", "PostHog", "Logtail", "Receipt text recognition" ].each do |name|
         assert_select "summary span", text: name
       end
       assert_select "input, form, button", count: 0

@@ -9,7 +9,9 @@
 #   are skipped. A second line with the same amount (the payment line) raises
 #   the confidence.
 # - Date: the first plausible date, preferring one on a line with a date label
-#   or a time of day. Slash dates are month first when the hint is USD. Dates in the future or more than two years back are ignored.
+#   or a time of day. Slash dates are month first for USD, taken from the
+#   currency printed on the receipt, else from the hint. Dates in the future
+#   or more than two years back are ignored.
 # - Merchant: a known merchant name in the first lines, else the first line that
 #   reads like a name.
 # - Currency: the total's own symbol or code, else one printed next to another
@@ -54,6 +56,8 @@ class Receipt::TextParser
     %r{(?<!\d)(?<day>\d{1,2})(?<separator>[./])(?<month>\d{1,2})[./](?<year>\d{2})(?![\d.,/])}
   ].freeze
   MAX_AGE = 2.years
+  # Fits the receipts.amount column (numeric 19,4).
+  MAX_AMOUNT = 10**15
   MERCHANT_LINES = 8
 
   # Card numbers and IBANs never need to be stored in full.
@@ -81,11 +85,14 @@ class Receipt::TextParser
   def parse
     fields = {}
     total = parse_total
-    if total
+    # A total of zero (a voided or fully discounted receipt) leaves the amount
+    # blank rather than guessing another number.
+    if total && total[:value].positive?
       fields["amount"] = { value: total[:value], confidence: total[:confidence] }
     end
 
     currency = total&.dig(:currency) || any_currency
+    @printed_currency = currency
     if currency
       fields["currency"] = { value: currency, confidence: 0.9 }
     elsif @currency_hint && fields["amount"]
@@ -112,8 +119,8 @@ class Receipt::TextParser
 
         # The first amount after the label ("Total 119.00 EUR (incl. VAT 19.00 EUR)"),
         # else one printed before it, else the next line's.
-        amount = amounts_in(line[label_end..]).first || amounts_in(line[0...label_end]).last ||
-                 amounts_in(next_line(index)).first
+        amount = amounts_in(line[label_end..], keep_zero: true).first || amounts_in(line[0...label_end], keep_zero: true).last ||
+                 amounts_in(next_line(index), keep_zero: true).first
         candidates << amount.merge(weight: weight, index: index) if amount
       end
 
@@ -147,8 +154,9 @@ class Receipt::TextParser
     end
 
     # Without a label, the largest amount is the best guess, but only a guess.
+    # Change, tax and subtotal lines are left out here too.
     def fallback_total
-      largest = amounts_in(@text).max_by { _1[:value] }
+      largest = @lines.reject { excluded_line?(_1.downcase) }.flat_map { amounts_in(_1) }.max_by { _1[:value] }
       largest&.merge(confidence: 0.3)
     end
 
@@ -161,11 +169,11 @@ class Receipt::TextParser
       @label_regexps[label] ||= /(?<![[:alpha:]])#{Regexp.escape(label)}(?![[:alpha:]])/i
     end
 
-    def amounts_in(text)
+    def amounts_in(text, keep_zero: false)
       text.to_s.to_enum(:scan, AMOUNT_PATTERN).filter_map do
         match = Regexp.last_match
         value = parse_amount(match[:prefix_number] || match[:suffix_number])
-        next if value.nil? || value.zero?
+        next if value.nil? || (value.zero? && !keep_zero)
 
         { value: value.abs, currency: resolve_currency(match[:prefix_currency] || match[:suffix_currency]) }
       end
@@ -176,7 +184,8 @@ class Receipt::TextParser
       digits = raw.to_s.delete(" '  ")
       return nil unless [ ",", "." ].include?(digits[-3])
 
-      BigDecimal("#{digits[0...-3].delete('.,')}.#{digits[-2..]}")
+      value = BigDecimal("#{digits[0...-3].delete('.,')}.#{digits[-2..]}")
+      value if value < MAX_AMOUNT
     rescue ArgumentError
       nil
     end
@@ -233,8 +242,9 @@ class Receipt::TextParser
       nil
     end
 
+    # The currency printed on the receipt decides; the family's only when none is.
     def month_first?
-      MONTH_FIRST_CURRENCIES.include?(@currency_hint)
+      MONTH_FIRST_CURRENCIES.include?(@printed_currency || @currency_hint)
     end
 
     def parse_merchant

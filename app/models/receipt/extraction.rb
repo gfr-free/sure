@@ -44,7 +44,10 @@ class Receipt::Extraction
       parsed, text = read.call
       texts << text if text.present?
       parsed.to_h.each do |field, value|
-        fields[field] ||= value.merge(source: source) unless settled.include?(field)
+        next if settled.include?(field)
+
+        value = value.merge(value: Receipt::TextParser.mask(value[:value])) if field == "merchant_name"
+        fields[field] ||= value.merge(source: source)
       end
       settled |= SETTLED_BY_SOURCE.fetch(source, []) if parsed.present?
       break if REQUIRED_FIELDS.all? { |field| fields.key?(field) || settled.include?(field) }

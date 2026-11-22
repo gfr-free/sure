@@ -63,15 +63,17 @@ class Receipt::Extraction
     end
 
     # A PDF the e-invoice reader trips over may still have a readable text
-    # layer, so an unexpected error here is logged and the next stage runs.
+    # layer, so an unexpected parser error is logged and the next stage runs.
+    # The file is downloaded first: a storage error must fail the extraction,
+    # not leave an XML receipt "completed" with nothing read.
     def einvoice_fields
-      if receipt.xml?
-        Receipt::EInvoice.parse(content)
-      elsif receipt.pdf?
-        Receipt::EInvoice.from_pdf(content)
-      end
-    rescue Error
-      raise
+      return unless receipt.xml? || receipt.pdf?
+
+      read_einvoice(content)
+    end
+
+    def read_einvoice(data)
+      receipt.xml? ? Receipt::EInvoice.parse(data) : Receipt::EInvoice.from_pdf(data)
     rescue StandardError => e
       DebugLogEntry.capture(category: "receipts", level: "warn", message: "Receipt##{receipt.id}: e-invoice stage failed: #{e.class}",
                             source: "receipt_extraction", family: receipt.family, user_id: receipt.uploaded_by_id,

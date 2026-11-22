@@ -327,6 +327,16 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
+  test "extract! fails an XML receipt whose file cannot be downloaded" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    ActiveStorage::Blob.any_instance.stubs(:download).raises(Errno::ECONNRESET)
+
+    receipt.extract!
+
+    assert receipt.extraction_failed?
+    assert_nil receipt.amount
+  end
+
   test "the tax is shown only while the currency is the e-invoice's" do
     receipt = upload_xml(e_invoice_xml("ubl_invoice").sub(">7.98<", ">0.00<"))
     receipt.extract!

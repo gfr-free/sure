@@ -84,7 +84,7 @@ class Receipt::EInvoice
     values =
       if (layout = CII_LAYOUTS[root.namespace&.href]) && root.name.in?(%w[CrossIndustryInvoice CrossIndustryDocument])
         cii_values(root, layout)
-      elsif UBL_NAMESPACES[root.name] == root.namespace&.href
+      elsif UBL_NAMESPACES.key?(root.name) && UBL_NAMESPACES[root.name] == root.namespace&.href
         ubl_values(root)
       end
     return {} if values.nil?

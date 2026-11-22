@@ -68,6 +68,7 @@ class Receipt::EInvoiceTest < ActiveSupport::TestCase
     assert_equal({}, Receipt::EInvoice.parse("<note><to>Demo</to></note>"))
     assert_equal({}, Receipt::EInvoice.parse("<rsm:CrossIndustryInvoice"))
     assert_equal({}, Receipt::EInvoice.parse(""))
+    assert_equal({}, Receipt::EInvoice.parse("<Order><ID>5</ID><IssueDate>2026-11-01</IssueDate></Order>"))
 
     with_entity = e_invoice_xml("cii_invoice")
       .sub("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY seller SYSTEM \"file:///etc/hostname\">]>")

@@ -10,6 +10,9 @@
     <div>
       <p class="text-sm font-medium text-primary"><%= t(".upload_title") %></p>
       <p class="text-xs text-secondary"><%= t(".upload_description", max_size: Receipt::MAX_FILE_SIZE / 1.megabyte) %></p>
+      <% if ai_feature_available?(:extract_receipt) %>
+        <p class="text-xs text-secondary"><%= t(".ai_notice") %></p>
+      <% end %>
     </div>
 
     <%= styled_form_with url: receipts_path, scope: :receipt, multipart: true, class: "flex flex-col gap-3 md:flex-row md:items-end" do |form| %>

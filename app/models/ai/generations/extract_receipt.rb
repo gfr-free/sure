@@ -7,13 +7,14 @@ class Ai::Generations::ExtractReceipt < Ai::Generation
     type: "object",
     properties: {
       merchant_name: { type: %w[string null] }, currency: { type: %w[string null] },
+      date: { type: %w[string null], description: "The purchase or invoice date as YYYY-MM-DD" },
       line_items: { type: "array", items: {
         type: "object", properties: { name: { type: "string" }, amount: { type: "number" } },
         required: %w[name amount], additionalProperties: false
       } },
       tax: { type: %w[number null] }, discount: { type: %w[number null] }, total: { type: %w[number null] }
     },
-    required: %w[merchant_name currency line_items tax discount total], additionalProperties: false
+    required: %w[merchant_name currency date line_items tax discount total], additionalProperties: false
   }.freeze)
 
   def initialize(attachment:, family:, user:)

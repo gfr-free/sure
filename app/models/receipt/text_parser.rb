@@ -56,8 +56,7 @@ class Receipt::TextParser
     %r{(?<!\d)(?<day>\d{1,2})(?<separator>[./])(?<month>\d{1,2})[./](?<year>\d{2})(?![\d.,/])}
   ].freeze
   MAX_AGE = 2.years
-  # Fits the receipts.amount column (numeric 19,4).
-  MAX_AMOUNT = 10**15
+  MAX_AMOUNT = Receipt::MAX_AMOUNT
   MERCHANT_LINES = 8
 
   # Card numbers and IBANs never need to be stored in full.

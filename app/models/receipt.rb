@@ -122,12 +122,13 @@ class Receipt < ApplicationRecord
     end
 
     # Suggests a transaction for each open receipt of the family. Runs after a
-    # sync; `account` narrows the search to the entries of the account just synced.
-    def auto_match_open(family, account: nil)
+    # sync. Every writable account is searched, so a receipt is only suggested
+    # when its match is unique across them.
+    def auto_match_open(family)
       family.receipts.open.where.not(extraction_status: "pending")
             .where.not(uploaded_by_id: nil).where.not(amount: nil).where.not(date: nil)
             .find_each do |receipt|
-        receipt.auto_match!(account: account)
+        receipt.auto_match!
       rescue StandardError => e
         DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{receipt.id}: auto match failed: #{e.class}",
                               source: "receipt_auto_match", family: family, user_id: receipt.uploaded_by_id)
@@ -192,7 +193,7 @@ class Receipt < ApplicationRecord
   end
 
   def awaiting_bank?(today = Date.current)
-    !transaction_id? && !dismissed_at? && today < bank_wait_until
+    family.receipt_bank_wait_days.positive? && !transaction_id? && !dismissed_at? && today < bank_wait_until
   end
 
   def image?
@@ -298,28 +299,34 @@ class Receipt < ApplicationRecord
   # receipt's date, on an account the uploader may write to. Transfers, excluded
   # entries, transactions that already have a receipt and pairs the uploader
   # rejected are left out.
-  def auto_match_candidates(account: nil)
+  def auto_match_candidates
     return Transaction.none if uploaded_by.nil? || amount.blank? || date.blank? || currency.blank?
 
-    scope = linkable_transactions(uploaded_by)
-              .where(entries: { excluded: false, amount: amount, currency: currency,
-                                date: (date - AUTO_MATCH_DAYS_BEFORE)..(date + AUTO_MATCH_DAYS_AFTER) })
-              .where.not(kind: Transaction::TRANSFER_KINDS)
-              .where.not(id: family.receipts.where.not(transaction_id: nil).select(:transaction_id))
-              .where.not(id: rejected_matches.select(:transaction_id))
-    scope = scope.where(entries: { account_id: account.id }) if account
-    scope
+    linkable_transactions(uploaded_by)
+      .where(entries: { excluded: false, amount: amount, currency: currency,
+                        date: (date - AUTO_MATCH_DAYS_BEFORE)..(date + AUTO_MATCH_DAYS_AFTER) })
+      .where.not(kind: Transaction::TRANSFER_KINDS)
+      .where.not(id: family.receipts.where.not(transaction_id: nil).select(:transaction_id))
+      .where.not(id: rejected_matches.select(:transaction_id))
+  end
+
+  # Transactions that may already hold this purchase, for the warning in the
+  # new-transaction form: the current suggestion first, then other candidates.
+  def existing_matches(user, limit: 3)
+    matches = auto_match_candidates.includes(entry: :account).limit(limit).to_a
+    suggestion = linkable_transactions(user).includes(entry: :account).find_by(id: transaction_id) if suggested?
+    [ suggestion, *matches ].compact.first(limit)
   end
 
   # Links the receipt to the one transaction that fits it, as a suggestion. Two
   # or more fitting transactions are left for the user to pick from. Returns the
   # suggested transaction, or nil.
-  def auto_match!(account: nil)
+  def auto_match!
     matched = nil
 
     with_lock do
       if auto_matchable?
-        candidates = auto_match_candidates(account: account).limit(2).to_a
+        candidates = auto_match_candidates.limit(2).to_a
         if candidates.one?
           transaction = candidates.first
           # The transaction's lock keeps two receipts from both taking it.
@@ -336,10 +343,12 @@ class Receipt < ApplicationRecord
     matched
   end
 
-  def confirm_match!(user:)
+  # `transaction_id` is the suggestion the user saw; a suggestion that changed
+  # since is refused instead of confirmed or rejected.
+  def confirm_match!(user:, transaction_id: nil)
     with_file_copy do |copy|
       with_lock do
-        refuse!(:not_suggested) unless suggested?
+        refuse_changed_suggestion!(transaction_id)
         raise ActiveRecord::RecordNotFound unless writable_account?(linked_transaction.entry.account, user)
 
         attach_to!(linked_transaction, copy, created: false)
@@ -347,11 +356,11 @@ class Receipt < ApplicationRecord
     end
   end
 
-  def reject_match!
+  def reject_match!(transaction_id: nil)
     with_lock do
-      refuse!(:not_suggested) unless suggested?
+      refuse_changed_suggestion!(transaction_id)
 
-      rejected_matches.find_or_create_by!(transaction_id: transaction_id)
+      rejected_matches.find_or_create_by!(transaction_id: self.transaction_id)
       update!(linked_transaction: nil, match_status: nil, linked_at: nil)
     end
   end
@@ -381,6 +390,8 @@ class Receipt < ApplicationRecord
     with_file_copy do |copy|
       with_lock do
         refuse!(:already_linked) if transaction_id?
+        # Checked again on the locked row: the date may have changed during the copy.
+        refuse!(:awaiting_bank, date: I18n.l(bank_wait_until)) if account.linked? && awaiting_bank?
 
         entry = account.entries.create!(
           name: name,
@@ -403,9 +414,11 @@ class Receipt < ApplicationRecord
   # Dismissing a suggested receipt drops the suggestion without remembering it
   # as rejected, so reopening the receipt can suggest it again.
   def dismiss!
-    attrs = { dismissed_at: Time.current }
-    attrs.merge!(linked_transaction: nil, match_status: nil, linked_at: nil) if suggested?
-    update!(attrs)
+    with_lock do
+      attrs = { dismissed_at: Time.current }
+      attrs.merge!(linked_transaction: nil, match_status: nil, linked_at: nil) if suggested?
+      update!(attrs)
+    end
   end
 
   def reopen!
@@ -449,6 +462,11 @@ class Receipt < ApplicationRecord
         transaction.attachments.attach(copy)
         update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created, match_status: "confirmed")
       end
+    end
+
+    def refuse_changed_suggestion!(expected_transaction_id)
+      refuse!(:not_suggested) unless suggested?
+      refuse!(:suggestion_changed) if expected_transaction_id.present? && expected_transaction_id.to_s != self.transaction_id.to_s
     end
 
     def refuse!(error, **options)

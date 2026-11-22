@@ -694,7 +694,7 @@ class TransactionsController < ApplicationController
         currency: receipt.currency.presence || @entry.currency
       )
       @entry.entryable.merchant = receipt.suggested_merchant
-      @receipt_existing_matches = receipt.auto_match_candidates.includes(entry: :account).limit(3).to_a
+      @receipt_existing_matches = receipt.existing_matches(Current.user)
     end
 
     # Linking never undoes the saved transaction: if the receipt can no longer be
@@ -707,6 +707,11 @@ class TransactionsController < ApplicationController
 
       receipt.link_to!(entry.transaction, user: Current.user, created: true)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound
+      flash[:alert] = t("transactions.create.receipt_not_linked")
+    rescue StandardError => e
+      # A storage failure while copying the file; the saved transaction stays.
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{receipt&.id}: link after create failed: #{e.class}",
+                            source: "receipt_prefill", family: Current.family, user_id: Current.user.id)
       flash[:alert] = t("transactions.create.receipt_not_linked")
     end
 

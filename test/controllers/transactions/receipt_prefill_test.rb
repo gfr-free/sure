@@ -36,6 +36,16 @@ class Transactions::ReceiptPrefillTest < ActionDispatch::IntegrationTest
     assert_select "p", text: /CARD PAYMENT BAKERY/
   end
 
+  test "the warning names the transaction the receipt is already suggested for" do
+    @account.entries.create!(name: "SUGGESTED BAKERY", date: Date.new(2026, 11, 21), amount: 6.4, currency: "USD", entryable: Transaction.new)
+    assert @receipt.auto_match!
+
+    get new_transaction_url(receipt_id: @receipt.id)
+
+    assert_response :success
+    assert_select "p", text: /SUGGESTED BAKERY/
+  end
+
   test "another user's receipt is not used" do
     other = Receipt.create_from_upload!(family: @family, user: users(:family_member), file: uploaded_receipt(receipt_pdf([ "Total 1.00" ]), filename: "other.pdf"))
     other.update!(merchant_name: "Secret Shop")
@@ -89,6 +99,18 @@ class Transactions::ReceiptPrefillTest < ActionDispatch::IntegrationTest
     post transactions_url, params: { receipt_id: @receipt.id, entry: new_entry_params }
 
     assert_equal I18n.t("transactions.create.receipt_not_linked"), flash[:alert]
+  end
+
+  test "a storage failure while linking keeps the saved transaction" do
+    Receipt.stubs(:upload_blob!).raises(Errno::ECONNRESET)
+
+    assert_difference -> { @account.entries.count }, 1 do
+      post transactions_url, params: { receipt_id: @receipt.id, entry: new_entry_params }
+    end
+
+    assert_equal I18n.t("transactions.create.receipt_not_linked"), flash[:alert]
+    assert_nil @receipt.reload.transaction_id
+    assert_equal "receipt_prefill", DebugLogEntry.order(:created_at).last.source
   end
 
   test "a bank-synced account is refused while the receipt waits for the bank" do

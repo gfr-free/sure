@@ -729,16 +729,22 @@ class Transaction < ApplicationRecord
     end
 
     # Receipts and the user's rejected receipt suggestions follow the booking;
-    # deleting the pending entry would unlink or forget them. A suggestion for a
-    # receipt the user already rejected on the posted booking is dropped.
+    # deleting the pending entry would unlink or forget them. Afterwards the
+    # posted booking keeps the suggestion rules: no suggestion for a rejected
+    # pair, none next to a confirmed receipt, and at most one.
     def carry_over_receipts(from:, to:)
+      now = Time.current
       rejected_on_posted = RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)
-      RejectedReceiptMatch.where(transaction_id: from.id).where.not(receipt_id: rejected_on_posted).update_all(transaction_id: to.id, updated_at: Time.current)
+      RejectedReceiptMatch.where(transaction_id: from.id).where.not(receipt_id: rejected_on_posted).update_all(transaction_id: to.id, updated_at: now)
+      Receipt.where(transaction_id: from.id).update_all(transaction_id: to.id, updated_at: now)
 
-      receipts = Receipt.where(transaction_id: from.id)
-      receipts.where(match_status: "pending", id: RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id))
-              .update_all(transaction_id: nil, match_status: nil, linked_at: nil, updated_at: Time.current)
-      receipts.update_all(transaction_id: to.id, updated_at: Time.current)
+      receipts = Receipt.where(transaction_id: to.id)
+      pending = receipts.where(match_status: "pending")
+      released = pending.where(id: RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)).pluck(:id)
+      suggestions = pending.where.not(id: released).order(:linked_at, :id).pluck(:id)
+      confirmed = receipts.where.not(id: pending.select(:id)).exists?
+      released += confirmed ? suggestions : suggestions.drop(1)
+      Receipt.where(id: released).update_all(transaction_id: nil, match_status: nil, linked_at: nil, updated_at: now) if released.any?
     end
 
     def attachment_count_after_merge(from:, to:)

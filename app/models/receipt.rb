@@ -283,14 +283,16 @@ class Receipt < ApplicationRecord
           currency: currency,
           entryable: Transaction.new(merchant: merchant_for(name))
         )
+        entry.lock_saved_attributes!
+        entry.mark_user_modified!
         attach_to!(entry.transaction, copy, created: true)
       end
     end
 
-    entry.sync_account_later
-    entry.lock_saved_attributes!
-    entry.mark_user_modified!
-    entry.apply_immediate_rules_later
+    # The entry and link are committed at this point, so a failed enqueue must
+    # not fail the request: a retry would only see the receipt as already linked.
+    enqueue_after_create(entry, :sync_account_later)
+    enqueue_after_create(entry, :apply_immediate_rules_later)
     entry
   end
 
@@ -323,6 +325,13 @@ class Receipt < ApplicationRecord
   end
 
   private
+    def enqueue_after_create(entry, method)
+      entry.public_send(method)
+    rescue StandardError => e
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: #{method} failed for Entry##{entry.id}: #{e.class}",
+                            source: "receipt_transaction", family: family, user_id: uploaded_by_id)
+    end
+
     def enqueue_failed!(reason)
       DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{reason}",
                             source: "receipt_extraction", family: family, user_id: uploaded_by_id)

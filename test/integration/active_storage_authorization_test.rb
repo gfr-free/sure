@@ -454,6 +454,16 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "an uploader who became a guest cannot access their receipt file" do
+    receipt = upload_receipt_for(@user_a)
+    @user_a.update!(role: "guest")
+    sign_in @user_a
+
+    get rails_blob_path(receipt.file)
+
+    assert_response :not_found
+  end
+
   test "another member of the family cannot access a receipt file" do
     receipt = upload_receipt_for(@user_a)
     sign_in users(:family_member)

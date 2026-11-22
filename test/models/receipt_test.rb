@@ -289,6 +289,18 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal 1, entry.transaction.attachments.count
   end
 
+  test "create_transaction! finishes the new entry even when the account sync cannot be queued" do
+    receipt = upload([ "Total 15.00" ])
+    Entry.any_instance.stubs(:sync_account_later).raises(RedisClient::CannotConnectError)
+    Rule.expects(:apply_immediately_later).once
+
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    assert entry.reload.user_modified?
+    assert entry.locked?(:amount)
+    assert_equal entry.transaction, receipt.reload.linked_transaction
+  end
+
   test "a receipt whose reading cannot be queued is marked failed" do
     ReceiptExtractionJob.stubs(:perform_later).raises(RedisClient::CannotConnectError)
 

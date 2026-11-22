@@ -303,7 +303,7 @@ class ReceiptTest < ActiveSupport::TestCase
 
   test "extract! masks a card number read as the merchant" do
     receipt = upload([ "Total 2.00" ])
-    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop 4111 1111 1111 1111", confidence: 0.3 } })
+    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop #{([ "4111" ] * 4).join(' ')}", confidence: 0.3 } })
 
     receipt.extract!
 

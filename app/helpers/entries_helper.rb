@@ -13,7 +13,9 @@ module EntriesHelper
         next if seen_parent_ids.include?(parent_id)
 
         seen_parent_ids.add(parent_id)
+        # Same order as Entry.in_split_order, which the split detail and edit views use.
         children = entries.select { |e| e.parent_entry_id == parent_id }
+                          .sort_by { |e| [ e.created_at, e.id ] }
         result << SplitGroup.new(parent: split_parents[parent_id], children: children)
       else
         result << entry

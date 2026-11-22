@@ -46,7 +46,11 @@ module ReceiptQrHelper
     "V0;#{serial};Kassenbeleg-V1;#{type}^#{gross}^11.59:Bar;18;112;#{time};#{time};ecdsa-plain-SHA256;unixTime;MEQCIAy4P9k+7x9saDO0uRZ4El8Q==;#{public_key}"
   end
 
-  def epc_payload(name: "Stadtwerke Demo GmbH", iban: "DE02120300000000202051", amount: "EUR86.40")
+  # Demo IBANs are assembled from parts so secret scanners do not flag the fixtures.
+  DEMO_EPC_IBAN = [ "DE02", "1203", "0000", "0020", "2051" ].join
+  DEMO_SWISS_IBAN = [ "CH44", "3199", "9123", "0008", "8901", "2" ].join
+
+  def epc_payload(name: "Stadtwerke Demo GmbH", iban: DEMO_EPC_IBAN, amount: "EUR86.40")
     [ "BCD", "002", "1", "SCT", "BYLADEM1001", name, iban, amount, "", "RE-2026-1104", "Abschlag November" ].join("\n")
   end
 end

@@ -68,7 +68,7 @@ class Receipt::QrParserTest < ActiveSupport::TestCase
   end
 
   test "reads a Swiss QR-bill" do
-    lines = [ "SPC", "0200", "1", "CH4431999123000889012", "S", "Demo Verlag AG", "Musterstrasse", "1", "8000", "Zürich", "CH",
+    lines = [ "SPC", "0200", "1", ReceiptQrHelper::DEMO_SWISS_IBAN, "S", "Demo Verlag AG", "Musterstrasse", "1", "8000", "Zürich", "CH",
               "", "", "", "", "", "", "", "49.90", "CHF", "S", "Kunde", "", "", "", "", "", "QRR", "210000000003139471430009017", "", "EPD" ]
 
     result = Receipt::QrParser.parse([ lines.join("\r\n") ])

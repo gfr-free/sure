@@ -411,6 +411,93 @@ class Security::Price::ImporterTest < ActiveSupport::TestCase
     assert_equal 160, prices[Date.current]
   end
 
+  test "clear_cache replaces prices stored in a currency the provider no longer returns" do
+    Security::Price.delete_all
+
+    Security::Price.create!(security: @security, date: 10.days.ago.to_date, price: 90, currency: "USD")
+    (2.days.ago.to_date..Date.current).each do |date|
+      Security::Price.create!(security: @security, date:, price: 100, currency: "USD")
+    end
+    other_security = securities(:msft)
+    Security::Price.create!(security: other_security, date: 1.day.ago.to_date, price: 300, currency: "USD")
+
+    # The provider now quotes the security in EUR, from 2 days ago on
+    provider_response = provider_success_response([
+      OpenStruct.new(security: @security, date: 2.days.ago.to_date, price: 150, currency: "EUR"),
+      OpenStruct.new(security: @security, date: 1.day.ago.to_date, price: 155, currency: "EUR"),
+      OpenStruct.new(security: @security, date: Date.current, price: 160, currency: "EUR")
+    ])
+
+    @provider.expects(:fetch_security_prices)
+             .with(symbol: @security.ticker, exchange_operating_mic: @security.exchange_operating_mic,
+                   start_date: get_provider_fetch_start_date(10.days.ago.to_date), end_date: Date.current)
+             .returns(provider_response)
+
+    Security::Price::Importer.new(
+      security: @security,
+      security_provider: @provider,
+      start_date: 10.days.ago.to_date,
+      end_date: Date.current,
+      clear_cache: true
+    ).import_provider_prices
+
+    prices = Security::Price.where(security: @security)
+
+    assert_equal [ [ 150, "EUR" ] ], prices.where(date: 2.days.ago.to_date).pluck(:price, :currency)
+    assert_equal [ [ 155, "EUR" ] ], prices.where(date: 1.day.ago.to_date).pluck(:price, :currency)
+    assert_equal [ [ 160, "EUR" ] ], prices.where(date: Date.current).pluck(:price, :currency)
+    # Stored history before the provider's first price is kept
+    assert_equal [ [ 90, "USD" ] ], prices.where(date: 10.days.ago.to_date).pluck(:price, :currency)
+    # Other securities' prices are not touched
+    assert Security::Price.exists?(security: other_security, date: 1.day.ago.to_date, currency: "USD")
+  end
+
+  test "clear_cache replaces an old-currency price on a date the provider skipped" do
+    Security::Price.delete_all
+
+    Security::Price.create!(security: @security, date: 1.day.ago.to_date, price: 100, currency: "USD")
+
+    # No provider price for yesterday: it is carried forward from the day before
+    provider_response = provider_success_response([
+      OpenStruct.new(security: @security, date: 2.days.ago.to_date, price: 150, currency: "EUR"),
+      OpenStruct.new(security: @security, date: Date.current, price: 160, currency: "EUR")
+    ])
+
+    @provider.expects(:fetch_security_prices).returns(provider_response)
+
+    Security::Price::Importer.new(
+      security: @security,
+      security_provider: @provider,
+      start_date: 2.days.ago.to_date,
+      end_date: Date.current,
+      clear_cache: true
+    ).import_provider_prices
+
+    assert_equal [ [ 150, "EUR" ] ], Security::Price.where(security: @security, date: 1.day.ago.to_date).pluck(:price, :currency)
+  end
+
+  test "clear_cache keeps stored prices when the provider reports no currency" do
+    Security::Price.delete_all
+
+    Security::Price.create!(security: @security, date: Date.current, price: 100, currency: "KES")
+
+    provider_response = provider_success_response([
+      OpenStruct.new(security: @security, date: Date.current, price: 160, currency: nil)
+    ])
+
+    @provider.expects(:fetch_security_prices).returns(provider_response)
+
+    Security::Price::Importer.new(
+      security: @security,
+      security_provider: @provider,
+      start_date: Date.current,
+      end_date: Date.current,
+      clear_cache: true
+    ).import_provider_prices
+
+    assert Security::Price.exists?(security: @security, date: Date.current, price: 100, currency: "KES")
+  end
+
   test "clamps end_date to today when future date is provided" do
     Security::Price.delete_all
 

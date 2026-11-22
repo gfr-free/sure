@@ -95,6 +95,20 @@ class ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, entry.transaction.attachments.count
   end
 
+  test "hides the linked transaction once its account is no longer shared" do
+    sign_in @member
+    receipt = upload_for(@member, "shared.pdf")
+    entry = @account.entries.create!(name: "Shared shop", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    receipt.link_to!(entry.transaction, user: @member)
+
+    account_shares(:depository_shared_with_member).destroy!
+    get receipt_url(receipt)
+
+    assert_response :success
+    assert_no_match "Shared shop", response.body
+    assert_match I18n.t("receipts.show.linked_hidden"), response.body
+  end
+
   test "cannot link to a transaction on a read-only account" do
     sign_in @member
     receipt = upload_for(@member, "member.pdf")

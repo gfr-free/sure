@@ -9,15 +9,16 @@
 #   are skipped. A second line with the same amount (the payment line) raises
 #   the confidence.
 # - Date: the first plausible date, preferring one on a line with a date label
-#   or a time of day. Dates in the future or more than two years back are ignored.
+#   or a time of day. Slash dates are month first when the hint is USD. Dates in the future or more than two years back are ignored.
 # - Merchant: a known merchant name in the first lines, else the first line that
 #   reads like a name.
-# - Currency: the total's own symbol or code, else any in the text, else the hint.
+# - Currency: the total's own symbol or code, else one printed next to another
+#   amount, else the hint.
 #
 # Labels cover German, English, French, Italian, Spanish and Dutch.
 class Receipt::TextParser
   AMOUNT_PATTERN = AccountStatement::TextMetadataParser::AMOUNT_PATTERN
-  CURRENCY_SYMBOLS = { "€" => "EUR", "£" => "GBP", "CHF" => "CHF", "Fr." => "CHF" }.freeze
+  CURRENCY_SYMBOLS = { "€" => "EUR", "£" => "GBP" }.freeze
 
   # Weight 3 names the amount to pay, 2 a plain total, 1 a payment line.
   TOTAL_LABELS = {
@@ -33,12 +34,17 @@ class Receipt::TextParser
     "tip", "rabatt", "discount", "pfand"
   ].freeze
 
+  # "inkl. MwSt" or "incl. VAT" on a total line names the total, not the tax.
+  INCLUDING = /(?:inkl|incl|including|inclus|compris|ttc|iva incluida)\.?\s*\z/i
+  # Slash dates read month first for these currencies' receipts.
+  MONTH_FIRST_CURRENCIES = %w[USD].freeze
+
   DATE_LABELS = /\b(?:datum|date|rechnungsdatum|belegdatum|invoice date|data|fecha|datum)\b/i
   TIME_OF_DAY = /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/
   DATE_FORMATS = [
     /(?<!\d)(?<year>\d{4})-(?<month>\d{1,2})-(?<day>\d{1,2})(?!\d)/,
-    %r{(?<!\d)(?<day>\d{1,2})[./-](?<month>\d{1,2})[./-](?<year>\d{4})(?!\d)},
-    %r{(?<!\d)(?<day>\d{1,2})[./](?<month>\d{1,2})[./](?<year>\d{2})(?![\d.,/])}
+    %r{(?<!\d)(?<day>\d{1,2})(?<separator>[./-])(?<month>\d{1,2})[./-](?<year>\d{4})(?!\d)},
+    %r{(?<!\d)(?<day>\d{1,2})(?<separator>[./])(?<month>\d{1,2})[./](?<year>\d{2})(?![\d.,/])}
   ].freeze
   MAX_AGE = 2.years
   MERCHANT_LINES = 8
@@ -93,10 +99,9 @@ class Receipt::TextParser
       candidates = []
       @lines.each_with_index do |line, index|
         normalized = line.downcase
-        next if EXCLUDED_LABELS.any? { |label| normalized.match?(label_regexp(label)) }
-
         weight = TOTAL_LABELS.find { |_, labels| labels.any? { |label| normalized.match?(label_regexp(label)) } }&.first
         next unless weight
+        next if weight < 3 && excluded_line?(normalized)
 
         amount = amounts_in(line).last || amounts_in(next_line(index)).first
         candidates << amount.merge(weight: weight, index: index) if amount
@@ -111,6 +116,16 @@ class Receipt::TextParser
     end
 
     # Without a label, the largest amount is the best guess, but only a guess.
+    # A subtotal, tax, change or discount line, unless the word only says what
+    # the total includes ("Gesamt inkl. MwSt").
+    def excluded_line?(line)
+      EXCLUDED_LABELS.any? do |label|
+        line.to_enum(:scan, label_regexp(label)).any? do
+          !line[0...Regexp.last_match.begin(0)].match?(INCLUDING)
+        end
+      end
+    end
+
     def fallback_total
       largest = amounts_in(@text).max_by { _1[:value] }
       largest&.merge(confidence: 0.3)
@@ -162,15 +177,10 @@ class Receipt::TextParser
       false
     end
 
+    # Only a code or symbol printed next to an amount counts, so a word such as
+    # "ALL" in "ALL PRICES INCL. VAT" is never read as a currency.
     def any_currency
-      return "EUR" if @text.include?("€")
-      return "GBP" if @text.include?("£")
-
-      @text.scan(/\b[A-Z]{3}\b/).each do |token|
-        currency = resolve_currency(token)
-        return currency if currency
-      end
-      nil
+      amounts_in(@text).filter_map { _1[:currency] }.first
     end
 
     def parse_date
@@ -194,10 +204,16 @@ class Receipt::TextParser
     def build_date(match)
       year = match[:year].to_i
       year += 2000 if year < 100
-      date = Date.new(year, match[:month].to_i, match[:day].to_i)
+      day, month = match[:day].to_i, match[:month].to_i
+      day, month = month, day if match.names.include?("separator") && match[:separator] == "/" && month_first?
+      date = Date.new(year, month, day)
       date if date <= Date.current + 1 && date >= Date.current - MAX_AGE
     rescue Date::Error
       nil
+    end
+
+    def month_first?
+      MONTH_FIRST_CURRENCIES.include?(@currency_hint)
     end
 
     def parse_merchant

@@ -6,7 +6,7 @@
     <%= render DS::Pill.new(label: t(".preview")) %>
   </header>
 
-  <div class="bg-container rounded-xl shadow-border-xs p-4 space-y-3">
+  <%= render DS::Card.new(class: "gap-3") do %>
     <div>
       <p class="text-sm font-medium text-primary"><%= t(".upload_title") %></p>
       <p class="text-xs text-secondary"><%= t(".upload_description", max_size: Receipt::MAX_FILE_SIZE / 1.megabyte) %></p>
@@ -33,7 +33,7 @@
         <%= render DS::Button.new(text: t(".upload"), icon: "upload", type: :submit) %>
       </div>
     <% end %>
-  </div>
+  <% end %>
 
   <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open") %>
   <%= render "receipts/table", title: t(".done_title"), receipts: @done_receipts, pagy: @done_pagy, empty: t(".empty_done") %>

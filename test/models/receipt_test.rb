@@ -33,6 +33,38 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
+  test "another member may upload the same file, and long filenames are shortened" do
+    content = receipt_pdf([ "Total 1.00" ])
+    upload_content(content)
+
+    receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(content, filename: "#{'a' * 300}.pdf"))
+
+    assert_equal 255, receipt.filename.length
+    assert receipt.filename.end_with?(".pdf")
+  end
+
+  test "extract! keeps a field the user edited while the file was being read" do
+    receipt = upload([ "Coffee House", "Total 12.40 USD" ])
+    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("12.40"), confidence: 0.9, source: "pdf_text" } }, raw_text: "Total 12.40")
+    Receipt::Extraction.any_instance.stubs(:run).with do
+      Receipt.find(receipt.id).update_fields!(amount: "13.00")
+      true
+    end.returns(result)
+
+    receipt.extract!
+
+    assert_equal BigDecimal("13"), receipt.reload.amount
+    assert_equal "manual", receipt.field_source(:amount)
+  end
+
+  test "update_fields! does not mark a field manual when normalizing leaves it unchanged" do
+    receipt = upload([ "Total 1.00" ])
+
+    receipt.update_fields!(currency: receipt.currency.downcase)
+
+    assert_nil receipt.field_source(:currency)
+  end
+
   test "extract! fills the fields from the PDF text and keeps manual edits" do
     travel_to Date.new(2026, 11, 22) do
       receipt = upload([ "Coffee House", "Total 12.40 USD", "Date 2026-11-20 08:15", "Card 4111 1111 1111 1234" ])
@@ -146,6 +178,15 @@ class ReceiptTest < ActiveSupport::TestCase
       end
     end
     assert_equal 0, other.attachments.count
+  end
+
+  test "create_transaction! refuses an unknown currency" do
+    receipt = upload([ "Total 15.00" ])
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      receipt.create_transaction!(account: @account, user: @admin, name: "Shop", date: Date.current, amount: BigDecimal("15"), currency: "XYZ")
+    end
+    assert_nil receipt.reload.transaction_id
   end
 
   test "create_transaction! refuses an amount that is not positive" do

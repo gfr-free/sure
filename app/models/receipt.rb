@@ -73,12 +73,12 @@ class Receipt < ApplicationRecord
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
 
       content_sha256 = Digest::SHA256.hexdigest(content)
-      duplicate = family.receipts.find_by(content_sha256: content_sha256)
+      duplicate = family.receipts.find_by(uploaded_by: user, content_sha256: content_sha256)
       raise DuplicateUploadError, duplicate if duplicate
 
       receipt = family.receipts.build(
         uploaded_by: user,
-        filename: file.original_filename.to_s.presence || "receipt",
+        filename: upload_filename(file),
         content_type: content_type,
         byte_size: content.bytesize,
         content_sha256: content_sha256,
@@ -88,13 +88,22 @@ class Receipt < ApplicationRecord
       receipt.save!
       receipt
     rescue ActiveRecord::RecordNotUnique
-      duplicate = family.receipts.find_by(content_sha256: content_sha256)
+      duplicate = family.receipts.find_by(uploaded_by: user, content_sha256: content_sha256)
       raise DuplicateUploadError, duplicate if duplicate
 
       raise
     end
 
     private
+      # Fits the 255-character column, keeping the extension.
+      def upload_filename(file)
+        name = ActiveStorage::Filename.new(file.original_filename.to_s.presence || "receipt").sanitized
+        return name if name.length <= 255
+
+        extension = File.extname(name).first(20)
+        "#{File.basename(name, File.extname(name)).first(255 - extension.length)}#{extension}"
+      end
+
       def read_upload!(file)
         raise InvalidUploadError unless file.respond_to?(:read)
         raise InvalidUploadError if file.respond_to?(:size) && file.size.to_i > MAX_FILE_SIZE
@@ -144,19 +153,23 @@ class Receipt < ApplicationRecord
   # hand keep their value.
   def extract!
     result = Receipt::Extraction.new(self).run
-    manual = FIELDS.select { |field| field_source(field) == "manual" }
 
-    attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: nil }
-    sources = field_sources.slice(*manual)
-    (FIELDS - manual).each do |field|
-      value = result.fields[field]
-      next if value.nil?
+    # Reading can take a while; the lock reloads the row, so an edit saved
+    # meanwhile counts as manual and is kept.
+    with_lock do
+      manual = FIELDS.select { |field| field_source(field) == "manual" }
+      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: nil }
+      sources = field_sources.slice(*manual)
+      (FIELDS - manual).each do |field|
+        value = result.fields[field]
+        next if value.nil?
 
-      attrs[field] = value[:value]
-      sources[field] = { "source" => value[:source], "confidence" => value[:confidence] }
+        attrs[field] = value[:value]
+        sources[field] = { "source" => value[:source], "confidence" => value[:confidence] }
+      end
+
+      update!(attrs.merge(field_sources: sources))
     end
-
-    update!(attrs.merge(field_sources: sources))
   rescue Receipt::Extraction::Error => e
     update!(extraction_status: "failed", extraction_error: e.code)
   rescue StandardError => e
@@ -171,6 +184,7 @@ class Receipt < ApplicationRecord
   def update_fields!(attrs)
     attrs = attrs.to_h.stringify_keys.slice(*FIELDS)
     assign_attributes(attrs)
+    normalize_fields
     sources = field_sources.dup
     FIELDS.each do |field|
       sources[field] = { "source" => "manual", "confidence" => 1.0 } if will_save_change_to_attribute?(field)
@@ -213,7 +227,7 @@ class Receipt < ApplicationRecord
   # Records the receipt as a new expense on `account`, then links it.
   def create_transaction!(account:, user:, name:, date:, amount:, currency:)
     raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
-    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date)
+    refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date) && known_currency?(currency)
 
     entry = nil
     with_lock do
@@ -270,11 +284,14 @@ class Receipt < ApplicationRecord
     end
 
     def currency_is_valid
-      return if currency.blank?
+      errors.add(:currency, :invalid) if currency.present? && !known_currency?(currency)
+    end
 
-      Money::Currency.new(currency)
+    def known_currency?(code)
+      Money::Currency.new(code.to_s)
+      true
     rescue Money::Currency::UnknownCurrencyError
-      errors.add(:currency, :invalid)
+      false
     end
 
     def linked_transaction_belongs_to_family

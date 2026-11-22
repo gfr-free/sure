@@ -54,6 +54,12 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal 0.7, fields["amount"][:confidence]
   end
 
+  test "keeps a total that says what it includes" do
+    assert_equal BigDecimal("23.80"), parse("Netto 20,00\nMwSt 3,80\nGesamtbetrag inkl. MwSt 23,80\n")["amount"][:value]
+    assert_equal BigDecimal("120.00"), parse("Sous-total 100,00\nTVA 20,00\nNet à payer 120,00\n")["amount"][:value]
+    assert_equal BigDecimal("50.00"), parse("Total 50.00\nTotal VAT 8.00\n")["amount"][:value]
+  end
+
   test "falls back to the largest amount with low confidence" do
     fields = parse("Kaffee 3,20\nKuchen 4,50\n")
 
@@ -64,6 +70,18 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
   test "uses the currency hint only when nothing in the text names one" do
     assert_equal({ value: "EUR", confidence: 0.5 }, parse("Summe 5,00\n", currency_hint: "EUR")["currency"])
     assert_equal "CHF", parse("Total CHF 5.00\n", currency_hint: "EUR")["currency"][:value]
+  end
+
+  test "reads currency only next to an amount" do
+    fields = parse("ALL PRICES INCL. VAT\nSumme 5,00\n", currency_hint: "EUR")
+
+    assert_equal "EUR", fields["currency"][:value]
+    assert_equal 0.5, fields["currency"][:confidence]
+  end
+
+  test "reads slash dates month first for a dollar hint" do
+    assert_equal Date.new(2026, 3, 4), parse("Date 03/04/2026\n", currency_hint: "USD")["date"][:value]
+    assert_equal Date.new(2026, 4, 3), parse("Datum 03/04/2026\n", currency_hint: "EUR")["date"][:value]
   end
 
   test "ignores dates in the future or older than two years" do

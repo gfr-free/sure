@@ -115,6 +115,34 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, JSON.parse(response.body)["children"].length
   end
 
+  test "lists children created at the same instant in a stable order" do
+    splits = 3.times.map { |i| { name: "Part #{i}", amount: (@entry.amount / 4).to_s } }
+    splits << { name: "Part 3", amount: (@entry.amount - (@entry.amount / 4) * 3).to_s }
+    post api_v1_transaction_split_url(@transaction), params: { split: { splits: splits } },
+         headers: api_headers(@api_key), as: :json
+    assert_response :created
+
+    children = @entry.reload.child_entries
+    children.update_all(created_at: Time.zone.parse("2026-05-05 12:00:00"))
+    # Rewrite the lowest-id row last so its tuple sits behind the others; without
+    # an id tiebreaker PostgreSQL then returns it in the wrong place.
+    children.order(:id).first.update_columns(created_at: Time.zone.parse("2026-05-05 12:00:00"), notes: "moved")
+
+    queries = []
+    counter = ->(*, payload) { queries << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      get api_v1_transaction_split_url(@transaction), headers: api_headers(@api_key)
+    end
+    assert_response :success
+
+    row_reads = queries.select { |sql| sql.include?('"entries"."parent_entry_id" =') && sql.include?("ORDER BY") }
+    assert row_reads.any?, "expected the split rows to be read"
+    assert row_reads.all? { |sql| sql.include?('ORDER BY "entries"."created_at" ASC, "entries"."id" ASC') }, row_reads.join("\n")
+
+    expected = Transaction.where(id: children.select(:entryable_id)).joins(:entry).order("entries.id").pluck(:id)
+    assert_equal expected, JSON.parse(response.body)["children"].map { |child| child["id"] }
+  end
+
   test "returns 404 showing a transaction that is not split" do
     get api_v1_transaction_split_url(@transaction), headers: api_headers(@api_key)
     assert_response :not_found

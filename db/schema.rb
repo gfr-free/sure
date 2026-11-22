@@ -2100,8 +2100,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.uuid "transaction_id"
     t.datetime "updated_at", null: false
     t.uuid "uploaded_by_id"
-    t.index ["family_id", "content_sha256"], name: "index_receipts_on_family_id_and_content_sha256", unique: true
+    t.index ["family_id"], name: "index_receipts_on_family_id"
     t.index ["transaction_id"], name: "index_receipts_on_transaction_id"
+    t.index ["uploaded_by_id", "content_sha256"], name: "index_receipts_on_uploaded_by_id_and_content_sha256", unique: true
     t.index ["uploaded_by_id", "created_at"], name: "index_receipts_on_uploaded_by_id_and_created_at"
   end
 

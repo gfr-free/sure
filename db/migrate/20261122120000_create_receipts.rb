@@ -1,7 +1,7 @@
 class CreateReceipts < ActiveRecord::Migration[8.1]
   def change
     create_table :receipts, id: :uuid do |t|
-      t.references :family, null: false, foreign_key: true, type: :uuid, index: false
+      t.references :family, null: false, foreign_key: true, type: :uuid
       t.references :uploaded_by, foreign_key: { to_table: :users, on_delete: :nullify }, type: :uuid, index: false
       t.references :transaction, foreign_key: { on_delete: :nullify }, type: :uuid
       t.string :source, null: false, default: "web"
@@ -23,7 +23,8 @@ class CreateReceipts < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :receipts, [ :family_id, :content_sha256 ], unique: true
+    # Receipts are private to their uploader, so only the uploader's own copy is a duplicate.
+    add_index :receipts, [ :uploaded_by_id, :content_sha256 ], unique: true
     add_index :receipts, [ :uploaded_by_id, :created_at ]
   end
 end

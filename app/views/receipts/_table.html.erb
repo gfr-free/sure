@@ -23,8 +23,8 @@
       <%= render "shared/pagination", pagy: pagy %>
     <% end %>
   <% else %>
-    <div class="bg-container rounded-xl shadow-border-xs">
+    <%= render DS::Card.new do %>
       <%= render DS::EmptyState.new(icon: "receipt", title: empty) %>
-    </div>
+    <% end %>
   <% end %>
 </section>

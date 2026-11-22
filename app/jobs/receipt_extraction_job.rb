@@ -3,5 +3,6 @@ class ReceiptExtractionJob < ApplicationJob
 
   def perform(receipt)
     receipt.extract!
+    receipt.auto_match!
   end
 end

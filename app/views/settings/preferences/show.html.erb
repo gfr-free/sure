@@ -65,6 +65,10 @@
                 "aria-labelledby": "manual_reconciliation_label",
                 data: { auto_submit_form_target: "auto" } %>
           </div>
+          <%= family_form.select :receipt_bank_wait_days,
+              Receipt::BANK_WAIT_DAY_OPTIONS.map { |days| [ t(".receipt_bank_wait_days_option", count: days), days ] },
+              { label: t(".receipt_bank_wait_days"), hint: t(".receipt_bank_wait_days_hint") },
+              { data: { auto_submit_form_target: "auto" } } %>
         <% end %>
       <% end %>
     </div>

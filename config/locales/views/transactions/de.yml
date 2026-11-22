@@ -400,6 +400,16 @@ de:
         type_income: Einnahme
     create:
       created: Transaktion erstellt
+      receipt_awaiting_bank: "Dieses Konto hat Bank-Sync. Lege den Beleg darauf erst ab %{date} an, damit die Buchung der Bank nicht doppelt erscheint, oder wähle ein manuelles Konto."
+      receipt_not_linked: Die Buchung wurde gespeichert, der Beleg ließ sich aber nicht zuordnen. Er liegt weiter bei deinen Belegen.
+    receipt_prefill:
+      error_invalid: Diese Datei ist kein unterstütztes Bild und kein PDF.
+      error_not_open: Dieser Beleg liegt schon bei deinen Belegen und ist dort zugeordnet oder verworfen.
+      existing_match: "%{name} auf %{account}, %{date}, hat schon diesen Betrag. Wenn es derselbe Einkauf ist, ordne den Beleg dieser Buchung zu, statt eine zweite anzulegen."
+      file_label: Aus Beleg ausfüllen
+      filled: Ausgefüllt aus %{filename}. Prüfe die Angaben; der Beleg wird beim Speichern der Buchung zugeordnet.
+      hint: Wähle ein Foto oder PDF. Sure liest Händler, Datum und Betrag und legt den Beleg bei deinen Belegen ab.
+      open_receipt: Beleg öffnen
     pending_duplicate_merge:
       confirm_title: Mit gebuchter Transaktion zusammenführen (%{posted_amount})
       possible_duplicate: Duplikat?

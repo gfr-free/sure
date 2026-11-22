@@ -163,6 +163,7 @@ class Family < ApplicationRecord
   validates :investment_contributions_as_spending, inclusion: { in: [ true, false ] }
   validates :manual_reconciliation, inclusion: { in: [ true, false ] }
   validates :categories_locked, inclusion: { in: [ true, false ] }
+  validates :receipt_bank_wait_days, inclusion: { in: Receipt::BANK_WAIT_DAY_OPTIONS }
   # The searchable timezone select submits "" while no zone is saved yet;
   # store nil so provider date parsing keeps its default instead of raising.
   # Rails' friendly names (e.g. "Pacific Time (US & Canada)") are stored as

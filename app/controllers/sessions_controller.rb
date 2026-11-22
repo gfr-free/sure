@@ -42,26 +42,16 @@ class SessionsController < ApplicationController
     # Clear any stale mobile SSO session flag from an abandoned mobile flow
     session.delete(:mobile_sso)
 
-    user = nil
-
-    if AuthConfig.local_login_enabled?
-      user = User.authenticate_by_email(email: params[:email], password: params[:password])
-    else
-      # Local login is disabled. Only allow attempts when an emergency super-admin
-      # override is enabled and the email belongs to a super-admin.
-      if AuthConfig.local_admin_override_enabled?
-        candidate = User.find_by_email_with_legacy_fallback(params[:email])
-        unless candidate&.super_admin?
-          redirect_to new_session_path, alert: t("sessions.create.local_login_disabled")
-          return
-        end
-
-        user = User.authenticate_by_email(email: params[:email], password: params[:password])
-      else
-        redirect_to new_session_path, alert: t("sessions.create.local_login_disabled")
-        return
-      end
+    unless AuthConfig.local_login_form_visible?
+      redirect_to new_session_path, alert: t("sessions.create.local_login_disabled")
+      return
     end
+
+    user = User.authenticate_by_email(email: params[:email], password: params[:password])
+    # Under the emergency override only super admins may sign in locally. The
+    # password is checked first and everyone else gets the wrong-password
+    # answer, so the form never reveals which email belongs to a super admin.
+    user = nil unless AuthConfig.local_login_allowed_for?(user)
 
     if user
       # Check before starting the MFA challenge, not just after — otherwise a

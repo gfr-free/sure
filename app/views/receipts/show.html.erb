@@ -61,7 +61,7 @@
         <% end %>
       <% end %>
 
-      <% if @receipt.invoice_number? || @receipt.due_date? || @receipt.tax_amount? %>
+      <% if @receipt.invoice_details? %>
         <%= render DS::Card.new(class: "gap-3") do %>
           <h2 class="text-sm font-medium text-primary"><%= t(".invoice_title") %></h2>
           <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -73,9 +73,9 @@
               <dt class="text-secondary"><%= t(".due_date") %></dt>
               <dd class="text-primary"><%= l(@receipt.due_date, format: :long) %></dd>
             <% end %>
-            <% if @receipt.tax_amount? && @receipt.currency.present? %>
+            <% if (tax = @receipt.tax_money) %>
               <dt class="text-secondary"><%= t(".tax_amount") %></dt>
-              <dd class="text-primary privacy-sensitive"><%= format_money(Money.new(@receipt.tax_amount, @receipt.currency)) %></dd>
+              <dd class="text-primary privacy-sensitive"><%= format_money(tax) %></dd>
             <% end %>
           </dl>
           <p class="text-xs text-secondary"><%= t(".invoice_hint") %></p>

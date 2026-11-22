@@ -25,6 +25,8 @@ class Transaction < ApplicationRecord
     image/jpeg image/jpg image/png image/gif image/webp
     application/pdf
   ] + XML_CONTENT_TYPES).freeze
+  # File pickers do not all map the XML types to the extension.
+  ATTACHMENT_ACCEPT = (ALLOWED_CONTENT_TYPES + %w[.xml]).join(",").freeze
 
   validate :validate_attachments, if: -> { attachments.attached? }
 

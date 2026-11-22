@@ -17,7 +17,7 @@
         <%= form.file_field :files,
                             label: t(".files_label"),
                             multiple: true,
-                            accept: Receipt::UPLOAD_ACCEPT,
+                            accept: Transaction::ATTACHMENT_ACCEPT,
                             data: { testid: "receipt-files" } %>
       </div>
       <%# Opens the camera straight away on a phone; ignored on a desktop browser. %>

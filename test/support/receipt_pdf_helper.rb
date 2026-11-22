@@ -1,9 +1,11 @@
 # Builds a one-page PDF whose text layer holds the given lines, for tests that
 # read receipts without shipping binary fixtures. `attachments` embeds files the
 # way ZUGFeRD and Factur-X do: in the EmbeddedFiles name tree and as associated
-# files (/AF), Flate-compressed unless `compress: false`.
+# files (/AF), Flate-compressed unless `compress: false`. `extra_objects` are
+# appended after them (numbered from 6 without attachments) and `catalog_extra`
+# is added to the catalog, for hand-built structures.
 module ReceiptPdfHelper
-  def receipt_pdf(lines, attachments: {}, compress: true)
+  def receipt_pdf(lines, attachments: {}, compress: true, extra_objects: [], catalog_extra: "")
     escaped = lines.map { |line| line.gsub(/[\\()]/) { |char| "\\#{char}" } }
     text = escaped.each_with_index.map { |line, index| "BT /F1 10 Tf 40 #{780 - index * 14} Td (#{line}) Tj ET" }.join("\n")
     # Non-ASCII characters become "?", as a plain Type1 font has no Unicode map.
@@ -24,7 +26,8 @@ module ReceiptPdfHelper
       [ name, objects.size ]
     end
     embedded = specs.any? ? " /Names << /EmbeddedFiles << /Names [#{specs.map { |name, ref| "(#{name}) #{ref} 0 R" }.join(' ')}] >> >> /AF [#{specs.map { |_, ref| "#{ref} 0 R" }.join(' ')}]" : ""
-    objects[0] = "<< /Type /Catalog /Pages 2 0 R#{embedded} >>"
+    objects.concat(extra_objects)
+    objects[0] = "<< /Type /Catalog /Pages 2 0 R#{embedded}#{catalog_extra} >>"
 
     pdf = "%PDF-1.7\n".b
     offsets = objects.each_with_index.map do |object, index|

@@ -278,6 +278,45 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
+  test "extract! fills what the e-invoice lacks from the PDF text, except the amount" do
+    travel_to Date.new(2026, 11, 22) do
+      xml = e_invoice_xml("cii_invoice").sub('format="102">20261105', 'format="610">202611').sub("<ram:GrandTotalAmount>119.00", "<ram:GrandTotalAmount>n/a")
+      receipt = upload_content(receipt_pdf([ "Other Shop", "Total 5.00", "Date 2026-11-20" ], attachments: { "factur-x.xml" => xml }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_equal Date.new(2026, 11, 20), receipt.date
+      assert_equal "pdf_text", receipt.field_source(:date)
+      assert_nil receipt.amount
+    end
+  end
+
+  test "extract! still reads the PDF text when the e-invoice reader fails" do
+    travel_to Date.new(2026, 11, 22) do
+      receipt = upload([ "Coffee House", "Total 12.40 USD", "Date 2026-11-20" ])
+      Receipt::EInvoice.stubs(:from_pdf).raises(NoMethodError)
+
+      assert_difference -> { DebugLogEntry.where(source: "receipt_extraction").count }, 1 do
+        receipt.extract!
+      end
+
+      assert receipt.extraction_completed?
+      assert_equal BigDecimal("12.40"), receipt.amount
+    end
+  end
+
+  test "the tax is shown only while the currency is the e-invoice's" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice").sub(">7.98<", ">0.00<"))
+    receipt.extract!
+
+    assert_equal Money.new(0, "EUR"), receipt.tax_money
+    assert receipt.invoice_details?
+
+    receipt.update_fields!(currency: "USD")
+    assert_nil receipt.tax_money
+  end
+
   test "extract! clears invoice details the file no longer has" do
     receipt = upload([ "Total 1.00" ])
     receipt.update!(invoice_number: "OLD-1", due_date: Date.current, tax_amount: 1)

@@ -24,9 +24,9 @@ class Receipt::Extraction
   MAX_RAW_TEXT_LENGTH = 20_000
   MAX_PDF_PAGES = 5
   REQUIRED_FIELDS = %w[amount date].freeze
-  # An e-invoice is the invoice itself: what it leaves out (the amount of a
-  # credit note) must not be guessed from the PDF text printed from it.
-  FINAL_SOURCES = %w[einvoice].freeze
+  # An e-invoice is the invoice itself: once one is read, an amount it leaves
+  # out (a credit note's) must not be guessed from the PDF text printed from it.
+  SETTLED_BY_SOURCE = { "einvoice" => %w[amount] }.freeze
 
   attr_reader :receipt
 
@@ -38,14 +38,16 @@ class Receipt::Extraction
     fields = {}
     texts = []
 
+    settled = []
+
     stages.each do |source, read|
       parsed, text = read.call
       texts << text if text.present?
       parsed.to_h.each do |field, value|
-        fields[field] ||= value.merge(source: source)
+        fields[field] ||= value.merge(source: source) unless settled.include?(field)
       end
-      break if parsed.present? && FINAL_SOURCES.include?(source)
-      break if REQUIRED_FIELDS.all? { |field| fields.key?(field) }
+      settled |= SETTLED_BY_SOURCE.fetch(source, []) if parsed.present?
+      break if REQUIRED_FIELDS.all? { |field| fields.key?(field) || settled.include?(field) }
     end
 
     Result.new(fields: fields, raw_text: Receipt::TextParser.mask(texts.join("\n")).first(MAX_RAW_TEXT_LENGTH).presence)
@@ -60,12 +62,21 @@ class Receipt::Extraction
       }
     end
 
+    # A PDF the e-invoice reader trips over may still have a readable text
+    # layer, so an unexpected error here is logged and the next stage runs.
     def einvoice_fields
       if receipt.xml?
         Receipt::EInvoice.parse(content)
       elsif receipt.pdf?
         Receipt::EInvoice.from_pdf(content)
       end
+    rescue Error
+      raise
+    rescue StandardError => e
+      DebugLogEntry.capture(category: "receipts", level: "warn", message: "Receipt##{receipt.id}: e-invoice stage failed: #{e.class}",
+                            source: "receipt_extraction", family: receipt.family, user_id: receipt.uploaded_by_id,
+                            metadata: { stage: "einvoice" })
+      nil
     end
 
     def text_fields(text)

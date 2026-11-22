@@ -13,6 +13,8 @@
 # do with the amount.
 class Receipt::EInvoice
   MAX_SIZE = 5.megabytes
+  # Bounds the work on a PDF that embeds many large XML files.
+  MAX_PDF_FILES_TRIED = 3
   CONFIDENCE = 1.0
 
   # Names the standards give the XML inside a hybrid PDF; other XML files are
@@ -54,12 +56,16 @@ class Receipt::EInvoice
       new(xml).parse
     end
 
+    # Tries the embedded XML files, the standard's names first, and stops at
+    # the first invoice. Each file is inflated only when its turn comes.
     def from_pdf(content)
-      files = Pdf::EmbeddedFiles.read(content, max_size: MAX_SIZE)
-      xml_files = files.select { |name, _| name.downcase.end_with?(".xml") }
-      known, others = xml_files.partition { |name, _| PDF_ATTACHMENT_NAMES.include?(name.downcase) }
+      xml_files = Pdf::EmbeddedFiles.list(content).select { |file| file.name.downcase.end_with?(".xml") }
+      known, others = xml_files.partition { |file| PDF_ATTACHMENT_NAMES.include?(file.name.downcase) }
 
-      (known + others).each do |_name, xml|
+      (known + others).first(MAX_PDF_FILES_TRIED).each do |file|
+        xml = file.read(max_size: MAX_SIZE)
+        next if xml.nil?
+
         fields = parse(xml)
         return fields if fields.any?
       end
@@ -88,11 +94,14 @@ class Receipt::EInvoice
 
   private
     # E-invoices never declare a DTD. Refusing one rules out entity expansion
-    # and external fetches before libxml2 sees the document.
+    # and external fetches: the text check catches it before libxml2 sees the
+    # document, the subset check after parsing catches other encodings (UTF-16).
+    # Entities are never substituted (no NOENT) and the network is off.
     def document
       return if @xml.bytesize > MAX_SIZE || @xml.match?(/<!DOCTYPE/i)
 
-      Nokogiri::XML(@xml) { |config| config.strict.nonet }
+      document = Nokogiri::XML(@xml) { |config| config.strict.nonet }
+      document unless document.internal_subset || document.external_subset
     rescue Nokogiri::XML::SyntaxError, ArgumentError, EncodingError
       nil
     end
@@ -161,7 +170,7 @@ class Receipt::EInvoice
     # or one without a currency, counts.
     def amount(parent, name, currency)
       elements = children(parent, name)
-      element = elements.find { |candidate| candidate["currencyID"].present? && candidate["currencyID"] == currency } ||
+      element = elements.find { |candidate| candidate["currencyID"].present? && candidate["currencyID"].strip.upcase == currency } ||
         elements.find { |candidate| candidate["currencyID"].blank? }
       value = text(element)
       BigDecimal(value) if value&.match?(DECIMAL)

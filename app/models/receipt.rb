@@ -25,8 +25,6 @@ class Receipt < ApplicationRecord
 
   MAX_FILE_SIZE = Transaction::MAX_ATTACHMENT_SIZE
   ALLOWED_CONTENT_TYPES = Transaction::ALLOWED_CONTENT_TYPES
-  # File pickers do not all map the XML types to the extension.
-  UPLOAD_ACCEPT = (ALLOWED_CONTENT_TYPES + %w[.xml]).join(",").freeze
   # The manual search reaches further than an automatic match would, like the
   # transfer dialog: the user confirms the pick themselves.
   CANDIDATE_DATE_WINDOW = 30
@@ -138,6 +136,19 @@ class Receipt < ApplicationRecord
 
   def xml?
     Transaction::XML_CONTENT_TYPES.include?(content_type)
+  end
+
+  # The tax is in the e-invoice's currency, so it is only shown while the
+  # receipt's currency is still the one read from the same invoice.
+  def tax_money
+    return nil if tax_amount.nil? || currency.blank?
+    return nil unless field_source(:currency) == field_source(:tax_amount)
+
+    Money.new(tax_amount, currency)
+  end
+
+  def invoice_details?
+    invoice_number.present? || due_date.present? || tax_money.present?
   end
 
   # Whether reading the file filled any field, as opposed to the user typing it.

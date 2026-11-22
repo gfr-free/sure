@@ -75,6 +75,24 @@ class Receipt::EInvoiceTest < ActiveSupport::TestCase
     assert_equal({}, Receipt::EInvoice.parse(with_entity))
   end
 
+  test "refuses a DTD in a UTF-16 document too" do
+    xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?><!DOCTYPE x [<!ENTITY a \"Demo\">]>" +
+      e_invoice_xml("cii_invoice").sub(/\A<\?xml[^>]*>/, "").sub("Demo Supplies GmbH", "&a;")
+    utf16 = "\xFF\xFE".b + xml.encode(Encoding::UTF_16LE).b
+
+    assert_equal({}, Receipt::EInvoice.parse(utf16))
+    assert_equal "Demo Supplies GmbH", values(Receipt::EInvoice.parse(e_invoice_xml("cii_invoice").encode(Encoding::UTF_16LE).then { |doc| "\xFF\xFE".b + doc.b }))["merchant_name"]
+  end
+
+  test "matches the currency of an amount regardless of case" do
+    xml = e_invoice_xml("ubl_invoice").gsub('currencyID="EUR"', 'currencyID="eur"').sub(">EUR<", ">eur<")
+    fields = values(Receipt::EInvoice.parse(xml))
+
+    assert_equal "EUR", fields["currency"]
+    assert_equal BigDecimal("49.98"), fields["amount"]
+    assert_equal BigDecimal("7.98"), fields["tax_amount"]
+  end
+
   test "reads the invoice embedded in a ZUGFeRD or Factur-X PDF" do
     pdf = receipt_pdf([ "Invoice DEMO-2026-0042", "Total 999.00" ], attachments: { "factur-x.xml" => e_invoice_xml("cii_invoice") })
 

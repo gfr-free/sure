@@ -38,6 +38,19 @@ class FamilyDataExportJobTest < ActiveJob::TestCase
     end
   end
 
+  test "closes the zip stream rubyzip hands back" do
+    exporter = Family::DataExporter.new(@family)
+    returned = nil
+    exporter.define_singleton_method(:generate_export) { |io| returned = super(io) }
+    Family::DataExporter.stubs(:new).returns(exporter)
+
+    FamilyDataExportJob.perform_now(@export)
+
+    assert_equal "completed", @export.reload.status
+    assert_kind_of IO, returned
+    assert returned.closed?
+  end
+
   test "keeps an export alive while it writes files" do
     @export.update_columns(updated_at: 2.hours.ago)
     heartbeat = FamilyDataExportJob.new.send(:heartbeat, @export)

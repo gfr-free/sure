@@ -19,15 +19,21 @@ class FamilyDataExportJob < ApplicationJob
     )
 
     # A temp file rather than memory: with attachment files the ZIP can get large.
-    Tempfile.create([ "sure_export", ".zip" ], binmode: true) do |file|
-      exporter.generate_export(file)
-      file.rewind
+    # Anonymous, so a killed worker leaves nothing on disk.
+    Tempfile.create(anonymous: true, binmode: true) do |file|
+      # rubyzip writes through a duplicate of the file and returns it open.
+      zip_io = exporter.generate_export(file)
+      begin
+        file.rewind
 
-      family_export.export_file.attach(
-        io: file,
-        filename: family_export.filename,
-        content_type: "application/zip"
-      )
+        family_export.export_file.attach(
+          io: file,
+          filename: family_export.filename,
+          content_type: "application/zip"
+        )
+      ensure
+        zip_io.close if zip_io.is_a?(IO) && !zip_io.equal?(file) && !zip_io.closed?
+      end
     end
 
     # The reaper or a manual cancel may have failed the export meanwhile; that

@@ -84,14 +84,36 @@ class Receipt < ApplicationRecord
         content_sha256: content_sha256,
         currency: family.currency
       )
-      receipt.file.attach(io: StringIO.new(content), filename: receipt.filename, content_type: content_type)
-      receipt.save!
+      blob = upload_blob!(content, filename: receipt.filename, content_type: content_type)
+      begin
+        receipt.file.attach(blob)
+        receipt.save!
+      rescue StandardError
+        blob.purge
+        raise
+      end
       receipt
     rescue ActiveRecord::RecordNotUnique
       duplicate = family.receipts.find_by(uploaded_by: user, content_sha256: content_sha256)
       raise DuplicateUploadError, duplicate if duplicate
 
       raise
+    end
+
+    # Uploads the file before the blob row is saved, so a storage error leaves
+    # neither a row nor a receipt behind. Active Storage would otherwise upload
+    # after the commit, and a failure there would keep a receipt without a file
+    # whose checksum blocks the next try as a duplicate.
+    def upload_blob!(content, filename:, content_type:)
+      blob = ActiveStorage::Blob.build_after_unfurling(io: StringIO.new(content), filename: filename, content_type: content_type, identify: false)
+      blob.upload_without_unfurling(StringIO.new(content))
+      begin
+        blob.save!
+      rescue StandardError
+        blob.delete
+        raise
+      end
+      blob
     end
 
     private
@@ -291,7 +313,7 @@ class Receipt < ApplicationRecord
     # error fails the link instead of leaving it pointing at a missing file. The
     # copy is removed again when the link does not happen.
     def with_file_copy
-      copy = ActiveStorage::Blob.create_and_upload!(io: StringIO.new(file.download), filename: filename, content_type: content_type)
+      copy = self.class.upload_blob!(file.download, filename: filename, content_type: content_type)
       yield copy
     rescue StandardError
       copy&.purge

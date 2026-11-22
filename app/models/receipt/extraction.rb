@@ -57,6 +57,7 @@ class Receipt::Extraction
       texts << text
       parsed = Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names)
       parsed.each do |field, value|
+        value = value.merge(value: Receipt::TextParser.mask(value[:value])) if field == "merchant_name"
         fields[field] ||= value.merge(source: stage[:source], confidence: scaled_confidence(value[:confidence], stage))
       end
       break if REQUIRED_FIELDS.all? { |field| fields.key?(field) }

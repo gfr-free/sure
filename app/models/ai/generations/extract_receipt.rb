@@ -45,7 +45,8 @@ class Ai::Generations::ExtractReceipt < Ai::Generation
       return @pdf_text if defined?(@pdf_text)
       return @pdf_text = @text if @text.present? && @attachment.content_type == "application/pdf"
 
-      @pdf_text = @attachment.content_type == "application/pdf" ? Pdf::TextExtractor.pages(content).join("\n\n").presence : nil
+      # Card numbers and IBANs aren't needed to read a receipt, so they never leave masked.
+      @pdf_text = @attachment.content_type == "application/pdf" ? Receipt::TextParser.mask(Pdf::TextExtractor.pages(content).join("\n\n")).presence : nil
     rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError
       raise Ai::Error::InvalidOutput, "The receipt PDF could not be read"
     end

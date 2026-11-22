@@ -49,6 +49,18 @@ class Rule::ListFilterTest < ActiveSupport::TestCase
     assert_includes Rule::ListFilter.new([ rule ]).search_text(rule), "Weekly groceries"
   end
 
+  test "search text names a legacy activity label even after a rule with a current one" do
+    current = @family.rules.create!(name: "Label buys", resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "set_investment_activity_label", value: "Buy") ])
+    legacy = @family.rules.create!(name: "Label swaps", resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "set_investment_activity_label", value: "Exchange") ])
+    filter = Rule::ListFilter.new([ current, legacy ])
+
+    assert_includes filter.search_text(current), "Buy"
+    assert_includes filter.search_text(legacy), "Exchange"
+    assert_not_includes filter.search_text(current), "Exchange"
+  end
+
   test "search text shows a split's summary, not its stored JSON" do
     rule = @family.rules.create!(name: "Share rent", resource_type: "transaction",
       actions: [ Rule::Action.new(action_type: "split_transaction", value: {

@@ -47,6 +47,7 @@ de:
       currency: Währung
       save: Speichern
       linked_title: Zugeordnete Buchung
+      linked_hidden: Die Buchung liegt auf einem Konto, das du nicht mehr sehen kannst.
       created_title: Angelegte Buchung
       candidates_title: Passende Buchungen
       link: Zuordnen

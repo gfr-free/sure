@@ -15,6 +15,8 @@ class Receipt::EmailInbox
   # Smaller images are almost always logos or signatures embedded in the mail.
   MIN_IMAGE_BYTES = 10.kilobytes
   ADDRESS_FORMAT = /\A[a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,}\z/
+  # Senders may use plus addresses; only the operator's base address may not.
+  SENDER_FORMAT = /\A[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\z/
 
   Result = Data.define(:created, :duplicates, :skipped)
 
@@ -50,13 +52,14 @@ class Receipt::EmailInbox
 
     def update_senders!(user, text)
       senders = text.to_s.split(/[\s,;]+/).map { |address| address.strip.downcase }.compact_blank.uniq
-      invalid = senders.reject { |address| address.match?(ADDRESS_FORMAT) }
+      senders -= [ user.email.to_s.downcase ]
+      invalid = senders.reject { |address| address.match?(SENDER_FORMAT) }
       if invalid.any? || senders.size > MAX_EXTRA_SENDERS
         user.errors.add(:receipt_inbox_senders, :invalid, count: MAX_EXTRA_SENDERS)
         raise ActiveRecord::RecordInvalid, user
       end
 
-      save_without_user_validations!(user, receipt_inbox_senders: (senders - [ user.email.to_s.downcase ]).join("\n").presence)
+      save_without_user_validations!(user, receipt_inbox_senders: senders.join("\n").presence)
     end
 
     # Stored as one address per line, so the column can be encrypted.

@@ -7,8 +7,9 @@ require "net/imap"
 # which routes it like mail from an ingress, and is then deleted from the
 # mailbox (or only marked read when RECEIPT_INBOX_IMAP_KEEP is set).
 #
-# Overlapping runs are harmless: Action Mailbox refuses a message it already
-# holds (same Message-ID and checksum).
+# In delete mode a message stays unread until the end of the run, so a run that
+# breaks off leaves it for the next one, which finds it already stored and only
+# makes sure it was routed.
 class Receipt::ImapFetcher
   MAX_MESSAGES_PER_RUN = 50
   # Ten attachments of at most 10 MB each, base64-encoded.
@@ -52,7 +53,7 @@ class Receipt::ImapFetcher
       imap.select(settings[:mailbox])
       uids = imap.uid_search([ "UNSEEN" ]).to_a.first(MAX_MESSAGES_PER_RUN)
       received = uids.select { |uid| receive(imap, uid) }
-      expunge(imap, received) unless settings[:keep] || received.empty?
+      delete(imap, received) unless settings[:keep] || received.empty?
       received.size
     end
   rescue Net::IMAP::Error, IOError, SystemCallError, OpenSSL::SSL::SSLError, Timeout::Error => e
@@ -69,7 +70,13 @@ class Receipt::ImapFetcher
     def connect
       imap = Net::IMAP.new(settings[:host], port: settings[:port], ssl: settings[:ssl] ? { verify_mode: OpenSSL::SSL::VERIFY_PEER } : false,
                                             open_timeout: TIMEOUT, idle_response_timeout: TIMEOUT)
-      imap.login(settings[:username], settings[:password])
+      begin
+        imap.login(settings[:username], settings[:password])
+      rescue StandardError
+        # A refused login leaves the connection open, and fetch never sees it.
+        disconnect(imap)
+        raise
+      end
       imap
     end
 
@@ -86,8 +93,8 @@ class Receipt::ImapFetcher
         return false
       end
 
-      ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
-      mark_done(imap, uid, delete: !settings[:keep])
+      store(source)
+      mark_seen(imap, uid) if settings[:keep]
       true
     rescue Net::IMAP::Error, IOError, SystemCallError, OpenSSL::SSL::SSLError, Timeout::Error
       raise
@@ -103,13 +110,26 @@ class Receipt::ImapFetcher
     def set_aside(imap, uid, reason)
       DebugLogEntry.capture(category: "receipts", level: "warn", message: "Receipt IMAP message skipped: #{reason}",
                             source: "receipt_imap")
-      mark_done(imap, uid, delete: false)
+      mark_seen(imap, uid)
+    end
+
+    # A message stored by an earlier, interrupted run is not stored again, which
+    # would leave its raw mail behind unattached. If that run could not queue
+    # the routing, it is queued now; a failure here leaves the message unread.
+    def store(source)
+      existing = ActionMailbox::InboundEmail.find_by(message_checksum: OpenSSL::Digest::SHA1.hexdigest(source))
+      if existing.nil?
+        ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
+      elsif existing.pending?
+        existing.route_later
+      end
     end
 
     # Removes only this run's messages where the server can (UIDPLUS); otherwise
     # every message flagged deleted goes, which is why the mailbox should serve
     # receipts only.
-    def expunge(imap, uids)
+    def delete(imap, uids)
+      imap.uid_store(uids, "+FLAGS", [ :Seen, :Deleted ])
       if imap.capability.include?("UIDPLUS")
         imap.uid_expunge(uids)
       else
@@ -117,8 +137,8 @@ class Receipt::ImapFetcher
       end
     end
 
-    def mark_done(imap, uid, delete:)
-      imap.uid_store(uid, "+FLAGS", delete ? [ :Seen, :Deleted ] : [ :Seen ])
+    def mark_seen(imap, uid)
+      imap.uid_store(uid, "+FLAGS", [ :Seen ])
     end
 
     def disconnect(imap)

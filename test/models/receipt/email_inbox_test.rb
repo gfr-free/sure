@@ -68,6 +68,13 @@ class Receipt::EmailInboxTest < ActiveSupport::TestCase
     assert_equal %w[work@example.com shop@example.org], Receipt::EmailInbox.extra_senders(@user.reload)
   end
 
+  test "the login address does not count towards the sender limit and plus addresses are allowed" do
+    ten = (1..9).map { |n| "sender#{n}@example.com" } + [ "buyer+receipts@example.org" ]
+    Receipt::EmailInbox.update_senders!(@user, (ten + [ @user.email ]).join("\n"))
+
+    assert_equal ten, Receipt::EmailInbox.extra_senders(@user.reload)
+  end
+
   test "turns each attached PDF and photo into a receipt of the addressed user" do
     with_receipt_inbox do
       Receipt::EmailInbox.enable!(@user)

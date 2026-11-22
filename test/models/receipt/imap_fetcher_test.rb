@@ -3,6 +3,7 @@ require "net/imap"
 
 class Receipt::ImapFetcherTest < ActiveSupport::TestCase
   include ReceiptMailHelper
+  include ActiveJob::TestHelper
 
   IMAP_ENV = {
     "RECEIPT_INBOX_IMAP_HOST" => "imap.example.com",
@@ -33,7 +34,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
   test "hands unread mail to Action Mailbox, then deletes it from the mailbox" do
     source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
     expect_session(uids: [ 7 ], size: source.bytesize, source: source)
-    @imap.expects(:uid_store).with(7, "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
     @imap.expects(:expunge)
 
     with_receipt_inbox(IMAP_ENV) do
@@ -47,7 +48,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
     expect_session(uids: [ 7 ], size: source.bytesize, source: source)
     @imap.stubs(:capability).returns(%w[IMAP4REV1 UIDPLUS])
-    @imap.expects(:uid_store).with(7, "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
     @imap.expects(:uid_expunge).with([ 7 ])
     @imap.expects(:expunge).never
 
@@ -60,13 +61,48 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     @imap.stubs(:uid_fetch).with(5, "BODY.PEEK[]").returns([ fetch_data("BODY[]" => "") ])
     ActionMailbox::InboundEmail.expects(:create_and_extract_message_id!).twice.raises(RuntimeError).then.returns(nil)
     @imap.expects(:uid_store).with(5, "+FLAGS", [ :Seen ])
-    @imap.expects(:uid_store).with(7, "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
     @imap.expects(:expunge)
 
     with_receipt_inbox(IMAP_ENV) do
       assert_equal 1, Receipt::ImapFetcher.new.fetch
     end
     assert DebugLogEntry.where(source: "receipt_imap", message: "Receipt IMAP message not stored: RuntimeError").exists?
+  end
+
+  test "an already stored message is not stored again, and its routing is queued again while it is pending" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    inbound = ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
+    inbound.update_column(:status, ActionMailbox::InboundEmail.statuses[:pending])
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    @imap.expects(:uid_store).with([ 7 ], "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:expunge)
+
+    with_receipt_inbox(IMAP_ENV) do
+      assert_no_difference -> { ActionMailbox::InboundEmail.count } do
+        assert_enqueued_with(job: ActionMailbox::RoutingJob, args: [ inbound ]) do
+          assert_equal 1, Receipt::ImapFetcher.new.fetch
+        end
+      end
+    end
+  end
+
+  test "a message whose routing cannot be queued stays unread" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    ActionMailbox::InboundEmail.any_instance.stubs(:route_later).raises(RuntimeError)
+    @imap.expects(:uid_store).never
+
+    with_receipt_inbox(IMAP_ENV) { assert_equal 0, Receipt::ImapFetcher.new.fetch }
+  end
+
+  test "closes the connection when the login is refused" do
+    Net::IMAP.expects(:new).returns(@imap)
+    @imap.expects(:login).raises(Net::IMAP::NoResponseError.new(Struct.new(:data).new(Struct.new(:text).new("refused"))))
+    @imap.expects(:disconnect)
+
+    with_receipt_inbox(IMAP_ENV) { assert_equal 0, Receipt::ImapFetcher.new.fetch }
   end
 
   test "a blank port falls back to 993" do

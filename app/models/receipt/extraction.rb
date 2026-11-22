@@ -97,7 +97,12 @@ class Receipt::Extraction
     def text_reading(text)
       return nil if text.blank?
 
-      { text: text, fields: Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names) }
+      fields = Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names)
+      if fields["merchant_name"]
+        fields["merchant_name"] = fields["merchant_name"].merge(value: Receipt::TextParser.mask(fields["merchant_name"][:value]))
+      end
+
+      { text: text, fields: fields }
     end
 
     def pdf_text

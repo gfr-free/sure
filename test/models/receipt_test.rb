@@ -287,6 +287,46 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal 1, entry.transaction.attachments.count
   end
 
+  test "a receipt whose reading cannot be queued is marked failed" do
+    ReceiptExtractionJob.stubs(:perform_later).raises(RedisClient::CannotConnectError)
+
+    receipt = upload([ "Total 2.00" ])
+
+    assert receipt.reload.extraction_failed?
+    assert_equal "enqueue_failed", receipt.extraction_error
+  end
+
+  test "extract! marks the receipt failed when a read value cannot be saved" do
+    receipt = upload([ "Total 2.00" ])
+    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("1e16"), confidence: 0.9, source: "pdf_text" } }, raw_text: "x")
+    Receipt::Extraction.any_instance.stubs(:run).returns(result)
+
+    receipt.extract!
+
+    assert receipt.reload.extraction_failed?
+    assert_nil receipt.amount
+  end
+
+  test "extract! masks a card number read as the merchant" do
+    receipt = upload([ "Total 2.00" ])
+    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop 4111 1111 1111 1111", confidence: 0.3 } })
+
+    receipt.extract!
+
+    assert_equal "Shop ****1111", receipt.reload.merchant_name
+  end
+
+  test "link_to! does not link when the transaction refuses the attachment" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    ActiveStorage::Attached::Many.any_instance.stubs(:attach).returns(false)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
   test "a linked receipt cannot be linked again or recorded twice" do
     receipt = upload([ "Total 15.00" ])
     receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")

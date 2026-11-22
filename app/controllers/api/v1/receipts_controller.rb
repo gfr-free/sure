@@ -221,8 +221,8 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
         return render_validation_error("date is required: the receipt has no date to fall back to")
       end
 
-      # Same ceiling as Receipt#amount; larger values overflow the entries column.
-      if amount.nil? || !amount.positive? || amount >= 10**15
+      # Same ceiling as the model; checked here to name the field in the error.
+      if amount.nil? || !amount.positive? || amount >= Receipt::MAX_AMOUNT
         return render_validation_error("amount must be a positive number below 10^15") if params[:amount].present?
 
         return render_validation_error("amount is required: the receipt has no amount to fall back to")

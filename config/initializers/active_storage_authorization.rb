@@ -63,10 +63,11 @@ Rails.application.config.to_prepare do
         false
       end
 
-      # Mirrors ReceiptsController: a receipt's file is shown to its uploader only.
+      # Mirrors ReceiptsController: a receipt's file is shown to its uploader only,
+      # and only while they may still manage receipts (guests may not).
       def receipt_attachment_authorized?(attachment)
         receipt = attachment.record
-        return false if receipt.nil? || Current.user.nil?
+        return false if receipt.nil? || !Receipt.manager?(Current.user)
 
         receipt.family_id == Current.family&.id && receipt.uploaded_by_id == Current.user.id
       rescue ActiveRecord::RecordNotFound

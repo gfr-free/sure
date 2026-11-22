@@ -22,7 +22,10 @@ class PurgeOrphanedInboundMailJobTest < ActiveJob::TestCase
   test "keeps cleaning up after the receipt inbox is switched off" do
     orphan = raw_mail_blob(created_at: 2.days.ago)
 
-    PurgeOrphanedInboundMailJob.perform_now
+    with_env_overrides("RECEIPT_INBOX_ADDRESS" => nil, "ACTION_MAILBOX_INGRESS" => nil) do
+      assert_not Receipt::EmailInbox.configured?
+      PurgeOrphanedInboundMailJob.perform_now
+    end
 
     assert_not ActiveStorage::Blob.exists?(orphan.id)
   end

@@ -66,5 +66,5 @@ text. The raw mail itself is deleted one hour after it has been processed; when
 background workers are delayed, this happens later. When the same mail is delivered
 twice, the duplicate is refused, but its raw copy may already be in storage; a
 daily job deletes such copies once they are a day old, so they can stay for up
-to two days. Refused mail gets no reply, so a forged sender
+to two days, or longer when background jobs are delayed. Refused mail gets no reply, so a forged sender
 never receives mail from Sure.

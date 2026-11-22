@@ -99,7 +99,69 @@ class EnableBankingItem::ImporterSharedTransactionIdTest < ActiveSupport::TestCa
     assert_equal({ "enable_banking_tid-x" => BigDecimal("7.00"), sibling_id("r-b") => BigDecimal("7.00") }, amounts_by_id)
   end
 
+  test "two booked rows sharing a transaction_id without entry_references import as two entries" do
+    day_a, day_b = 4.days.ago.to_date, 2.days.ago.to_date
+    sync(booked: [ row(nil, "7.00", date: day_a), row(nil, "7.00", date: day_b) ])
+
+    assert_equal 2, @enable_banking_account.reload.raw_transactions_payload.size
+    assert_equal [ day_a, day_b ], @account.entries.where(source: "enable_banking").order(:date).pluck(:date)
+  end
+
+  test "a later row sharing a transaction_id without an entry_reference leaves the stored entry its id" do
+    day_a, day_b = 4.days.ago.to_date, 2.days.ago.to_date
+    sync(booked: [ row(nil, "9.00", date: day_a) ])
+    first = entry!("enable_banking_tid-x")
+
+    sync(booked: [ row(nil, "7.00", date: day_b), row(nil, "9.00", date: day_a) ])
+    sync(booked: [ row(nil, "9.00", date: day_a), row(nil, "7.00", date: day_b) ])
+
+    assert_equal 2, @enable_banking_account.reload.raw_transactions_payload.size
+    assert_equal first.id, entry!("enable_banking_tid-x").id
+    assert_equal BigDecimal("9.00"), first.reload.amount
+    assert_equal [ BigDecimal("7.00"), BigDecimal("9.00") ], @account.entries.where(source: "enable_banking").order(:amount).pluck(:amount)
+  end
+
+  test "an entry stored under the blank-reference suffix keeps its row" do
+    day_a, day_b = 3.days.ago.to_date, 2.days.ago.to_date
+    sync(booked: [ row("r-a", "9.00", date: day_a) ])
+    blank_entry = blank_reference_entry!("7.00", day_b)
+
+    sync(booked: [ row("r-a", "9.00", date: day_a), row(nil, "7.00", date: day_b) ])
+    sync(booked: [ row(nil, "7.00", date: day_b), row("r-a", "9.00", date: day_a) ])
+
+    assert_equal 2, @account.entries.where(source: "enable_banking").count
+    assert_equal blank_entry.id, @account.entries.find_by!(source: "enable_banking", amount: BigDecimal("7.00")).id
+  end
+
+  test "a row with an entry under the blank-reference suffix does not take the plain id" do
+    day_a, day_b = 3.days.ago.to_date, 2.days.ago.to_date
+    blank_entry = blank_reference_entry!("7.00", day_b)
+
+    sync(booked: [ row(nil, "7.00", date: day_b), row("r-a", "9.00", date: day_a) ])
+
+    assert_equal({ "enable_banking_tid-x" => BigDecimal("9.00"), blank_entry.external_id => BigDecimal("7.00") }, amounts_by_id)
+  end
+
+  test "an entry under the blank-reference suffix that matches no row is left alone" do
+    day_a, day_b = 3.days.ago.to_date, 2.days.ago.to_date
+    sync(booked: [ row("r-a", "9.00", date: day_a) ])
+    blank_entry = blank_reference_entry!("5.00", 10.days.ago.to_date)
+
+    sync(booked: [ row("r-a", "9.00", date: day_a), row(nil, "7.00", date: day_b) ])
+
+    assert_equal BigDecimal("5.00"), blank_entry.reload.amount
+    assert_equal 3, @account.entries.where(source: "enable_banking").count
+  end
+
   private
+
+    def blank_reference_entry!(amount, date)
+      @account.entries.create!(
+        name: "Laundromat", date: date, amount: BigDecimal(amount), currency: "EUR",
+        source: "enable_banking", external_id: "enable_banking_tid-x_#{Digest::MD5.hexdigest("")}",
+        entryable: Transaction.new
+      )
+    end
 
     # date: inside the 30-day incremental window determine_sync_start_date uses.
     def row(entry_reference, amount, status: "BOOK", date: 3.days.ago.to_date)

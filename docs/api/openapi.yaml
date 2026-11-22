@@ -9233,11 +9233,12 @@ paths:
         schema:
           type: string
           enum:
+          - reading
           - open
           - linked
           - dismissed
-        description: 'open: neither linked nor dismissed (includes receipts still
-          being read)'
+        description: 'Same values as a receipt''s status: reading (fields still being
+          read), open, linked or dismissed'
       - name: extraction_status
         in: query
         required: false

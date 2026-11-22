@@ -5,12 +5,11 @@
 # shows the caller's own uploads.
 class Api::V1::ReceiptsController < Api::V1::BaseController
   include Pagy::Backend
-  include ActiveStorage::Streaming
 
   wrap_parameters false
 
   READ_ACTIONS = %i[index show file candidates].freeze
-  STATUSES = %w[open linked dismissed].freeze
+  STATUSES = %w[reading open linked dismissed].freeze
 
   before_action :ensure_read_scope, only: READ_ACTIONS
   before_action :ensure_write_scope, except: READ_ACTIONS
@@ -35,8 +34,15 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
   end
 
   def file
-    # API keys carry no session, which the blob routes require, so the file is sent here.
-    send_blob_stream @receipt.file.blob, disposition: params[:disposition] == "attachment" ? :attachment : :inline
+    raise ActiveRecord::RecordNotFound unless @receipt.file.attached?
+
+    # API keys carry no session, which the blob routes require, so the file is
+    # sent here. Receipts are at most 10 MB, so it is sent whole rather than
+    # streamed, which would run every action of this controller in a Live thread.
+    send_data @receipt.file.download,
+              filename: @receipt.filename,
+              type: @receipt.content_type,
+              disposition: params[:disposition] == "attachment" ? "attachment" : "inline"
   end
 
   def candidates
@@ -143,10 +149,13 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
         status = params[:status].to_s
         raise InvalidFilterError, "status must be one of: #{STATUSES.join(", ")}" unless STATUSES.include?(status)
 
+        # Same precedence as Receipt#status: dismissed, linked, reading, open.
+        undismissed = scope.where(dismissed_at: nil)
         scope = case status
-        when "open" then scope.open
-        when "linked" then scope.where.not(transaction_id: nil)
-        when "dismissed" then scope.where(transaction_id: nil).where.not(dismissed_at: nil)
+        when "dismissed" then scope.where.not(dismissed_at: nil)
+        when "linked" then undismissed.where.not(transaction_id: nil)
+        when "reading" then undismissed.where(transaction_id: nil, extraction_status: "pending")
+        when "open" then undismissed.where(transaction_id: nil).where.not(extraction_status: "pending")
         end
       end
 
@@ -188,13 +197,15 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
       amount = params[:amount].present? ? parse_decimal(params[:amount]) : @receipt.amount
 
       if date.nil?
-        render_validation_error("date must be an ISO 8601 date (YYYY-MM-DD); the receipt has none to fall back to")
-        return
+        return render_validation_error("date must be an ISO 8601 date (YYYY-MM-DD)") if params[:date].present?
+
+        return render_validation_error("date is required: the receipt has no date to fall back to")
       end
 
       if amount.nil? || !amount.positive?
-        render_validation_error("amount must be a positive number; the receipt has none to fall back to")
-        return
+        return render_validation_error("amount must be a positive number") if params[:amount].present?
+
+        return render_validation_error("amount is required: the receipt has no amount to fall back to")
       end
 
       {

@@ -74,8 +74,8 @@ RSpec.describe 'API V1 Receipts', type: :request do
       produces 'application/json'
 
       parameter name: :status, in: :query, required: false,
-                schema: { type: :string, enum: %w[open linked dismissed] },
-                description: 'open: neither linked nor dismissed (includes receipts still being read)'
+                schema: { type: :string, enum: %w[reading open linked dismissed] },
+                description: 'Same values as a receipt\'s status: reading (fields still being read), open, linked or dismissed'
       parameter name: :extraction_status, in: :query, required: false,
                 schema: { type: :string, enum: %w[pending completed failed] }
       parameter name: :content_sha256, in: :query, type: :string, required: false,

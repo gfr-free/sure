@@ -107,7 +107,7 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert Receipt.exists?(receipt.id)
   end
 
-  test "lists only the caller's own receipts and filters by status" do
+  test "lists only the caller's own receipts" do
     open_receipt = upload_for(@admin, "open.pdf")
     open_receipt.update!(extraction_status: "completed")
     dismissed = upload_for(@admin, "dismissed.pdf")
@@ -123,14 +123,39 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes ids, other.id
     assert_equal 2, response.parsed_body["meta"]["total_count"]
 
-    get api_v1_receipts_url, params: { status: "open" }, headers: api_headers(@read_only_api_key)
-    assert_equal [ open_receipt.id ], response.parsed_body["data"].map { |row| row["id"] }
-
-    get api_v1_receipts_url, params: { status: "dismissed" }, headers: api_headers(@read_only_api_key)
-    assert_equal [ dismissed.id ], response.parsed_body["data"].map { |row| row["id"] }
-
     get api_v1_receipts_url, params: { content_sha256: open_receipt.content_sha256.upcase }, headers: api_headers(@read_only_api_key)
     assert_equal [ open_receipt.id ], response.parsed_body["data"].map { |row| row["id"] }
+  end
+
+  test "status filters follow the status each receipt reports" do
+    reading = upload_for(@admin, "reading.pdf")
+    open_receipt = upload_for(@admin, "open.pdf")
+    open_receipt.update!(extraction_status: "completed")
+    linked = upload_for(@admin, "linked.pdf")
+    entry = @account.entries.create!(name: "Shop", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    linked.link_to!(entry.transaction, user: @admin)
+    linked_then_dismissed = upload_for(@admin, "linked-dismissed.pdf")
+    linked_then_dismissed.link_to!(entry.transaction, user: @admin)
+    linked_then_dismissed.dismiss!
+
+    expected = { "reading" => [ reading ], "open" => [ open_receipt ], "linked" => [ linked ], "dismissed" => [ linked_then_dismissed ] }
+    expected.each do |status, receipts|
+      get api_v1_receipts_url, params: { status: status }, headers: api_headers(@api_key)
+
+      assert_response :ok
+      rows = response.parsed_body["data"]
+      assert_equal receipts.map(&:id).sort, rows.map { |row| row["id"] }.sort, status
+      assert rows.all? { |row| row["status"] == status }, status
+    end
+  end
+
+  test "a receipt without a stored file is not found" do
+    receipt = upload_for(@admin, "gone.pdf")
+    receipt.file.detach
+
+    get file_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+
+    assert_response :not_found
   end
 
   test "rejects unknown filters" do

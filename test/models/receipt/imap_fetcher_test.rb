@@ -116,6 +116,32 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     with_receipt_inbox(IMAP_ENV) { assert_equal 0, Receipt::ImapFetcher.new.fetch }
   end
 
+  test "a routing job that is not queued leaves the message unread" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    ActionMailbox::InboundEmail.any_instance.stubs(:route_later).returns(false)
+    @imap.expects(:uid_store).never
+
+    with_receipt_inbox(IMAP_ENV) { assert_equal 0, Receipt::ImapFetcher.new.fetch }
+    assert DebugLogEntry.where(source: "receipt_imap", message: "Receipt IMAP message not stored: Receipt::ImapFetcher::RoutingNotQueued").exists?
+  end
+
+  test "mail that has waited too long for routing is routed again" do
+    source = receipt_mail(to: "receipts+#{'b' * 24}@mail.example.com", from: "a@example.com").to_s
+    stale = ActionMailbox::InboundEmail.create_and_extract_message_id!(source)
+    stale.update_column(:created_at, 20.minutes.ago)
+    fresh = ActionMailbox::InboundEmail.create_and_extract_message_id!(receipt_mail(to: "receipts+#{'c' * 24}@mail.example.com", from: "a@example.com").to_s)
+    expect_session(uids: [], size: 0, source: nil)
+
+    with_receipt_inbox(IMAP_ENV) do
+      assert_enqueued_with(job: ActionMailbox::RoutingJob, args: [ stale ]) do
+        Receipt::ImapFetcher.new.fetch
+      end
+    end
+    assert_equal 1, enqueued_jobs.count { |job| job["arguments"].first["_aj_globalid"] == fresh.to_global_id.to_s }
+  end
+
   test "closes the connection when the login is refused" do
     Net::IMAP.expects(:new).returns(@imap)
     @imap.expects(:login).raises(Net::IMAP::NoResponseError.new(Struct.new(:data).new(Struct.new(:text).new("refused"))))

@@ -11,6 +11,8 @@ require "net/imap"
 # the expunge leaves it for the next one, which finds it already stored and only
 # makes sure it was routed.
 class Receipt::ImapFetcher
+  class RoutingNotQueued < StandardError; end
+
   MAX_MESSAGES_PER_RUN = 50
   # Ten attachments of at most 10 MB each, base64-encoded.
   MAX_MESSAGE_BYTES = 150.megabytes
@@ -18,6 +20,9 @@ class Receipt::ImapFetcher
   # Net::IMAP has no read timeout outside IDLE, so a server that stops
   # answering would otherwise hold a worker thread for good.
   RUN_DEADLINE = 4.minutes
+  # Routing normally runs within seconds; a mail still pending after this long
+  # lost its routing job (for example, the enqueue failed after the commit).
+  STALE_ROUTING_AFTER = 15.minutes
 
   class << self
     def configured?
@@ -47,6 +52,7 @@ class Receipt::ImapFetcher
 
   # Returns how many messages were handed to Action Mailbox.
   def fetch
+    reroute_stale_mail
     imap = nil
     Timeout.timeout(RUN_DEADLINE) do
       imap = connect
@@ -127,7 +133,18 @@ class Receipt::ImapFetcher
           ActionMailbox::InboundEmail.create_and_extract_message_id!(source) if found.nil?
         end
       end
-      existing.route_later if existing&.pending?
+      return unless existing&.pending?
+
+      raise RoutingNotQueued unless existing.route_later
+    end
+
+    def reroute_stale_mail
+      ActionMailbox::InboundEmail.pending.where(created_at: ...STALE_ROUTING_AFTER.ago).find_each do |inbound|
+        raise RoutingNotQueued unless inbound.route_later
+      end
+    rescue StandardError => e
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt mail routing not queued again: #{e.class}",
+                            source: "receipt_imap")
     end
 
     # Removes only this run's messages where the server can (UIDPLUS); otherwise

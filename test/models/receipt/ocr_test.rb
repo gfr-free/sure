@@ -26,12 +26,26 @@ class Receipt::OcrTest < ActiveSupport::TestCase
     Receipt::Ocr.stubs(:run).raises(Receipt::Ocr::Error.new("ocr_unavailable"))
     assert_equal [], Receipt::Ocr.installed_languages
     assert_not Receipt::Ocr.available?
+    assert_not Receipt::Ocr.pdf_renderer_installed?
 
     Receipt::Ocr.reset_cache!
     Receipt::Ocr.unstub(:run)
     Receipt::Ocr.stubs(:run).returns([ "List of available languages (1):\nosd\n", "", stub(success?: true) ])
     assert_equal %w[osd], Receipt::Ocr.installed_languages
     assert_not Receipt::Ocr.available?
+  end
+
+  test "a failed probe is retried after a minute, a successful one is kept" do
+    Receipt::Ocr.expects(:run).with("tesseract", "--list-langs", timeout: 10).twice
+                .raises(Receipt::Ocr::Error.new("ocr_timeout")).then
+                .returns([ "List of available languages (2):\ndeu\neng\n", "", stub(success?: true) ])
+
+    assert_equal [], Receipt::Ocr.installed_languages
+    assert_equal [], Receipt::Ocr.installed_languages
+    travel 2.minutes do
+      assert_equal %w[deu eng], Receipt::Ocr.installed_languages
+      assert_equal %w[deu eng], Receipt::Ocr.installed_languages
+    end
   end
 
   test "joins the words of each line and averages the word confidence" do
@@ -47,17 +61,34 @@ class Receipt::OcrTest < ActiveSupport::TestCase
     Receipt::Ocr.expects(:run).with { |*args, **| args.first == "tesseract" && args.include?("deu+eng") && args.include?("tsv") }
                 .returns([ tsv, "", stub(success?: true) ])
 
-    result = Receipt::Ocr.new.read_image(file_fixture("square-placeholder.png").binread)
+    result = Receipt::Ocr.new.read_image(file_fixture("square-placeholder.png").binread, content_type: "image/png")
 
     assert_equal "MUSTERMARKT\nSUMME EUR 12,30", result.text
     assert_equal 0.84, result.confidence
   end
 
-  test "an image that is not an image cannot be read" do
+  test "an image is decoded only by the loader for its declared type" do
     Receipt::Ocr.stubs(:installed_languages).returns(%w[eng])
+    Receipt::Ocr.expects(:run).never
+    svg = %(<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>)
+    png = file_fixture("square-placeholder.png").binread
 
-    error = assert_raises(Receipt::Ocr::Error) { Receipt::Ocr.new.read_image("not an image") }
-    assert_equal "unreadable_image", error.code
+    [ [ "not an image", "image/png" ], [ svg, "image/png" ], [ png, "image/jpeg" ], [ png, "image/svg+xml" ] ].each do |content, type|
+      error = assert_raises(Receipt::Ocr::Error) { Receipt::Ocr.new.read_image(content, content_type: type) }
+      assert_equal "unreadable_image", error.code
+    end
+  end
+
+  test "a 16-bit image keeps its contrast in the prepared copy" do
+    gray = (Vips::Image.black(400, 200) + 60_000).cast(:ushort).copy(interpretation: :grey16)
+    gray = gray.draw_rect(5_000, 100, 80, 200, 40, fill: true)
+    prepared = Tempfile.create([ "prepared", ".png" ]) do |file|
+      Receipt::Ocr.new.send(:prepare_image, Vips::Image.pngload_buffer(gray.pngsave_buffer(bitdepth: 16)), file.path)
+      Vips::Image.new_from_file(file.path).copy_memory
+    end
+
+    assert_equal :uchar, prepared.format
+    assert_operator prepared.min, :<, 50
   end
 
   test "refuses an image whose canvas is larger than the pixel limit" do
@@ -65,7 +96,7 @@ class Receipt::OcrTest < ActiveSupport::TestCase
     Receipt::Ocr.expects(:run).never
     huge = Vips::Image.black(7100, 7100).pngsave_buffer(compression: 9)
 
-    error = assert_raises(Receipt::Ocr::Error) { Receipt::Ocr.new.read_image(huge) }
+    error = assert_raises(Receipt::Ocr::Error) { Receipt::Ocr.new.read_image(huge, content_type: "image/png") }
     assert_equal "image_too_large", error.code
   end
 
@@ -101,7 +132,7 @@ class Receipt::OcrTest < ActiveSupport::TestCase
     photo = receipt_photo([ "MUSTERMARKT GMBH", "Hauptstrasse 1", "Brot 3,50", "Milch 1,20", "SUMME EUR 4,70",
                             "Datum #{date.strftime('%d.%m.%Y')} 14:05" ])
 
-    result = Receipt::Ocr.new.read_image(photo)
+    result = Receipt::Ocr.new.read_image(photo, content_type: "image/png")
     fields = Receipt::TextParser.parse(result.text, currency_hint: "EUR")
 
     assert_equal BigDecimal("4.70"), fields.dig("amount", :value)
@@ -111,6 +142,7 @@ class Receipt::OcrTest < ActiveSupport::TestCase
 
   test "reads a scanned PDF with the installed tesseract" do
     skip "tesseract with German and English is not installed" unless (%w[deu eng] - Receipt::Ocr.installed_languages).empty?
+    skip "pdftoppm is not installed" unless Receipt::Ocr.pdf_renderer_installed?
 
     date = Date.current - 5
     pdf = Vips::Image.new_from_buffer(receipt_photo([ "Rechnung", "Gesamtbetrag 19,99 EUR", "Rechnungsdatum #{date.strftime('%d.%m.%Y')}" ]), "")

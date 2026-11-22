@@ -31,6 +31,13 @@ class Receipt::Ocr
     "nl" => "nld", "pl" => "pol", "pt" => "por", "ru" => "rus", "tr" => "tur", "uk" => "ukr", "zh-CN" => "chi_sim"
   }.freeze
 
+  # Each upload is decoded only by the loader for its declared type, so a file
+  # declared as PNG never reaches the SVG, PDF or other loaders libvips has.
+  IMAGE_LOADERS = {
+    "image/jpeg" => :jpegload_buffer, "image/png" => :pngload_buffer,
+    "image/webp" => :webpload_buffer, "image/gif" => :gifload_buffer
+  }.freeze
+
   # Guards against decompression bombs: a 10 MB upload can still declare a huge
   # canvas, and libvips only reads the header until pixels are needed.
   MAX_PIXELS = 50_000_000
@@ -39,14 +46,26 @@ class Receipt::Ocr
   MAX_LONG_SIDE = 4000
   # Renders a scanned A4 page at roughly 300 dpi, whatever the page box says.
   PDF_RENDER_LONG_SIDE = 3500
-  COMMAND_TIMEOUT = 60
+  COMMAND_TIMEOUT = 30
+  # Pages of a long scan after this many seconds are left unread, so one file
+  # cannot hold a worker for minutes.
+  PDF_TIME_BUDGET = 90
   # Single column of text lines: keeps "SUMME ... 12,30" on one line, where the
   # automatic layout often splits a receipt's label and amount into two blocks.
   PAGE_SEGMENTATION_MODE = "4"
+  # What the programs report is cached per process; a failed probe is retried
+  # sooner than a successful one.
+  PROBE_TTL = 1.hour
+  FAILED_PROBE_TTL = 1.minute
 
   class << self
-    def available?
-      languages.any?
+    def available?(locale: nil)
+      languages(locale: locale).any?
+    end
+
+    # Scanned PDFs also need pdftoppm (poppler-utils).
+    def pdf_available?(locale: nil)
+      available?(locale: locale) && pdf_renderer_installed?
     end
 
     # The installed language packs to read with, e.g. ["deu", "eng", "fra"] for
@@ -57,18 +76,21 @@ class Receipt::Ocr
     end
 
     def installed_languages
-      return @installed_languages if defined?(@installed_languages)
-
-      @installed_languages = begin
+      probe(:languages) do
         stdout, _stderr, status = run("tesseract", "--list-langs", timeout: 10)
-        status.success? ? stdout.lines.drop(1).map(&:strip).reject(&:blank?) : []
-      rescue Error
-        []
-      end
+        status.success? ? stdout.lines.drop(1).map(&:strip).reject(&:blank?) : nil
+      end || []
+    end
+
+    def pdf_renderer_installed?
+      probe(:pdf_renderer) do
+        _stdout, _stderr, status = run("pdftoppm", "-v", timeout: 10)
+        status.success? || nil
+      end || false
     end
 
     def reset_cache!
-      remove_instance_variable(:@installed_languages) if defined?(@installed_languages)
+      @probes = {}
     end
 
     # Runs a program without the app's environment and kills it, with any
@@ -97,21 +119,44 @@ class Receipt::Ocr
     rescue Errno::ENOENT
       raise Error, "ocr_unavailable"
     end
+
+    private
+      # The block returns nil when the probe failed.
+      def probe(key)
+        @probes ||= {}
+        cached = @probes[key]
+        return cached[:value] if cached && cached[:expires_at] > Time.current
+
+        value = begin
+          yield
+        rescue Error
+          nil
+        end
+        @probes[key] = { value: value, expires_at: Time.current + (value.nil? ? FAILED_PROBE_TTL : PROBE_TTL) }
+        value
+      end
   end
 
   def initialize(locale: nil)
     @languages = self.class.languages(locale: locale)
   end
 
-  def read_image(content)
+  def read_image(content, content_type:)
+    loader = IMAGE_LOADERS[content_type]
+    raise Error, "unreadable_image" unless loader
+
     Dir.mktmpdir("receipt-ocr") do |dir|
       path = File.join(dir, "page.png")
-      prepare_image(content, path)
+      prepare_image(Vips::Image.public_send(loader, content), path)
       result_for([ recognize(path) ])
     end
+  rescue Vips::Error
+    raise Error, "unreadable_image"
   end
 
   def read_pdf(content, max_pages:)
+    deadline = monotonic_now + PDF_TIME_BUDGET
+
     Dir.mktmpdir("receipt-ocr") do |dir|
       pdf_path = File.join(dir, "receipt.pdf")
       File.binwrite(pdf_path, content)
@@ -124,30 +169,34 @@ class Receipt::Ocr
       pages = Dir.glob(File.join(dir, "page*.png")).sort
       raise Error, "unreadable_pdf" if pages.empty?
 
-      result_for(pages.map do |page|
+      read = []
+      pages.each do |page|
+        break if read.any? && monotonic_now > deadline
+
         prepared = "#{page}.ocr.png"
-        prepare_image(File.binread(page), prepared)
-        recognize(prepared)
-      end)
+        prepare_image(Vips::Image.pngload(page), prepared)
+        read << recognize(prepared)
+      end
+      result_for(read)
     end
+  rescue Vips::Error
+    raise Error, "unreadable_pdf"
   end
 
   private
     attr_reader :languages
 
-    def prepare_image(content, path)
-      image = Vips::Image.new_from_buffer(content, "")
+    def prepare_image(image, path)
       raise Error, "image_too_large" if image.width.to_i * image.height.to_i > MAX_PIXELS
 
       image = image.autorot
-      image = image.flatten(background: [ 255 ]) if image.has_alpha?
+      image = image.flatten(background: [ 255 ] * (image.bands - 1)) if image.has_alpha?
+      # Also scales a 16-bit PNG down to 8 bits.
       image = image.colourspace(:b_w)
       image = image.extract_band(0) if image.bands > 1
       image = stretch_contrast(image)
       image = resize(image)
       image.cast(:uchar).pngsave(path)
-    rescue Vips::Error
-      raise Error, "unreadable_image"
     end
 
     # Spreads the darkest and brightest percent over the full range, which lifts
@@ -206,5 +255,9 @@ class Receipt::Ocr
       text = Receipt::Ocr::TextCleanup.call(pages.map { _1[:text] }.join("\n"))
       confidence = confidences.any? ? (confidences.sum / confidences.size / 100.0).round(2) : 0.0
       Result.new(text: text, confidence: confidence)
+    end
+
+    def monotonic_now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 end

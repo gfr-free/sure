@@ -124,6 +124,8 @@ de:
           shared_feedback_disabled: "Das separate Self-Hosting-Feedback-Projekt ist durch seine Feedback- oder Umgebungseinstellung deaktiviert. Eigene Betreiber-Analytics werden dadurch nicht deaktiviert."
           production_only: "Diese Integration wird von der aktuellen Anwendungskonfiguration nur in Produktion verwendet."
           receipt_ocr_languages_missing: "Tesseract ist installiert, aber das deutsche oder englische Sprachpaket fehlt. Belege werden mit den vorhandenen Paketen gelesen."
+          receipt_ocr_no_default_languages: "Tesseract ist ohne das deutsche und englische Sprachpaket installiert. Texterkennung gibt es nur für Nutzer, deren eigenes Sprachpaket installiert ist."
+          receipt_ocr_pdf_renderer_missing: "pdftoppm (poppler-utils) fehlt, daher werden gescannte PDFs nicht erkannt. Fotos schon."
         services:
           langfuse:
             title: Langfuse
@@ -151,8 +153,8 @@ de:
             guidance: "Setz LOGTAIL_API_KEY und LOGTAIL_INGESTING_HOST gemeinsam und starte betroffene Dienste neu. Diese Prüfung erzeugt keinen Test-Logeintrag."
           receipt_ocr:
             title: Texterkennung für Belege
-            description: "Optionale Texterkennung (Tesseract) für Belegfotos und gescannte PDFs, ohne KI. Diese Prüfung fragt das Programm tesseract in diesem Web-Prozess nach seinen Sprachpaketen; Hintergrund-Worker, die Belege lesen, brauchen dieselben Programme."
-            guidance: "Das offizielle Docker-Image enthält tesseract-ocr mit dem deutschen und englischen Sprachpaket. Bei anderen Installationen die Pakete tesseract-ocr, tesseract-ocr-deu und tesseract-ocr-eng in den Web- und Worker-Containern installieren. Ohne sie liest Sure Belege nur aus dem PDF-Text."
+            description: "Optionale Texterkennung (Tesseract) für Belegfotos und gescannte PDFs, ohne KI. Diese Prüfung fragt die Programme tesseract und pdftoppm in diesem Web-Prozess ab; Hintergrund-Worker, die Belege lesen, brauchen dieselben Programme."
+            guidance: "Das offizielle Docker-Image enthält tesseract-ocr mit dem deutschen und englischen Sprachpaket sowie poppler-utils. Bei anderen Installationen die Pakete tesseract-ocr, tesseract-ocr-deu, tesseract-ocr-eng und poppler-utils in den Web- und Worker-Containern installieren. Ohne sie liest Sure Belege nur aus dem PDF-Text."
       configuration:
         description: "Die für diesen Web-Prozess sichtbare Konfiguration. Diese Prüfungen versenden keine E-Mails, kontaktieren keine Anbieter und laden keine Dateien hoch oder herunter. Konfiguriert bedeutet, dass Einstellungen vorhanden sind. Zustellung, Anbieterzugriff und Speicherzugriff wurden damit nicht überprüft."
         statuses:

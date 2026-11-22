@@ -76,14 +76,22 @@ class ConfigurationHealth::OptionalServices
   end
 
   # Text recognition for receipt photos and scans. Unlike the other checks this
-  # asks the local `tesseract` program which language packs it has; it reads no
-  # file and contacts nothing.
+  # asks the local `tesseract` and `pdftoppm` programs what they have; it reads
+  # no file and contacts nothing.
   def receipt_ocr
     installed = Receipt::Ocr.installed_languages
     return service(:receipt_ocr, :not_configured) if installed.empty?
-    return service(:receipt_ocr, :incomplete, notes: [ :receipt_ocr_languages_missing ]) unless (Receipt::Ocr::DEFAULT_LANGUAGES - installed).empty?
 
-    service(:receipt_ocr, :configured)
+    notes = []
+    missing = Receipt::Ocr::DEFAULT_LANGUAGES - installed
+    if missing.size == Receipt::Ocr::DEFAULT_LANGUAGES.size
+      notes << :receipt_ocr_no_default_languages
+    elsif missing.any?
+      notes << :receipt_ocr_languages_missing
+    end
+    notes << :receipt_ocr_pdf_renderer_missing unless Receipt::Ocr.pdf_renderer_installed?
+
+    service(:receipt_ocr, notes.empty? ? :configured : :incomplete, notes: notes)
   end
 
   private

@@ -124,6 +124,8 @@ en:
           shared_feedback_disabled: "The separate self-hosted feedback project is disabled by its feedback or environment setting. This does not disable operator-owned analytics."
           production_only: "This integration is used only in production by the application's current configuration."
           receipt_ocr_languages_missing: "Tesseract is installed, but the German or English language pack is missing. Receipts are read with the packs that are installed."
+          receipt_ocr_no_default_languages: "Tesseract is installed without the German and English language packs. Only users whose own language pack is installed get text recognition."
+          receipt_ocr_pdf_renderer_missing: "pdftoppm (poppler-utils) is missing, so scanned PDFs are not recognized. Photos are."
         services:
           langfuse:
             title: Langfuse
@@ -151,8 +153,8 @@ en:
             guidance: "Set LOGTAIL_API_KEY and LOGTAIL_INGESTING_HOST together and restart the affected services. No test log is emitted by this check."
           receipt_ocr:
             title: Receipt text recognition
-            description: "Optional text recognition (Tesseract) for receipt photos and scanned PDFs, without AI. This check asks the tesseract program in this web process which language packs it has; background workers that read receipts need the same programs."
-            guidance: "The official Docker image includes tesseract-ocr with the German and English packs. For other installs, add the packages tesseract-ocr, tesseract-ocr-deu and tesseract-ocr-eng to the web and worker containers. Without them, receipts are read from their PDF text only."
+            description: "Optional text recognition (Tesseract) for receipt photos and scanned PDFs, without AI. This check asks the tesseract and pdftoppm programs in this web process what they have; background workers that read receipts need the same programs."
+            guidance: "The official Docker image includes tesseract-ocr with the German and English packs and poppler-utils. For other installs, add the packages tesseract-ocr, tesseract-ocr-deu, tesseract-ocr-eng and poppler-utils to the web and worker containers. Without them, receipts are read from their PDF text only."
       configuration:
         description: "Configuration visible to this web process. These checks do not send emails, contact providers, or upload or download files. Configured means settings are present, not that delivery, provider access, or storage access has been verified."
         statuses:

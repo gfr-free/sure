@@ -7,7 +7,10 @@
 # 1. The text layer of a PDF.
 # 2. Text recognition (Tesseract) for photos and for PDFs without a text layer,
 #    when it is installed. Without it, such receipts keep their fields blank and
-#    the user fills them in by hand.
+#    the user fills them in by hand; `notice` then says why.
+#
+# When text recognition fails after the PDF text already gave some fields, the
+# receipt keeps those fields; it fails only when nothing was read at all.
 class Receipt::Extraction
   class Error < StandardError
     attr_reader :code
@@ -18,7 +21,9 @@ class Receipt::Extraction
     end
   end
 
-  Result = Data.define(:fields, :raw_text)
+  # `notice` is "ocr_unavailable" when the file needed text recognition and the
+  # worker had none, else the code of a recognition failure the fields survived.
+  Result = Data.define(:fields, :raw_text, :notice)
 
   # Raw text is kept for the user to check what was read, not for search, so it
   # is capped.
@@ -39,7 +44,14 @@ class Receipt::Extraction
     texts = []
 
     stages.each do |stage|
-      text = stage[:read].call
+      text = begin
+        stage[:read].call
+      rescue Error => e
+        raise if fields.empty?
+
+        @notice = e.code
+        nil
+      end
       next if text.blank?
 
       texts << text
@@ -50,7 +62,8 @@ class Receipt::Extraction
       break if REQUIRED_FIELDS.all? { |field| fields.key?(field) }
     end
 
-    Result.new(fields: fields, raw_text: Receipt::TextParser.mask(texts.join("\n")).first(MAX_RAW_TEXT_LENGTH).presence)
+    raw_text = Receipt::TextParser.mask(texts.join("\n")).first(MAX_RAW_TEXT_LENGTH).presence
+    Result.new(fields: fields, raw_text: raw_text, notice: @notice)
   end
 
   private
@@ -72,18 +85,31 @@ class Receipt::Extraction
     # Photos always; PDFs only when their text layer is (almost) empty, since a
     # rendered copy of real text reads no better than the text itself.
     def ocr?
-      return false unless Receipt::Ocr.available?
-      return true if receipt.image?
+      needed = receipt.image? || (receipt.pdf? && pdf_text.to_s.scan(/[[:alnum:]]/).size < MIN_PDF_TEXT_CHARACTERS)
+      return false unless needed
 
-      receipt.pdf? && pdf_text.to_s.scan(/[[:alnum:]]/).size < MIN_PDF_TEXT_CHARACTERS
+      usable = receipt.image? ? Receipt::Ocr.available?(locale: locale) : Receipt::Ocr.pdf_available?(locale: locale)
+      @notice = "ocr_unavailable" unless usable
+      usable
     end
 
     def ocr_text
-      ocr = Receipt::Ocr.new(locale: receipt.uploaded_by&.locale.presence || receipt.family.locale)
-      @ocr_result = receipt.image? ? ocr.read_image(content) : ocr.read_pdf(content, max_pages: MAX_PDF_PAGES)
+      ocr = Receipt::Ocr.new(locale: locale)
+      @ocr_result = if receipt.image?
+        ocr.read_image(content, content_type: receipt.content_type)
+      else
+        ocr.read_pdf(content, max_pages: MAX_PDF_PAGES)
+      end
       @ocr_result.text
     rescue Receipt::Ocr::Error => e
+      # The code only, never text read from the receipt.
+      DebugLogEntry.capture(category: "receipts", level: "warn", message: "Receipt##{receipt.id}: text recognition failed: #{e.code}",
+                            source: "receipt_ocr", family: receipt.family, user_id: receipt.uploaded_by_id)
       raise Error, e.code
+    end
+
+    def locale
+      receipt.uploaded_by&.locale.presence || receipt.family.locale
     end
 
     # A misread character can turn a right-looking amount into a wrong one, so a

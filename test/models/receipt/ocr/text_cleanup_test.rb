@@ -9,11 +9,14 @@ class Receipt::Ocr::TextCleanupTest < ActiveSupport::TestCase
   test "joins decimals split off by a space" do
     assert_equal "SUMME EUR 12,30", cleanup("SUMME EUR 12, 30")
     assert_equal "Total 4.70 USD", cleanup("Total 4. 70 USD")
+    assert_equal "Brot\nSUMME 6,75\n", cleanup("Brot\nSUMME 6, 75\n")
   end
 
   test "leaves words and other numbers alone" do
-    text = "BOOT OO.OO Ostbahnhof 2026-11-20 Tel. 030 1234 Artikel 3, 125 g"
-    assert_equal text, cleanup(text)
+    [ "BOOT OO.OO Ostbahnhof 2026-11-20 Tel. 030 1234 Artikel 3, 125 g", "Kasse 2, 15:43 EUR", "Tisch 3, 12",
+      "Art. 5, 10 Stk" ].each do |text|
+      assert_equal text, cleanup(text)
+    end
   end
 
   private

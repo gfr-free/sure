@@ -137,6 +137,10 @@ class Receipt < ApplicationRecord
     Money.new(amount, currency)
   end
 
+  def text_recognition_unavailable?
+    extraction_completed? && extraction_error == "ocr_unavailable"
+  end
+
   def field_source(field)
     field_sources.dig(field.to_s, "source")
   end
@@ -158,7 +162,9 @@ class Receipt < ApplicationRecord
     # meanwhile counts as manual and is kept.
     with_lock do
       manual = FIELDS.select { |field| field_source(field) == "manual" }
-      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: nil }
+      # On a completed read, the error column keeps the notice (e.g. no text
+      # recognition on this server) so the page can say why fields are blank.
+      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: result.notice }
       sources = field_sources.slice(*manual)
       (FIELDS - manual).each do |field|
         value = result.fields[field]

@@ -45,7 +45,7 @@ class ReceiptTest < ActiveSupport::TestCase
 
   test "extract! keeps a field the user edited while the file was being read" do
     receipt = upload([ "Coffee House", "Total 12.40 USD" ])
-    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("12.40"), confidence: 0.9, source: "pdf_text" } }, raw_text: "Total 12.40")
+    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("12.40"), confidence: 0.9, source: "pdf_text" } }, raw_text: "Total 12.40", notice: nil)
     Receipt::Extraction.any_instance.stubs(:run).with do
       Receipt.find(receipt.id).update_fields!(amount: "13.00")
       true
@@ -84,7 +84,7 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
-  test "extract! leaves an image's fields blank without text recognition" do
+  test "extract! leaves an image's fields blank without text recognition and says why" do
     Receipt::Ocr.stubs(:available?).returns(false)
     Receipt::Ocr.any_instance.expects(:read_image).never
     receipt = upload_photo
@@ -95,11 +95,12 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_nil receipt.amount
     assert_nil receipt.raw_text
     assert_equal :open, receipt.status
+    assert receipt.text_recognition_unavailable?
   end
 
   test "extract! reads a photo with text recognition" do
     Receipt::Ocr.stubs(:available?).returns(true)
-    Receipt::Ocr.any_instance.expects(:read_image).returns(
+    Receipt::Ocr.any_instance.expects(:read_image).with(anything, content_type: "image/png").returns(
       Receipt::Ocr::Result.new(text: "Corner Bakery\nTOTAL 8.40 USD\nDate #{Date.current.iso8601} 09:12\nVISA ************4242", confidence: 0.8)
     )
     receipt = upload_photo
@@ -114,10 +115,11 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal 0.56, receipt.field_confidence(:amount)
     assert_includes receipt.raw_text, "Corner Bakery"
     assert_not_includes receipt.raw_text, "4242424242424242"
+    assert_not receipt.text_recognition_unavailable?
   end
 
   test "extract! recognizes a scanned PDF only when it has no text layer" do
-    Receipt::Ocr.stubs(:available?).returns(true)
+    Receipt::Ocr.stubs(:pdf_available?).returns(true)
     Receipt::Ocr.any_instance.expects(:read_pdf).with(anything, max_pages: Receipt::Extraction::MAX_PDF_PAGES)
                 .returns(Receipt::Ocr::Result.new(text: "Total 3.10 USD\nDate #{Date.current.iso8601}", confidence: 1.0))
     scan = upload([ "Page 1" ])
@@ -133,6 +135,32 @@ class ReceiptTest < ActiveSupport::TestCase
 
     assert_equal BigDecimal("12.40"), text_pdf.amount
     assert_nil text_pdf.date
+  end
+
+  test "extract! keeps what the PDF text gave when text recognition fails" do
+    Receipt::Ocr.stubs(:pdf_available?).returns(true)
+    Receipt::Ocr.any_instance.expects(:read_pdf).raises(Receipt::Ocr::Error.new("ocr_timeout"))
+    receipt = upload([ "Total 1.00" ])
+
+    assert_difference -> { DebugLogEntry.where(source: "receipt_ocr").count }, 1 do
+      receipt.extract!
+    end
+
+    assert receipt.extraction_completed?
+    assert_equal BigDecimal("1.00"), receipt.amount
+    assert_equal "ocr_timeout", receipt.extraction_error
+    assert_not receipt.text_recognition_unavailable?
+  end
+
+  test "extract! says text recognition is missing for a scan when only pdftoppm is" do
+    Receipt::Ocr.stubs(:available?).returns(true)
+    Receipt::Ocr.stubs(:pdf_available?).returns(false)
+    receipt = upload([])
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert receipt.text_recognition_unavailable?
   end
 
   test "extract! marks a photo as failed when text recognition gives up" do

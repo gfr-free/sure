@@ -9659,11 +9659,21 @@ paths:
     post:
       summary: Confirm the suggested transaction
       description: Accepts the transaction Sure matched automatically and copies the
-        file onto it. Needs write access to its account.
+        file onto it. Needs write access to its account. Pass transaction_id to make
+        sure the suggestion has not changed since the client read it.
       tags:
       - Receipts
       security:
       - apiKeyAuth: []
+      parameters:
+      - name: transaction_id
+        in: query
+        format: uuid
+        required: false
+        description: The suggested transaction the client is confirming; a different
+          current suggestion is a 422
+        schema:
+          type: string
       responses:
         '200':
           description: suggestion confirmed
@@ -9694,11 +9704,21 @@ paths:
     post:
       summary: Reject the suggested transaction
       description: Unlinks the suggested transaction; Sure does not suggest it for
-        this receipt again.
+        this receipt again. Pass transaction_id to make sure the suggestion has not
+        changed since the client read it.
       tags:
       - Receipts
       security:
       - apiKeyAuth: []
+      parameters:
+      - name: transaction_id
+        in: query
+        format: uuid
+        required: false
+        description: The suggested transaction the client is rejecting; a different
+          current suggestion is a 422
+        schema:
+          type: string
       responses:
         '200':
           description: suggestion rejected

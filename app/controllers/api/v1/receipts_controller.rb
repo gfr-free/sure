@@ -107,9 +107,11 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
     render_record_invalid(e.record)
   end
 
-  # Accepts the transaction Sure suggested: the file is copied onto it.
+  # Accepts the transaction Sure suggested: the file is copied onto it. An
+  # optional transaction_id guards against a suggestion that changed since the
+  # client last read the receipt.
   def confirm
-    @receipt.confirm_match!(user: current_resource_owner)
+    @receipt.confirm_match!(user: current_resource_owner, transaction_id: expected_transaction_id)
     render :show
   rescue ActiveRecord::RecordInvalid => e
     render_record_invalid(e.record)
@@ -117,7 +119,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
 
   # Turns the suggestion down; Sure will not suggest that transaction again.
   def reject
-    @receipt.reject_match!
+    @receipt.reject_match!(transaction_id: expected_transaction_id)
     render :show
   rescue ActiveRecord::RecordInvalid => e
     render_record_invalid(e.record)
@@ -231,6 +233,10 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
         amount: amount,
         currency: params[:currency].to_s.strip.upcase.presence || @receipt.currency
       }
+    end
+
+    def expected_transaction_id
+      params[:transaction_id].presence&.to_s
     end
 
     def render_record_invalid(record)

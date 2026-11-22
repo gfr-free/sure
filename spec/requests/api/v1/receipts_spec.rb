@@ -376,10 +376,14 @@ RSpec.describe 'API V1 Receipts', type: :request do
     parameter name: :id, in: :path, type: :string, format: :uuid, required: true
 
     post 'Confirm the suggested transaction' do
-      description 'Accepts the transaction Sure matched automatically and copies the file onto it. Needs write access to its account.'
+      description 'Accepts the transaction Sure matched automatically and copies the file onto it. Needs write access to its account. ' \
+                  'Pass transaction_id to make sure the suggestion has not changed since the client read it.'
       tags 'Receipts'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'
+
+      parameter name: :transaction_id, in: :query, type: :string, format: :uuid, required: false,
+                description: 'The suggested transaction the client is confirming; a different current suggestion is a 422'
 
       response '200', 'suggestion confirmed' do
         schema '$ref' => '#/components/schemas/ReceiptResponse'
@@ -405,10 +409,14 @@ RSpec.describe 'API V1 Receipts', type: :request do
     parameter name: :id, in: :path, type: :string, format: :uuid, required: true
 
     post 'Reject the suggested transaction' do
-      description 'Unlinks the suggested transaction; Sure does not suggest it for this receipt again.'
+      description 'Unlinks the suggested transaction; Sure does not suggest it for this receipt again. ' \
+                  'Pass transaction_id to make sure the suggestion has not changed since the client read it.'
       tags 'Receipts'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'
+
+      parameter name: :transaction_id, in: :query, type: :string, format: :uuid, required: false,
+                description: 'The suggested transaction the client is rejecting; a different current suggestion is a 422'
 
       response '200', 'suggestion rejected' do
         schema '$ref' => '#/components/schemas/ReceiptResponse'

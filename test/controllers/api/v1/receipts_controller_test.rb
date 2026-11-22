@@ -391,6 +391,23 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, entry.transaction.attachments.count
   end
 
+  test "confirm and reject refuse a suggestion that changed" do
+    entry = @account.entries.create!(name: "Shop", date: Date.current, amount: 5, currency: "USD", entryable: Transaction.new)
+    receipt = suggest(upload_for(@admin, "suggested.pdf"), entry)
+    stale_id = SecureRandom.uuid
+
+    post confirm_api_v1_receipt_url(receipt), params: { transaction_id: stale_id }, headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+
+    post reject_api_v1_receipt_url(receipt), params: { transaction_id: stale_id }, headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+    assert receipt.reload.match_pending?
+
+    post confirm_api_v1_receipt_url(receipt), params: { transaction_id: entry.transaction.id }, headers: api_headers(@api_key)
+    assert_response :ok
+    assert receipt.reload.match_confirmed?
+  end
+
   test "confirm and reject need a pending suggestion" do
     receipt = upload_for(@admin, "plain.pdf")
 

@@ -13,7 +13,8 @@ require "digest/sha2"
 # Till codes carry no shop name. Each format that identifies its sender returns an
 # identifier (the till's signing key or certificate plus its id, or the payee's
 # IBAN ending and name) so a merchant confirmed once can be recognised next time.
-# Only the last four characters of an IBAN are kept.
+# Identifiers are stored as digests only; the IBAN part uses its last four
+# characters.
 class Receipt::QrParser
   Result = Data.define(:fields, :identifiers)
 
@@ -21,7 +22,6 @@ class Receipt::QrParser
   TRANSFER_CONFIDENCE = 0.9
   MAX_AMOUNT = BigDecimal("999999999.99")
   TSE_RECEIPT_TYPES = %w[Beleg AVRechnung].freeze
-  MAX_IDENTIFIER_LENGTH = 200
 
   def self.parse(payloads, timezone: nil)
     new(payloads, timezone:).parse
@@ -77,7 +77,7 @@ class Receipt::QrParser
 
       identifiers = []
       if parts[1].present? && parts[11].present?
-        identifiers << identifier("tse", "#{Digest::SHA256.hexdigest(parts[11]).first(32)}:#{parts[1]}")
+        identifiers << identifier("tse", "#{parts[11]}:#{parts[1]}")
       end
 
       { rank: 0, fields: fields, identifiers: identifiers }
@@ -179,7 +179,7 @@ class Receipt::QrParser
     end
 
     def identifier(kind, value)
-      { "kind" => kind, "value" => value.first(MAX_IDENTIFIER_LENGTH) }
+      { "kind" => kind, "digest" => Digest::SHA256.hexdigest("#{kind}:#{value}") }
     end
 
     def signed(value)

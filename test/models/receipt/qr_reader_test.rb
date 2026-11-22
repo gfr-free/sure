@@ -9,6 +9,21 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
     assert_equal [ payload ], Receipt::QrReader.read(receipt_qr_png(payload), content_type: "image/png")
   end
 
+  test "reads a GiroCode in Latin-1 as UTF-8" do
+    payload = epc_payload(name: "Müller Demo GmbH").sub("\n1\n", "\n2\n")
+    png = RQRCode::QRCode.new(payload.encode("ISO-8859-1").b, mode: :byte_8bit).as_png(size: 360).to_s
+
+    assert_includes Receipt::QrReader.read(png, content_type: "image/png").first, "Müller Demo GmbH"
+  end
+
+  test "reads a phone photo that is stored sideways with an EXIF orientation" do
+    payload = german_till_payload
+    image = Vips::Image.new_from_buffer(receipt_qr_png(payload), "").colourspace(:srgb).rot(:d270)
+    image = image.mutate { |mutable| mutable.set_type!(GObject::GINT_TYPE, "orientation", 6) }
+
+    assert_equal [ payload ], Receipt::QrReader.read(image.jpegsave_buffer(Q: 95), content_type: "image/jpeg")
+  end
+
   test "reads a QR code printed in a PDF" do
     payload = german_till_payload
 
@@ -35,6 +50,10 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
 
     assert_raises(Receipt::ExternalCommand::TimeoutError) do
       Receipt::ExternalCommand.run("sleep", "5", timeout: 0.2, chdir: Dir.tmpdir)
+    end
+
+    assert_raises(Receipt::ExternalCommand::Error) do
+      Receipt::ExternalCommand.run("sh", "-c", "kill -9 $$", timeout: 5, chdir: Dir.tmpdir)
     end
   ensure
     ENV.delete("RECEIPT_TEST_SECRET")

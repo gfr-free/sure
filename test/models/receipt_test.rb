@@ -127,48 +127,58 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
-  test "linking a receipt with a QR identifier teaches its merchant for the next receipt" do
+  test "a receipt from a till seen before gets the merchant of the earlier receipt's transaction" do
     travel_to Time.zone.parse("2026-11-22 12:00") do
-      merchant = merchants(:amazon)
       first = upload_image(receipt_qr_png(german_till_payload))
       first.extract!
       transaction = create_transaction(account: @account, amount: 11.59, date: Date.current)
-      transaction.update!(merchant: merchant)
-
       first.link_to!(transaction, user: @admin)
-
-      hint = @family.receipt_merchant_hints.sole
-      assert_equal merchant, hint.merchant
-      assert_equal "tse", hint.kind
+      # A merchant set after linking, by hand or by a rule, counts too.
+      transaction.update!(merchant: merchants(:amazon))
 
       second = upload_image(receipt_qr_png(german_till_payload(gross: "2.10_0.00_0.00_0.00_0.00")))
       second.extract!
 
-      assert_equal merchant.name, second.merchant_name
+      assert_equal "Amazon", second.merchant_name
       assert_equal "qr", second.field_source(:merchant_name)
       assert_equal BigDecimal("2.10"), second.amount
+
+      other_till = upload_image(receipt_qr_png(german_till_payload(serial: "KASSE-02")))
+      other_till.extract!
+      assert_nil other_till.merchant_name
     end
   end
 
-  test "extract! still reads the PDF text when the QR reader fails" do
-    receipt = upload([ "Coffee House", "Total 12.40 USD", "Date #{Date.current.iso8601}" ])
-    Receipt::QrReader.stubs(:read).raises(Receipt::ExternalCommand::TimeoutError, "zbarimg timed out")
+  test "a learned merchant only comes from transactions the uploader can see" do
+    travel_to Time.zone.parse("2026-11-22 12:00") do
+      first = upload_image(receipt_qr_png(german_till_payload))
+      first.extract!
+      transaction = create_transaction(account: accounts(:credit_card), amount: 11.59, date: Date.current)
+      transaction.update!(merchant: merchants(:amazon))
+      first.link_to!(transaction, user: @admin)
 
-    assert_difference "DebugLogEntry.count", 1 do
+      AccountShare.where(account: accounts(:credit_card), user: @member).delete_all
+      member_receipt = Receipt.create_from_upload!(family: @family, user: @member,
+                                                   file: uploaded_receipt(receipt_qr_png(german_till_payload(gross: "1.00_0.00_0.00_0.00_0.00")), filename: "photo.png", content_type: "image/png"))
+      member_receipt.extract!
+      assert_nil member_receipt.merchant_name
+
+      admin_receipt = upload_image(receipt_qr_png(german_till_payload(gross: "3.00_0.00_0.00_0.00_0.00")))
+      admin_receipt.extract!
+      assert_equal "Amazon", admin_receipt.merchant_name
+    end
+  end
+
+  test "extract! keeps a PDF's QR fields when its text layer cannot be read" do
+    travel_to Time.zone.parse("2026-11-22 12:00") do
+      receipt = upload_content(receipt_qr_pdf(german_till_payload))
+      Receipt::Extraction.any_instance.stubs(:pdf_text).raises(Receipt::Extraction::Error, "unreadable_pdf")
+
       receipt.extract!
+
+      assert receipt.extraction_completed?
+      assert_equal BigDecimal("11.59"), receipt.amount
     end
-
-    assert receipt.extraction_completed?
-    assert_equal BigDecimal("12.40"), receipt.amount
-    assert_equal "pdf_text", receipt.field_source(:amount)
-  end
-
-  test "a learned merchant is not offered to another family" do
-    other_family = families(:empty)
-    ReceiptMerchantHint.learn!(@family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ], merchants(:amazon))
-
-    assert_nil ReceiptMerchantHint.merchant_for(other_family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ])
-    assert_equal merchants(:amazon), ReceiptMerchantHint.merchant_for(@family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ])
   end
 
   test "extract! marks a broken PDF as failed" do

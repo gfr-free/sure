@@ -26,9 +26,9 @@ class Receipt::Extraction
   # is capped.
   MAX_RAW_TEXT_LENGTH = 20_000
   MAX_PDF_PAGES = 5
-  # A merchant learned from an earlier receipt of the same till or payee was
-  # confirmed by the user, so it beats the name printed in a transfer code.
-  HINT_CONFIDENCE = 0.95
+  # The merchant of an earlier receipt from the same till or payee was confirmed
+  # by the user, so it beats the name printed in a transfer code.
+  LEARNED_MERCHANT_CONFIDENCE = 0.95
 
   attr_reader :receipt
 
@@ -42,7 +42,7 @@ class Receipt::Extraction
     identifiers = []
 
     stages.each do |stage|
-      reading = stage[:read].call
+      reading = read_stage(stage, found_fields: fields.any?)
       next if reading.nil?
 
       texts << reading[:text] if reading[:text].present?
@@ -58,6 +58,15 @@ class Receipt::Extraction
   end
 
   private
+    # A PDF whose text layer cannot be read still keeps what its QR code gave.
+    def read_stage(stage, found_fields:)
+      stage[:read].call
+    rescue Error => e
+      raise unless found_fields && e.code == "unreadable_pdf"
+
+      nil
+    end
+
     def stages
       [
         { source: "qr", read: -> { qr_reading } },
@@ -73,8 +82,8 @@ class Receipt::Extraction
 
       result = Receipt::QrParser.parse(payloads, timezone: receipt.family.timezone)
       fields = result.fields.dup
-      if (merchant = ReceiptMerchantHint.merchant_for(receipt.family, result.identifiers))
-        fields["merchant_name"] = { value: merchant.name, confidence: HINT_CONFIDENCE }
+      if (merchant = receipt.learned_merchant(result.identifiers))
+        fields["merchant_name"] = { value: merchant.name, confidence: LEARNED_MERCHANT_CONFIDENCE }
       end
 
       { fields: fields, identifiers: result.identifiers }

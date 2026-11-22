@@ -16,7 +16,8 @@ class Receipt::QrParserTest < ActiveSupport::TestCase
     assert_equal 0.95, result.fields["amount"][:confidence]
     assert_nil result.fields["merchant_name"]
     assert_equal [ "tse" ], result.identifiers.map { |identifier| identifier["kind"] }
-    assert result.identifiers.first["value"].end_with?(":KASSE-01")
+    assert_match(/\A\h{64}\z/, result.identifiers.first["digest"])
+    assert_not_equal result.identifiers, Receipt::QrParser.parse([ german_till_payload(serial: "KASSE-02") ]).identifiers
   end
 
   test "dates a German till receipt in the family's time zone" do
@@ -46,7 +47,7 @@ class Receipt::QrParserTest < ActiveSupport::TestCase
 
     assert_equal BigDecimal("15.50"), result.fields["amount"][:value]
     assert_equal Date.new(2026, 11, 19), result.fields["date"][:value]
-    assert_equal [ { "kind" => "rksv", "value" => "3D0A1E2B:DEMO-KASSE-1" } ], result.identifiers
+    assert_equal [ { "kind" => "rksv", "digest" => Digest::SHA256.hexdigest("rksv:3D0A1E2B:DEMO-KASSE-1") } ], result.identifiers
   end
 
   test "reads payee and amount from a GiroCode and keeps only the IBAN ending" do
@@ -56,7 +57,7 @@ class Receipt::QrParserTest < ActiveSupport::TestCase
     assert_equal BigDecimal("86.40"), result.fields["amount"][:value]
     assert_equal "EUR", result.fields["currency"][:value]
     assert_nil result.fields["date"]
-    assert_equal [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ], result.identifiers
+    assert_equal [ { "kind" => "payee", "digest" => Digest::SHA256.hexdigest("payee:DE2051:stadtwerke demo gmbh") } ], result.identifiers
   end
 
   test "a GiroCode without an amount still names the payee" do

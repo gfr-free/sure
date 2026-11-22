@@ -46,7 +46,8 @@ class Receipt::QrReader
   private
     def normalized_image(dir)
       require "vips"
-      image = Vips::Image.new_from_buffer(@content, "", access: :sequential)
+      # Random access: turning a photo upright by its EXIF tag reads out of order.
+      image = Vips::Image.new_from_buffer(@content, "")
       return nil if image.width * image.height > MAX_PIXELS
 
       image = image.autorot

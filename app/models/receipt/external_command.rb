@@ -19,6 +19,7 @@ module Receipt::ExternalCommand
   end
 
   # Returns [stdout, exit status]. Output beyond MAX_OUTPUT is cut off.
+  # Raises Error when the program is missing, times out or is killed.
   def run(*command, timeout:, chdir:)
     Open3.popen3(ENV_VARS, *command, unsetenv_others: true, pgroup: true, chdir: chdir) do |stdin, stdout, stderr, wait|
       stdin.close
@@ -31,7 +32,10 @@ module Receipt::ExternalCommand
         raise TimeoutError, "#{command.first} timed out"
       end
 
-      [ output.value, wait.value.exitstatus ]
+      status = wait.value.exitstatus
+      raise Error, "#{command.first} was stopped by a signal" if status.nil?
+
+      [ output.value, status ]
     end
   rescue Errno::ENOENT
     raise Error, "#{command.first} is not installed"

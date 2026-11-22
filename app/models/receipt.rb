@@ -250,6 +250,27 @@ class Receipt < ApplicationRecord
     entry
   end
 
+  # The merchant of the most recently linked receipt from the same till or
+  # payee, read from its transaction now, so a merchant set later by hand or by
+  # a rule counts too. Only transactions on accounts the uploader can see are
+  # consulted.
+  def learned_merchant(identifiers)
+    digests = Array(identifiers).filter_map { |identifier| identifier["digest"].presence }
+    return nil if digests.empty? || uploaded_by.nil?
+
+    containment = Array.new(digests.size, "receipts.merchant_identifiers @> ?::jsonb").join(" OR ")
+    earlier = family.receipts
+      .where.not(id: id)
+      .where(containment, *digests.map { |digest| [ { digest: digest } ].to_json })
+      .joins(linked_transaction: :entry)
+      .where(entries: { account_id: family.accounts.accessible_by(uploaded_by).select(:id) })
+      .where.not(transactions: { merchant_id: nil })
+      .order(linked_at: :desc)
+      .first
+
+    earlier&.linked_transaction&.merchant
+  end
+
   def dismiss!
     update!(dismissed_at: Time.current)
   end
@@ -271,10 +292,6 @@ class Receipt < ApplicationRecord
         transaction.attachments.attach(io: StringIO.new(file.download), filename: filename, content_type: content_type)
         update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created)
       end
-
-      # Linking confirms the receipt's merchant: the next receipt from the same
-      # till or payee gets the transaction's merchant.
-      ReceiptMerchantHint.learn!(family, merchant_identifiers, transaction.merchant)
     end
 
     def refuse!(error, **options)

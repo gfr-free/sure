@@ -193,6 +193,109 @@ RSpec.configure do |config|
               meta: { '$ref' => '#/components/schemas/Pagination' }
             }
           },
+          ReceiptFieldSource: {
+            type: :object,
+            required: %w[source confidence],
+            properties: {
+              source: { type: :string, description: 'Where the value came from, e.g. pdf_text or manual' },
+              confidence: { type: :number, nullable: true, minimum: 0, maximum: 1 }
+            }
+          },
+          ReceiptTransaction: {
+            type: :object,
+            required: %w[id entry_id name date amount_decimal currency account],
+            properties: {
+              id: { type: :string, format: :uuid },
+              entry_id: { type: :string, format: :uuid },
+              name: { type: :string },
+              date: { type: :string, format: :date },
+              amount_decimal: { type: :string, description: 'Stored amount; positive is an outflow' },
+              currency: { type: :string },
+              account: {
+                type: :object,
+                required: %w[id name],
+                properties: {
+                  id: { type: :string, format: :uuid },
+                  name: { type: :string }
+                }
+              }
+            }
+          },
+          Receipt: {
+            type: :object,
+            required: %w[id status source filename content_type byte_size content_sha256 extraction_status field_sources
+                         created_transaction created_at updated_at],
+            properties: {
+              id: { type: :string, format: :uuid },
+              status: { type: :string, enum: %w[reading open linked dismissed] },
+              source: { type: :string, enum: %w[web api] },
+              filename: { type: :string },
+              content_type: { type: :string },
+              byte_size: { type: :integer, minimum: 1 },
+              content_sha256: { type: :string, description: 'SHA-256 of the file (lowercase hex); each user stores a file once' },
+              extraction_status: { type: :string, enum: %w[pending completed failed] },
+              extraction_error: { type: :string, nullable: true },
+              merchant_name: { type: :string, nullable: true },
+              date: { type: :string, format: :date, nullable: true },
+              amount: { type: :string, nullable: true, description: 'Total as a positive decimal string' },
+              currency: { type: :string, nullable: true },
+              field_sources: {
+                type: :object,
+                description: 'Per field (merchant_name, date, amount, currency): where its value came from, or null',
+                additionalProperties: {
+                  allOf: [ { '$ref' => '#/components/schemas/ReceiptFieldSource' } ],
+                  nullable: true
+                }
+              },
+              transaction: {
+                allOf: [ { '$ref' => '#/components/schemas/ReceiptTransaction' } ],
+                nullable: true,
+                description: 'Linked transaction, while the caller can see its account'
+              },
+              created_transaction: { type: :boolean, description: 'True when the linked transaction was created from this receipt' },
+              linked_at: { type: :string, format: :'date-time', nullable: true },
+              dismissed_at: { type: :string, format: :'date-time', nullable: true },
+              created_at: { type: :string, format: :'date-time' },
+              updated_at: { type: :string, format: :'date-time' }
+            }
+          },
+          ReceiptResponse: {
+            type: :object,
+            required: %w[data meta],
+            properties: {
+              data: { '$ref' => '#/components/schemas/Receipt' },
+              meta: {
+                type: :object,
+                required: %w[duplicate],
+                properties: {
+                  duplicate: { type: :boolean, description: 'True when the caller had already uploaded this file; the existing receipt is returned' }
+                }
+              }
+            }
+          },
+          ReceiptCollection: {
+            type: :object,
+            required: %w[data meta],
+            properties: {
+              data: {
+                type: :array,
+                maxItems: 100,
+                items: { '$ref' => '#/components/schemas/Receipt' }
+              },
+              meta: { '$ref' => '#/components/schemas/Pagination' }
+            }
+          },
+          ReceiptCandidateCollection: {
+            type: :object,
+            required: %w[data],
+            properties: {
+              data: {
+                type: :array,
+                maxItems: 20,
+                items: { '$ref' => '#/components/schemas/ReceiptTransaction' }
+              }
+            }
+          },
           FamilyExportFile: {
             type: :object,
             required: %w[attached],

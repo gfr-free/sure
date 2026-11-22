@@ -42,7 +42,7 @@ class Receipt < ApplicationRecord
 
   has_one_attached :file, dependent: :purge_later
 
-  enum :source, { web: "web" }, validate: true, default: "web"
+  enum :source, { web: "web", api: "api" }, validate: true, default: "web"
   enum :extraction_status, { pending: "pending", completed: "completed", failed: "failed" }, validate: true, default: "pending", prefix: :extraction
 
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
@@ -67,7 +67,7 @@ class Receipt < ApplicationRecord
       user&.admin? || user&.member?
     end
 
-    def create_from_upload!(family:, user:, file:)
+    def create_from_upload!(family:, user:, file:, source: "web")
       content = read_upload!(file)
       content_type = Marcel::MimeType.for(StringIO.new(content), name: file.original_filename.to_s)
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
@@ -78,6 +78,7 @@ class Receipt < ApplicationRecord
 
       receipt = family.receipts.build(
         uploaded_by: user,
+        source: source,
         filename: upload_filename(file),
         content_type: content_type,
         byte_size: content.bytesize,

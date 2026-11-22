@@ -856,6 +856,16 @@ Rails.application.routes.draw do
       # Production API endpoints
       resources :accounts, only: [ :index, :show ]
       resources :account_statements, only: [ :index, :show, :create ]
+      resources :receipts, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :file
+          get :candidates
+          post :link
+          post :create_transaction
+          post :dismiss
+          post :reopen
+        end
+      end
       resources :balances, only: [ :index, :show ]
       resources :budgets, only: [ :index, :show ]
       resources :budget_categories, only: [ :index, :show ]

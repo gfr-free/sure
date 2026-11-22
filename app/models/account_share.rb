@@ -19,6 +19,15 @@ class AccountShare < ApplicationRecord
 
   scope :with_permission, ->(permission) { where(permission: permission) }
 
+  # Cache-key fragment for data scoped to the accounts shared with a user.
+  # Digests every share row, so a revoked or replaced share and a second
+  # change within the same second all change it, unlike count/max(updated_at).
+  def self.cache_version_for(user)
+    rows = where(user: user).order(:account_id)
+      .pluck(:account_id, :permission, :include_in_finances, :updated_at)
+    Digest::SHA256.hexdigest(rows.map { |row| row.map { |v| v.is_a?(Time) ? v.to_f : v } }.to_json)
+  end
+
   def full_control?
     permission == "full_control"
   end

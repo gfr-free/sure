@@ -214,11 +214,25 @@ class ReceiptTest < ActiveSupport::TestCase
   test "link_to! fails without linking when the copy cannot be stored" do
     receipt = upload([ "Total 9.99" ])
     transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
-    ActiveStorage::Blob.stubs(:create_and_upload!).raises(Errno::ECONNREFUSED)
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ECONNREFUSED)
 
-    assert_raises(Errno::ECONNREFUSED) { receipt.link_to!(transaction, user: @admin) }
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(Errno::ECONNREFUSED) { receipt.link_to!(transaction, user: @admin) }
+    end
     assert_nil receipt.reload.transaction_id
     assert_equal 0, transaction.reload.attachments.count
+  end
+
+  test "an upload that cannot be stored leaves no receipt, so the same file can be tried again" do
+    content = receipt_pdf([ "Total 4.20" ])
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ECONNREFUSED)
+
+    assert_no_difference [ "Receipt.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(Errno::ECONNREFUSED) { upload_content(content) }
+    end
+
+    ActiveStorage::Blob.any_instance.unstub(:upload_without_unfurling)
+    assert upload_content(content).file.attached?
   end
 
   test "a refused link removes the copy it uploaded" do

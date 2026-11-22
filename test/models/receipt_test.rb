@@ -116,6 +116,62 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal [ near ], receipt.match_candidates(@member).to_a
   end
 
+  test "match candidates keep the amount filter when the currency is unknown" do
+    receipt = upload([ "Total 25.00" ])
+    receipt.update!(amount: 25, currency: nil, date: nil)
+    match = create_transaction(account: @account, amount: 25, date: 5.days.ago.to_date)
+    create_transaction(account: @account, amount: 26, date: Date.current)
+
+    assert_equal [ match ], receipt.match_candidates(@admin).to_a
+  end
+
+  test "a file named .pdf without PDF bytes is refused" do
+    assert_raises(Receipt::InvalidUploadError) do
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt("just some text", filename: "receipt.pdf"))
+    end
+  end
+
+  test "a failed storage write removes the partial file and keeps the error" do
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ENOSPC)
+    ActiveStorage::Blob.any_instance.expects(:delete).once.raises(Errno::EIO)
+
+    assert_no_difference [ "Receipt.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(Errno::ENOSPC) { upload([ "Total 1.00" ]) }
+    end
+  end
+
+  test "create_transaction! refuses amounts that round to zero or past the ledger's capacity" do
+    receipt = upload([ "Total 15.00" ])
+
+    [ BigDecimal("0.00001"), BigDecimal("999999999999999.99999") ].each do |amount|
+      assert_no_difference -> { @account.entries.count } do
+        assert_raises(ActiveRecord::RecordInvalid) do
+          receipt.create_transaction!(account: @account, user: @admin, name: "Odd", date: Date.current, amount: amount, currency: "USD")
+        end
+      end
+    end
+  end
+
+  test "a transaction created from a receipt stays marked after the receipt is deleted" do
+    receipt = upload([ "Total 15.00" ])
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    receipt.destroy!
+
+    assert entry.transaction.reload.created_from_receipt?
+  end
+
+  test "purging an uploader removes their receipts but keeps the transaction's copy" do
+    receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 9.99" ])))
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.link_to!(transaction, user: @member)
+
+    @member.purge
+
+    assert_not Receipt.exists?(receipt.id)
+    assert_equal 1, transaction.reload.attachments.count
+  end
+
   test "link_to! copies the file onto the transaction" do
     receipt = upload([ "Total 9.99" ])
     transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)

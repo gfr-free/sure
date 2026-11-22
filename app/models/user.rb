@@ -31,6 +31,9 @@ class User < ApplicationRecord
   has_many :web_push_subscriptions, dependent: :destroy
   has_many :webauthn_credentials, dependent: :destroy
   has_many :mobile_devices, dependent: :destroy
+  # Receipts are private to their uploader, so nobody else could manage or
+  # delete them once the uploader is gone; copies on transactions stay.
+  has_many :uploaded_receipts, class_name: "Receipt", foreign_key: :uploaded_by_id, inverse_of: :uploaded_by, dependent: :destroy
   has_many :invitations, foreign_key: :inviter_id, dependent: :destroy
   has_many :impersonator_support_sessions, class_name: "ImpersonationSession", foreign_key: :impersonator_id, dependent: :destroy
   has_many :impersonated_support_sessions, class_name: "ImpersonationSession", foreign_key: :impersonated_id, dependent: :destroy

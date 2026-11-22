@@ -54,6 +54,16 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal 0.7, fields["amount"][:confidence]
   end
 
+  test "reads totals of a thousand or more without a grouping separator" do
+    assert_equal BigDecimal("1234.56"), parse("Summe 1234,56\n")["amount"][:value]
+    assert_equal BigDecimal("1234.56"), parse("Total 1,234.56\n")["amount"][:value]
+  end
+
+  test "takes the first amount after the label, not an included tax" do
+    assert_equal BigDecimal("119.00"), parse("Total 119.00 EUR (incl. VAT 19.00 EUR)\n")["amount"][:value]
+    assert_equal BigDecimal("5.80"), parse("5,80 EUR Summe\n")["amount"][:value]
+  end
+
   test "keeps a total that says what it includes" do
     assert_equal BigDecimal("23.80"), parse("Netto 20,00\nMwSt 3,80\nGesamtbetrag inkl. MwSt 23,80\n")["amount"][:value]
     assert_equal BigDecimal("120.00"), parse("Sous-total 100,00\nTVA 20,00\nNet à payer 120,00\n")["amount"][:value]

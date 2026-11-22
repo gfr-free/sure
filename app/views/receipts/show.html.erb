@@ -62,13 +62,16 @@
         <% end %>
       <% end %>
 
-      <% if @receipt.linked_transaction %>
-        <% entry = @receipt.linked_transaction.entry %>
+      <% if @receipt.transaction_id? %>
         <%= render DS::Card.new(class: "gap-2") do %>
           <h2 class="text-sm font-medium text-primary"><%= @receipt.created_transaction? ? t(".created_title") : t(".linked_title") %></h2>
-          <%= link_to transaction_path(entry), class: "flex items-center justify-between gap-3 text-sm text-primary hover:underline", data: { turbo_frame: :drawer } do %>
-            <span class="truncate"><%= entry.name %> · <%= entry.account.name %> · <%= l(entry.date, format: :long) %></span>
-            <span class="privacy-sensitive"><%= format_money(entry.amount_money) %></span>
+          <% if @linked_entry %>
+            <%= link_to transaction_path(@linked_entry), class: "flex items-center justify-between gap-3 text-sm text-primary hover:underline", data: { turbo_frame: :drawer } do %>
+              <span class="truncate"><%= @linked_entry.name %> · <%= @linked_entry.account.name %> · <%= l(@linked_entry.date, format: :long) %></span>
+              <span class="privacy-sensitive"><%= format_money(@linked_entry.amount_money) %></span>
+            <% end %>
+          <% else %>
+            <p class="text-sm text-secondary"><%= t(".linked_hidden") %></p>
           <% end %>
         <% end %>
       <% elsif !@receipt.dismissed_at? %>

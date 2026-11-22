@@ -25,6 +25,7 @@ class DataEnrichment < ApplicationRecord
     sophtron: "sophtron",
     synth: "synth",
     trade_republic: "trade_republic",
+    transfer_match: "transfer_match",
     truelayer: "truelayer",
     up: "up",
     wise: "wise"

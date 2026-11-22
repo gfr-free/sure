@@ -1,0 +1,45 @@
+---
+en:
+  custom_account_subtypes:
+    guest_read_only: Guests can view account subtypes but not change them.
+    index:
+      title: Account subtypes
+      new: New subtype
+      intro: Name your own subtypes and choose the rules they bring. Accounts with an own subtype follow its rules instead of the built-in subtype's. A level you set on an account by hand stays.
+      empty_title: No own subtypes yet
+      empty_description: Start from a built-in subtype such as a certificate of deposit and adjust its rules.
+    custom_account_subtype:
+      accounts:
+        zero: No accounts
+        one: 1 account
+        other: "%{count} accounts"
+      edit: Edit
+      delete: Delete
+      delete_title: "Delete %{name}?"
+      delete_body:
+        zero: No account uses this subtype.
+        one: 1 account uses this subtype. It goes back to the rules of its built-in subtype.
+        other: "%{count} accounts use this subtype. They go back to the rules of their built-in subtype."
+    form:
+      template_label: Start from
+      template_hint: Copies the rules of a built-in subtype. You can change them below.
+      template_type_only: "%{type} without subtype"
+      account_type: "Account type: %{type}"
+      name_label: Name
+      name_placeholder: e.g. Fixed deposit 2 years
+      liquidity_label: Availability
+      liquidity_hint: How quickly the money in these accounts can be reached.
+      tax_treatment_label: Tax treatment
+      tax_treatment_none: None
+      tax_treatment_hint: Tax-advantaged accounts stay out of budget and cash flow.
+      update_hint: Accounts with this subtype follow the new rules, except where an availability was set on the account by hand.
+    new:
+      title: New account subtype
+    edit:
+      title: Edit account subtype
+    create:
+      created: Subtype created
+    update:
+      updated: Subtype updated
+    destroy:
+      deleted: Subtype deleted

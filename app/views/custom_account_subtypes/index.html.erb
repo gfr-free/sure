@@ -1,0 +1,53 @@
+<%= content_for :page_title, t(".title") %>
+<% unless Current.user.guest? %>
+  <%= content_for :page_actions do %>
+    <%= render DS::Link.new(
+      text: t(".new"),
+      variant: "primary",
+      href: new_custom_account_subtype_path,
+      icon: "plus",
+      frame: :modal
+    ) %>
+  <% end %>
+<% end %>
+
+<div class="space-y-4">
+  <p class="text-sm text-secondary"><%= t(".intro") %></p>
+
+  <div class="bg-container rounded-xl shadow-border-xs p-4">
+    <% if @custom_account_subtypes.any? %>
+      <div class="space-y-4">
+        <% Accountable::TYPES.each do |accountable_type| %>
+          <% subtypes = @custom_account_subtypes_by_type[accountable_type] %>
+          <% next if subtypes.blank? %>
+          <div class="rounded-xl bg-container-inset space-y-1 p-1">
+            <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
+              <p><%= Accountable.from_type(accountable_type).display_name %></p>
+              <span class="text-subdued">&middot;</span>
+              <p><%= subtypes.size %></p>
+            </div>
+
+            <div class="bg-container rounded-lg shadow-border-xs">
+              <div class="overflow-hidden rounded-lg">
+                <% subtypes.each_with_index do |custom_account_subtype, index| %>
+                  <%= render "shared/ruler" if index.positive? %>
+                  <%= render "custom_account_subtypes/custom_account_subtype",
+                             custom_account_subtype: custom_account_subtype,
+                             account_counts: @account_counts %>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <%= render DS::EmptyState.new(icon: "list-tree", title: t(".empty_title"), description: t(".empty_description")) do |empty_state| %>
+        <% unless Current.user.guest? %>
+          <% empty_state.with_action do %>
+            <%= render DS::Link.new(text: t(".new"), icon: "plus", href: new_custom_account_subtype_path, frame: :modal) %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

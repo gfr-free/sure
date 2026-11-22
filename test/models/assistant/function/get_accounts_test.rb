@@ -30,6 +30,18 @@ class Assistant::Function::GetAccountsTest < ActiveSupport::TestCase
     end
   end
 
+  test "names the family's own subtype and its rules" do
+    account = accounts(:depository)
+    custom = @family.custom_account_subtypes.create!(
+      accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" }
+    )
+    account.update!(custom_account_subtype: custom)
+
+    payload = @fn.call[:accounts].find { |entry| entry[:id] == account.id }
+
+    assert_equal({ name: "Fixed 2y", rules: { "liquidity" => "locked", "tax_treatment" => nil } }, payload[:custom_subtype])
+  end
+
   test "excludes hidden accounts" do
     hidden = @family.accounts.visible.first
     hidden.update!(status: "disabled")

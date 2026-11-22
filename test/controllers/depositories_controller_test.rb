@@ -147,6 +147,125 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='account[enable_category_matcher]']", 0
   end
 
+  # --- availability (Account::Liquidity) ------------------------------------
+
+  test "create takes the subtype default without treating it as a manual choice" do
+    post depositories_path, params: {
+      account: { name: "Term deposit", currency: "USD", balance: 100, subtype: "cd", accountable_type: "Depository" }
+    }
+
+    account = Account.order(:created_at).last
+    assert_equal "locked", account.liquidity
+    assert_not account.liquidity_manual?
+  end
+
+  test "update stores a manual availability with its release date" do
+    set_preview(true)
+
+    patch depository_path(@account), params: {
+      account: { liquidity_choice: "locked", available_on: "2030-03-31" }
+    }
+
+    @account.reload
+    assert_equal "locked", @account.liquidity
+    assert @account.liquidity_manual?
+    assert_equal Date.new(2030, 3, 31), @account.available_on
+  end
+
+  test "update can hand availability back to the subtype" do
+    set_preview(true)
+    @account.update!(liquidity_choice: "long_term")
+
+    patch depository_path(@account), params: { account: { liquidity_choice: "automatic" } }
+
+    assert_equal "immediate", @account.reload.liquidity
+    assert_not @account.liquidity_manual?
+  end
+
+  test "update ignores availability fields without preview features" do
+    set_preview(false)
+
+    patch depository_path(@account), params: { account: { liquidity_choice: "locked", available_on: "2030-03-31" } }
+
+    @account.reload
+    assert_equal "immediate", @account.liquidity
+    assert_not @account.liquidity_manual?
+    assert_nil @account.available_on
+  end
+
+  test "the availability fields are preview only" do
+    set_preview(false)
+    get edit_account_url(@account)
+    assert_select "select[name='account[liquidity_choice]']", 0
+
+    set_preview(true)
+    get edit_account_url(@account)
+    assert_select "select[name='account[liquidity_choice]']", 1
+    assert_select "input[name='account[available_on]']", 1
+  end
+
+  test "the account page shows availability and the details tab only with preview" do
+    @account.update!(subtype: "cd", available_on: Date.new(2030, 3, 31))
+
+    set_preview(false)
+    get account_url(@account)
+    assert_response :success
+    assert_select "[data-testid='account-rule-details']", 0
+    assert_no_match I18n.t("accounts.liquidity.badge.locked_until", date: I18n.l(Date.new(2030, 3, 31), format: :long)), response.body
+
+    set_preview(true)
+    get account_url(@account, tab: "details")
+    assert_response :success
+    assert_select "[data-testid='account-rule-details']", 1
+    assert_match I18n.t("accounts.liquidity.badge.locked_until", date: I18n.l(Date.new(2030, 3, 31), format: :long)), response.body
+    assert_match I18n.t("accounts.liquidity.details.sources.subtype", subtype: @account.long_subtype_label), response.body
+  end
+
+  # --- own subtypes (CustomAccountSubtype) ---------------------------------
+
+  test "the own subtype select shows with preview when the family has one for the type" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    @user.family.custom_account_subtypes.create!(accountable_type: "Investment", name: "Pension", rules: { "liquidity" => "long_term" })
+
+    set_preview(false)
+    get edit_account_url(@account)
+    assert_select "select[name='account[custom_account_subtype_id]']", 0
+
+    set_preview(true)
+    get edit_account_url(@account)
+    assert_select "select[name='account[custom_account_subtype_id]'] option[value='#{custom.id}']", 1
+    assert_select "select[name='account[custom_account_subtype_id]'] option", text: "Pension", count: 0
+  end
+
+  test "update ignores an own subtype without preview features" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    set_preview(false)
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: custom.id } }
+
+    assert_nil @account.reload.custom_account_subtype
+  end
+
+  test "update assigns an own subtype and takes its default availability" do
+    custom = @user.family.custom_account_subtypes.create!(accountable_type: "Depository", name: "Fixed 2y", rules: { "liquidity" => "locked" })
+    set_preview(true)
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: custom.id, available_on: "2030-03-31" } }
+
+    @account.reload
+    assert_equal custom, @account.custom_account_subtype
+    assert_equal "locked", @account.liquidity
+    assert_equal Date.new(2030, 3, 31), @account.available_on
+  end
+
+  test "update rejects another family's subtype" do
+    foreign = families(:empty).custom_account_subtypes.create!(accountable_type: "Depository", name: "Foreign", rules: { "liquidity" => "locked" })
+
+    patch depository_path(@account), params: { account: { custom_account_subtype_id: foreign.id } }
+
+    assert_nil @account.reload.custom_account_subtype_id
+  end
+
   # --- member-owned connections (issue #3579) ------------------------------
 
   test "a member sees only member-connectable providers in the method selector" do
@@ -363,4 +482,8 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "button[form=?]", dom_id(@account, :logo_options)
   end
+  private
+    def set_preview(enabled)
+      @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => enabled))
+    end
 end

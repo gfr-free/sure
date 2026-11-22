@@ -8,7 +8,8 @@
 # - long_term:  retirement accounts, property, vehicles
 #
 # The stored level comes from the account's type and subtype
-# (Accountable::Rules) until the user picks one on the form; a manual pick is
+# (Accountable::Rules), or from the family's own subtype when the account has
+# one (CustomAccountSubtype), until the user picks one on the form; a manual pick is
 # kept in `locked_attributes` so subtype changes and syncs never overwrite it.
 #
 # A locked account becomes available on its release date by calculation only:
@@ -28,6 +29,10 @@ module Account::Liquidity
 
   # Form value for "follow the subtype again".
   AUTOMATIC = "automatic".freeze
+
+  # Form fields for the availability choice; web forms permit them only
+  # where they show them (AccountableResource#liquidity_form_attributes).
+  FORM_ATTRIBUTES = %i[liquidity_choice available_on auto_renew renewal_term_months].freeze
 
   MAX_RENEWAL_TERM_MONTHS = 600
 
@@ -106,12 +111,13 @@ module Account::Liquidity
   end
 
   def default_liquidity
-    return "immediate" if accountable_class.nil?
-
-    accountable_class.rules_for(subtype).liquidity
+    subtype_rules&.liquidity || "immediate"
   end
 
+  # The family's own subtype wins over the built-in one (Account::CustomSubtype).
   def subtype_rules
+    return custom_account_subtype.to_rules if custom_account_subtype
+
     accountable_class&.rules_for(subtype)
   end
 
@@ -164,14 +170,20 @@ module Account::Liquidity
   # Writes the subtype default straight to the column when the subtype was
   # changed outside the account form (provider syncs update the accountable
   # directly). A manual choice is left alone.
-  def refresh_default_liquidity!
+  #
+  # `keep_release_fields` keeps a release date the user entered when the new
+  # default is not locked; they only count while the level is locked, so a
+  # family's own subtype switched back to locked finds them again.
+  def refresh_default_liquidity!(keep_release_fields: false)
     return if liquidity_manual?
 
     default = default_liquidity
     return if liquidity == default
 
     attributes = { liquidity: default }
-    attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil) unless default == "locked"
+    unless default == "locked" || keep_release_fields
+      attributes.merge!(available_on: nil, auto_renew: false, renewal_term_months: nil)
+    end
     update_columns(attributes)
   end
 
@@ -200,6 +212,7 @@ module Account::Liquidity
 
     def liquidity_default_needed?
       new_record? || will_save_change_to_accountable_type? ||
+        will_save_change_to_custom_account_subtype_id? ||
         accountable&.will_save_change_to_attribute?(:subtype)
     end
 

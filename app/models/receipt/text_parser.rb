@@ -17,7 +17,14 @@
 #
 # Labels cover German, English, French, Italian, Spanish and Dutch.
 class Receipt::TextParser
-  AMOUNT_PATTERN = AccountStatement::TextMetadataParser::AMOUNT_PATTERN
+  # Like the statement parser's amounts, but receipts often print totals of a
+  # thousand or more without a grouping separator ("1234,56").
+  AMOUNT_NUMBER = /(?<![\d.,])(?:\d{1,3}(?:[.,'\u00A0\u202F ]\d{3})+|\d+)[.,]\d{2}(?![\d]|[.,\/-]\d)/
+  CURRENCY_MARK = AccountStatement::TextMetadataParser::CURRENCY_MARK
+  AMOUNT_PATTERN = Regexp.union(
+    /(?<prefix_currency>#{CURRENCY_MARK})\p{Blank}*[-+]?(?<prefix_number>#{AMOUNT_NUMBER})/,
+    /(?<suffix_number>#{AMOUNT_NUMBER})(?:\p{Blank}*(?<suffix_currency>#{CURRENCY_MARK}))?/
+  )
   CURRENCY_SYMBOLS = { "€" => "EUR", "£" => "GBP" }.freeze
 
   # Weight 3 names the amount to pay, 2 a plain total, 1 a payment line.
@@ -99,11 +106,14 @@ class Receipt::TextParser
       candidates = []
       @lines.each_with_index do |line, index|
         normalized = line.downcase
-        weight = TOTAL_LABELS.find { |_, labels| labels.any? { |label| normalized.match?(label_regexp(label)) } }&.first
+        weight, label_end = total_label(normalized)
         next unless weight
         next if weight < 3 && excluded_line?(normalized)
 
-        amount = amounts_in(line).last || amounts_in(next_line(index)).first
+        # The first amount after the label ("Total 119.00 EUR (incl. VAT 19.00 EUR)"),
+        # else one printed before it, else the next line's.
+        amount = amounts_in(line[label_end..]).first || amounts_in(line[0...label_end]).last ||
+                 amounts_in(next_line(index)).first
         candidates << amount.merge(weight: weight, index: index) if amount
       end
 
@@ -115,7 +125,17 @@ class Receipt::TextParser
       best.merge(confidence: confirmed ? 0.9 : 0.7)
     end
 
-    # Without a label, the largest amount is the best guess, but only a guess.
+    # The strongest label on the line and where it ends.
+    def total_label(line)
+      TOTAL_LABELS.each do |weight, labels|
+        labels.each do |label|
+          match = line.match(label_regexp(label))
+          return [ weight, match.end(0) ] if match
+        end
+      end
+      nil
+    end
+
     # A subtotal, tax, change or discount line, unless the word only says what
     # the total includes ("Gesamt inkl. MwSt").
     def excluded_line?(line)
@@ -126,6 +146,7 @@ class Receipt::TextParser
       end
     end
 
+    # Without a label, the largest amount is the best guess, but only a guess.
     def fallback_total
       largest = amounts_in(@text).max_by { _1[:value] }
       largest&.merge(confidence: 0.3)

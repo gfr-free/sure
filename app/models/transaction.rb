@@ -7,6 +7,7 @@ class Transaction < ApplicationRecord
 
   has_many :taggings, as: :taggable, dependent: :destroy
   has_many :tags, through: :taggings
+  has_many :receipts, inverse_of: :linked_transaction
 
   # File attachments (receipts, invoices, etc.) using Active Storage
   # Supports images (JPEG, PNG, GIF, WebP) and PDFs up to 10MB each
@@ -35,6 +36,10 @@ class Transaction < ApplicationRecord
   def tag_ids=(ids)
     id_type = Tag.type_for_attribute(:id)
     super(Array(ids).uniq { |id| id_type.cast(id) || id })
+  end
+
+  def created_from_receipt?
+    receipts.exists?(created_transaction: true)
   end
 
   def tags=(tags)

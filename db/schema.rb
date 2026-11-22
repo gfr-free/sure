@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2104,6 +2104,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.index ["user_id"], name: "index_receipt_itemizations_on_user_id"
   end
 
+  create_table "receipts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "amount", precision: 19, scale: 4
+    t.bigint "byte_size", null: false
+    t.string "content_sha256", limit: 64, null: false
+    t.string "content_type", limit: 100, null: false
+    t.datetime "created_at", null: false
+    t.boolean "created_transaction", default: false, null: false
+    t.string "currency", limit: 3
+    t.date "date"
+    t.datetime "dismissed_at"
+    t.string "extraction_error", limit: 100
+    t.string "extraction_status", default: "pending", null: false
+    t.uuid "family_id", null: false
+    t.jsonb "field_sources", default: {}, null: false
+    t.string "filename", limit: 255, null: false
+    t.datetime "linked_at"
+    t.string "merchant_name", limit: 200
+    t.text "raw_text"
+    t.string "source", default: "web", null: false
+    t.uuid "transaction_id"
+    t.datetime "updated_at", null: false
+    t.uuid "uploaded_by_id"
+    t.index ["family_id", "content_sha256"], name: "index_receipts_on_family_id_and_content_sha256", unique: true
+    t.index ["transaction_id"], name: "index_receipts_on_transaction_id"
+    t.index ["uploaded_by_id", "created_at"], name: "index_receipts_on_uploaded_by_id_and_created_at"
+  end
+
   create_table "recurrence_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "day_of_month"
@@ -3309,6 +3336,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   add_foreign_key "receipt_itemizations", "active_storage_attachments", column: "attachment_id", on_delete: :cascade
   add_foreign_key "receipt_itemizations", "transactions", on_delete: :cascade
   add_foreign_key "receipt_itemizations", "users", on_delete: :cascade
+  add_foreign_key "receipts", "families"
+  add_foreign_key "receipts", "transactions", on_delete: :nullify
+  add_foreign_key "receipts", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "recurrence_rules", "recurring_transactions", on_delete: :cascade
   add_foreign_key "recurring_allocations", "entries", on_delete: :nullify
   add_foreign_key "recurring_allocations", "recurring_occurrences", column: ["recurring_occurrence_id", "currency"], primary_key: ["id", "currency"], name: "fk_recurring_allocations_currency_matches_occurrence", on_delete: :cascade

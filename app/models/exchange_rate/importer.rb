@@ -4,6 +4,9 @@ class ExchangeRate::Importer
 
   PROVISIONAL_LOOKBACK_DAYS = 5
 
+  # Why the provider gave no usable rates, or nil when the import got them
+  attr_reader :provider_error
+
   def initialize(exchange_rate_provider:, from:, to:, start_date:, end_date:, clear_cache: false, provider_name: ExchangeRate.provider_name)
     @exchange_rate_provider = exchange_rate_provider
     @current_provider_name = provider_name
@@ -22,6 +25,7 @@ class ExchangeRate::Importer
     end
 
     if provider_rates.empty?
+      @provider_error ||= "Provider returned no rates for #{from} to #{to} between #{start_date} and #{end_date}"
       Rails.logger.warn("Could not fetch rates for #{from} to #{to} between #{start_date} and #{end_date} because provider returned no rates")
       return
     end
@@ -33,6 +37,7 @@ class ExchangeRate::Importer
     earliest_valid_provider_date = provider_rates.values
       .select { |r| r.rate.present? && r.rate.to_f > 0 }
       .min_by(&:date)&.date
+    @provider_error = "Provider returned no usable rates for #{from} to #{to} between #{start_date} and #{end_date}" unless earliest_valid_provider_date
 
     # When no anchor rate exists, advance the loop start to the earliest provider rate
     loop_start_date = fill_start_date
@@ -225,6 +230,7 @@ class ExchangeRate::Importer
           message = "#{exchange_rate_provider.class.name} could not fetch exchange rate pair from: #{from} to: #{to} between: #{effective_start_date} and: #{Date.current}.  Provider error: #{provider_response.error.message}"
           Rails.logger.warn(message)
           Sentry.capture_exception(MissingExchangeRateError.new(message), level: :warning)
+          @provider_error = provider_response.error.message
           {}
         end
       end

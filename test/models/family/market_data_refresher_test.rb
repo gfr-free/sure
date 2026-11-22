@@ -59,6 +59,22 @@ class Family::MarketDataRefresherTest < ActiveSupport::TestCase
     assert_match "Rate limit exceeded", DebugLogEntry.where(family: @family).order(:created_at).last.message
   end
 
+  test "logs a rate refresh the provider reports as failed in the family's debug log" do
+    @family.accounts.create!(name: "Savings", currency: "CAD", balance: 100, accountable: Depository.new)
+
+    @provider.expects(:fetch_exchange_rates)
+             .with(has_entries(from: "CAD", to: "USD"))
+             .returns(provider_error_response(Provider::Error.new("Rate limit exceeded")))
+
+    assert_difference -> { DebugLogEntry.where(family: @family, level: "error", category: "provider_sync_error").count }, 1 do
+      Family::MarketDataRefresher.new(@family).refresh
+    end
+
+    entry = DebugLogEntry.where(family: @family).order(:created_at).last
+    assert_match "Rate limit exceeded", entry.message
+    assert_equal({ "from_currency" => "CAD", "to_currency" => "USD" }, entry.metadata)
+  end
+
   test "logs a pair that fails and goes on with the others" do
     @family.accounts.create!(name: "Savings", currency: "CAD", balance: 100, accountable: Depository.new)
     @family.accounts.create!(name: "Card", currency: "GBP", balance: 100, accountable: CreditCard.new)

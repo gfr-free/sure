@@ -10,6 +10,7 @@ de:
       reading: Wird gelesen
     sources:
       pdf_text: PDF-Text
+      qr: QR-Code
     table:
       amount: Betrag
       date: Datum

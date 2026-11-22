@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2078,6 +2078,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.index ["status"], name: "index_questrade_items_on_status"
   end
 
+  create_table "receipt_merchant_hints", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.string "kind", limit: 20, null: false
+    t.uuid "merchant_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "value", limit: 200, null: false
+    t.index ["family_id", "kind", "value"], name: "index_receipt_merchant_hints_on_family_id_and_kind_and_value", unique: true
+    t.index ["merchant_id"], name: "index_receipt_merchant_hints_on_merchant_id"
+  end
+
   create_table "receipts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "amount", precision: 19, scale: 4
     t.bigint "byte_size", null: false
@@ -2094,6 +2105,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.jsonb "field_sources", default: {}, null: false
     t.string "filename", limit: 255, null: false
     t.datetime "linked_at"
+    t.jsonb "merchant_identifiers", default: [], null: false
     t.string "merchant_name", limit: 200
     t.text "raw_text"
     t.string "source", default: "web", null: false
@@ -3307,6 +3319,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "questrade_accounts", "questrade_items"
   add_foreign_key "questrade_items", "families"
+  add_foreign_key "receipt_merchant_hints", "families", on_delete: :cascade
+  add_foreign_key "receipt_merchant_hints", "merchants", on_delete: :cascade
   add_foreign_key "receipts", "families"
   add_foreign_key "receipts", "transactions", on_delete: :nullify
   add_foreign_key "receipts", "users", column: "uploaded_by_id", on_delete: :nullify

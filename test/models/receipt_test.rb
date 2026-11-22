@@ -3,6 +3,7 @@ require "test_helper"
 class ReceiptTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
   include ReceiptPdfHelper
+  include ReceiptQrHelper
 
   setup do
     @family = families(:dylan_family)
@@ -84,7 +85,7 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
-  test "extract! leaves an image's fields blank until a reader for images exists" do
+  test "extract! leaves the fields of a photo without a QR code blank" do
     receipt = Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(file_fixture("square-placeholder.png").binread, filename: "photo.png", content_type: "image/png"))
 
     receipt.extract!
@@ -93,6 +94,81 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_nil receipt.amount
     assert_nil receipt.raw_text
     assert_equal :open, receipt.status
+  end
+
+  test "extract! reads a till receipt's QR code on a photo" do
+    travel_to Time.zone.parse("2026-11-22 12:00") do
+      receipt = upload_image(receipt_qr_png(german_till_payload))
+
+      receipt.extract!
+
+      assert receipt.extraction_completed?
+      assert_equal BigDecimal("11.59"), receipt.amount
+      assert_equal Date.new(2026, 11, 20), receipt.date
+      assert_equal "EUR", receipt.currency
+      assert_equal "qr", receipt.field_source(:amount)
+      assert_nil receipt.merchant_name
+      assert_nil receipt.raw_text
+      assert_equal [ "tse" ], receipt.merchant_identifiers.map { |identifier| identifier["kind"] }
+    end
+  end
+
+  test "extract! takes the merchant from a PDF's text when its QR code has none" do
+    travel_to Time.zone.parse("2026-11-22 12:00") do
+      receipt = upload_content(receipt_qr_pdf(german_till_payload))
+      Receipt::Extraction.any_instance.stubs(:pdf_text).returns("Bakery Demo\nSumme 11,59 EUR")
+
+      receipt.extract!
+
+      assert_equal BigDecimal("11.59"), receipt.amount
+      assert_equal "qr", receipt.field_source(:amount)
+      assert_equal "Bakery Demo", receipt.merchant_name
+      assert_equal "pdf_text", receipt.field_source(:merchant_name)
+    end
+  end
+
+  test "linking a receipt with a QR identifier teaches its merchant for the next receipt" do
+    travel_to Time.zone.parse("2026-11-22 12:00") do
+      merchant = merchants(:amazon)
+      first = upload_image(receipt_qr_png(german_till_payload))
+      first.extract!
+      transaction = create_transaction(account: @account, amount: 11.59, date: Date.current)
+      transaction.update!(merchant: merchant)
+
+      first.link_to!(transaction, user: @admin)
+
+      hint = @family.receipt_merchant_hints.sole
+      assert_equal merchant, hint.merchant
+      assert_equal "tse", hint.kind
+
+      second = upload_image(receipt_qr_png(german_till_payload(gross: "2.10_0.00_0.00_0.00_0.00")))
+      second.extract!
+
+      assert_equal merchant.name, second.merchant_name
+      assert_equal "qr", second.field_source(:merchant_name)
+      assert_equal BigDecimal("2.10"), second.amount
+    end
+  end
+
+  test "extract! still reads the PDF text when the QR reader fails" do
+    receipt = upload([ "Coffee House", "Total 12.40 USD", "Date #{Date.current.iso8601}" ])
+    Receipt::QrReader.stubs(:read).raises(Receipt::ExternalCommand::TimeoutError, "zbarimg timed out")
+
+    assert_difference "DebugLogEntry.count", 1 do
+      receipt.extract!
+    end
+
+    assert receipt.extraction_completed?
+    assert_equal BigDecimal("12.40"), receipt.amount
+    assert_equal "pdf_text", receipt.field_source(:amount)
+  end
+
+  test "a learned merchant is not offered to another family" do
+    other_family = families(:empty)
+    ReceiptMerchantHint.learn!(@family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ], merchants(:amazon))
+
+    assert_nil ReceiptMerchantHint.merchant_for(other_family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ])
+    assert_equal merchants(:amazon), ReceiptMerchantHint.merchant_for(@family, [ { "kind" => "payee", "value" => "DE2051:stadtwerke demo gmbh" } ])
   end
 
   test "extract! marks a broken PDF as failed" do
@@ -235,6 +311,10 @@ class ReceiptTest < ActiveSupport::TestCase
   private
     def upload(lines)
       upload_content(receipt_pdf(lines))
+    end
+
+    def upload_image(content)
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(content, filename: "photo.png", content_type: "image/png"))
     end
 
     def upload_content(content)

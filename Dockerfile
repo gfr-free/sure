@@ -9,8 +9,9 @@ WORKDIR /rails
 
 # Install base packages
 # poppler-utils provides pdftoppm, required for the PDF vision processing path
+# zbar-tools provides zbarimg, which reads QR codes on uploaded receipts
 RUN apt-get update -qq \
-    && apt-get install --no-install-recommends -y curl libvips postgresql-client libyaml-0-2 procps libjemalloc2 poppler-utils \
+    && apt-get install --no-install-recommends -y curl libvips postgresql-client libyaml-0-2 procps libjemalloc2 poppler-utils zbar-tools \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment

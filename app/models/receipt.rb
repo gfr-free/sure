@@ -158,7 +158,7 @@ class Receipt < ApplicationRecord
     # meanwhile counts as manual and is kept.
     with_lock do
       manual = FIELDS.select { |field| field_source(field) == "manual" }
-      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: nil }
+      attrs = { raw_text: result.raw_text, merchant_identifiers: result.identifiers, extraction_status: "completed", extraction_error: nil }
       sources = field_sources.slice(*manual)
       (FIELDS - manual).each do |field|
         value = result.fields[field]
@@ -271,6 +271,10 @@ class Receipt < ApplicationRecord
         transaction.attachments.attach(io: StringIO.new(file.download), filename: filename, content_type: content_type)
         update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created)
       end
+
+      # Linking confirms the receipt's merchant: the next receipt from the same
+      # till or payee gets the transaction's merchant.
+      ReceiptMerchantHint.learn!(family, merchant_identifiers, transaction.merchant)
     end
 
     def refuse!(error, **options)

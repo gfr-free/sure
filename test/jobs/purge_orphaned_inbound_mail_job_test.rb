@@ -19,12 +19,12 @@ class PurgeOrphanedInboundMailJobTest < ActiveJob::TestCase
     assert kept.reload.raw_email.attached?
   end
 
-  test "does nothing while the receipt inbox is off" do
+  test "keeps cleaning up after the receipt inbox is switched off" do
     orphan = raw_mail_blob(created_at: 2.days.ago)
 
     PurgeOrphanedInboundMailJob.perform_now
 
-    assert ActiveStorage::Blob.exists?(orphan.id)
+    assert_not ActiveStorage::Blob.exists?(orphan.id)
   end
 
   private

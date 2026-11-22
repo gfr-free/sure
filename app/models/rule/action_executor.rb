@@ -25,6 +25,11 @@ class Rule::ActionExecutor
     nil
   end
 
+  # Whether the current user may newly choose +value+.
+  def selectable_value?(value)
+    true
+  end
+
   # The option for a saved value that options leaves out (e.g. a merchant only
   # on accounts the current user can't see, or one no longer assigned), so
   # editing the rule keeps the value instead of silently switching to the

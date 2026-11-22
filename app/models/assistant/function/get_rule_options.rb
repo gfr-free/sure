@@ -74,6 +74,7 @@ class Assistant::Function::GetRuleOptions < Assistant::Function
 
     def value_spec(key)
       case key
+      when "set_as_transfer_or_payment" then "id of an account from get_accounts that you can edit"
       when *ACCOUNT_KEYS then "account id from get_accounts"
       when *CATEGORY_KEYS then "category id from get_categories"
       when "transaction_tag" then "tag id from get_tags"

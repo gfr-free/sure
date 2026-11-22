@@ -140,6 +140,20 @@ class Assistant::Function::CreateRuleTest < ActiveSupport::TestCase
     assert @fn.call(params)[:success]
   end
 
+  test "only accepts transfer targets the user can write to" do
+    member_fn = Assistant::Function::CreateRule.new(users(:family_member))
+    params = ->(account) {
+      {
+        "conditions" => [ { "condition_type" => "transaction_name", "operator" => "like", "value" => "zxq transfer" } ],
+        "actions" => [ { "action_type" => "set_as_transfer_or_payment", "value" => account.id } ]
+      }
+    }
+
+    assert_equal "invalid_rule", member_fn.call(params.call(accounts(:credit_card)))[:error], "read-only share"
+    assert_equal "invalid_rule", member_fn.call(params.call(accounts(:investment)))[:error], "not shared"
+    assert member_fn.call(params.call(accounts(:depository)))[:success]
+  end
+
   test "a new email rule records its current matches as the baseline" do
     old = create_transaction(name: "ZXQ Coffee Old").transaction
 

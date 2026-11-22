@@ -258,10 +258,9 @@ class Receipt < ApplicationRecord
     digests = Array(identifiers).filter_map { |identifier| identifier["digest"].presence }
     return nil if digests.empty? || uploaded_by.nil?
 
-    containment = Array.new(digests.size, "receipts.merchant_identifiers @> ?::jsonb").join(" OR ")
     earlier = family.receipts
       .where.not(id: id)
-      .where(containment, *digests.map { |digest| [ { digest: digest } ].to_json })
+      .where("receipts.merchant_identifiers @> ANY (ARRAY[?]::jsonb[])", digests.map { |digest| [ { digest: digest } ].to_json })
       .joins(linked_transaction: :entry)
       .where(entries: { account_id: family.accounts.accessible_by(uploaded_by).select(:id) })
       .where.not(transactions: { merchant_id: nil })

@@ -341,6 +341,10 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
       post create_transaction_api_v1_receipt_url(receipt),
            params: { account_id: @account.id, date: "2026-11-02", amount: "-1" }, headers: api_headers(@api_key)
       assert_response :unprocessable_entity
+
+      post create_transaction_api_v1_receipt_url(receipt),
+           params: { account_id: @account.id, date: "2026-11-02", amount: "1e20" }, headers: api_headers(@api_key)
+      assert_response :unprocessable_entity
     end
   end
 

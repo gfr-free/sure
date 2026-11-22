@@ -1,6 +1,7 @@
 <%# locals: (weight:, color:) %>
 
-<% effective_weight = weight.presence || 0 %>
+<%# A nil weight marks an account the totals do not count. %>
+<% effective_weight = weight || 0 %>
 
 <div class="w-full flex items-center justify-between gap-2">
   <div class="flex gap-[3px]">
@@ -8,5 +9,9 @@
       <div class="w-0.5 h-2.5 rounded-lg <%= i < (effective_weight / 20.0).ceil ? "" : "opacity-20" %>" style="background-color: <%= color %>;"></div>
     <% end %>
   </div>
-  <p class="text-sm whitespace-nowrap privacy-sensitive"><%= number_to_percentage(effective_weight, precision: 0) %></p>
+  <% if weight.nil? %>
+    <p class="text-sm text-secondary whitespace-nowrap" title="<%= t(".not_counted") %>">–</p>
+  <% else %>
+    <p class="text-sm whitespace-nowrap privacy-sensitive"><%= number_to_percentage(weight, precision: 0) %></p>
+  <% end %>
 </div>

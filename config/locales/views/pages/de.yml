@@ -23,6 +23,8 @@ de:
         new_account: Neues Konto
         no_account_subtitle: Da noch keine Konten hinzugefügt wurden, gibt es keine Daten anzuzeigen. Füge dein erstes Konto hinzu, um Dashboard-Daten zu sehen.
         no_account_title: Noch keine Konten vorhanden
+      group_weight:
+        not_counted: "Nicht in Summen enthalten"
       balance_sheet:
         title: "Bilanz"
         no_items: "Noch keine %{name}"

@@ -26,8 +26,10 @@ class Receipt::EmailInbox
       address if address.match?(ADDRESS_FORMAT) && !address.include?("+")
     end
 
+    # Needs a base address and at least one way for mail to arrive, or users
+    # could switch on an address that never receives anything.
     def configured?
-      base_address.present?
+      base_address.present? && (ENV["ACTION_MAILBOX_INGRESS"].present? || Receipt::ImapFetcher.credentials_present?)
     end
 
     def address_for(user)
@@ -39,11 +41,11 @@ class Receipt::EmailInbox
 
     # Switching on again, or rotating, makes the old address stop working.
     def enable!(user)
-      user.update!(receipt_inbox_token: SecureRandom.base36(TOKEN_LENGTH))
+      save_without_user_validations!(user, receipt_inbox_token: SecureRandom.base36(TOKEN_LENGTH))
     end
 
     def disable!(user)
-      user.update!(receipt_inbox_token: nil)
+      save_without_user_validations!(user, receipt_inbox_token: nil)
     end
 
     def update_senders!(user, text)
@@ -54,7 +56,7 @@ class Receipt::EmailInbox
         raise ActiveRecord::RecordInvalid, user
       end
 
-      user.update!(receipt_inbox_senders: (senders - [ user.email.to_s.downcase ]).join("\n").presence)
+      save_without_user_validations!(user, receipt_inbox_senders: (senders - [ user.email.to_s.downcase ]).join("\n").presence)
     end
 
     # Stored as one address per line, so the column can be encrypted.
@@ -98,6 +100,13 @@ class Receipt::EmailInbox
     end
 
     private
+      # Only inbox columns change, so an unrelated invalid User attribute (an old
+      # locale, say) must not block the user from managing the address.
+      def save_without_user_validations!(user, attrs)
+        user.assign_attributes(attrs)
+        user.save!(validate: false)
+      end
+
       def token_from(mail)
         return nil unless configured?
 
@@ -118,16 +127,15 @@ class Receipt::EmailInbox
         (addresses + headers.map(&:value)).map(&:to_s)
       end
 
+      # At most MAX_ATTACHMENTS receipts per mail; parts of other types do not
+      # count towards the cap.
       def receive_attachments(user, mail)
         created = 0
         duplicates = 0
         skipped = 0
 
-        usable = mail.attachments.reject { |part| logo?(part) }
-        skipped += mail.attachments.size - usable.size
-
-        usable.each_with_index do |part, index|
-          if index >= MAX_ATTACHMENTS
+        mail.attachments.each do |part|
+          if logo?(part) || created + duplicates >= MAX_ATTACHMENTS
             skipped += 1
             next
           end

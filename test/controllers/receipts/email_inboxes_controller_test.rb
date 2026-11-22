@@ -26,7 +26,7 @@ class Receipts::EmailInboxesControllerTest < ActionDispatch::IntegrationTest
       assert address.present?
 
       get receipts_url
-      assert_select "[data-testid=receipt-inbox-address][value=?]", address
+      assert_select "[data-testid=receipt-inbox-address]", text: address
     end
   end
 

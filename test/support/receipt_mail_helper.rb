@@ -1,6 +1,6 @@
 # Builds receipt e-mails for the e-mail inbox tests.
 module ReceiptMailHelper
-  RECEIPT_INBOX_ENV = { "RECEIPT_INBOX_ADDRESS" => "receipts@mail.example.com" }.freeze
+  RECEIPT_INBOX_ENV = { "RECEIPT_INBOX_ADDRESS" => "receipts@mail.example.com", "ACTION_MAILBOX_INGRESS" => "relay" }.freeze
 
   def with_receipt_inbox(overrides = {}, &block)
     with_env_overrides(RECEIPT_INBOX_ENV.merge(overrides), &block)

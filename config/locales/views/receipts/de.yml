@@ -21,6 +21,7 @@ de:
       description: Leite Rechnungen und Belege an deine eigene Adresse weiter. Sure übernimmt jedes PDF und jedes Foto im Anhang in deine Belege. Den Text der Mail speichert Sure nicht.
       enable: E-Mail-Adresse anlegen
       address: Deine Beleg-Adresse
+      copied: Kopiert
       copy: Adresse kopieren
       senders_hint: "Sure nimmt Mails an diese Adresse nur von %{email} und den Adressen unten an. Halte die Adresse geheim: Wer sie kennt, kann versuchen, dir Belege zu schicken."
       senders_label: Weitere Absender-Adressen

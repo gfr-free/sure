@@ -15,6 +15,7 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
     @imap.stubs(:disconnected?).returns(false)
     @imap.stubs(:logout)
     @imap.stubs(:disconnect)
+    @imap.stubs(:capability).returns(%w[IMAP4REV1])
   end
 
   test "is configured only with a base address and IMAP credentials" do
@@ -39,6 +40,38 @@ class Receipt::ImapFetcherTest < ActiveSupport::TestCase
       assert_difference -> { ActionMailbox::InboundEmail.count }, 1 do
         assert_equal 1, Receipt::ImapFetcher.new.fetch
       end
+    end
+  end
+
+  test "expunges only its own messages when the server supports UIDPLUS" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    expect_session(uids: [ 7 ], size: source.bytesize, source: source)
+    @imap.stubs(:capability).returns(%w[IMAP4REV1 UIDPLUS])
+    @imap.expects(:uid_store).with(7, "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:uid_expunge).with([ 7 ])
+    @imap.expects(:expunge).never
+
+    with_receipt_inbox(IMAP_ENV) { assert_equal 1, Receipt::ImapFetcher.new.fetch }
+  end
+
+  test "sets aside a message with an empty body and goes on after a storage error" do
+    source = receipt_mail(to: "receipts+#{'a' * 24}@mail.example.com", from: "a@example.com").to_s
+    expect_session(uids: [ 5, 6, 7 ], size: source.bytesize, source: source)
+    @imap.stubs(:uid_fetch).with(5, "BODY.PEEK[]").returns([ fetch_data("BODY[]" => "") ])
+    ActionMailbox::InboundEmail.expects(:create_and_extract_message_id!).twice.raises(RuntimeError).then.returns(nil)
+    @imap.expects(:uid_store).with(5, "+FLAGS", [ :Seen ])
+    @imap.expects(:uid_store).with(7, "+FLAGS", [ :Seen, :Deleted ])
+    @imap.expects(:expunge)
+
+    with_receipt_inbox(IMAP_ENV) do
+      assert_equal 1, Receipt::ImapFetcher.new.fetch
+    end
+    assert DebugLogEntry.where(source: "receipt_imap", message: "Receipt IMAP message not stored: RuntimeError").exists?
+  end
+
+  test "a blank port falls back to 993" do
+    with_env_overrides(IMAP_ENV.merge("RECEIPT_INBOX_IMAP_PORT" => "")) do
+      assert_equal 993, Receipt::ImapFetcher.settings[:port]
     end
   end
 

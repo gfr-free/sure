@@ -21,6 +21,7 @@ en:
       description: Forward invoices and receipts to your own address. Sure adds every PDF or photo attached to the mail to your receipts. The mail text itself is not kept.
       enable: Get an e-mail address
       address: Your receipt address
+      copied: Copied
       copy: Copy address
       senders_hint: "Sure accepts mail to this address only from %{email} and the addresses below. Keep the address private: anyone who knows it can try to send you receipts."
       senders_label: Other sender addresses

@@ -17,9 +17,28 @@ class Receipt::EmailInboxTest < ActiveSupport::TestCase
       assert_nil Receipt::EmailInbox.address_for(@user)
     end
 
-    with_env_overrides("RECEIPT_INBOX_ADDRESS" => "receipts+x@mail.example.com") do
+    with_env_overrides("RECEIPT_INBOX_ADDRESS" => "receipts+x@mail.example.com", "ACTION_MAILBOX_INGRESS" => "relay") do
       assert_not Receipt::EmailInbox.configured?
     end
+
+    # An address without an ingress or IMAP would never receive anything.
+    with_env_overrides("RECEIPT_INBOX_ADDRESS" => "receipts@mail.example.com", "ACTION_MAILBOX_INGRESS" => nil, "RECEIPT_INBOX_IMAP_HOST" => nil) do
+      assert_not Receipt::EmailInbox.configured?
+    end
+    with_env_overrides("RECEIPT_INBOX_ADDRESS" => "receipts@mail.example.com", "ACTION_MAILBOX_INGRESS" => nil,
+                       "RECEIPT_INBOX_IMAP_HOST" => "imap.example.com", "RECEIPT_INBOX_IMAP_USERNAME" => "u", "RECEIPT_INBOX_IMAP_PASSWORD" => "p") do
+      assert Receipt::EmailInbox.configured?
+    end
+  end
+
+  test "a user with an unrelated invalid attribute can still manage the address" do
+    @user.update_columns(default_period: "no_such_period")
+
+    Receipt::EmailInbox.enable!(@user)
+    Receipt::EmailInbox.update_senders!(@user, "shop@example.org")
+
+    assert @user.reload.receipt_inbox_token.present?
+    assert_equal %w[shop@example.org], Receipt::EmailInbox.extra_senders(@user)
   end
 
   test "each user gets a private plus address, and a new one replaces the old" do
@@ -159,6 +178,17 @@ class Receipt::EmailInboxTest < ActiveSupport::TestCase
 
       assert_equal 10, result.created
       assert_equal 2, result.skipped
+    end
+  end
+
+  test "unsupported attachments do not use up the cap" do
+    with_receipt_inbox do
+      Receipt::EmailInbox.enable!(@user)
+      attachments = (1..10).to_h { |n| [ "invite#{n}.ics", "BEGIN:VCALENDAR #{n}" ] }.merge("invoice.pdf" => receipt_pdf([ "Total 4.00" ]))
+
+      result = Receipt::EmailInbox.receive(receipt_mail(to: Receipt::EmailInbox.address_for(@user), from: @user.email, attachments: attachments))
+
+      assert_equal 1, result.created
     end
   end
 

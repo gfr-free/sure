@@ -49,7 +49,7 @@
           <%= form.date_field :date, label: t(".date") %>
           <% if (hint = receipt_field_hint(@receipt, :date)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
           <div class="grid grid-cols-[1fr_6rem] gap-3">
-            <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: receipt_amount_step(@receipt), min: receipt_amount_step(@receipt), class: "privacy-sensitive" %>
+            <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: "any", min: 0, class: "privacy-sensitive" %>
             <%= form.text_field :currency, label: t(".currency"), maxlength: 3 %>
           </div>
           <% if (hint = receipt_field_hint(@receipt, :amount)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
@@ -110,7 +110,7 @@
               <%= form.text_field :name, label: t(".name"), value: @receipt.merchant_name %>
               <%= form.date_field :date, label: t(".date"), value: @receipt.date || Date.current, required: true %>
               <div class="grid grid-cols-[1fr_6rem] gap-3">
-                <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: receipt_amount_step(@receipt), min: receipt_amount_step(@receipt), required: true, class: "privacy-sensitive" %>
+                <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: "any", min: 0, required: true, class: "privacy-sensitive" %>
                 <%= form.text_field :currency, label: t(".currency"), value: @receipt.currency, maxlength: 3 %>
               </div>
               <% if @bank_wait %>

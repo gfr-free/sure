@@ -40,11 +40,6 @@ module ReceiptsHelper
     format("%.#{receipt_currency_precision(receipt)}f", receipt.amount)
   end
 
-  def receipt_amount_step(receipt)
-    precision = receipt_currency_precision(receipt)
-    precision.zero? ? "1" : "0.#{'0' * (precision - 1)}1"
-  end
-
   # "Read from PDF text, 90% sure" next to a field the reader filled; nothing for manual edits.
   def receipt_field_hint(receipt, field)
     source = receipt.field_source(field)

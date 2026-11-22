@@ -42,7 +42,7 @@ class Receipt < ApplicationRecord
 
   has_one_attached :file, dependent: :purge_later
 
-  enum :source, { web: "web" }, validate: true, default: "web"
+  enum :source, { web: "web", email: "email" }, validate: true, default: "web"
   enum :extraction_status, { pending: "pending", completed: "completed", failed: "failed" }, validate: true, default: "pending", prefix: :extraction
 
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
@@ -68,8 +68,13 @@ class Receipt < ApplicationRecord
     end
 
     def create_from_upload!(family:, user:, file:)
-      content = read_upload!(file)
-      content_type = Marcel::MimeType.for(StringIO.new(content), name: file.original_filename.to_s)
+      create_from_content!(family: family, user: user, content: read_upload!(file), filename: file.original_filename.to_s, source: "web")
+    end
+
+    def create_from_content!(family:, user:, content:, filename:, source:)
+      raise InvalidUploadError if content.empty? || content.bytesize > MAX_FILE_SIZE
+
+      content_type = Marcel::MimeType.for(StringIO.new(content), name: filename)
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
 
       content_sha256 = Digest::SHA256.hexdigest(content)
@@ -78,7 +83,8 @@ class Receipt < ApplicationRecord
 
       receipt = family.receipts.build(
         uploaded_by: user,
-        filename: upload_filename(file),
+        source: source,
+        filename: upload_filename(filename),
         content_type: content_type,
         byte_size: content.bytesize,
         content_sha256: content_sha256,
@@ -96,8 +102,8 @@ class Receipt < ApplicationRecord
 
     private
       # Fits the 255-character column, keeping the extension.
-      def upload_filename(file)
-        name = ActiveStorage::Filename.new(file.original_filename.to_s.presence || "receipt").sanitized
+      def upload_filename(original)
+        name = ActiveStorage::Filename.new(original.to_s.presence || "receipt").sanitized
         return name if name.length <= 255
 
         extension = File.extname(name).first(20)

@@ -77,7 +77,7 @@ module ActiveRecordEncryptionConfig
   # older, narrower version back into "not complete" until they re-run the
   # task - otherwise the legacy-plaintext fallback would get disabled for
   # models the install's last backfill never actually covered.
-  CURRENT_BACKFILL_VERSION = 13
+  CURRENT_BACKFILL_VERSION = 14
 
   # Single source of truth for which models/fields security:backfill_encryption
   # covers, keyed by the same symbol the task's `results` hash uses. Model
@@ -102,7 +102,7 @@ module ActiveRecordEncryptionConfig
   # listed: it is a PostgreSQL array column, which Active Record encryption
   # does not support.
   BACKFILL_MANIFEST = {
-    users: [ "User", %i[otp_secret email unconfirmed_email first_name last_name] ],
+    users: [ "User", %i[otp_secret email unconfirmed_email first_name last_name receipt_inbox_token receipt_inbox_senders] ],
     invitations: [ "Invitation", %i[token email] ],
     invite_codes: [ "InviteCode", %i[token] ],
     mobile_devices: [ "MobileDevice", %i[device_id] ],
@@ -133,6 +133,7 @@ module ActiveRecordEncryptionConfig
     trading212_items: [ "Trading212Item", %i[api_key api_secret raw_instruments_payload] ],
     up_items: [ "UpItem", %i[access_token raw_payload raw_institution_payload] ],
     wise_items: [ "WiseItem", %i[token raw_payload sca_private_key] ],
+    receipts: [ "Receipt", %i[raw_text] ],
     web_push_subscriptions: [ "WebPushSubscription", %i[endpoint p256dh auth] ],
     plaid_accounts: [ "PlaidAccount", %i[raw_payload raw_transactions_payload raw_holdings_payload raw_liabilities_payload] ],
     simplefin_accounts: [ "SimplefinAccount", %i[raw_payload raw_transactions_payload raw_holdings_payload] ],

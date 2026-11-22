@@ -16,6 +16,20 @@ en:
       file: File
       merchant: Merchant
       status: Status
+    email_inbox:
+      title: Send receipts by e-mail
+      description: Forward invoices and receipts to your own address. Sure adds every PDF or photo attached to the mail to your receipts. The mail text itself is not kept.
+      enable: Get an e-mail address
+      address: Your receipt address
+      copy: Copy address
+      senders_hint: "Sure accepts mail to this address only from %{email} and the addresses below. Keep the address private: anyone who knows it can try to send you receipts."
+      senders_label: Other sender addresses
+      senders_placeholder: One address per line, for example a work address or a shop that sends you invoices
+      save_senders: Save senders
+      new_address: Get a new address
+      new_address_confirm_title: Get a new address?
+      new_address_confirm_body: The current address stops working at once. Mail already sent to it is not added.
+      disable: Turn off
     index:
       title: Receipts
       preview: Preview
@@ -36,6 +50,7 @@ en:
       dismiss: Dismiss
       delete: Delete
       receipt: receipt
+      from_email: By e-mail
       reading: Sure is reading this receipt. Refresh the page in a moment.
       extraction_failed: Sure could not read this file. Enter the details below.
       nothing_read: Sure found no text to read in this file yet. Enter the details below.
@@ -80,3 +95,12 @@ en:
       reopened: Receipt reopened.
     destroy:
       deleted: Receipt deleted.
+    email_inboxes:
+      create:
+        enabled: Your receipt address is ready.
+        rotated: You have a new receipt address. The old one no longer works.
+      update:
+        updated: Sender addresses saved.
+        invalid: Enter valid e-mail addresses, at most %{count}.
+      destroy:
+        disabled: Receipts by e-mail are turned off. The address no longer works.

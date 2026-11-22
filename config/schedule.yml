@@ -18,6 +18,13 @@ process_financekit_inbox:
   queue: "high_priority"
   description: "Applies durable FinanceKit publisher batches and retries downstream work"
 
+fetch_receipt_inbox_mail:
+  cron: "*/5 * * * *"
+  class: "ReceiptInboxImapJob"
+  active_job: true
+  queue: "scheduled"
+  description: "Collects receipt e-mails over IMAP when RECEIPT_INBOX_IMAP_HOST is set"
+
 run_security_health_checks:
   cron: "0 2 * * 1-5" # 2:00 AM EST / 3:00 AM EDT (NY time) Monday through Friday
   class: "SecurityHealthCheckJob"

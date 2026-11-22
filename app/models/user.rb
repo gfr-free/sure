@@ -16,6 +16,11 @@ class User < ApplicationRecord
     encrypts :email, deterministic: true, downcase: true
     encrypts :unconfirmed_email, deterministic: true, downcase: true
 
+    # Receipt inbox: the token is the address's secret and is looked up, the
+    # extra sender addresses are PII.
+    encrypts :receipt_inbox_token, deterministic: true
+    encrypts :receipt_inbox_senders
+
     # PII - names (non-deterministic for maximum security)
     encrypts :first_name
     encrypts :last_name

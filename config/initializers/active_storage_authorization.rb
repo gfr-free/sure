@@ -21,6 +21,8 @@ Rails.application.config.to_prepare do
         raise ActiveRecord::RecordNotFound if attachments.empty?
         # Archived exports belong to no family; ArchivedExportsController releases them by download token only.
         raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "ArchivedExport" }
+        # Raw inbound e-mails are only read by Action Mailbox, never served.
+        raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "ActionMailbox::InboundEmail" }
         # Family exports hold the whole family's data; FamilyExportsController releases them to family admins only.
         raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "FamilyExport" && !family_admin_export?(attachment) }
 

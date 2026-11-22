@@ -251,8 +251,8 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
     Family::Syncer.new(@family).perform_post_sync
   end
 
-  test "a manual account's sync looks for receipts on that account only, a bank account's does not" do
-    Receipt.expects(:auto_match_open).with(@family, account: @account).once
+  test "a manual account's sync runs the receipt matching, a bank account's does not" do
+    Receipt.expects(:auto_match_open).with(@family).once
     Account::Syncer.new(@account).perform_post_sync
 
     Receipt.expects(:auto_match_open).never
@@ -283,6 +283,88 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
       assert_not receipt.awaiting_bank?
       assert receipt.create_transaction!(account: @bank_account, user: @admin, name: "Shop", date: receipt.date, amount: receipt.amount, currency: "USD")
     end
+  end
+
+  test "a wait of zero days never holds a receipt back" do
+    @family.update!(receipt_bank_wait_days: 0)
+    receipt = receipt_for(amount: 20, date: Date.new(2026, 11, 13))
+
+    travel_to Date.new(2026, 11, 12) do
+      assert_not receipt.awaiting_bank?
+      assert receipt.create_transaction!(account: @bank_account, user: @admin, name: "Shop", date: receipt.date, amount: receipt.amount, currency: "USD")
+    end
+  end
+
+  test "a suggestion that changed is neither confirmed nor rejected" do
+    receipt = receipt_for(amount: 33, date: Date.new(2026, 11, 10))
+    shown = create_transaction(account: @account, amount: 33, date: Date.new(2026, 11, 10))
+    assert_equal shown, receipt.auto_match!
+    other = create_transaction(account: @account, amount: 33, date: Date.new(2026, 11, 11))
+    receipt.update!(linked_transaction: other)
+
+    assert_raises(ActiveRecord::RecordInvalid) { receipt.confirm_match!(user: @admin, transaction_id: shown.id) }
+    assert_raises(ActiveRecord::RecordInvalid) { receipt.reject_match!(transaction_id: shown.id) }
+    assert receipt.reload.match_pending?
+    assert_not receipt.rejected_matches.exists?
+
+    receipt.confirm_match!(user: @admin, transaction_id: other.id)
+    assert receipt.reload.match_confirmed?
+  end
+
+  test "dismissing a receipt that got a suggestion meanwhile drops the suggestion" do
+    receipt = receipt_for(amount: 44, date: Date.new(2026, 11, 10))
+    create_transaction(account: @account, amount: 44, date: Date.new(2026, 11, 10))
+    stale = Receipt.find(receipt.id)
+    assert receipt.auto_match!
+
+    stale.dismiss!
+
+    stale.reload
+    assert stale.dismissed_at?
+    assert_nil stale.transaction_id
+  end
+
+  test "a merge drops a suggestion for a pair the moved rejection covers" do
+    receipt = receipt_for(amount: 21, date: Date.new(2026, 11, 10))
+    pending_tx = create_transaction(account: @account, amount: 21, date: Date.new(2026, 11, 10))
+    receipt.rejected_matches.create!(transaction_id: pending_tx.id)
+    posted_tx = create_transaction(account: @account, amount: 21, date: Date.new(2026, 11, 12))
+    receipt.update!(linked_transaction: posted_tx, match_status: "pending", linked_at: Time.current)
+    pending_tx.update!(extra: { "simplefin" => { "pending" => true }, "potential_posted_match" => { "entry_id" => posted_tx.entry.id, "reason" => "test", "posted_amount" => "21.0" } })
+
+    assert pending_tx.merge_with_duplicate!
+
+    receipt.reload
+    assert_nil receipt.transaction_id
+    assert_equal [ posted_tx.id ], receipt.rejected_matches.pluck(:transaction_id)
+  end
+
+  test "a merge keeps one suggestion on the posted booking, and none next to a confirmed receipt" do
+    first = receipt_for(amount: 22, date: Date.new(2026, 11, 10), name: "first")
+    second = receipt_for(amount: 22, date: Date.new(2026, 11, 10), name: "second")
+    pending_tx = create_transaction(account: @account, amount: 22, date: Date.new(2026, 11, 10))
+    posted_tx = create_transaction(account: @account, amount: 22, date: Date.new(2026, 11, 12))
+    first.update!(linked_transaction: pending_tx, match_status: "pending", linked_at: 2.hours.ago)
+    second.update!(linked_transaction: posted_tx, match_status: "pending", linked_at: 1.hour.ago)
+    pending_tx.update!(extra: { "simplefin" => { "pending" => true }, "potential_posted_match" => { "entry_id" => posted_tx.entry.id, "reason" => "test", "posted_amount" => "22.0" } })
+
+    assert pending_tx.merge_with_duplicate!
+
+    assert_equal posted_tx, first.reload.linked_transaction
+    assert_nil second.reload.transaction_id
+
+    third = receipt_for(amount: 23, date: Date.new(2026, 11, 10), name: "third")
+    fourth = receipt_for(amount: 23, date: Date.new(2026, 11, 10), name: "fourth")
+    pending_tx = create_transaction(account: @account, amount: 23, date: Date.new(2026, 11, 10))
+    posted_tx = create_transaction(account: @account, amount: 23, date: Date.new(2026, 11, 12))
+    third.link_to!(posted_tx, user: @admin)
+    fourth.update!(linked_transaction: pending_tx, match_status: "pending", linked_at: Time.current)
+    pending_tx.update!(extra: { "simplefin" => { "pending" => true }, "potential_posted_match" => { "entry_id" => posted_tx.entry.id, "reason" => "test", "posted_amount" => "23.0" } })
+
+    assert pending_tx.merge_with_duplicate!
+
+    assert_equal posted_tx, third.reload.linked_transaction
+    assert_nil fourth.reload.transaction_id
   end
 
   test "the family only accepts the offered waiting periods" do

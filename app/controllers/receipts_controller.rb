@@ -7,7 +7,10 @@ class ReceiptsController < ApplicationController
 
   def index
     receipts = Current.family.receipts.uploaded_by(Current.user).with_attached_file.ordered
-    @suggested_receipts = receipts.suggested.includes(linked_transaction: { entry: :account }).to_a
+    # Only suggestions on accounts the user can still see, like the show page.
+    visible_transactions = Transaction.joins(:entry).where(entries: { account_id: Current.family.accounts.accessible_by(Current.user).select(:id) })
+    @suggested_receipts = receipts.suggested.where(transaction_id: visible_transactions.select(:id))
+                                  .includes(linked_transaction: { entry: :account }).to_a
     @open_pagy, @open_receipts = pagy(receipts.open, limit: safe_per_page, page_param: :open_page)
     @bank_wait = bank_accounts_writable?
     @done_pagy, @done_receipts = pagy(receipts.done, limit: safe_per_page, page_param: :done_page)
@@ -94,14 +97,14 @@ class ReceiptsController < ApplicationController
   end
 
   def confirm_match
-    @receipt.confirm_match!(user: Current.user)
+    @receipt.confirm_match!(user: Current.user, transaction_id: params[:transaction_id])
     redirect_back_or_to receipt_path(@receipt), notice: t(".confirmed")
   rescue ActiveRecord::RecordInvalid
     redirect_back_or_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence
   end
 
   def reject_match
-    @receipt.reject_match!
+    @receipt.reject_match!(transaction_id: params[:transaction_id])
     redirect_back_or_to receipt_path(@receipt), notice: t(".rejected")
   rescue ActiveRecord::RecordInvalid
     redirect_back_or_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence

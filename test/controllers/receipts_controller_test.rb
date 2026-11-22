@@ -188,6 +188,33 @@ class ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert receipt.rejected_matches.exists?(transaction_id: transaction.id)
   end
 
+  test "the receipts list hides a suggestion once its account is no longer shared" do
+    sign_in @member
+    receipt = suggested_receipt(@member, "unshared.pdf")
+    assert receipt.suggested?
+
+    account_shares(:depository_shared_with_member).destroy!
+    get receipts_url
+
+    assert_response :success
+    assert_no_match "Suggested shop", response.body
+  end
+
+  test "a suggestion that changed after the page was shown is neither confirmed nor rejected" do
+    receipt = suggested_receipt(@admin, "stale.pdf")
+    shown = receipt.transaction_id
+    other = @account.entries.create!(name: "Other shop", date: Date.new(2026, 11, 6), amount: 11.11, currency: "USD", entryable: Transaction.new)
+    receipt.update!(linked_transaction: other.transaction)
+
+    post confirm_match_receipt_url(receipt, transaction_id: shown)
+    assert_equal I18n.t("activerecord.errors.models.receipt.attributes.base.suggestion_changed"), flash[:alert]
+    post reject_match_receipt_url(receipt, transaction_id: shown)
+
+    assert receipt.reload.match_pending?
+    assert_equal other.transaction, receipt.linked_transaction
+    assert_not receipt.rejected_matches.exists?
+  end
+
   test "cannot confirm or reject another user's suggestion" do
     receipt = suggested_receipt(@member, "member.pdf")
 

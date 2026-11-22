@@ -21,7 +21,7 @@ class Account::Syncer
   def perform_post_sync
     account.family.auto_match_transfers!(account: account)
     # Bank accounts get their receipts suggested once the whole family has synced.
-    Receipt.auto_match_open(account.family, account: account) if account.unlinked?
+    Receipt.auto_match_open(account.family) if account.unlinked?
     restate_if_cost_basis_method_changed
   end
 

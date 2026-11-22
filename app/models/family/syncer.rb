@@ -21,6 +21,7 @@ class Family::Syncer
 
   def perform_post_sync
     family.auto_match_transfers!
+    Receipt.auto_match_open(family)
     family.backfill_provider_merchant_logos
 
     Rails.logger.info("Applying rules for family #{family.id}")

@@ -65,6 +65,16 @@ en:
       transfer: Transfer
     create:
       created: Transaction created
+      receipt_awaiting_bank: "This account has bank sync. Record the receipt on it from %{date}, so the bank's own booking does not appear twice, or pick a manual account."
+      receipt_not_linked: The transaction was saved, but the receipt could not be linked to it. It is still in your receipts.
+    receipt_prefill:
+      error_invalid: This file is not a supported image or PDF.
+      error_not_open: This receipt is already in your receipts and linked or dismissed there.
+      existing_match: "%{name} on %{account}, %{date}, already has this amount. If it is the same purchase, link the receipt to it instead of creating a second transaction."
+      file_label: Fill in from a receipt
+      filled: Filled in from %{filename}. Check the details; the receipt is linked to the transaction when you save.
+      hint: Pick a photo or PDF. Sure reads merchant, date and amount and keeps the receipt in your receipts.
+      open_receipt: Open the receipt
     update:
       updated: Transaction updated
     new:

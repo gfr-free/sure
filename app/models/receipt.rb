@@ -10,6 +10,11 @@ require "digest/sha2"
 #
 # Receipts are private to their uploader until linked: the inbox, the file and the
 # read text are only shown to the user who added them.
+#
+# Like transfers, Sure also links a receipt on its own when exactly one
+# transaction fits it. Such a link stays a suggestion (match_status "pending")
+# until the uploader confirms it; only then is the file copied onto the
+# transaction. A rejected pair is remembered and never suggested again.
 class Receipt < ApplicationRecord
   include Encryptable
 
@@ -30,6 +35,10 @@ class Receipt < ApplicationRecord
   CANDIDATE_DATE_WINDOW = 30
   MAX_CANDIDATES = 20
   FIELDS = %w[merchant_name date amount currency].freeze
+  # Banks book card payments a few days after the purchase, rarely a day before.
+  AUTO_MATCH_DAYS_BEFORE = 1
+  AUTO_MATCH_DAYS_AFTER = 5
+  BANK_WAIT_DAY_OPTIONS = [ 0, 3, 5, 7, 10, 14, 21, 30 ].freeze
 
   if encryption_ready?
     encrypts :raw_text
@@ -40,10 +49,15 @@ class Receipt < ApplicationRecord
   # Not `transaction`: that name is ActiveRecord's own transaction method.
   belongs_to :linked_transaction, class_name: "Transaction", foreign_key: :transaction_id, optional: true, inverse_of: :receipts
 
+  has_many :rejected_matches, class_name: "RejectedReceiptMatch", dependent: :destroy
+
   has_one_attached :file, dependent: :purge_later
 
   enum :source, { web: "web" }, validate: true, default: "web"
   enum :extraction_status, { pending: "pending", completed: "completed", failed: "failed" }, validate: true, default: "pending", prefix: :extraction
+  # Only meaningful while transaction_id is set: deleting the transaction clears
+  # the link in the database and leaves this value behind.
+  enum :match_status, { pending: "pending", confirmed: "confirmed" }, validate: { allow_nil: true }, prefix: :match
 
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
   validates :content_type, inclusion: { in: ALLOWED_CONTENT_TYPES }
@@ -55,11 +69,14 @@ class Receipt < ApplicationRecord
 
   before_validation :normalize_fields
 
-  after_create_commit :extract_later
+  attr_accessor :skip_extract_later
+
+  after_create_commit :extract_later, unless: :skip_extract_later
 
   scope :ordered, -> { order(created_at: :desc) }
   scope :open, -> { where(transaction_id: nil, dismissed_at: nil) }
-  scope :done, -> { where.not(transaction_id: nil).or(where.not(dismissed_at: nil)) }
+  scope :suggested, -> { where.not(transaction_id: nil).where(match_status: "pending", dismissed_at: nil) }
+  scope :done, -> { where.not(transaction_id: nil).where(match_status: "confirmed").or(where.not(dismissed_at: nil)) }
   scope :uploaded_by, ->(user) { where(uploaded_by: user) }
 
   class << self
@@ -67,7 +84,9 @@ class Receipt < ApplicationRecord
       user&.admin? || user&.member?
     end
 
-    def create_from_upload!(family:, user:, file:)
+    # `extract_later: false` leaves the reading to the caller, which reads it
+    # right away.
+    def create_from_upload!(family:, user:, file:, extract_later: true)
       content = read_upload!(file)
       content_type = Marcel::MimeType.for(StringIO.new(content), name: file.original_filename.to_s)
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
@@ -84,6 +103,7 @@ class Receipt < ApplicationRecord
         content_sha256: content_sha256,
         currency: family.currency
       )
+      receipt.skip_extract_later = !extract_later
       receipt.file.attach(io: StringIO.new(content), filename: receipt.filename, content_type: content_type)
       receipt.save!
       receipt
@@ -92,6 +112,19 @@ class Receipt < ApplicationRecord
       raise DuplicateUploadError, duplicate if duplicate
 
       raise
+    end
+
+    # Suggests a transaction for each open receipt of the family. Runs after a
+    # sync; `account` narrows the search to the entries of the account just synced.
+    def auto_match_open(family, account: nil)
+      family.receipts.open.where.not(extraction_status: "pending")
+            .where.not(uploaded_by_id: nil).where.not(amount: nil).where.not(date: nil)
+            .find_each do |receipt|
+        receipt.auto_match!(account: account)
+      rescue StandardError => e
+        DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{receipt.id}: auto match failed: #{e.class}",
+                              source: "receipt_auto_match", family: family, user_id: receipt.uploaded_by_id)
+      end
     end
 
     private
@@ -117,10 +150,26 @@ class Receipt < ApplicationRecord
 
   def status
     return :dismissed if dismissed_at?
+    return :suggested if suggested?
     return :linked if transaction_id?
     return :reading if extraction_pending?
 
     :open
+  end
+
+  def suggested?
+    transaction_id? && match_pending? && !dismissed_at?
+  end
+
+  # Until this day an open receipt is not turned into a new transaction on a
+  # bank-synced account: the bank's own booking usually arrives a few days after
+  # the purchase and would otherwise be a duplicate.
+  def bank_wait_until
+    (date || created_at.to_date) + family.receipt_bank_wait_days
+  end
+
+  def awaiting_bank?(today = Date.current)
+    !transaction_id? && !dismissed_at? && today < bank_wait_until
   end
 
   def image?
@@ -190,6 +239,10 @@ class Receipt < ApplicationRecord
       sources[field] = { "source" => "manual", "confidence" => 1.0 } if will_save_change_to_attribute?(field)
     end
     self.field_sources = sources
+    # A suggestion was made for the old amount, currency or date.
+    if suggested? && %w[amount currency date].any? { |field| will_save_change_to_attribute?(field) }
+      assign_attributes(linked_transaction: nil, match_status: nil, linked_at: nil)
+    end
     save!
   end
 
@@ -213,21 +266,85 @@ class Receipt < ApplicationRecord
     scope.limit(MAX_CANDIDATES)
   end
 
+  # The transactions an automatic match may pick: exactly the receipt's amount as
+  # an expense in its currency, booked from a day before to a few days after the
+  # receipt's date, on an account the uploader may write to. Transfers, excluded
+  # entries, transactions that already have a receipt and pairs the uploader
+  # rejected are left out.
+  def auto_match_candidates(account: nil)
+    return Transaction.none if uploaded_by.nil? || amount.blank? || date.blank? || currency.blank?
+
+    scope = linkable_transactions(uploaded_by)
+              .where(entries: { excluded: false, amount: amount, currency: currency,
+                                date: (date - AUTO_MATCH_DAYS_BEFORE)..(date + AUTO_MATCH_DAYS_AFTER) })
+              .where.not(kind: Transaction::TRANSFER_KINDS)
+              .where.not(id: family.receipts.where.not(transaction_id: nil).select(:transaction_id))
+              .where.not(id: rejected_matches.select(:transaction_id))
+    scope = scope.where(entries: { account_id: account.id }) if account
+    scope
+  end
+
+  # Links the receipt to the one transaction that fits it, as a suggestion. Two
+  # or more fitting transactions are left for the user to pick from. Returns the
+  # suggested transaction, or nil.
+  def auto_match!(account: nil)
+    matched = nil
+
+    with_lock do
+      if auto_matchable?
+        candidates = auto_match_candidates(account: account).limit(2).to_a
+        if candidates.one?
+          transaction = candidates.first
+          # The transaction's lock keeps two receipts from both taking it.
+          transaction.with_lock do
+            unless transaction.receipts.exists?
+              update!(linked_transaction: transaction, match_status: "pending", linked_at: Time.current, created_transaction: false)
+              matched = transaction
+            end
+          end
+        end
+      end
+    end
+
+    matched
+  end
+
+  def confirm_match!(user:)
+    with_lock do
+      refuse!(:not_suggested) unless suggested?
+      raise ActiveRecord::RecordNotFound unless writable_account?(linked_transaction.entry.account, user)
+
+      attach_to!(linked_transaction, created: false)
+    end
+  end
+
+  def reject_match!
+    with_lock do
+      refuse!(:not_suggested) unless suggested?
+
+      rejected_matches.find_or_create_by!(transaction_id: transaction_id)
+      update!(linked_transaction: nil, match_status: nil, linked_at: nil)
+    end
+  end
+
   # Every transaction the user may attach this receipt to.
   def linkable_transactions(user)
     Transaction.joins(:entry).where(entries: { account_id: family.accounts.writable_by(user).select(:id) })
   end
 
-  def link_to!(transaction, user:)
+  # `created` marks a transaction the user just made from this receipt, e.g. in
+  # the new-transaction form.
+  def link_to!(transaction, user:, created: false)
     raise ActiveRecord::RecordNotFound unless writable_account?(transaction.entry.account, user)
 
-    with_lock { attach_to!(transaction, created: false) }
+    with_lock { attach_to!(transaction, created: created) }
   end
 
   # Records the receipt as a new expense on `account`, then links it.
   def create_transaction!(account:, user:, name:, date:, amount:, currency:)
     raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
     refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && date.is_a?(Date) && known_currency?(currency)
+    refuse!(:awaiting_bank, date: I18n.l(bank_wait_until)) if account.linked? && awaiting_bank?
 
     entry = nil
     with_lock do
@@ -238,7 +355,7 @@ class Receipt < ApplicationRecord
         date: date,
         amount: amount,
         currency: currency,
-        entryable: Transaction.new(merchant: merchant_for(name))
+        entryable: Transaction.new(merchant: suggested_merchant(name))
       )
       attach_to!(entry.transaction, created: true)
     end
@@ -250,18 +367,35 @@ class Receipt < ApplicationRecord
     entry
   end
 
+  # Dismissing a suggested receipt drops the suggestion without remembering it
+  # as rejected, so reopening the receipt can suggest it again.
   def dismiss!
-    update!(dismissed_at: Time.current)
+    attrs = { dismissed_at: Time.current }
+    attrs.merge!(linked_transaction: nil, match_status: nil, linked_at: nil) if suggested?
+    update!(attrs)
   end
 
   def reopen!
     update!(dismissed_at: nil)
   end
 
+  # The family's merchant named like the receipt's merchant, or like `name`.
+  def suggested_merchant(name = nil)
+    return nil if merchant_name.blank? && name.blank?
+
+    family.merchants.where("LOWER(name) = ?", (merchant_name.presence || name).downcase).first
+  end
+
   private
-    # Runs inside the receipt's row lock, so two clicks cannot link it twice.
+    def auto_matchable?
+      # A receipt that could not be read is matched once the user has typed in its details.
+      !transaction_id? && !dismissed_at? && !extraction_pending? && uploaded_by_id? && amount.present? && date.present? && currency.present?
+    end
+
+    # Runs inside the receipt's row lock, so two clicks cannot link it twice. A
+    # suggestion still waiting for the user is replaced by this link.
     def attach_to!(transaction, created:)
-      refuse!(:already_linked) if transaction_id?
+      refuse!(:already_linked) if transaction_id? && !suggested?
 
       transaction.with_lock do
         if transaction.attachments.count >= Transaction::MAX_ATTACHMENTS_PER_TRANSACTION
@@ -269,7 +403,7 @@ class Receipt < ApplicationRecord
         end
 
         transaction.attachments.attach(io: StringIO.new(file.download), filename: filename, content_type: content_type)
-        update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created)
+        update!(linked_transaction: transaction, linked_at: Time.current, dismissed_at: nil, created_transaction: created, match_status: "confirmed")
       end
     end
 
@@ -303,11 +437,5 @@ class Receipt < ApplicationRecord
 
     def writable_account?(account, user)
       account.family_id == family_id && family.accounts.writable_by(user).where(id: account.id).exists?
-    end
-
-    def merchant_for(name)
-      return nil if merchant_name.blank? && name.blank?
-
-      family.merchants.where("LOWER(name) = ?", (merchant_name.presence || name).downcase).first
     end
 end

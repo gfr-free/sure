@@ -6,8 +6,10 @@ de:
       dismissed: Verworfen
       failed: Nicht lesbar
       linked: Zugeordnet
-      open: Zu prüfen
+      awaiting_bank: Wartet auf Bank
+      open: Ohne Buchung
       reading: Wird gelesen
+      suggested: Vorgeschlagen
     sources:
       pdf_text: PDF-Text
     table:
@@ -24,9 +26,10 @@ de:
       files_label: Dateien
       camera_label: Foto aufnehmen
       upload: Hochladen
-      open_title: Zu prüfen
+      open_title: Ohne Buchung
+      suggested_title: Zu prüfen
       done_title: Erledigt
-      empty_open: Keine Belege zu prüfen
+      empty_open: Keine Belege ohne Buchung
       empty_done: Noch keine zugeordneten oder verworfenen Belege
     show:
       back: Zurück zu den Belegen
@@ -57,6 +60,10 @@ de:
       name: Name
       create_transaction: Buchung anlegen
       no_accounts: Du hast kein Konto, in dem du Buchungen anlegen darfst.
+      bank_wait_hint: "Konten mit Bank-Sync stehen ab %{date} zur Wahl: Bis dahin kommt meist die Buchung der Bank, und Sure schlägt sie hier vor."
+      bank_wait_only: "Deine Konten haben Bank-Sync. Warte bis %{date}: Bis dahin kommt meist die Buchung der Bank, und Sure schlägt sie hier vor."
+      suggested_title: Vorgeschlagene Buchung
+      suggested_description: Sure hat genau eine Buchung mit diesem Betrag und Datum gefunden. Bestätige, um den Beleg anzuhängen, oder lehne ab, dann schlägt Sure dieses Paar nie wieder vor.
     create:
       no_files: Wähl mindestens eine Datei aus.
       uploaded:
@@ -72,6 +79,15 @@ de:
       updated: Angaben gespeichert.
     link:
       linked: Beleg der Buchung zugeordnet.
+    confirm_match:
+      confirmed: Beleg an die Buchung angehängt.
+    reject_match:
+      rejected: Vorschlag abgelehnt. Sure schlägt diese Buchung nicht wieder vor.
+    suggestion:
+      confirm: Bestätigen
+      receipt_hint: Sure hat diesen Beleg über Betrag und Datum dieser Buchung zugeordnet.
+      reject: Nicht diese
+      transaction_hint: "%{name} · %{account} · %{date}"
     create_transaction:
       created: Buchung aus dem Beleg angelegt.
     dismiss:

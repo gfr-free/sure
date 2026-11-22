@@ -723,6 +723,21 @@ class Transaction < ApplicationRecord
 
       new_tags = from.tags.where.not(id: to.tags.select(:id))
       to.tags << new_tags if new_tags.any?
+
+      carry_over_receipts(from: from, to: to)
+    end
+
+    # Receipts and the user's rejected receipt suggestions follow the booking;
+    # deleting the pending entry would unlink or forget them. A suggestion for a
+    # receipt the user already rejected on the posted booking is dropped.
+    def carry_over_receipts(from:, to:)
+      rejected_on_posted = RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)
+      RejectedReceiptMatch.where(transaction_id: from.id).where.not(receipt_id: rejected_on_posted).update_all(transaction_id: to.id, updated_at: Time.current)
+
+      receipts = Receipt.where(transaction_id: from.id)
+      receipts.where(match_status: "pending", id: RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id))
+              .update_all(transaction_id: nil, match_status: nil, linked_at: nil, updated_at: Time.current)
+      receipts.update_all(transaction_id: to.id, updated_at: Time.current)
     end
 
     def attachment_count_after_merge(from:, to:)

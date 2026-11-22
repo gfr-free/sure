@@ -3,11 +3,13 @@
 class ReceiptsController < ApplicationController
   before_action :require_preview_features!
   before_action :ensure_receipt_manager!
-  before_action :set_receipt, except: %i[index create]
+  before_action :set_receipt, except: %i[index create prefill]
 
   def index
     receipts = Current.family.receipts.uploaded_by(Current.user).with_attached_file.ordered
+    @suggested_receipts = receipts.suggested.includes(linked_transaction: { entry: :account }).to_a
     @open_pagy, @open_receipts = pagy(receipts.open, limit: safe_per_page, page_param: :open_page)
+    @bank_wait = bank_accounts_writable?
     @done_pagy, @done_receipts = pagy(receipts.done, limit: safe_per_page, page_param: :done_page)
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("receipts.index.title"), receipts_path ] ]
   end
@@ -15,6 +17,9 @@ class ReceiptsController < ApplicationController
   def show
     @candidates = @receipt.match_candidates(Current.user)
     @accounts = Current.family.accounts.writable_by(Current.user).visible.alphabetically
+    # Bank accounts are offered once the wait for the bank's own booking is over.
+    @bank_wait = @receipt.awaiting_bank? && bank_accounts_writable?
+    @accounts = @accounts.where.not(id: Current.family.accounts.linked.select(:id)) if @bank_wait
     @breadcrumbs = [
       [ t("breadcrumbs.home"), root_path ],
       [ t("receipts.index.title"), receipts_path ],
@@ -51,6 +56,7 @@ class ReceiptsController < ApplicationController
 
   def update
     @receipt.update_fields!(receipt_params)
+    @receipt.auto_match!
     redirect_to receipt_path(@receipt), notice: t(".updated")
   rescue ActiveRecord::RecordInvalid
     redirect_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence
@@ -62,6 +68,42 @@ class ReceiptsController < ApplicationController
     redirect_to receipt_path(@receipt), notice: t(".linked")
   rescue ActiveRecord::RecordInvalid
     redirect_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence
+  end
+
+  # Reads a receipt picked in the new-transaction form right away and reopens
+  # the form filled with what was read. The receipt is linked once the
+  # transaction is saved.
+  def prefill
+    file = params.dig(:receipt, :file)
+    receipt = begin
+      Receipt.create_from_upload!(family: Current.family, user: Current.user, file: file, extract_later: false)
+    rescue Receipt::DuplicateUploadError => e
+      e.receipt
+    end
+
+    unless receipt.status.in?(%i[open reading suggested])
+      redirect_to new_transaction_path(receipt_error: "not_open", **new_transaction_context)
+      return
+    end
+
+    receipt.extract! unless receipt.extraction_completed?
+    redirect_to new_transaction_path(receipt_id: receipt.id, **new_transaction_context)
+  rescue Receipt::InvalidUploadError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    redirect_to new_transaction_path(receipt_error: "invalid", **new_transaction_context)
+  end
+
+  def confirm_match
+    @receipt.confirm_match!(user: Current.user)
+    redirect_back_or_to receipt_path(@receipt), notice: t(".confirmed")
+  rescue ActiveRecord::RecordInvalid
+    redirect_back_or_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence
+  end
+
+  def reject_match
+    @receipt.reject_match!
+    redirect_back_or_to receipt_path(@receipt), notice: t(".rejected")
+  rescue ActiveRecord::RecordInvalid
+    redirect_back_or_to receipt_path(@receipt), alert: @receipt.errors.full_messages.to_sentence
   end
 
   def create_transaction
@@ -80,6 +122,7 @@ class ReceiptsController < ApplicationController
 
   def reopen
     @receipt.reopen!
+    @receipt.auto_match!
     redirect_to receipt_path(@receipt), notice: t(".reopened")
   end
 
@@ -93,6 +136,15 @@ class ReceiptsController < ApplicationController
       return if Receipt.manager?(Current.user)
 
       redirect_to root_path, alert: t("accounts.not_authorized")
+    end
+
+    # The account and type the new-transaction dialog was opened with.
+    def new_transaction_context
+      params.permit(:account_id, :nature).to_h.symbolize_keys.compact_blank
+    end
+
+    def bank_accounts_writable?
+      Current.family.accounts.writable_by(Current.user).visible.linked.exists?
     end
 
     def set_receipt

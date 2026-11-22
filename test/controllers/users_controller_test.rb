@@ -156,6 +156,26 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_not @member.family.reload.manual_reconciliation?
   end
 
+  test "admin can change how long receipts wait for the bank" do
+    patch user_url(@user), params: {
+      user: { redirect_to: "preferences", family_attributes: { id: @user.family.id, receipt_bank_wait_days: "14" } }
+    }
+
+    assert_redirected_to settings_preferences_url
+    assert_equal 14, @user.family.reload.receipt_bank_wait_days
+  end
+
+  test "non-admin cannot change how long receipts wait for the bank" do
+    sign_in @member = users(:family_member)
+
+    patch user_url(@member), params: {
+      user: { redirect_to: "preferences", family_attributes: { id: @member.family.id, receipt_bank_wait_days: "0" } }
+    }
+
+    assert_redirected_to settings_profile_url
+    assert_equal 7, @member.family.reload.receipt_bank_wait_days
+  end
+
   test "admin can reset family data" do
     account = accounts(:investment)
     category = categories(:income)

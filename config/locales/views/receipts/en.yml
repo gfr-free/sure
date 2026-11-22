@@ -6,8 +6,10 @@ en:
       dismissed: Dismissed
       failed: Not readable
       linked: Linked
-      open: To review
+      awaiting_bank: Waiting for bank
+      open: No transaction
       reading: Reading
+      suggested: Suggested
     sources:
       pdf_text: PDF text
     table:
@@ -24,9 +26,10 @@ en:
       files_label: Files
       camera_label: Take a photo
       upload: Upload
-      open_title: To review
+      open_title: Without a transaction
+      suggested_title: To review
       done_title: Done
-      empty_open: No receipts to review
+      empty_open: No receipts without a transaction
       empty_done: No linked or dismissed receipts yet
     show:
       back: Back to receipts
@@ -57,6 +60,10 @@ en:
       name: Name
       create_transaction: Create transaction
       no_accounts: You have no account you can add transactions to.
+      bank_wait_hint: "Bank-synced accounts can be chosen from %{date}: the bank's own booking usually arrives by then, and Sure suggests it here."
+      bank_wait_only: "Your accounts have bank sync. Wait until %{date}: the bank's own booking usually arrives by then, and Sure suggests it here."
+      suggested_title: Suggested transaction
+      suggested_description: Sure found exactly one transaction with this amount and date. Confirm to attach the receipt to it, or reject to never suggest this pair again.
     create:
       no_files: Choose at least one file.
       uploaded:
@@ -72,6 +79,15 @@ en:
       updated: Receipt details saved.
     link:
       linked: Receipt linked to the transaction.
+    confirm_match:
+      confirmed: Receipt attached to the transaction.
+    reject_match:
+      rejected: Suggestion rejected. Sure will not suggest this transaction again.
+    suggestion:
+      confirm: Confirm
+      receipt_hint: Sure matched this receipt to the transaction by amount and date.
+      reject: Not this one
+      transaction_hint: "%{name} · %{account} · %{date}"
     create_transaction:
       created: Transaction created from the receipt.
     dismiss:

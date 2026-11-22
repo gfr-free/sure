@@ -13,5 +13,7 @@ en:
           attributes:
             base:
               already_linked: This receipt is already linked to a transaction
+              awaiting_bank: "Wait until %{date} before recording this receipt on a bank-synced account, so the bank's own booking does not appear twice"
               invalid_transaction: Enter a valid date and amount for the new transaction
+              not_suggested: This receipt has no suggested transaction to confirm or reject
               too_many_attachments: The transaction already has %{max} attachments

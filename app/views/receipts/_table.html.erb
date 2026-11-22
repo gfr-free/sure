@@ -1,4 +1,4 @@
-<%# locals: (title:, receipts:, pagy:, empty:) %>
+<%# locals: (title:, receipts:, pagy:, empty:, bank_wait: false) %>
 <section class="space-y-2">
   <div class="flex items-center gap-1.5 px-1 text-xs font-medium text-secondary uppercase">
     <h2><%= title %></h2>
@@ -17,7 +17,7 @@
       <% table.with_column(t("receipts.table.merchant")) { |receipt| receipt.merchant_name.presence || t("receipts.unknown") } %>
       <% table.with_column(t("receipts.table.date")) { |receipt| receipt.date ? l(receipt.date, format: :long) : t("receipts.unknown") } %>
       <% table.with_column(t("receipts.table.amount"), numeric: true, class: "privacy-sensitive") { |receipt| receipt_amount(receipt) } %>
-      <% table.with_column(t("receipts.table.status")) { |receipt| receipt_status_pill(receipt) } %>
+      <% table.with_column(t("receipts.table.status")) { |receipt| receipt_status_pill(receipt, bank_wait: bank_wait) } %>
     <% end %>
     <% if pagy.pages > 1 %>
       <%= render "shared/pagination", pagy: pagy %>

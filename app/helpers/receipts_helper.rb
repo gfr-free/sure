@@ -1,10 +1,25 @@
 module ReceiptsHelper
-  RECEIPT_STATUS_TONES = { reading: :info, open: :warning, linked: :success, dismissed: :neutral }.freeze
+  RECEIPT_STATUS_TONES = { reading: :info, open: :warning, suggested: :info, awaiting_bank: :neutral, linked: :success, dismissed: :neutral }.freeze
 
-  def receipt_status_pill(receipt)
+  # `bank_wait` is whether the user has bank-synced accounts, for which an open
+  # receipt first waits for the bank's own booking.
+  def receipt_status_pill(receipt, bank_wait: false)
     status = receipt.extraction_failed? && receipt.status == :open ? :failed : receipt.status
+    status = :awaiting_bank if status == :open && bank_wait && receipt.awaiting_bank?
     tone = status == :failed ? :error : RECEIPT_STATUS_TONES.fetch(status)
     render DS::Pill.new(label: t("receipts.status.#{status}"), tone: tone, marker: false)
+  end
+
+  def receipts_available?
+    preview_features_enabled? && Receipt.manager?(Current.user)
+  end
+
+  # Receipts are private to their uploader until confirmed, so a transaction
+  # shows only the signed-in user's own suggestions.
+  def suggested_receipts_for(transaction)
+    return [] unless receipts_available?
+
+    transaction.receipts.suggested.uploaded_by(Current.user).to_a
   end
 
   def receipt_file_icon(receipt)

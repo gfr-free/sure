@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -859,6 +859,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
     t.boolean "personal_budgets", default: false, null: false
+    t.integer "receipt_bank_wait_days", default: 7, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
     t.string "timezone"
@@ -2094,6 +2095,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.jsonb "field_sources", default: {}, null: false
     t.string "filename", limit: 255, null: false
     t.datetime "linked_at"
+    t.string "match_status", limit: 20
     t.string "merchant_name", limit: 200
     t.text "raw_text"
     t.string "source", default: "web", null: false
@@ -2294,6 +2296,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.datetime "updated_at", null: false
     t.index ["family_id"], name: "index_redbark_items_on_family_id"
     t.index ["status"], name: "index_redbark_items_on_status"
+  end
+
+  create_table "rejected_receipt_matches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "receipt_id", null: false
+    t.uuid "transaction_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["receipt_id", "transaction_id"], name: "index_rejected_receipt_matches_on_receipt_and_transaction", unique: true
+    t.index ["transaction_id"], name: "index_rejected_receipt_matches_on_transaction_id"
   end
 
   create_table "rejected_transfers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3328,6 +3339,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
   add_foreign_key "recurring_transactions", "recurring_transactions", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "redbark_accounts", "redbark_items"
   add_foreign_key "redbark_items", "families"
+  add_foreign_key "rejected_receipt_matches", "receipts", on_delete: :cascade
+  add_foreign_key "rejected_receipt_matches", "transactions", on_delete: :cascade
   add_foreign_key "rejected_transfers", "transactions", column: "inflow_transaction_id", on_delete: :cascade
   add_foreign_key "rejected_transfers", "transactions", column: "outflow_transaction_id", on_delete: :cascade
   add_foreign_key "rule_actions", "rules"

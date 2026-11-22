@@ -1,0 +1,33 @@
+<%# locals: (receipt:, existing_matches: []) %>
+<%# Reads a receipt into the new-transaction form. A separate form, since a
+    form cannot sit inside the transaction form; it reloads this dialog
+    filled with what was read. %>
+<div class="mb-4 space-y-2">
+  <% if params[:receipt_error].in?(%w[invalid not_open]) %>
+    <%= render DS::Alert.new(message: t("transactions.receipt_prefill.error_#{params[:receipt_error]}"), variant: :warning) %>
+  <% end %>
+
+  <% if receipt %>
+    <%= render DS::Alert.new(variant: :info) do %>
+      <p><%= t("transactions.receipt_prefill.filled", filename: receipt.filename) %></p>
+    <% end %>
+    <% existing_matches.each do |transaction| %>
+      <%= render DS::Alert.new(variant: :warning) do %>
+        <p><%= t("transactions.receipt_prefill.existing_match", name: transaction.entry.name, account: transaction.entry.account.name, date: l(transaction.entry.date, format: :long)) %></p>
+        <p><%= link_to t("transactions.receipt_prefill.open_receipt"), receipt_path(receipt), class: "underline", data: { turbo_frame: "_top" } %></p>
+      <% end %>
+    <% end %>
+  <% else %>
+    <%= styled_form_with url: prefill_receipts_path, scope: :receipt, multipart: true, data: { controller: "auto-submit-form" } do |form| %>
+      <%# Keeps the account and type the dialog was opened with. %>
+      <% params.permit(:account_id, :nature).to_h.compact_blank.each do |name, value| %>
+        <%= hidden_field_tag name, value, id: nil %>
+      <% end %>
+      <%= form.file_field :file,
+                          label: t("transactions.receipt_prefill.file_label"),
+                          accept: Receipt::ALLOWED_CONTENT_TYPES.join(","),
+                          data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
+      <p class="text-xs text-secondary mt-1"><%= t("transactions.receipt_prefill.hint") %></p>
+    <% end %>
+  <% end %>
+</div>

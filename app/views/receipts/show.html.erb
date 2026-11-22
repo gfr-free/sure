@@ -59,7 +59,15 @@
         <% end %>
       <% end %>
 
-      <% if @receipt.linked_transaction %>
+      <% if @receipt.suggested? %>
+        <%= render DS::Card.new(class: "gap-2") do %>
+          <h2 class="text-sm font-medium text-primary"><%= t(".suggested_title") %></h2>
+          <p class="text-sm text-secondary"><%= t(".suggested_description") %></p>
+          <div class="-mx-5 -mb-5 border-t border-subdued">
+            <%= render "receipts/suggestion", receipt: @receipt %>
+          </div>
+        <% end %>
+      <% elsif @receipt.linked_transaction %>
         <% entry = @receipt.linked_transaction.entry %>
         <%= render DS::Card.new(class: "gap-2") do %>
           <h2 class="text-sm font-medium text-primary"><%= @receipt.created_transaction? ? t(".created_title") : t(".linked_title") %></h2>
@@ -102,11 +110,17 @@
                 <%= form.number_field :amount, label: t(".amount"), value: receipt_amount_input_value(@receipt), step: receipt_amount_step(@receipt), min: receipt_amount_step(@receipt), required: true, class: "privacy-sensitive" %>
                 <%= form.text_field :currency, label: t(".currency"), value: @receipt.currency, maxlength: 3 %>
               </div>
-              <p class="text-xs text-secondary"><%= t(".new_transaction_hint") %></p>
+              <% if @bank_wait %>
+                <p class="text-xs text-secondary"><%= t(".bank_wait_hint", date: l(@receipt.bank_wait_until, format: :long)) %></p>
+              <% else %>
+                <p class="text-xs text-secondary"><%= t(".new_transaction_hint") %></p>
+              <% end %>
               <div class="flex justify-end">
                 <%= render DS::Button.new(text: t(".create_transaction"), type: :submit) %>
               </div>
             <% end %>
+          <% elsif @bank_wait %>
+            <p class="text-sm text-secondary"><%= t(".bank_wait_only", date: l(@receipt.bank_wait_until, format: :long)) %></p>
           <% else %>
             <p class="text-sm text-secondary"><%= t(".no_accounts") %></p>
           <% end %>

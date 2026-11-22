@@ -643,6 +643,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.decimal "credit_limit", precision: 19, scale: 4
     t.string "currency"
     t.decimal "current_balance", precision: 19, scale: 4
+    t.datetime "early_fetched_at"
     t.uuid "enable_banking_item_id", null: false
     t.string "iban"
     t.jsonb "identification_hashes", default: []
@@ -674,6 +675,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.string "country_code"
     t.datetime "created_at", null: false
     t.uuid "family_id", null: false
+    t.datetime "full_history_fetch_requested_at"
     t.string "institution_color"
     t.string "institution_domain"
     t.string "institution_id"

@@ -77,7 +77,7 @@ module ActiveRecordEncryptionConfig
   # older, narrower version back into "not complete" until they re-run the
   # task - otherwise the legacy-plaintext fallback would get disabled for
   # models the install's last backfill never actually covered.
-  CURRENT_BACKFILL_VERSION = 14
+  CURRENT_BACKFILL_VERSION = 15
 
   # Single source of truth for which models/fields security:backfill_encryption
   # covers, keyed by the same symbol the task's `results` hash uses. Model
@@ -133,7 +133,6 @@ module ActiveRecordEncryptionConfig
     trading212_items: [ "Trading212Item", %i[api_key api_secret raw_instruments_payload] ],
     up_items: [ "UpItem", %i[access_token raw_payload raw_institution_payload] ],
     wise_items: [ "WiseItem", %i[token raw_payload sca_private_key] ],
-    receipts: [ "Receipt", %i[raw_text] ],
     web_push_subscriptions: [ "WebPushSubscription", %i[endpoint p256dh auth] ],
     plaid_accounts: [ "PlaidAccount", %i[raw_payload raw_transactions_payload raw_holdings_payload raw_liabilities_payload] ],
     simplefin_accounts: [ "SimplefinAccount", %i[raw_payload raw_transactions_payload raw_holdings_payload] ],
@@ -165,7 +164,8 @@ module ActiveRecordEncryptionConfig
     api_keys: [ "ApiKey", %i[display_key] ],
     sso_providers: [ "SsoProvider", %i[client_secret] ],
     sso_identity_blocks: [ "SsoIdentityBlock", %i[identity_label uid legacy_digest_key] ],
-    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ]
+    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ],
+    receipts: [ "Receipt", %i[raw_text] ]
   }.freeze
 
   module_function

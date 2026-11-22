@@ -26,6 +26,17 @@ class Receipt::AiReadingTest < ActiveSupport::TestCase
     assert_equal 0.4, missing["date"][:confidence]
   end
 
+  test "a value printed inside a longer one does not confirm the answer" do
+    fields = Receipt::AiReading.new({ "total" => "2.00", "date" => "2026-02-01" }, text: "Summe 12.00\nDatum 11.2.2026").fields
+
+    assert_equal 0.4, fields["amount"][:confidence]
+    assert_equal 0.4, fields["date"][:confidence]
+  end
+
+  test "keeps tomorrow's date, which is today where the receipt was printed" do
+    assert_equal Date.new(2026, 11, 23), Receipt::AiReading.new({ "date" => "2026-11-23" }).fields["date"][:value]
+  end
+
   test "drops values a receipt cannot hold" do
     fields = Receipt::AiReading.new({ merchant_name: "", total: -5, currency: "XYZ", date: "2026-12-24" }).fields
     assert_empty fields

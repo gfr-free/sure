@@ -82,6 +82,41 @@ class Receipt::ExtractionAiTest < ActiveSupport::TestCase
     assert_not_includes entry.message, "Coffee House"
   end
 
+  test "a model that cannot read the file is skipped without a log entry" do
+    use_ai_routes(extract_receipt: %w[gpu/qwen3-8b])
+    requests = stub_ai(:extract_receipt, returns: ANSWER)
+    receipt = upload(PNG, filename: "bon.png", content_type: "image/png")
+
+    assert_no_difference -> { DebugLogEntry.where(category: "receipts").count } do
+      receipt.extract!
+    end
+
+    assert_empty requests
+    assert receipt.extraction_completed?
+  end
+
+  test "an unexpected error in the AI step keeps what the text stage read" do
+    Ai::Generations::ExtractReceipt.any_instance.stubs(:call).raises(NoMethodError, "boom")
+    receipt = upload(receipt_pdf([ "Coffee House", "Total 12.40 USD" ]))
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_equal BigDecimal("12.40"), receipt.amount
+    assert_equal "pdf_text", receipt.field_source(:amount)
+  end
+
+  test "a text PDF sends its masked text, not the file" do
+    requests = stub_ai(:extract_receipt, returns: ANSWER)
+    receipt = upload(receipt_pdf([ "Coffee House", "Total 12.40 USD", "Card 4111 1111 1111 1234" ]))
+
+    receipt.extract!
+
+    assert_empty requests.first.attachments
+    assert_includes requests.first.input.to_s, "****1234"
+    assert_not_includes requests.first.input.to_s, "4111 1111"
+  end
+
   private
     def upload(content, filename: "receipt.pdf", content_type: "application/pdf")
       Receipt.create_from_upload!(family: @family, user: @user, file: uploaded_receipt(content, filename:, content_type:))

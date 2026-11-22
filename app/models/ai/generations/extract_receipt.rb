@@ -17,9 +17,11 @@ class Ai::Generations::ExtractReceipt < Ai::Generation
     required: %w[merchant_name currency date line_items tax discount total], additionalProperties: false
   }.freeze)
 
-  def initialize(attachment:, family:, user:)
+  # text: a PDF's text the caller has already read, so the file isn't read twice.
+  def initialize(attachment:, family:, user:, text: nil)
     super(family:, user:)
     @attachment = attachment
+    @text = text
   end
 
   def prompt_locals = { text: pdf_text.presence }
@@ -41,6 +43,7 @@ class Ai::Generations::ExtractReceipt < Ai::Generation
 
     def pdf_text
       return @pdf_text if defined?(@pdf_text)
+      return @pdf_text = @text if @text.present? && @attachment.content_type == "application/pdf"
 
       @pdf_text = @attachment.content_type == "application/pdf" ? Pdf::TextExtractor.pages(content).join("\n\n").presence : nil
     rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError

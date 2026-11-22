@@ -14,23 +14,23 @@ class Receipt::AiReading
   CONFIRMED_CONFIDENCE = 0.8
   CONTRADICTED_CONFIDENCE = 0.4
 
-  def initialize(value, text: nil)
+  def initialize(value, text: nil, currency_hint: nil)
     @value = value.to_h.with_indifferent_access
-    @text = text.to_s
+    @parser = Receipt::TextParser.new(text, currency_hint:) if text.present?
   end
 
   # Returns { "field" => { value:, confidence:, source: "ai" } }.
   def fields
     {
       "merchant_name" => merchant_name&.then { { value: _1, confidence: CONFIDENCE } },
-      "amount" => amount&.then { { value: _1, confidence: checked_confidence(amount_variants(_1)) } },
-      "date" => date&.then { { value: _1, confidence: checked_confidence(date_variants(_1)) } },
+      "amount" => amount&.then { { value: _1, confidence: checked_confidence(_1, :amounts) } },
+      "date" => date&.then { { value: _1, confidence: checked_confidence(_1, :dates) } },
       "currency" => currency&.then { { value: _1, confidence: CONFIDENCE } }
     }.compact.transform_values { _1.merge(source: SOURCE) }
   end
 
   private
-    attr_reader :value, :text
+    attr_reader :value, :parser
 
     def merchant_name
       value[:merchant_name].to_s.squish.presence&.truncate(200, omission: "")
@@ -43,7 +43,7 @@ class Receipt::AiReading
 
     def date
       parsed = Date.iso8601(value[:date].to_s)
-      parsed if parsed <= Date.current && parsed >= Date.current - Receipt::TextParser::MAX_AGE
+      parsed if Receipt::TextParser.plausible_date?(parsed)
     rescue Date::Error
       nil
     end
@@ -55,22 +55,11 @@ class Receipt::AiReading
       nil
     end
 
-    def checked_confidence(variants)
-      return CONFIDENCE if text.blank?
+    # Compares values, not strings, so "2.00" isn't found inside "12.00" and a
+    # date matches however the receipt prints it.
+    def checked_confidence(read, found)
+      return CONFIDENCE if parser.nil?
 
-      variants.any? { text.include?(_1) } ? CONFIRMED_CONFIDENCE : CONTRADICTED_CONFIDENCE
-    end
-
-    # 1234.5 as printed on receipts: "1234.50", "1234,50", "1.234,50", "1,234.50".
-    def amount_variants(amount)
-      plain = format("%.2f", amount)
-      whole, cents = plain.split(".")
-      grouped = whole.reverse.scan(/\d{1,3}/).join(",").reverse
-      [ plain, "#{whole},#{cents}", "#{grouped.tr(',', '.')},#{cents}", "#{grouped}.#{cents}" ].uniq
-    end
-
-    def date_variants(date)
-      [ date.iso8601, date.strftime("%d.%m.%Y"), date.strftime("%d.%m.%y"), date.strftime("%d/%m/%Y"),
-        date.strftime("%m/%d/%Y"), date.strftime("%-d.%-m.%Y") ].uniq
+      parser.public_send(found).include?(read) ? CONFIRMED_CONFIDENCE : CONTRADICTED_CONFIDENCE
     end
 end

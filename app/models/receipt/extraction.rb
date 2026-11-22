@@ -84,16 +84,20 @@ class Receipt::Extraction
       receipt.uploaded_by.present? && Ai.available?(:extract_receipt, family: receipt.family, user: receipt.uploaded_by)
     end
 
-    # The AI's reading, checked against the text the earlier stages found. An
-    # AI failure leaves the fields as they were: the user fills them in by hand.
+    # The AI's reading, checked against the text the earlier stages found. It is
+    # best effort: any failure leaves the fields as they were, and the user fills
+    # them in by hand.
     def ai_fields(text)
-      generation = Ai::Generations::ExtractReceipt.new(attachment: receipt.file, family: receipt.family, user: receipt.uploaded_by)
-      result = Ai::CallContext.job("receipt:#{receipt.id}") { generation.call }
-      return Receipt::AiReading.new(result.value!, text:).fields if result.success?
+      generation = Ai::Generations::ExtractReceipt.new(attachment: receipt.file, family: receipt.family, user: receipt.uploaded_by,
+                                                       text: Receipt::TextParser.mask(text).presence)
+      result = Ai::CallContext.job("receipt_extraction:#{receipt.id}") { generation.call }
+      # No route can read this kind of file (a photo for a text-only model): nothing to report.
+      return {} if result.unavailable?
+      return Receipt::AiReading.new(result.value!, text:, currency_hint: receipt.family.currency).fields if result.success?
 
-      capture_ai_failure(result.error&.class&.name || "unavailable")
+      capture_ai_failure(result.error.class.name)
       {}
-    rescue Ai::Error::Base => e
+    rescue StandardError => e
       capture_ai_failure(e.class.name)
       {}
     end

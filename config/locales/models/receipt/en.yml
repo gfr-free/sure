@@ -6,7 +6,10 @@ en:
         amount: Amount
         currency: Currency
         date: Date
+        due_date: Due date
+        invoice_number: Invoice number
         merchant_name: Merchant
+        tax_amount: Tax
     errors:
       models:
         receipt:

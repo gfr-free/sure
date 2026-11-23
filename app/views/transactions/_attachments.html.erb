@@ -70,14 +70,17 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <%= render DS::Link.new(
-                    href: transaction_attachment_path(transaction, attachment, disposition: :inline),
-                    variant: :outline,
-                    size: :sm,
-                    icon: "eye",
-                    text: "",
-                    target: "_blank"
-                  ) %>
+              <%# Browsers download XML instead of showing it, so it only gets the download button. %>
+              <% unless Transaction::XML_CONTENT_TYPES.include?(attachment.content_type) %>
+                <%= render DS::Link.new(
+                      href: transaction_attachment_path(transaction, attachment, disposition: :inline),
+                      variant: :outline,
+                      size: :sm,
+                      icon: "eye",
+                      text: "",
+                      target: "_blank"
+                    ) %>
+              <% end %>
 
               <%= render DS::Link.new(
                     href: transaction_attachment_path(transaction, attachment, disposition: :attachment),

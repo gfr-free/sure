@@ -22,7 +22,7 @@ en:
       title: Receipts
       preview: Preview
       upload_title: Add receipts
-      upload_description: Photos (JPEG, PNG, WebP, GIF) or PDFs, up to %{max_size} MB each. Sure reads the merchant, date and amount from PDFs with readable text; for photos you enter them yourself. Then you link each receipt to a transaction or record it as a new one.
+      upload_description: Photos (JPEG, PNG, WebP, GIF), PDFs or e-invoices (ZUGFeRD, XRechnung as XML), up to %{max_size} MB each. Sure reads the merchant, date and amount from e-invoices and PDFs with readable text; for photos you enter them yourself. Then you link each receipt to a transaction or record it as a new one.
       files_label: Files
       camera_label: Take a photo
       upload: Upload
@@ -49,6 +49,11 @@ en:
       amount: Amount
       currency: Currency
       save: Save
+      invoice_title: Invoice details
+      invoice_number: Invoice number
+      due_date: Due
+      tax_amount: Tax included
+      invoice_hint: Read from the e-invoice.
       linked_title: Linked transaction
       linked_hidden: The transaction is on an account you can no longer see.
       created_title: Created transaction
@@ -74,8 +79,8 @@ en:
         one: 1 file was already in your receipts.
         other: "%{count} files were already in your receipts."
       invalid:
-        one: 1 file was not a supported image or PDF.
-        other: "%{count} files were not supported images or PDFs."
+        one: 1 file was not a supported image, PDF or e-invoice.
+        other: "%{count} files were not supported images, PDFs or e-invoices."
       failed:
         one: 1 file could not be stored. Please try again.
         other: "%{count} files could not be stored. Please try again."

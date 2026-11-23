@@ -50,6 +50,23 @@ class ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("receipts.create.duplicates", count: 1), flash[:alert]
   end
 
+  test "uploads an e-invoice and shows its invoice details" do
+    xml = uploaded_receipt(file_fixture("e_invoices/cii_invoice.xml").read, filename: "invoice.xml", content_type: "application/xml")
+
+    assert_difference -> { @family.receipts.count }, 1 do
+      post receipts_url, params: { receipt: { files: [ xml ] } }
+    end
+    receipt = @family.receipts.order(:created_at).last
+    receipt.extract!
+
+    get receipt_url(receipt)
+
+    assert_response :success
+    assert_select "dd", text: "DEMO-2026-0042"
+    assert_not_includes response.body, I18n.t("receipts.show.open_pdf")
+    assert_not_includes response.body, I18n.t("receipts.show.nothing_read")
+  end
+
   test "a storage error on one file keeps the count of files already stored" do
     first = uploaded_receipt(receipt_pdf([ "Total 1.00" ]), filename: "a.pdf")
     second = uploaded_receipt(receipt_pdf([ "Total 2.00" ]), filename: "b.pdf")

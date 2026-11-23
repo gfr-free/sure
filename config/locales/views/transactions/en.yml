@@ -484,7 +484,7 @@ en:
       delete_failed: "Failed to delete attachment. Please try again or contact support."
       upload: "Upload"
       no_attachments: "No attachments yet"
-      select_up_to: "Select up to %{count} files (images or PDFs, max %{size}MB each) • %{used} of %{count} used"
+      select_up_to: "Select up to %{count} files (images, PDFs or e-invoice XML, max %{size}MB each) • %{used} of %{count} used"
       files:
         one: "File (1)"
         other: "Files (%{count})"

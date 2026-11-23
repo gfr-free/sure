@@ -24,7 +24,9 @@ module ReceiptsHelper
   end
 
   def receipt_file_icon(receipt)
-    receipt.image? ? "image" : "file-text"
+    return "image" if receipt.image?
+
+    receipt.xml? ? "file-code" : "file-text"
   end
 
   def receipt_amount(receipt)

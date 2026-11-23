@@ -41,6 +41,10 @@ class Receipt < ApplicationRecord
   BANK_WAIT_DAY_OPTIONS = [ 0, 3, 5, 7, 10, 14, 21, 30 ].freeze
   # Fits numeric(19,4), the type of receipts.amount and entries.amount.
   MAX_AMOUNT = 10**15
+  # An optional UTF-8 byte order mark and whitespace, then an element.
+  XML_START = /\A(?:\xEF\xBB\xBF)?\s*<[A-Za-z_]/n
+  # Read from e-invoices only and shown as read; not edited by hand.
+  DETAIL_FIELDS = %w[invoice_number due_date tax_amount].freeze
 
   if encryption_ready?
     encrypts :raw_text
@@ -68,6 +72,7 @@ class Receipt < ApplicationRecord
   validates :byte_size, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
   validates :amount, numericality: { greater_than: 0, less_than: MAX_AMOUNT }, allow_nil: true
   validates :merchant_name, length: { maximum: 200 }
+  validates :invoice_number, length: { maximum: 100 }
   validate :currency_is_valid
   validate :linked_transaction_belongs_to_family
 
@@ -104,7 +109,7 @@ class Receipt < ApplicationRecord
 
       # Decided from the bytes alone: with a name hint, Marcel falls back to the
       # extension, so any file named ".pdf" would pass.
-      content_type = Marcel::MimeType.for(StringIO.new(content))
+      content_type = detect_content_type(content)
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
 
       content_sha256 = Digest::SHA256.hexdigest(content)
@@ -206,6 +211,19 @@ class Receipt < ApplicationRecord
     end
 
     private
+      # Marcel knows XML only by its "<?xml" declaration, which the standard
+      # makes optional; an e-invoice may start with its root element. Such a
+      # file is XML only if it parses as one, and XML is never shown inline.
+      def detect_content_type(content)
+        content_type = Marcel::MimeType.for(StringIO.new(content))
+        return content_type unless content_type == "application/octet-stream" && content.b.match?(XML_START)
+
+        Nokogiri::XML(content) { |config| config.strict.nonet }
+        "application/xml"
+      rescue Nokogiri::XML::SyntaxError, ArgumentError, EncodingError
+        content_type
+      end
+
       # Fits the 255-character column, keeping the extension.
       def upload_filename(original)
         name = ActiveStorage::Filename.new(original.to_s.presence || "receipt").sanitized
@@ -259,6 +277,23 @@ class Receipt < ApplicationRecord
     content_type == "application/pdf"
   end
 
+  def xml?
+    Transaction::XML_CONTENT_TYPES.include?(content_type)
+  end
+
+  # The tax is in the e-invoice's currency, so it is only shown while the
+  # receipt's currency is still the one read from the same invoice.
+  def tax_money
+    return nil if tax_amount.nil? || currency.blank?
+    return nil unless field_source(:currency) == field_source(:tax_amount)
+
+    Money.new(tax_amount, currency)
+  end
+
+  def invoice_details?
+    invoice_number.present? || due_date.present? || tax_money.present?
+  end
+
   def amount_money
     return nil if amount.nil? || currency.blank?
 
@@ -307,6 +342,12 @@ class Receipt < ApplicationRecord
 
         attrs[field] = value[:value]
         sources[field] = { "source" => value[:source], "confidence" => value[:confidence] }
+      end
+
+      DETAIL_FIELDS.each do |field|
+        value = result.fields[field]
+        attrs[field] = value&.dig(:value)
+        sources[field] = { "source" => value[:source], "confidence" => value[:confidence] } if value
       end
 
       update!(attrs.merge(field_sources: sources))

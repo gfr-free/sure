@@ -22,7 +22,7 @@ de:
       title: Belege
       preview: Vorschau
       upload_title: Belege hinzufügen
-      upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Aus PDFs mit lesbarem Text liest Sure Händler, Datum und Betrag aus, bei Fotos trägst du sie selbst ein. Danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
+      upload_description: Fotos (JPEG, PNG, WebP, GIF), PDFs oder E-Rechnungen (ZUGFeRD, XRechnung als XML), je bis %{max_size} MB. Aus E-Rechnungen und PDFs mit lesbarem Text liest Sure Händler, Datum und Betrag aus, bei Fotos trägst du sie selbst ein. Danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
       files_label: Dateien
       camera_label: Foto aufnehmen
       upload: Hochladen
@@ -49,6 +49,11 @@ de:
       amount: Betrag
       currency: Währung
       save: Speichern
+      invoice_title: Rechnungsdaten
+      invoice_number: Rechnungsnummer
+      due_date: Fällig am
+      tax_amount: Darin Steuer
+      invoice_hint: Aus der E-Rechnung gelesen.
       linked_title: Zugeordnete Buchung
       linked_hidden: Die Buchung liegt auf einem Konto, das du nicht mehr sehen kannst.
       created_title: Angelegte Buchung
@@ -74,8 +79,8 @@ de:
         one: 1 Datei war schon in deinen Belegen.
         other: "%{count} Dateien waren schon in deinen Belegen."
       invalid:
-        one: 1 Datei war kein unterstütztes Bild oder PDF.
-        other: "%{count} Dateien waren keine unterstützten Bilder oder PDFs."
+        one: 1 Datei war kein unterstütztes Bild, PDF oder E-Rechnung.
+        other: "%{count} Dateien waren keine unterstützten Bilder, PDFs oder E-Rechnungen."
       failed:
         one: 1 Datei konnte nicht gespeichert werden. Bitte versuch es noch einmal.
         other: "%{count} Dateien konnten nicht gespeichert werden. Bitte versuch es noch einmal."

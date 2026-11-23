@@ -6,7 +6,10 @@ de:
         amount: Betrag
         currency: Währung
         date: Datum
+        due_date: Fällig am
+        invoice_number: Rechnungsnummer
         merchant_name: Händler
+        tax_amount: Steuer
     errors:
       models:
         receipt:

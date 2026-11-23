@@ -142,7 +142,7 @@ jobs:
 
     steps:
       - name: Install packages
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y curl libvips postgresql-client libpq-dev
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y curl libvips postgresql-client libpq-dev poppler-utils tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng zbar-tools
 
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -165,6 +165,8 @@ jobs:
         env:
           SHARD: ${{ strategy.job-index }}
           SHARDS: ${{ strategy.job-total }}
+          # The packages above are installed, so the real OCR tests must run.
+          RECEIPT_OCR_REQUIRED: "1"
         run: |
           # Same files as a plain `bin/rails test`, which leaves out system,
           # dummy and fixtures tests.
@@ -252,7 +254,7 @@ jobs:
 
     steps:
       - name: Install packages
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y curl libvips postgresql-client libpq-dev
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y curl libvips postgresql-client libpq-dev poppler-utils tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng zbar-tools
 
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1

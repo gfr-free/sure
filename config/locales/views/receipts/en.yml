@@ -1,0 +1,86 @@
+---
+en:
+  receipts:
+    unknown: "—"
+    status:
+      dismissed: Dismissed
+      failed: Not readable
+      linked: Linked
+      open: To review
+      reading: Reading
+    sources:
+      pdf_text: PDF text
+    table:
+      amount: Amount
+      date: Date
+      file: File
+      merchant: Merchant
+      status: Status
+    index:
+      title: Receipts
+      preview: Preview
+      upload_title: Add receipts
+      upload_description: Photos (JPEG, PNG, WebP, GIF) or PDFs, up to %{max_size} MB each. Sure reads the merchant, date and amount from PDFs with readable text; for photos you enter them yourself. Then you link each receipt to a transaction or record it as a new one.
+      files_label: Files
+      camera_label: Take a photo
+      upload: Upload
+      open_title: To review
+      done_title: Done
+      empty_open: No receipts to review
+      empty_done: No linked or dismissed receipts yet
+    show:
+      back: Back to receipts
+      open_pdf: Open PDF
+      download: Download
+      reopen: Reopen
+      dismiss: Dismiss
+      delete: Delete
+      receipt: receipt
+      reading: Sure is reading this receipt. Refresh the page in a moment.
+      extraction_failed: Sure could not read this file. Enter the details below.
+      nothing_read: Sure found no readable text in this file. Enter the details below.
+      fields_title: Details
+      field_hint: "Read from %{source}, %{confidence} sure"
+      merchant_name: Merchant
+      date: Date
+      amount: Amount
+      currency: Currency
+      save: Save
+      linked_title: Linked transaction
+      linked_hidden: The transaction is on an account you can no longer see.
+      created_title: Created transaction
+      candidates_title: Matching transactions
+      link: Link
+      no_candidates: No transaction with this amount within 30 days of the receipt date. Check the amount and date, or record a new transaction.
+      new_transaction_title: Record as a new transaction
+      new_transaction_hint: For an account with bank sync, wait until the bank has booked the payment, or the transaction will appear twice.
+      account: Account
+      name: Name
+      create_transaction: Create transaction
+      no_accounts: You have no account you can add transactions to.
+    create:
+      no_files: Choose at least one file.
+      uploaded:
+        one: 1 receipt added.
+        other: "%{count} receipts added."
+      duplicates:
+        one: 1 file was already in your receipts.
+        other: "%{count} files were already in your receipts."
+      invalid:
+        one: 1 file was not a supported image or PDF.
+        other: "%{count} files were not supported images or PDFs."
+      failed:
+        one: 1 file could not be stored. Please try again.
+        other: "%{count} files could not be stored. Please try again."
+    update:
+      updated: Receipt details saved.
+    link:
+      linked: Receipt linked to the transaction.
+    create_transaction:
+      created: Transaction created from the receipt.
+    dismiss:
+      dismissed: Receipt dismissed.
+    reopen:
+      reopened: Receipt reopened.
+    destroy:
+      deleted: Receipt deleted.

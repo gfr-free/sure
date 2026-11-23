@@ -16,7 +16,7 @@ class ConfigurationHealth::OptionalServices
 
   # Returns only static identifiers and status metadata, never setting values.
   def checks
-    [ langfuse, sentry, skylight, stripe, posthog, logtail ]
+    [ langfuse, sentry, skylight, stripe, posthog, logtail, receipt_ocr ]
   end
 
   def langfuse
@@ -73,6 +73,25 @@ class ConfigurationHealth::OptionalServices
     return service(:logtail, :disabled, notes: [ :production_only ]) unless Rails.env.production?
 
     result
+  end
+
+  # Text recognition for receipt photos and scans. Unlike the other checks this
+  # asks the local `tesseract` and `pdftoppm` programs what they have; it reads
+  # no file and contacts nothing.
+  def receipt_ocr
+    installed = Receipt::Ocr.installed_languages
+    return service(:receipt_ocr, :not_configured) if installed.empty?
+
+    notes = []
+    missing = Receipt::Ocr::DEFAULT_LANGUAGES - installed
+    if missing.size == Receipt::Ocr::DEFAULT_LANGUAGES.size
+      notes << :receipt_ocr_no_default_languages
+    elsif missing.any?
+      notes << :receipt_ocr_languages_missing
+    end
+    notes << :receipt_ocr_pdf_renderer_missing unless Receipt::Ocr.pdf_renderer_installed?
+
+    service(:receipt_ocr, notes.empty? ? :configured : :incomplete, notes: notes)
   end
 
   private

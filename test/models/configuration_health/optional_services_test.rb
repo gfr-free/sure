@@ -19,6 +19,8 @@ class ConfigurationHealth::OptionalServicesTest < ActiveSupport::TestCase
     Rails.configuration.x.stubs(:posthog).returns(@posthog)
     Rails.application.config.stubs(:app_mode).returns("managed".inquiry)
     Rails.stubs(:env).returns("test".inquiry)
+    Receipt::Ocr.stubs(:installed_languages).returns([])
+    Receipt::Ocr.stubs(:pdf_renderer_installed?).returns(true)
   end
 
   test "absent optional services are informational and initialize no clients" do
@@ -32,7 +34,7 @@ class ConfigurationHealth::OptionalServicesTest < ActiveSupport::TestCase
 
     with_environment do
       checks = @health.checks
-      assert_equal %i[langfuse sentry skylight stripe posthog logtail], checks.map(&:key)
+      assert_equal %i[langfuse sentry skylight stripe posthog logtail receipt_ocr], checks.map(&:key)
       assert checks.all? { |check| check.status == :not_configured }
       assert checks.all? { |check| check.tone == :neutral }
       assert checks.all? { |check| check.settings.empty? }
@@ -187,6 +189,24 @@ class ConfigurationHealth::OptionalServicesTest < ActiveSupport::TestCase
       assert_equal :configured, @health.logtail.status
       assert_no_match(/private-/, @health.logtail.inspect)
     end
+  end
+
+  test "receipt text recognition reports the installed programs and language packs" do
+    assert_equal :not_configured, @health.receipt_ocr.status
+
+    Receipt::Ocr.stubs(:installed_languages).returns(%w[deu eng osd])
+    assert_equal :configured, @health.receipt_ocr.status
+    assert_empty @health.receipt_ocr.notes
+
+    Receipt::Ocr.stubs(:installed_languages).returns(%w[eng osd])
+    check = @health.receipt_ocr
+    assert_equal :incomplete, check.status
+    assert_equal :warning, check.tone
+    assert_equal [ :receipt_ocr_languages_missing ], check.notes
+
+    Receipt::Ocr.stubs(:installed_languages).returns(%w[fra osd])
+    Receipt::Ocr.stubs(:pdf_renderer_installed?).returns(false)
+    assert_equal [ :receipt_ocr_no_default_languages, :receipt_ocr_pdf_renderer_missing ], @health.receipt_ocr.notes
   end
 
   private

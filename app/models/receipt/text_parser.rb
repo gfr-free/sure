@@ -43,6 +43,12 @@ class Receipt::TextParser
     "tip", "rabatt", "discount", "pfand"
   ].freeze
 
+  # A discount line can carry a strong label ("Rabatt auf Gesamtbetrag"), so it
+  # is skipped whatever the label's weight, unless the total comes after it
+  # ("Gesamtbetrag nach Rabatt").
+  DISCOUNT_LABELS = [ "rabatt", "nachlass", "discount", "remise", "sconto", "descuento", "korting" ].freeze
+  AFTER_DISCOUNT = /(?:nach|after|abzgl|abzüglich|less|minus|inkl|incl)\.?\s*\z/i
+
   # "inkl. MwSt" or "incl. VAT" on a total line names the total, not the tax.
   INCLUDING = /(?:inkl|incl|including|inclus|compris|ttc|iva incluida)\.?\s*\z/i
   # "(incl. VAT 2.00 EUR)": the tax inside is never the total.
@@ -62,8 +68,9 @@ class Receipt::TextParser
   MERCHANT_LINES = 8
 
   # Card numbers and IBANs never need to be stored in full.
-  CARD_NUMBER = /(?<!\d)(?:\d[ \u00A0-]?){12,18}\d(?!\d)/
-  IBAN = /\b[A-Z]{2}\d{2}(?:[ \u00A0]?[A-Z0-9]){11,30}\b/i
+  # A line break may split either one where the PDF wraps it.
+  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0-]|\r?\n)?){12,18}\d(?!\d)/
+  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0]|\r?\n)?[A-Z0-9]){11,30}\b/i
 
   def self.parse(text, currency_hint: nil, merchant_names: [])
     new(text, currency_hint:, merchant_names:).parse
@@ -71,8 +78,8 @@ class Receipt::TextParser
 
   def self.mask(text)
     text.to_s
-      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \u00A0")[-4..]}" }
-      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \u00A0-")[-4..]}" }
+      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \u00A0\r\n")[-4..]}" }
+      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \u00A0\r\n-")[-4..]}" }
   end
 
   def initialize(text, currency_hint: nil, merchant_names: [])
@@ -117,6 +124,7 @@ class Receipt::TextParser
         weight, label_start, label_end = total_label(normalized)
         next unless weight
         next if weight < 3 && excluded_line?(normalized)
+        next if discount_line?(normalized)
 
         # The first amount after the label ("Total 119.00 EUR (incl. VAT 19.00 EUR)"),
         # skipping an inclusion clause, else one printed before it, else the next line's.
@@ -156,6 +164,14 @@ class Receipt::TextParser
       EXCLUDED_LABELS.any? do |label|
         line.to_enum(:scan, label_regexp(label)).any? do
           !line[0...Regexp.last_match.begin(0)].match?(INCLUDING)
+        end
+      end
+    end
+
+    def discount_line?(line)
+      DISCOUNT_LABELS.any? do |label|
+        line.to_enum(:scan, label_regexp(label)).any? do
+          !line[0...Regexp.last_match.begin(0)].match?(AFTER_DISCOUNT)
         end
       end
     end

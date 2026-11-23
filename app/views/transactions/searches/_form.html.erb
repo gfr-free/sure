@@ -4,6 +4,7 @@
               method: :get,
               data: { controller: "auto-submit-form" } do |form| %>
   <%= hidden_field_tag :per_page, params[:per_page] %>
+  <%= hidden_field_tag TransactionsController::REMEMBER_FILTERS_PARAM, "1" %>
 
   <div class="flex gap-2 mb-4">
     <div class="grow">

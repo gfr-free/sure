@@ -55,6 +55,15 @@ de:
       sources_label: Händler zum Zusammenführen
       sources_hint: Die ausgewählten Händler werden in den Zielhändler zusammengeführt. Familienhändler werden gelöscht, Anbieter-Händler werden getrennt.
       submit: Ausgewählte zusammenführen
+      select_all_visible: Alle angezeigten auswählen
+      selected_count:
+        one: "%{count} ausgewählt"
+        other: "%{count} ausgewählt"
+      confirm_title: Händler zusammenführen?
+      confirm_body:
+        one: "%{count} Händler wird in %{target} zusammengeführt. Das lässt sich nicht rückgängig machen."
+        other: "%{count} Händler werden in %{target} zusammengeführt. Das lässt sich nicht rückgängig machen."
+      confirm_accept: Zusammenführen
       no_merchants_found: Keine passenden Händler gefunden
       sources_search_placeholder: Händler suchen …
     new:

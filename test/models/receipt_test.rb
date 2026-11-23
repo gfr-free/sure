@@ -292,6 +292,19 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal 1, left_behind_transaction.attachments.count
   end
 
+  test "another member's receipt drops its link to an account that moves to a new family" do
+    own_account = Account.create!(family: @family, owner: @member, name: "Own Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    moved_transaction = create_transaction(account: own_account, amount: 3, date: Date.current)
+    stays = upload([ "Total 3.00" ])
+    stays.update_columns(transaction_id: moved_transaction.id, linked_at: Time.current)
+
+    @member.transfer_to_family!(Family.create!(name: "Moved Family"), role: "admin")
+
+    assert_equal @family, stays.reload.family
+    assert_not stays.transaction_id?
+    assert stays.valid?
+  end
+
   test "purging an uploader removes their receipts but keeps the transaction's copy" do
     receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 9.99" ])))
     transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
@@ -359,6 +372,42 @@ class ReceiptTest < ActiveSupport::TestCase
 
     assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @member) }
     assert_nil receipt.reload.transaction_id
+  end
+
+  test "link_to! and create_transaction! check write access again once the copy is stored" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.stubs(:writable_account?).returns(true).then.returns(false)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_equal 0, transaction.reload.attachments.count
+
+    receipt.stubs(:writable_account?).returns(true).then.returns(false)
+    assert_no_difference [ "Entry.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(ActiveRecord::RecordNotFound) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("9.99"), currency: "USD")
+      end
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "an upload stays stored when a step after the commit fails" do
+    Receipt.any_instance.stubs(:extract_later).raises(RuntimeError, "queue down")
+
+    receipt = upload([ "Total 4.20" ])
+
+    assert receipt.persisted?
+    assert receipt.reload.file.attached?
+  end
+
+  test "a failed cleanup does not hide why the upload failed" do
+    Receipt.any_instance.stubs(:save!).raises(ArgumentError, "save failed")
+    ActiveStorage::Blob.any_instance.stubs(:purge).raises(Errno::ECONNREFUSED)
+
+    error = assert_raises(ArgumentError) { upload([ "Total 4.20" ]) }
+    assert_equal "save failed", error.message
   end
 
   test "link_to! refuses a transaction that is full" do

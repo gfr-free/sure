@@ -28,6 +28,7 @@ class Receipt::TextParser
     /(?<suffix_number>#{AMOUNT_NUMBER})(?:\p{Blank}*(?<suffix_currency>#{CURRENCY_MARK}))?/
   )
   CURRENCY_SYMBOLS = { "€" => "EUR", "£" => "GBP" }.freeze
+  WHOLE_AMOUNT = /\A[\s:=]*(?:(?<prefix_currency>#{CURRENCY_MARK})\p{Blank}*)?(?<number>\d{1,3}(?:[,.'\u00A0\u202F ]\d{3})+|\d+)(?![\d.,]*\d)(?!\p{Blank}+\d)(?:\p{Blank}*(?<suffix_currency>#{CURRENCY_MARK}))?/
 
   # Weight 3 names the amount to pay, 2 a plain total, 1 a payment line.
   TOTAL_LABELS = {
@@ -69,9 +70,9 @@ class Receipt::TextParser
 
   # Card numbers and IBANs never need to be stored in full.
   # A line break, with blanks around it, may split either one where the PDF wraps it.
-  WRAP = /[ \t\u00A0]*\r?\n[ \t\u00A0]*/
-  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0-]|#{WRAP})?){12,18}\d(?!\d)/
-  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0]|#{WRAP})?[A-Z0-9]){11,30}\b/i
+  WRAP = /[ \t\u00A0\u202F]*\r?\n[ \t\u00A0\u202F]*/
+  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0\u202F-]|#{WRAP})?){12,18}\d(?!\d)/
+  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0\u202F]|#{WRAP})?[A-Z0-9]){11,30}\b/i
 
   def self.parse(text, currency_hint: nil, merchant_names: [])
     new(text, currency_hint:, merchant_names:).parse
@@ -79,8 +80,8 @@ class Receipt::TextParser
 
   def self.mask(text)
     text.to_s
-      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n")[-4..]}" }
-      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n-")[-4..]}" }
+      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\u202F\r\n")[-4..]}" }
+      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\u202F\r\n-")[-4..]}" }
   end
 
   def initialize(text, currency_hint: nil, merchant_names: [])
@@ -130,9 +131,9 @@ class Receipt::TextParser
         # The first amount after the label ("Total 119.00 EUR (incl. VAT 19.00 EUR)"),
         # skipping an inclusion clause, else one printed before it, else the next line's.
         after_label = line[label_end..].gsub(INCLUSION_CLAUSE, " ")
-        before_label = line[0...label_end]
+        before_label = line[0...label_end].gsub(INCLUSION_CLAUSE, " ")
         amount = amounts_in(after_label, keep_zero: true).first || amounts_in(before_label, keep_zero: true).last ||
-                 bare_zero(after_label) || continuation_amount(index)
+                 bare_zero(after_label) || whole_amount(after_label, line[0...label_start]) || continuation_amount(index)
         next unless amount
 
         # "USD TOTAL 12.34": a currency printed just before the label.
@@ -188,6 +189,22 @@ class Receipt::TextParser
     # borrow the next line's amount.
     def bare_zero(text)
       { value: BigDecimal("0"), currency: nil } if text.match?(/\A[\s:=]*0(?![\d.,])/)
+    end
+
+    # "TOTAL JPY 1500": a whole number counts as an amount only for a currency
+    # without minor units, named on the line or by the hint.
+    def whole_amount(text, before_label)
+      match = text.match(WHOLE_AMOUNT)
+      return nil unless match
+
+      printed = resolve_currency(match[:prefix_currency] || match[:suffix_currency]) || currency_before(before_label)
+      currency = printed || @currency_hint
+      return nil unless currency && Money::Currency.new(currency).default_precision.to_i.zero?
+
+      value = BigDecimal(match[:number].delete(" ,.'\u00A0\u202F"))
+      { value: value, currency: printed } if value < MAX_AMOUNT
+    rescue Money::Currency::UnknownCurrencyError, ArgumentError
+      nil
     end
 
     # A label alone on its line takes the next line's amount, unless that line

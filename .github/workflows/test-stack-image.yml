@@ -1,0 +1,72 @@
+# Lives only on the throwaway `test-stack` branch of gfr-free/sure.
+# Builds the combined test image for Gerald's test server (Synology, amd64).
+name: Test stack image
+
+on:
+  push:
+    branches:
+      - test-stack
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: test-stack-image
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build and push ghcr.io/gfr-free/sure:test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Log in to the container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=test
+            type=raw,value=test-{{date 'YYYYMMDD'}}
+            type=sha,prefix=test-sha-,format=short
+          labels: |
+            org.opencontainers.image.title=Sure (test stack)
+            org.opencontainers.image.description=Upstream main plus the open PRs of gfr-free/sure, for testing only
+
+      - name: Build and push
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          build-args: BUILD_COMMIT_SHA=${{ github.sha }}
+          platforms: linux/amd64
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test-amd64
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-amd64
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test-amd64,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false
+          # Push as Docker v2 manifest (not bare OCI manifest): Watchtower 1.7.1's HEAD
+          # request does not accept application/vnd.oci.image.manifest.v1+json and GHCR
+          # then answers 404, forcing a full pull every run.
+          outputs: type=image,push=true,oci-mediatypes=false

@@ -41,6 +41,7 @@ class SidebarActiveAccountTest < ApplicationSystemTestCase
 
     page.execute_script(%(window.__morphed = false; document.addEventListener("turbo:morph", () => { window.__morphed = true }, { once: true }); Turbo.visit(location.href, { action: "replace" })))
     wait_until(timeout: 15) { page.evaluate_script("window.__morphed") }
+    assert page.evaluate_script("window.__morphed"), "the refresh morphed the page"
 
     assert_active_in_sidebar account
   end

@@ -411,8 +411,12 @@ export default class extends Controller {
       );
       this.keyboardGrabbedElement = null;
       const saved = Promise.resolve(this.saveOrder());
-      const allow = () => this.#allowPrefetch();
-      saved.then(allow, allow);
+      this.pendingKeyboardSaves = (this.pendingKeyboardSaves || 0) + 1;
+      const settle = () => {
+        this.pendingKeyboardSaves -= 1;
+        this.#allowPrefetchWhenIdle();
+      };
+      saved.then(settle, settle);
       return saved;
     }
   }
@@ -453,6 +457,13 @@ export default class extends Controller {
     if (this.preventPrefetch) return;
     this.preventPrefetch = (event) => event.preventDefault();
     document.addEventListener("turbo:before-prefetch", this.preventPrefetch);
+  }
+
+  // Another row can be grabbed, or another move saved, before this save
+  // settles; prefetching stays paused until none is.
+  #allowPrefetchWhenIdle() {
+    if (this.keyboardGrabbedElement || this.pendingKeyboardSaves > 0) return;
+    this.#allowPrefetch();
   }
 
   #allowPrefetch() {

@@ -178,14 +178,12 @@ class TransactionTest < ActiveSupport::TestCase
     end
   end
 
-  # PostgreSQL keeps no statistics on the per-provider flag expressions. Read
-  # as ten independent NOT IN guesses, the posted filter was estimated to keep
-  # almost no rows, and joins through it were planned around a full scan of
-  # transactions.
+  # PostgreSQL keeps no statistics on the per-provider flag expressions; the
+  # posted filter must still be estimated as keeping most rows, or joins
+  # through it are planned around a full scan of transactions.
   test "the planner expects most transactions to pass the posted filter" do
     account = families(:empty).accounts.create! name: "Pending estimate", balance: 0, currency: "USD", accountable: Depository.new
     40.times { |i| create_transaction(account: account, amount: i + 1) }
-    Transaction.connection.execute("ANALYZE transactions")
 
     total = Transaction.count
     plan = Transaction.connection.select_value("EXPLAIN (FORMAT JSON) #{Transaction.excluding_pending.to_sql}")

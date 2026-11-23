@@ -46,6 +46,12 @@ class UserTest < ActiveSupport::TestCase
     assert_nil User.authenticate_by_email(email: "missing@example.com", password: "x")
   end
 
+  test "admin_search finds a legacy plaintext email row by its full email" do
+    email = store_legacy_plaintext_email(@user)
+
+    assert_includes User.joins(:family).admin_search(" #{email.upcase} "), @user
+  end
+
   test "find_by_email_with_legacy_fallback does not match a row by its stored ciphertext" do
     ciphertext = User.connection.select_value(
       User.sanitize_sql([ "SELECT email FROM users WHERE id = ?", @user.id ])
@@ -1776,6 +1782,21 @@ class UserTest < ActiveSupport::TestCase
   test "update_manual_account_order rejects unknown groups" do
     assert_not @user.update_manual_account_order("transactions", [ accounts(:depository).id ])
     assert_equal({}, @user.reload.manual_account_order)
+  end
+
+  test "ordered_by_family_activity puts busier families first and keeps members together" do
+    quiet = Family.create!(name: "Quiet Family")
+    3.times { |i| quiet.users.create!(email: "quiet-#{i}@example.com", password: "Password1!", role: :member) }
+
+    ordered = User.ordered_by_family_activity.to_a
+    family_ids = ordered.map(&:family_id)
+    runs = family_ids.chunk_while { |left, right| left == right }.map(&:first)
+
+    assert_equal runs.uniq, runs, "a family's members must be contiguous"
+    busiest = Family.all.max_by { |family| family.entries.count }
+    assert_equal busiest.id, family_ids.first
+    assert_equal busiest.entries.count, ordered.first.family_entries_count
+    assert_equal 0, ordered.find { |user| user.family_id == quiet.id }.family_entries_count
   end
 
   test "reports biggest expenses limit defaults to 10 and only returns an offered choice" do

@@ -468,6 +468,7 @@ class User < ApplicationRecord
       accounts_to_move.each(&:lock!)
 
       account_shares.delete_all
+      old_family_id = family_id
 
       update!(family: new_family, role: role, default_account: moving_default_account ? default_account : nil)
 
@@ -476,6 +477,8 @@ class User < ApplicationRecord
       end
 
       AccountStatement.where(account: accounts_to_move).update_all(family_id: new_family.id, updated_at: Time.current) if accounts_to_move.any?
+
+      move_uploaded_receipts!(from_family_id: old_family_id, to: new_family, moved_account_ids: accounts_to_move.map(&:id))
 
       provider_items_to_move.each do |provider_item|
         if provider_item.is_a?(FinancekitItem)
@@ -497,6 +500,19 @@ class User < ApplicationRecord
 
       new_family.auto_share_existing_accounts_with(self)
     end
+  end
+
+  # Receipts are private to their uploader, so they follow the user. A link to
+  # a transaction left behind in the old family is dropped; that transaction
+  # keeps its own copy of the file.
+  def move_uploaded_receipts!(from_family_id:, to:, moved_account_ids:)
+    receipts = Receipt.where(uploaded_by_id: id, family_id: from_family_id)
+    moved_transactions = Transaction.joins(:entry).where(entries: { account_id: moved_account_ids }).select(:id)
+    now = Time.current
+
+    receipts.where.not(transaction_id: nil).where.not(transaction_id: moved_transactions)
+            .update_all(transaction_id: nil, linked_at: nil, created_transaction: false, updated_at: now)
+    receipts.update_all(family_id: to.id, updated_at: now)
   end
 
   def provider_items_for_transfer(accounts_to_move)

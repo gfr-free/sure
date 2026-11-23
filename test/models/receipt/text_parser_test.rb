@@ -156,6 +156,44 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_not_includes masked, "3704"
   end
 
+  test "masks lowercase IBANs" do
+    masked = Receipt::TextParser.mask("iban nl91 abna 0417 1643 00")
+
+    assert_includes masked, "****4300"
+    assert_not_includes masked, "0417"
+  end
+
+  test "takes the currency printed before the total label" do
+    fields = parse("VAT 1.00 EUR\nUSD TOTAL 12.34\nDate 10/11/2026\n")
+
+    assert_equal BigDecimal("12.34"), fields["amount"][:value]
+    assert_equal "USD", fields["currency"][:value]
+    assert_equal Date.new(2026, 10, 11), fields["date"][:value]
+  end
+
+  test "a total of a bare zero does not borrow the next line's amount" do
+    assert_nil parse("Total 0 EUR\nCash 20.00 EUR\n")["amount"]
+  end
+
+  test "a label alone on its line does not take a tax line's amount" do
+    assert_equal BigDecimal("12.00"), parse("TOTAL\nVAT 2.00 EUR\n12.00 EUR\n")["amount"][:value]
+    assert_equal BigDecimal("12.00"), parse("TOTAL\n12.00 EUR\n")["amount"][:value]
+  end
+
+  test "masks card numbers and IBANs wrapped onto the next line" do
+    masked = Receipt::TextParser.mask("Karte 4111 1111\n1111 1234\nIBAN DE89 3704 0044\n0532 0130 00")
+
+    assert_includes masked, "****1234"
+    assert_includes masked, "****3000"
+    assert_not_includes masked, "4111"
+    assert_not_includes masked, "0532"
+  end
+
+  test "a discount line never replaces the total, whatever its label" do
+    assert_equal BigDecimal("100.00"), parse("Gesamtbetrag 100,00 EUR\nRabatt auf Gesamtbetrag 10,00 EUR\n")["amount"][:value]
+    assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nGesamtbetrag nach Rabatt 90,00\n")["amount"][:value]
+  end
+
   private
     def parse(text, currency_hint: nil, merchant_names: [])
       Receipt::TextParser.parse(text, currency_hint:, merchant_names:)

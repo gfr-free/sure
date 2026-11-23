@@ -184,6 +184,9 @@ class TransactionTest < ActiveSupport::TestCase
   test "the planner expects most transactions to pass the posted filter" do
     account = families(:empty).accounts.create! name: "Pending estimate", balance: 0, currency: "USD", accountable: Depository.new
     40.times { |i| create_transaction(account: account, amount: i + 1) }
+    # Fresh statistics, so the estimate does not depend on whatever an earlier
+    # autovacuum saw. Only reltuples/relpages outlive the rollback.
+    Transaction.connection.execute("ANALYZE transactions")
 
     total = Transaction.count
     plan = Transaction.connection.select_value("EXPLAIN (FORMAT JSON) #{Transaction.excluding_pending.to_sql}")

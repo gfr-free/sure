@@ -33,6 +33,21 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
+  test "every way in stores receipts alike and may leave the reading to the caller" do
+    receipt = nil
+    assert_no_enqueued_jobs(only: ReceiptExtractionJob) do
+      receipt = Receipt.create_from_content!(family: @family, user: @admin, content: receipt_pdf([ "Total 2.00" ]), filename: "mail.pdf",
+                                             source: "email", extract_later: false)
+    end
+
+    assert receipt.email?
+    assert_equal "mail.pdf", receipt.filename
+    assert receipt.extraction_pending?
+    assert_raises(Receipt::InvalidUploadError) do
+      Receipt.create_from_content!(family: @family, user: @admin, content: "", filename: "empty.pdf")
+    end
+  end
+
   test "another member may upload the same file, and long filenames are shortened" do
     content = receipt_pdf([ "Total 1.00" ])
     upload_content(content)
@@ -84,7 +99,8 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
-  test "extract! leaves an image's fields blank until a reader for images exists" do
+  test "extract! leaves an image's fields blank when no stage reads images" do
+    Receipt::Extraction.stubs(:stages).returns([ Receipt::Extraction::Stages::PdfText ])
     receipt = Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(file_fixture("square-placeholder.png").binread, filename: "photo.png", content_type: "image/png"))
 
     receipt.extract!

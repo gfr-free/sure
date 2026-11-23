@@ -61,6 +61,7 @@ it:
       delete: Elimina
       delete_subtitle: Questo eliminerà la posizione e tutti i movimenti associati su questo conto. Questa azione non può essere annullata.
       delete_title: Elimina posizione
+      edit_cost_basis: Modifica costo medio
       edit_security: Modifica titolo
       history: Cronologia
       no_trade_history: Nessuna cronologia movimenti disponibile per questa posizione.

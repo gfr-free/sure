@@ -61,6 +61,7 @@ zh-CN:
       delete: 删除
       delete_subtitle: 这将删除该持仓以及该账户下所有相关交易。此操作无法撤销。
       delete_title: 删除持仓
+      edit_cost_basis: 编辑平均成本
       edit_security: 编辑证券
       history: 历史
       no_trade_history: 此持仓没有可用的交易历史。

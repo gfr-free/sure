@@ -61,6 +61,7 @@ hu:
       delete: Törlés
       delete_subtitle: Ez törli a pozíciót és az összes kapcsolódó ügyletet ezen a számlán. Ez a művelet nem vonható vissza.
       delete_title: Pozíció törlése
+      edit_cost_basis: Átlagos bekerülési érték szerkesztése
       edit_security: Értékpapír szerkesztése
       history: Előzmények
       no_trade_history: Ehhez a pozícióhoz nem áll rendelkezésre ügyleti előzmény.

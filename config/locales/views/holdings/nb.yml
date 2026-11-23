@@ -25,6 +25,7 @@ nb:
       missing_data: Manglende data
     show:
       avg_cost_label: Gjennomsnittlig kostnad
+      edit_cost_basis: Rediger gjennomsnittlig kostnad
       current_market_price_label: Gjeldende markedspris
       delete: Slett
       delete_subtitle: Dette vil slette beholdningen og alle dine tilknyttede handler

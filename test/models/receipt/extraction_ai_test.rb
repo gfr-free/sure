@@ -11,6 +11,9 @@ class Receipt::ExtractionAiTest < ActiveSupport::TestCase
     @family = families(:dylan_family)
     @user = users(:family_admin)
     use_ai_routes(extract_receipt: %w[openai/gpt-4.1-mini])
+    # The other stages of the series are left out, so these tests see what the
+    # PDF text and the AI give.
+    Receipt::Extraction.stubs(:stages).returns([ Receipt::Extraction::Stages::PdfText, Receipt::Extraction::Stages::Ai ])
   end
 
   test "a photo is read by AI when the uploader has AI on" do

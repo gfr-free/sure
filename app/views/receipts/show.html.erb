@@ -40,8 +40,8 @@
         <%= render DS::Alert.new(message: t(".reading"), variant: :info) %>
       <% elsif @receipt.extraction_failed? %>
         <%= render DS::Alert.new(message: t(".extraction_failed"), variant: :warning) %>
-      <% elsif @receipt.raw_text.blank? %>
-        <%= render DS::Alert.new(message: t(".nothing_read"), variant: :info) %>
+      <% elsif !@receipt.fields_read? %>
+        <%= render DS::Alert.new(message: receipt_nothing_read_message(@receipt), variant: :info) %>
       <% end %>
 
       <%= render DS::Card.new(class: "gap-3") do %>

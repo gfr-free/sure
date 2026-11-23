@@ -47,7 +47,9 @@ class Receipt::TextParser
   # A discount line can carry a strong label ("Rabatt auf Gesamtbetrag"), so it
   # is skipped whatever the label's weight, unless the total comes after it
   # ("Gesamtbetrag nach Rabatt").
-  DISCOUNT_LABELS = [ "rabatt", "nachlass", "discount", "remise", "sconto", "descuento", "korting" ].freeze
+  # Savings lines ("TOTAL SAVINGS 3.00") are printed after the total and count alike.
+  DISCOUNT_LABELS = [ "rabatt", "nachlass", "discount", "remise", "sconto", "descuento", "korting", "savings", "saved",
+                      "ersparnis", "gespart", "économie", "économies", "risparmio", "ahorro", "besparing" ].freeze
   AFTER_DISCOUNT = /(?:nach|after|abzgl|abzüglich|less|minus|inkl|incl)\.?\s*\z/i
 
   # "inkl. MwSt" or "incl. VAT" on a total line names the total, not the tax.

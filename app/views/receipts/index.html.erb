@@ -35,10 +35,10 @@
     <% end %>
   <% end %>
 
+  <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open") %>
+  <%= render "receipts/table", title: t(".done_title"), receipts: @done_receipts, pagy: @done_pagy, empty: t(".empty_done") %>
+
   <% if Receipt::EmailInbox.configured? %>
     <%= render "receipts/email_inbox" %>
   <% end %>
-
-  <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open") %>
-  <%= render "receipts/table", title: t(".done_title"), receipts: @done_receipts, pagy: @done_pagy, empty: t(".empty_done") %>
 </div>

@@ -2,7 +2,7 @@ class ProgressRingComponentPreview < ViewComponent::Preview
   # @param percent number
   # @param size number
   # @param stroke_width number
-  # @param tone select ["success", "warning", "destructive", "neutral"]
+  # @param tone select ["success", "warning", "destructive", "info", "neutral"]
   # @param show_percent toggle
   # @param label text
   def default(percent: 65, size: 64, stroke_width: 6, tone: "neutral", show_percent: true, label: nil)
@@ -29,12 +29,20 @@ class ProgressRingComponentPreview < ViewComponent::Preview
     render DS::ProgressRing.new(percent: 50, tone: :destructive)
   end
 
+  def info
+    render DS::ProgressRing.new(percent: 50, tone: :info)
+  end
+
   def neutral
     render DS::ProgressRing.new(percent: 50, tone: :neutral)
   end
   # @!endgroup
 
   # @!group Sizes
+  def inline_16
+    render DS::ProgressRing.new(percent: 72, size: 16, stroke_width: 2, tone: :info, show_percent: false)
+  end
+
   def small_48
     render DS::ProgressRing.new(percent: 72, size: 48, stroke_width: 5, tone: :success)
   end

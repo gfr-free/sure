@@ -15,6 +15,13 @@ class HoldingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "holdings list draws portfolio weights with the design system progress ring" do
+    get holdings_url(account_id: @account.id)
+
+    assert_select "svg[width='16'] circle[stroke='var(--color-info)']", minimum: 2
+    assert_select "svg circle.text-gray-300", count: 0
+  end
+
   # Each row shows its average cost, so the list loads them all together
   # rather than running the per-holding fallback once per row.
   test "the holdings list reads every row's average cost together" do

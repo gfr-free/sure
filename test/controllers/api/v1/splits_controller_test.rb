@@ -505,4 +505,19 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     get api_v1_transaction_split_url("not-a-uuid"), headers: api_headers(@api_key)
     assert_response :not_found
   end
+
+  test "a split with a part booked to a person can't be replaced or removed" do
+    children = @entry.split!([ { name: "Mine", amount: 60 }, { name: "Alex", amount: 40 } ])
+    person = @family.counterparties.create!(name: "Alex", default_currency: @entry.currency, created_by: @user)
+    leg = Counterparty::Assignment.new(children.last).update!(person, user: @user)
+
+    patch api_v1_transaction_split_url(@transaction), params: halves, headers: api_headers(@api_key), as: :json
+    assert_response :unprocessable_entity
+
+    delete api_v1_transaction_split_url(@transaction), headers: api_headers(@api_key)
+    assert_response :unprocessable_entity
+
+    assert Entry.exists?(leg.id)
+    assert_equal 2, @entry.reload.child_entries.count
+  end
 end

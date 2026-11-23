@@ -1,0 +1,88 @@
+---
+en:
+  counterparties:
+    balance:
+      owes_you: "owes you %{amount}"
+      settled: Settled
+      you_owe: "you owe %{amount}"
+    forgiveness:
+      entry_name: "Forgiven balance with %{name}"
+    index:
+      title: People
+      subtitle: People you pay for or get money from, and who owes whom.
+      new: New person
+      owed_to_me: Others owe me
+      i_owe: I owe
+      filter: Filter people
+      statuses:
+        active: All
+        open: Open
+        archived: Archived
+      empty:
+        active: No people yet
+        open: Nobody owes anything
+        archived: No archived people
+      empty_hint: Add a person, then pick them in a transaction or in a split part you paid for them.
+    show:
+      back: People
+      archived: Archived
+      edit: Edit
+      archive: Archive
+      unarchive: Restore
+      no_accounts: No balance yet.
+      history: History
+      paid_for_me: Paid for me
+      forgive: Forgive balance
+      how_title: How it works
+      how_assign: "Paid for this person? Open the transaction (or a split part) and choose them under Person. Only your own share stays spending."
+      how_settle: "Got paid back, or paid them back? Choose the person on that incoming or outgoing payment."
+      how_paid_for_me: "They paid something for you? Add your share with Paid for me."
+    new:
+      title: New person
+    edit:
+      title: "Edit %{name}"
+    form:
+      name_label: Name
+      name_placeholder: e.g. Alex
+      currency_label: Currency
+      currency_hint: A payment in another currency gets its own balance for this person.
+      note_label: Note
+      create: Add person
+      update: Save
+    create:
+      success: Person added
+    update:
+      success: Person updated
+    archive:
+      success: Person archived
+      not_settled: Only a settled person can be archived.
+    unarchive:
+      success: Person restored
+    forgivenesses:
+      new:
+        title: "Forgive balance with %{name}"
+        you_forgive: "%{name} owes you %{amount}. Forgiving books it as your spending."
+        they_forgive: "You owe %{name} %{amount}. If they forgive it, it is booked as your income."
+        category_label: Category
+        no_category: Uncategorized
+        submit: Forgive balance
+      create:
+        success: Balance forgiven
+        nothing_to_forgive: This balance is already settled.
+  clearings:
+    edit:
+      edit: "Edit %{account}"
+      balance_info: "The balance follows the transactions assigned to this person. Change it here only to record what was owed before."
+  transactions:
+    counterparty:
+      label: Person
+      none: "(nobody)"
+      hint: Paid for someone, or money from them? Choose the person.
+      assigned_hint: "Booked to %{name}: no longer counted as your income or spending."
+      hidden_hint: Booked to a person whose account another member keeps.
+      manage: People
+    counterparties:
+      update:
+        assigned: "Booked to %{name}"
+        released: Removed from the person
+        not_assignable: "This transaction can't be booked to a person (pending, split, or already a transfer)."

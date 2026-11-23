@@ -1,0 +1,9 @@
+<%# locals: (money:) %>
+<%# A clearing balance in words: positive means the person owes the user. %>
+<% if money.zero? %>
+  <span class="text-secondary"><%= t("counterparties.balance.settled") %></span>
+<% elsif money.positive? %>
+  <span class="text-success privacy-sensitive"><%= t("counterparties.balance.owes_you", amount: money.format) %></span>
+<% else %>
+  <span class="text-destructive privacy-sensitive"><%= t("counterparties.balance.you_owe", amount: money.abs.format) %></span>
+<% end %>

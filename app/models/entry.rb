@@ -698,12 +698,13 @@ class Entry < ApplicationRecord
   # inserts children, and split! only validates its own amounts, so without the lock both sets
   # of children would land and the amount would count twice. A provider sync can also mark the
   # transaction pending or a transfer in between, so those are re-checked too. Returns true
-  # when it split.
+  # when it split. A block gets the new children inside the same lock and transaction.
   def split_once!(splits, lock_attributes: false)
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes)
+      children = split!(splits, lock_attributes: lock_attributes)
+      yield children if block_given?
       true
     end
   end
@@ -711,12 +712,14 @@ class Entry < ApplicationRecord
   # Replaces the children of a split under the same lock, so a concurrent unsplit can't be undone
   # and two edits can't both insert children. Returns false when the entry is no longer a split
   # parent. Editing an existing split doesn't re-check pending/transfer: it creates no new split.
+  # A block gets the new children inside the same lock and transaction.
   def resplit!(splits)
     with_split_lock do
       next false unless split_parent?
 
       unsplit!
-      split!(splits)
+      children = split!(splits)
+      yield children if block_given?
       true
     end
   end

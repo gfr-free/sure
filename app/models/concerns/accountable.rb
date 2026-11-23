@@ -1,7 +1,11 @@
 module Accountable
   extend ActiveSupport::Concern
 
-  TYPES = %w[Depository Investment Crypto Property Vehicle OtherAsset CreditCard Loan OtherLiability]
+  TYPES = %w[Depository Investment Crypto Property Vehicle OtherAsset Clearing CreditCard Loan OtherLiability]
+
+  # Types a user may pick when creating or importing an account. A clearing
+  # account only exists through its person (see Counterparty).
+  USER_SELECTABLE_TYPES = (TYPES - %w[Clearing]).freeze
 
   # Define empty hash to ensure all accountables have this defined
   SUBTYPES = {}.freeze

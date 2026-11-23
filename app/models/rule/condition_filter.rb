@@ -79,6 +79,13 @@ class Rule::ConditionFilter
     true
   end
 
+  # Label lookup for value_display when the select labels carry cosmetic
+  # markup (e.g. indented subcategories) that shouldn't reach summaries.
+  # nil uses the select options.
+  def display_options
+    nil
+  end
+
   def operators
     OPERATORS_MAP.dig(type).map { |label_key, operator| [ operator_label(label_key), operator ] }
   end

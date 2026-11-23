@@ -4,6 +4,10 @@ class Rule::ActionExecutor::SetTransactionCategory < Rule::ActionExecutor
   end
 
   def options
+    Category::Group.select_options(family.categories)
+  end
+
+  def display_options
     Category::Group.select_options(family.categories, indent: false)
   end
 

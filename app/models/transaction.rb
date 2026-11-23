@@ -169,6 +169,15 @@ class Transaction < ApplicationRecord
   # A JSON number 0.0 renders as '0.0' and is pending here; #pending? agrees,
   # because FALSE_VALUES is a Set keyed by eql? and 0.0 is not eql? to 0. The
   # parity test carries the case.
+  #
+  # Each provider term starts with `extra @> '{"<provider>":{}}'`, which holds
+  # exactly when the provider key is an object, the only case in which the
+  # flag can be read; it changes no result. PostgreSQL has no statistics for
+  # the COALESCE expressions and guesses each NOT IN as true for ~96% of rows,
+  # so NOT (...) came out at ~0.04^10 and every query excluding pending rows
+  # was planned as if almost no transactions qualified: a scan of the whole
+  # transactions table driving a nested loop. Containment is estimated as
+  # rare, which keeps the estimate close to reality.
   def self.pending_sql(table_alias = "transactions", providers: PENDING_PROVIDERS)
     quoted_table = connection.quote_table_name(table_alias)
     selected_providers = Array(providers).map(&:to_s).uniq & PENDING_PROVIDERS
@@ -176,7 +185,8 @@ class Transaction < ApplicationRecord
 
     selected_providers
       .map do |provider|
-        "COALESCE(#{quoted_table}.extra -> #{connection.quote(provider)} ->> #{connection.quote("pending")}, #{connection.quote("")}) NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL})"
+        "(#{quoted_table}.extra @> #{connection.quote(%({"#{provider}":{}}))} AND " \
+          "COALESCE(#{quoted_table}.extra -> #{connection.quote(provider)} ->> #{connection.quote("pending")}, #{connection.quote("")}) NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL}))"
       end
       .join(" OR ")
       .then { |predicate| "(#{predicate})" }
@@ -187,7 +197,7 @@ class Transaction < ApplicationRecord
   PENDING_CHECK_SQL = begin
     PENDING_PROVIDERS
       .map do |provider|
-        "COALESCE(t.extra -> '#{provider}' ->> 'pending', '') NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL})"
+        "(t.extra @> '{\"#{provider}\":{}}' AND COALESCE(t.extra -> '#{provider}' ->> 'pending', '') NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL}))"
       end
       .join(" OR ")
       .then { |predicate| "(#{predicate})" }

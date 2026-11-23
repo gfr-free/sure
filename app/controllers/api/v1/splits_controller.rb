@@ -68,6 +68,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
   # exclusion -- is NOT carried over. Send the full set you want.
   def update
     return render_not_split unless @entry.split_parent?
+    return render_booked_to_person if booked_to_person?
 
     splits = build_splits
     return if performed?
@@ -101,6 +102,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
   # DELETE /api/v1/transactions/:transaction_id/split
   def destroy
     return render_not_split unless @entry.split_parent?
+    return render_booked_to_person if booked_to_person?
 
     raise NotSplit unless @entry.unsplit_once!
     @entry.sync_account_later
@@ -271,6 +273,16 @@ class Api::V1::SplitsController < Api::V1::BaseController
         error: "not_found",
         message: "Transaction is not split"
       }, status: :not_found
+    end
+
+    # Re-splitting or unsplitting deletes the parts' person bookings, and the
+    # API can't set them again, so those splits stay a web-only edit.
+    def booked_to_person?
+      @entry.child_entries.includes(:entryable).any? { |child| Counterparty::Assignment.clearing_leg_for(child) }
+    end
+
+    def render_booked_to_person
+      render_unprocessable("Split has parts booked to a person; edit it in the web app")
     end
 
     def render_unprocessable(message, errors = nil)

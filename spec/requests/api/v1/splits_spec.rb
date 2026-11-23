@@ -71,6 +71,14 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
     }
   end
 
+  let(:split_with_person_part) do
+    lambda do
+      children = transaction.entry.split!([ { name: 'A', amount: 60 }, { name: 'B', amount: 40 } ])
+      person = family.counterparties.create!(name: 'Alex', default_currency: 'USD', created_by: user)
+      Counterparty::Assignment.new(children.last).update!(person, user: user)
+    end
+  end
+
   path '/api/v1/transactions/{transaction_id}/split' do
     parameter name: :transaction_id, in: :path, type: :string,
               description: 'Transaction ID. A split child resolves to its parent.'
@@ -133,6 +141,11 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
         before { transaction.entry.split!([ { name: 'A', amount: 70 }, { name: 'B', amount: 30 } ]) }
         run_test!
       end
+
+      response '422', 'a part is booked to a person; such splits are edited in the web app' do
+        before { split_with_person_part.call }
+        run_test!
+      end
     end
 
     delete 'Remove a transaction split' do
@@ -142,6 +155,11 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
 
       response '204', 'split removed' do
         before { transaction.entry.split!([ { name: 'A', amount: 60 }, { name: 'B', amount: 40 } ]) }
+        run_test!
+      end
+
+      response '422', 'a part is booked to a person; such splits are edited in the web app' do
+        before { split_with_person_part.call }
         run_test!
       end
 

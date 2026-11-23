@@ -40,6 +40,7 @@ class Family < ApplicationRecord
 
   has_many :users, dependent: :destroy
   has_many :accounts, dependent: :destroy
+  has_many :counterparties, dependent: :destroy
   has_many :invitations, dependent: :destroy
 
   has_many :imports, dependent: :destroy
@@ -305,7 +306,7 @@ class Family < ApplicationRecord
     return unless user&.persisted? && user.family_id == id
 
     permission = user.guest? ? "read_only" : "read_write"
-    records = accounts.where.not(owner_id: user.id).pluck(:id).map do |account_id|
+    records = accounts.where.not(owner_id: user.id).where.not(accountable_type: "Clearing").pluck(:id).map do |account_id|
       { account_id: account_id, user_id: user.id, permission: permission,
         include_in_finances: true, created_at: Time.current, updated_at: Time.current }
     end

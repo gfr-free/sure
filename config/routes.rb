@@ -627,6 +627,7 @@ Rails.application.routes.draw do
     resource :transfer_match, only: %i[new create destroy]
     resource :pending_duplicate_merges, only: %i[new create]
     resource :category, only: :update, controller: :transaction_categories
+    resource :counterparty, only: :update, controller: "transactions/counterparties"
     resources :attachments, only: %i[show create destroy], controller: :transaction_attachments
 
     collection do
@@ -818,6 +819,15 @@ Rails.application.routes.draw do
   resources :cryptos, only: %i[new create edit update]
   resources :other_assets, only: %i[new create edit update]
   resources :other_liabilities, only: %i[new create edit update]
+  resources :clearings, only: %i[edit update]
+
+  resources :counterparties, only: %i[index new create show edit update] do
+    member do
+      patch :archive
+      patch :unarchive
+    end
+    resource :forgiveness, only: %i[new create], controller: "counterparties/forgivenesses"
+  end
 
   resources :securities, only: :index
 

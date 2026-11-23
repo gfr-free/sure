@@ -233,6 +233,7 @@ en:
       property: Property
       vehicle: Vehicle
       other_asset: Other Asset
+      clearing: Person
       credit_card: Credit Card
       loan: Loan
       other_liability: Other Liability
@@ -243,6 +244,7 @@ en:
       property: Properties
       vehicle: Vehicles
       other_asset: Other Assets
+      clearing: People
       credit_card: Credit Cards
       loan: Loans
       other_liability: Other Liabilities

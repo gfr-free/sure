@@ -1,0 +1,6 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title", name: @counterparty.name)) %>
+  <% dialog.with_body do %>
+    <%= render "form", counterparty: @counterparty %>
+  <% end %>
+<% end %>

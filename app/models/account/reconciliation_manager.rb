@@ -91,6 +91,7 @@ class Account::ReconciliationManager
     # next sync replaces it like any other anchor.
     def moves_current_anchor?(valuation_entry)
       return false unless account.linked?
+      return false if valuation_entry.entryable.opening_anchor?
       return false if valuation_entry.date.nil? || valuation_entry.date > Date.current
 
       # Read here rather than through Account#current_anchor_date, which
@@ -100,28 +101,32 @@ class Account::ReconciliationManager
     end
 
     # Same rotation as a provider sync (see Account::CurrentBalanceManager):
-    # the previous anchor stays behind as a reconciliation waypoint. Locked,
-    # with the anchors re-read, because a sync can move the anchor meanwhile.
+    # the previous anchor stays behind as a reconciliation waypoint. The row is
+    # locked, with the anchors re-read, because a sync can move the anchor
+    # meanwhile. The lock goes through a fresh row, since a caller such as a
+    # vehicle's purchase-price update can reach here with unsaved changes on
+    # the account.
     def save_as_current_anchor!(valuation_entry)
-      account.with_lock do
+      Account.transaction do
+        Account.lock.find(account.id)
+
         other_anchors = account.valuations.current_anchor.includes(:entry)
           .reject { |valuation| valuation.entry.id == valuation_entry.id }
 
         if other_anchors.any? { |valuation| valuation.entry.date > valuation_entry.date }
           valuation_entry.save!
-          next
+        else
+          other_anchors.each do |valuation|
+            valuation.update!(kind: "reconciliation")
+            valuation.entry.update!(name: Valuation.build_reconciliation_name(account.accountable_type))
+          end
+
+          valuation_entry.entryable.kind = "current_anchor"
+          valuation_entry.name = Valuation.build_current_anchor_name(account.accountable_type)
+          valuation_entry.save!
+
+          account.update_columns(balance: valuation_entry.amount, updated_at: Time.current)
         end
-
-        other_anchors.each do |valuation|
-          valuation.update!(kind: "reconciliation")
-          valuation.entry.update!(name: Valuation.build_reconciliation_name(account.accountable_type))
-        end
-
-        valuation_entry.entryable.kind = "current_anchor"
-        valuation_entry.name = Valuation.build_current_anchor_name(account.accountable_type)
-        valuation_entry.save!
-
-        account.update!(balance: valuation_entry.amount)
       end
     end
 

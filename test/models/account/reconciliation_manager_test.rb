@@ -231,6 +231,33 @@ class Account::ReconciliationManagerTest < ActiveSupport::TestCase
     assert_equal anchor, account.valuations.current_anchor.sole.entry
   end
 
+  test "a valuation on a linked account's opening anchor date keeps the opening anchor" do
+    account = linked_account
+    opening = account.entries.create!(
+      name: Valuation.build_opening_anchor_name(account.accountable_type),
+      amount: 1000,
+      date: Date.current,
+      currency: account.currency,
+      entryable: Valuation.new(kind: "opening_anchor")
+    )
+
+    Account::ReconciliationManager.new(account).reconcile_balance(balance: 1200, date: Date.current, existing_valuation_entry: opening)
+
+    assert opening.reload.entryable.opening_anchor?
+    assert_empty account.valuations.current_anchor
+  end
+
+  test "a linked account with unsaved changes can still take a valuation as its anchor" do
+    account = linked_account
+    create_current_anchor(account, amount: 4500, date: 1.day.ago.to_date)
+    account.name = "Renamed, not yet saved"
+
+    result = Account::ReconciliationManager.new(account).reconcile_balance(balance: 4750, date: Date.current)
+
+    assert result.success?, result.error_message
+    assert_equal 4750, account.reload.balance
+  end
+
   test "the next provider reading replaces a valuation that became the anchor" do
     account = linked_account
     create_current_anchor(account, amount: 2945.75, date: 1.day.ago.to_date)

@@ -117,6 +117,18 @@ class Receipt::ExtractionAiTest < ActiveSupport::TestCase
     assert_not_includes requests.first.input.to_s, "4111 1111"
   end
 
+  test "an oversized AI total is dropped and the text stage's fields stay" do
+    stub_ai(:extract_receipt, returns: ANSWER.merge(total: 12_345_678_901_234_567))
+    receipt = upload(receipt_pdf([ "Coffee House", "Date 2026-11-20" ]))
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_nil receipt.amount
+    assert_equal Date.new(2026, 11, 20), receipt.date
+    assert_equal "pdf_text", receipt.field_source(:date)
+  end
+
   private
     def upload(content, filename: "receipt.pdf", content_type: "application/pdf")
       Receipt.create_from_upload!(family: @family, user: @user, file: uploaded_receipt(content, filename:, content_type:))

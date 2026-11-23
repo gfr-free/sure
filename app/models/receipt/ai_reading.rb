@@ -2,7 +2,8 @@
 
 # Turns the `extract_receipt` answer into receipt fields, in the shape
 # Receipt::TextParser returns them. Values a receipt can't hold (a refund total,
-# a date in the future, an unknown currency) are dropped.
+# a total too large to store, a date in the future, an unknown currency) are
+# dropped.
 #
 # A model's wrong answer often looks right, so amount and date are checked
 # against the text the earlier stages read: found there, they count as more
@@ -38,7 +39,7 @@ class Receipt::AiReading
 
     def amount
       total = Transaction::ReceiptExtraction::ReceiptExtraction.decimal_or_nil(value[:total])
-      total if total&.positive?
+      total if total&.positive? && total < Receipt::MAX_AMOUNT
     end
 
     def date

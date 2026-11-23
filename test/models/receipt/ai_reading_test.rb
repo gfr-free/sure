@@ -43,5 +43,6 @@ class Receipt::AiReadingTest < ActiveSupport::TestCase
 
     assert_empty Receipt::AiReading.new({ total: "abc", date: "2020-01-01", currency: "euro" }).fields
     assert_empty Receipt::AiReading.new({ total: nil, date: "not a date", currency: nil }).fields
+    assert_empty Receipt::AiReading.new({ total: 12_345_678_901_234_567 }).fields
   end
 end

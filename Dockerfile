@@ -9,10 +9,11 @@ WORKDIR /rails
 
 # Install base packages
 # poppler-utils provides pdftoppm, required for the PDF vision processing path
-# tesseract-ocr with the German and English packs reads receipt photos and scans
+# Receipt reading: tesseract-ocr with the German and English packs reads photos
+# and scans, zbar-tools (zbarimg) reads QR codes
 RUN apt-get update -qq \
     && apt-get install --no-install-recommends -y curl libvips postgresql-client libyaml-0-2 procps libjemalloc2 poppler-utils \
-       tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
+       tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng zbar-tools \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment

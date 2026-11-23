@@ -366,7 +366,7 @@ class Family::DataImporter
           assign_property_details(accountable, accountable_data) if accountable.is_a?(Property)
           assign_vehicle_details(accountable, accountable_data) if accountable.is_a?(Vehicle)
 
-          account = @family.accounts.build(accountable: accountable)
+          account = @family.accounts.build(accountable: accountable, owner: @import&.account_owner)
         end
 
         account.assign_attributes(
@@ -390,6 +390,7 @@ class Family::DataImporter
         account.logo_selection = data["logo_selection"] if Account.logo_selections.key?(data["logo_selection"])
 
         account.save!
+        account.auto_share_with_family! if created && @family.share_all_by_default?
 
         # Set opening balance if we have a historical balance and the import
         # does not provide either an explicit opening-anchor valuation or an

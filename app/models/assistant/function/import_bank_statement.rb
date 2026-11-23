@@ -148,6 +148,7 @@ class Assistant::Function::ImportBankStatement < Assistant::Function
       created = family.imports.create!(
         type: "TransactionImport",
         account: account,
+        user: user,
         raw_file_str: csv_content,
         source_pdf_import_id: pdf_import.id,
         date_col_label: "date",

@@ -38,9 +38,11 @@ class Import::AccountMapping < Import::Mapping
     account = import.family.accounts.create_or_find_by!(name: key) do |new_account|
       new_account.balance = 0
       new_account.import = import
+      new_account.owner = import.account_owner
       new_account.currency = import.family.currency
       new_account.accountable = Depository.new
     end
+    import.share_created_account!(account) if account.previously_new_record?
 
     self.mappable = account
     save!

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2208,6 +2208,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.jsonb "field_sources", default: {}, null: false
     t.string "filename", limit: 255, null: false
     t.datetime "linked_at"
+    t.jsonb "merchant_identifiers", default: [], null: false
     t.string "merchant_name", limit: 200
     t.text "raw_text"
     t.string "source", default: "web", null: false
@@ -2215,6 +2216,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_120000) do
     t.datetime "updated_at", null: false
     t.uuid "uploaded_by_id"
     t.index ["family_id"], name: "index_receipts_on_family_id"
+    t.index ["merchant_identifiers"], name: "index_receipts_on_merchant_identifiers", using: :gin
     t.index ["transaction_id"], name: "index_receipts_on_transaction_id"
     t.index ["uploaded_by_id", "content_sha256"], name: "index_receipts_on_uploaded_by_id_and_content_sha256", unique: true
     t.index ["uploaded_by_id", "created_at"], name: "index_receipts_on_uploaded_by_id_and_created_at"

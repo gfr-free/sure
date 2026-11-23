@@ -13,6 +13,7 @@ en:
     attributes:
       recurring_transaction:
         payment_url: "Payment link"
+        bank_reference: "Bank reference"
         frequency_interval: "Repeat interval"
         auto_post: "Post automatically"
     errors:
@@ -25,6 +26,8 @@ en:
               fixed_amount_required: "needs a fixed amount"
               account_currency_required: "needs the bill to use the account's currency"
               destination_not_writable: "needs write access to the destination account"
+            bank_reference:
+              needs_account_and_expense: "only works on an expense bill with an account, because it is matched against that account's payments"
             payment_url:
               invalid_scheme: "must be a valid http:// or https:// address"
             anchor_date:

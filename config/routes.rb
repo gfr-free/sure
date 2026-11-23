@@ -818,6 +818,11 @@ Rails.application.routes.draw do
     end
   end
 
+  # Before `resources :receipts`, whose PATCH /receipts/:id would take it.
+  namespace :receipts do
+    resource :email_inbox, only: %i[create update destroy]
+  end
+
   resources :receipts, only: %i[index show create update destroy] do
     post :prefill, on: :collection
     member do

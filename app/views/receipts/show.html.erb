@@ -6,6 +6,9 @@
       <%= render DS::Link.new(icon: "arrow-left", variant: "icon", href: receipts_path, aria: { label: t(".back") }) %>
       <h1 class="text-xl font-medium text-primary truncate"><%= @receipt.filename %></h1>
       <%= receipt_status_pill(@receipt) %>
+      <% if @receipt.email? %>
+        <%= render DS::Pill.new(label: t(".from_email")) %>
+      <% end %>
     </div>
     <div class="flex items-center gap-2">
       <%= render DS::Link.new(text: t(".download"), icon: "download", variant: "outline", href: file_receipt_path(@receipt, disposition: "attachment")) %>

@@ -18,6 +18,21 @@ de:
       file: Datei
       merchant: Händler
       status: Status
+    email_inbox:
+      title: Belege per E-Mail senden
+      description: Leite Rechnungen und Belege an deine eigene Adresse weiter. Sure übernimmt jedes PDF und jedes Foto im Anhang in deine Belege. Den Text der Mail speichert Sure nicht.
+      enable: E-Mail-Adresse anlegen
+      address: Deine Beleg-Adresse
+      copied: Kopiert
+      copy: Adresse kopieren
+      senders_hint: "Sure nimmt Mails an diese Adresse nur von %{email} und den Adressen unten an. Halte die Adresse geheim: Wer sie kennt, kann versuchen, dir Belege zu schicken."
+      senders_label: Weitere Absender-Adressen
+      senders_placeholder: Eine Adresse pro Zeile, zum Beispiel deine Arbeitsadresse oder ein Shop, der dir Rechnungen schickt
+      save_senders: Absender speichern
+      new_address: Neue Adresse anlegen
+      new_address_confirm_title: Neue Adresse anlegen?
+      new_address_confirm_body: Die bisherige Adresse funktioniert dann sofort nicht mehr. Mails, die schon dorthin unterwegs sind, kommen nicht an.
+      disable: Ausschalten
     index:
       title: Belege
       preview: Vorschau
@@ -39,6 +54,7 @@ de:
       dismiss: Verwerfen
       delete: Löschen
       receipt: Beleg
+      from_email: Per E-Mail
       reading: Sure liest diesen Beleg gerade. Lade die Seite gleich neu.
       extraction_failed: Sure konnte diese Datei nicht lesen. Trag die Angaben unten ein.
       nothing_read: Sure hat in dieser Datei keinen lesbaren Text gefunden. Trag die Angaben unten ein.
@@ -105,3 +121,12 @@ de:
       reopened: Beleg wieder geöffnet.
     destroy:
       deleted: Beleg gelöscht.
+    email_inboxes:
+      create:
+        enabled: Deine Beleg-Adresse ist eingerichtet.
+        rotated: Du hast eine neue Beleg-Adresse. Die alte funktioniert nicht mehr.
+      update:
+        updated: Absender-Adressen gespeichert.
+        invalid: Gib gültige E-Mail-Adressen ein, höchstens %{count}.
+      destroy:
+        disabled: Belege per E-Mail sind ausgeschaltet. Die Adresse funktioniert nicht mehr.

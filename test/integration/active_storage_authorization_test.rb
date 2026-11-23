@@ -528,6 +528,15 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "raw inbound e-mails are never served" do
+    inbound_email = ActionMailbox::InboundEmail.create_and_extract_message_id!("From: a@example.com\r\nTo: b@example.com\r\nSubject: Receipt\r\n\r\nFamily A secret mail")
+    sign_in @user_a
+
+    get rails_blob_path(inbound_email.raw_email)
+
+    assert_response :not_found
+  end
+
   test "every attachment is either access-checked or intentionally public" do
     # Logos and avatars are not sensitive. Archived exports have no owning family;
     # ArchivedExportsController releases them by download token.

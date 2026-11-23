@@ -205,7 +205,8 @@ show 0. Each linked account therefore takes exactly one of four paths, in
 this order:
 
 1. **Transactions.** At least one counted transaction in the 90-day
-   window: the net inflow above, divided by three. Unchanged.
+   window: the net inflow above, plus the window's investment flows
+   (below), divided by three.
 2. **Balance.** Otherwise, a `reconciliation` or `current_anchor` valuation
    in the trailing 365 days: the account's balance today minus the
    `end_balance` of its latest balance row on or before a year ago,
@@ -218,19 +219,34 @@ this order:
    With no balance row a year back, the account is unmeasured; a missing
    row is never read as a zero opening balance.
 3. **Dormant.** Otherwise, any transaction that is neither excluded nor
-   pending, at any date: a measured zero.
+   pending, at any date: the window's investment flows (below), divided by
+   three; zero without them.
    A savings account nobody has paid into lately is honestly behind.
 4. **Unmeasured.** Anything else (an opening balance and nothing since,
    or valuations all older than a year).
+
+Investment flows (`Goal.investment_pace_for`) are the 90-day flows a
+transaction query misses on an investment account: interest, dividends and
+fees, which `Trade::CreateForm` books as trades with `qty: 0`
+(`Goal.income_trade_entries`), on either basis, and on the balance basis
+the window's `net_market_flows`. Buys and sells only swap cash for
+holdings and are not counted. Path 2 needs none of this: its balance change
+already holds them. Which path an account takes still depends on
+transactions only.
+
+The funding widget's 30d/90d columns read the same flows for every linked
+account: transactions and income trades as positive inflows per entry, and
+on the balance basis each window's net market gain (a loss reads as 0).
 
 `Goal#pace_measurable?` is true only when every linked account is on path
 1, 2 or 3. `Goal#pace` stays numeric (an unmeasured account adds 0). When
 pace is unmeasurable, `projection_payload` sends `avg_monthly: nil` and no
 shortfall label, and the chart draws no projection line. The evidence is
-read by `Goal.pace_for` and `Goal.balance_pace_for`, both family-wide and
+read by `Goal.pace_for`, `Goal.balance_pace_for` and
+`Goal.investment_pace_for`, all family-wide and
 injected by `Goal.inject_backing_math!`, so a page of goals costs no
 query per goal. That method reads the linked account ids once
-(`Goal.linked_account_ids_for`) and passes them to both, and to
+(`Goal.linked_account_ids_for`) and passes them to all three, and to
 `Goal.market_flows_for`.
 
 `Goal#monthly_target_amount` is `(remaining_amount / months_remaining).ceil(2)`.

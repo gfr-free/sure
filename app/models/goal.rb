@@ -302,6 +302,48 @@ class Goal < ApplicationRecord
 
   attr_writer :pooled_pace
 
+  # Interest, dividends and fees on an investment account are booked as Trades
+  # with no quantity, not as Transactions, so pace_for does not see them. Like
+  # a deposit they move the cash balance, and so the progress of a goal on
+  # either basis. Buys and sells only swap cash for holdings and are left out.
+  def self.income_trade_entries(account_ids, dates)
+    Entry
+      .joins("INNER JOIN trades ON trades.id = entries.entryable_id AND entries.entryable_type = 'Trade'")
+      .where(account_id: account_ids, date: dates, excluded: false)
+      .where(trades: { qty: 0 })
+  end
+
+  # Market gain/loss (balances.net_market_flows) over `dates`, in each
+  # account's currency.
+  def self.market_flow_balances(account_ids, dates)
+    Balance.joins(:account)
+      .where(account_id: account_ids, date: dates)
+      .where("balances.currency = accounts.currency")
+  end
+
+  # Family-wide map of the 90-day flows that pace_for does not read. Goal#pace
+  # adds them for accounts on the transaction or dormant path:
+  #
+  #   { income: { account_id => { currency => net Entry#amount sum } },
+  #     market: { account_id => net_market_flows sum in the account's currency } }
+  #
+  # Read once for the family for the same N+1 reason as pace_for.
+  def self.investment_pace_for(family, account_ids: linked_account_ids_for(family))
+    return { income: {}, market: {} } if account_ids.empty?
+
+    dates = 90.days.ago.to_date..Date.current
+    income = income_trade_entries(account_ids, dates)
+      .group(:account_id, :currency)
+      .sum(:amount)
+      .each_with_object({}) do |((account_id, currency), amount), totals|
+        (totals[account_id] ||= {})[currency] = amount
+      end
+
+    { income: income, market: market_flow_balances(account_ids, dates).group(:account_id).sum(:net_market_flows) }
+  end
+
+  attr_writer :pooled_investment_pace
+
   BALANCE_PACE_DAYS = 365
   BALANCE_PACE_VALUATION_KINDS = %w[reconciliation current_anchor].freeze
 
@@ -320,9 +362,10 @@ class Goal < ApplicationRecord
   # its absence as zero would call the whole balance growth. Stored balances
   # include excluded entries, which pace_for leaves out, so their sum over the
   # window is carried too and taken back out of the change. `dormant` holds
-  # accounts with counted transactions, just none lately: their pace is a
-  # measured zero. Excluded and pending ones do not count there either, as
-  # they do not in pace_for.
+  # accounts with counted transactions, just none lately: their pace is
+  # measured from their investment flows alone (see investment_pace_for), zero
+  # without any. Excluded and pending ones do not count there either, as they
+  # do not in pace_for.
   # Any linked account in neither map (an opening balance and nothing since, a
   # recent valuation on under a year of history, or updates all older than a
   # year) has no measurable pace.
@@ -419,6 +462,7 @@ class Goal < ApplicationRecord
     flows = market_flows_for(family, account_ids: account_ids)
     pace_map = pace_for(family, account_ids: account_ids)
     balance_pace_map = balance_pace_for(family, pace_map, account_ids: account_ids)
+    investment_pace_map = investment_pace_for(family, account_ids: account_ids)
     converter = CurrencyConverter.new
     goals.each do |goal|
       goal.currency_converter = converter
@@ -426,6 +470,7 @@ class Goal < ApplicationRecord
       goal.market_flows = flows
       goal.pooled_pace = pace_map
       goal.pooled_balance_pace = balance_pace_map
+      goal.pooled_investment_pace = investment_pace_map
     end
   end
 
@@ -891,6 +936,11 @@ class Goal < ApplicationRecord
   # taken out, so pace measures the same thing progress does. An account with
   # no evidence either way contributes 0 here, and makes pace_measurable? false.
   #
+  # A transaction-measured account also counts its interest, dividends and fees
+  # in the window (see Goal.income_trade_entries) and, on the balance basis, its
+  # market gain or loss: both move the balance progress is read from, and the
+  # balance path already includes them.
+  #
   # NOTE: pace is whole-account inflow by design in this phase, even for an
   # earmarked goal whose current_balance is only a slice — so runway/status
   # mix a whole-account numerator with an earmark-scoped balance. Earmark-aware
@@ -905,9 +955,11 @@ class Goal < ApplicationRecord
       # entry date could reach the provider up to 90 times per currency on
       # every render.
       net = linked_accounts.sum do |account|
-        pooled_pace.fetch(account.id, {}).sum do |entry_currency, amount|
+        transactions = pooled_pace.fetch(account.id, {}).sum do |entry_currency, amount|
           convert_money(Money.new(amount, entry_currency.presence || account.currency)).amount
         end
+        # Entry amounts are negative for an inflow, so a gain is taken off.
+        transactions - investment_pace_gain(account)
       end
       # Balance-measured pace is in the account's currency; convert it the
       # same way, at today's rate.
@@ -1352,6 +1404,26 @@ class Goal < ApplicationRecord
 
     def pooled_balance_pace
       @pooled_balance_pace ||= self.class.balance_pace_for(family, pooled_pace)
+    end
+
+    def pooled_investment_pace
+      @pooled_investment_pace ||= self.class.investment_pace_for(family)
+    end
+
+    # Interest, dividends and fees, plus market gain or loss on the balance
+    # basis, over the 90-day window of one transaction-measured account, in the
+    # goal's currency. Positive is a gain. A balance-measured account already
+    # holds them in its balance change, and an unmeasured one has no pace.
+    def investment_pace_gain(account)
+      return 0.to_d unless pooled_pace.key?(account.id) || pooled_balance_pace[:dormant].include?(account.id)
+
+      income = pooled_investment_pace[:income].fetch(account.id, {}).sum do |entry_currency, amount|
+        -convert_money(Money.new(amount, entry_currency.presence || account.currency)).amount
+      end
+      return income.to_d if contributions_basis?
+
+      market = pooled_investment_pace[:market].fetch(account.id, 0).to_d
+      income.to_d + convert_money(Money.new(market, account.currency)).amount
     end
 
     # Monthly pace of one account measured from its balance, in the account's

@@ -335,6 +335,25 @@ class Transaction::MergeWithDuplicateTest < ActiveSupport::TestCase
     assert_equal [ 7, 8 ], posted_tx.reload.paperless_links.order(:document_id).pluck(:document_id)
   end
 
+  test "moves receipts linked to the pending transaction to the posted transaction" do
+    content = "%PDF-1.4 receipt"
+    receipt = @family.receipts.create!(uploaded_by: users(:family_admin), filename: "r.pdf", content_type: "application/pdf",
+                                       byte_size: content.bytesize, content_sha256: Digest::SHA256.hexdigest(content),
+                                       linked_transaction: @pending_entry.transaction, linked_at: Time.current)
+
+    assert @pending_entry.transaction.merge_with_duplicate!
+
+    assert_equal @posted_entry.transaction, receipt.reload.linked_transaction
+  end
+
+  test "the posted transaction keeps the note that a receipt created the pending one" do
+    @pending_entry.transaction.update!(extra: (@pending_entry.transaction.extra || {}).merge("created_from_receipt" => true))
+
+    assert @pending_entry.transaction.merge_with_duplicate!
+
+    assert_equal true, @posted_entry.transaction.reload.extra["created_from_receipt"]
+  end
+
   test "adds the pending transaction's tags to the posted transaction" do
     shared = @family.tags.create!(name: "Shared")
     reimbursable = @family.tags.create!(name: "Reimbursable")

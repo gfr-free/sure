@@ -31,6 +31,9 @@ class User < ApplicationRecord
   has_many :web_push_subscriptions, dependent: :destroy
   has_many :webauthn_credentials, dependent: :destroy
   has_many :mobile_devices, dependent: :destroy
+  # Receipts are private to their uploader, so nobody else could manage or
+  # delete them once the uploader is gone; copies on transactions stay.
+  has_many :uploaded_receipts, class_name: "Receipt", foreign_key: :uploaded_by_id, inverse_of: :uploaded_by, dependent: :destroy
   has_many :invitations, foreign_key: :inviter_id, dependent: :destroy
   has_many :impersonator_support_sessions, class_name: "ImpersonationSession", foreign_key: :impersonator_id, dependent: :destroy
   has_many :impersonated_support_sessions, class_name: "ImpersonationSession", foreign_key: :impersonated_id, dependent: :destroy
@@ -505,6 +508,7 @@ class User < ApplicationRecord
       account_shares.delete_all
       contract_shares.delete_all
       User::CrossFamilyLinks.new(accounts_to_move, new_family).resolve!
+      old_family_id = family_id
 
       old_family = family
       update!(family: new_family, role: role, default_account: moving_default_account ? default_account : nil)
@@ -514,6 +518,8 @@ class User < ApplicationRecord
       end
 
       AccountStatement.where(account: accounts_to_move).update_all(family_id: new_family.id, updated_at: Time.current) if accounts_to_move.any?
+
+      move_uploaded_receipts!(from_family_id: old_family_id, to: new_family, moved_account_ids: accounts_to_move.map(&:id))
 
       provider_items_to_move.each do |provider_item|
         if provider_item.is_a?(FinancekitItem)
@@ -590,6 +596,23 @@ class User < ApplicationRecord
         ContractDocumentUnindexJob.perform_later(family_document)
       end
     end
+  end
+
+  # Receipts are private to their uploader, so they follow the user. A link to
+  # a transaction left behind in the old family is dropped; that transaction
+  # keeps its own copy of the file.
+  def move_uploaded_receipts!(from_family_id:, to:, moved_account_ids:)
+    receipts = Receipt.where(uploaded_by_id: id, family_id: from_family_id)
+    moved_transactions = Transaction.joins(:entry).where(entries: { account_id: moved_account_ids }).select(:id)
+    now = Time.current
+
+    receipts.where.not(transaction_id: nil).where.not(transaction_id: moved_transactions)
+            .update_all(transaction_id: nil, linked_at: nil, created_transaction: false, updated_at: now)
+    receipts.update_all(family_id: to.id, updated_at: now)
+
+    # Other members' receipts stay behind, so their links to moved accounts go.
+    Receipt.where(family_id: from_family_id).where.not(uploaded_by_id: id).where(transaction_id: moved_transactions)
+           .update_all(transaction_id: nil, linked_at: nil, created_transaction: false, updated_at: now)
   end
 
   def provider_items_for_transfer(accounts_to_move)

@@ -1,6 +1,11 @@
 <%# locals: (transaction:, can_upload: false, can_delete: false) %>
 
 <div id="transaction_attachments_<%= transaction.id %>" class="pb-4">
+  <% if transaction.created_from_receipt? %>
+    <div class="mb-3">
+      <%= render DS::Pill.new(label: t(".created_from_receipt"), tone: :info, marker: false, icon: "receipt") %>
+    </div>
+  <% end %>
   <!-- Upload Form -->
   <% if can_upload && transaction.attachments.count < Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>
     <%= styled_form_with url: transaction_attachments_path(transaction),

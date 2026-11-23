@@ -285,6 +285,7 @@ en:
       edit_tags: "Edit tags"
       edit_merchants: "Edit merchants"
       edit_imports: "Edit imports"
+      receipts: "Receipts"
       new_transaction: "New transaction"
       categorize_button:
         one: "Categorize (1)"
@@ -461,6 +462,7 @@ en:
         search_placeholder: "Search transactions ..."
         filter: "Filter"
     attachments:
+      created_from_receipt: "Created from a receipt"
       cannot_exceed: "Cannot exceed %{count} attachments per transaction"
       uploaded_one: "Attachment uploaded successfully"
       uploaded_many: "%{count} attachments uploaded successfully"

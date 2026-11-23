@@ -206,6 +206,7 @@ de:
         other: Kategorisieren (%{count})
       edit_categories: Kategorien bearbeiten
       edit_imports: Importe bearbeiten
+      receipts: Belege
       edit_merchants: Händler bearbeiten
       edit_rules: Regeln bearbeiten
       edit_tags: Tags bearbeiten
@@ -343,6 +344,7 @@ de:
         filter: Filtern
         search_placeholder: Transaktionen suchen …
     attachments:
+      created_from_receipt: "Aus Beleg erstellt"
       attachment_deleted: Anhang gelöscht
       browse_to_add: Dateien auswählen
       too_many_files: "Zu viele Dateien (max. %{max})"

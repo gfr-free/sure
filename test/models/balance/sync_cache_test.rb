@@ -306,6 +306,23 @@ class Balance::SyncCacheTest < ActiveSupport::TestCase
     assert_equal 150.0, Balance::SyncCache.new(@account).get_holdings_value(Date.current)
   end
 
+  test "values a foreign currency holding at the nearest stored rate when none is close by" do
+    ExchangeRate.stubs(:provider).returns(nil)
+    ExchangeRate.create!(from_currency: "EUR", to_currency: "USD", date: 30.days.ago.to_date, rate: 1.5)
+
+    security = Security.create!(ticker: "TST", name: "Test")
+    @account.holdings.create!(security: security, date: Date.current, qty: 1, price: 100, amount: 100, currency: "EUR")
+    @account.holdings.create!(security: security, date: 1.day.ago.to_date, qty: 1, price: 100, amount: 100, currency: "EUR")
+
+    sync_cache = Balance::SyncCache.new(@account)
+
+    assert_no_difference "DebugLogEntry.count" do
+      assert_equal 150.0, sync_cache.get_holdings_value(Date.current)
+      assert_equal 150.0, sync_cache.get_holdings_value(1.day.ago.to_date)
+    end
+    assert_equal 0, sync_cache.unconvertible_holding_count
+  end
+
   test "falls back to 1:1 conversion rate when exchange rate is missing for a foreign currency holding" do
     security = Security.create!(ticker: "TST", name: "Test")
     @account.holdings.create!(security: security, date: Date.current, qty: 1, price: 100, amount: 100, currency: "EUR")

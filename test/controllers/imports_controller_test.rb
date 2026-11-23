@@ -121,6 +121,21 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to import_upload_url(Import.all.ordered.first)
   end
 
+  test "records the importing user on CSV and Sure imports" do
+    sign_in member = users(:family_member)
+
+    post imports_url, params: { import: { type: "AccountImport" } }
+    assert_equal member, Import.ordered.first.user
+
+    ndjson_file = Rack::Test::UploadedFile.new(
+      StringIO.new({ type: "Account", data: { id: "account_1", name: "Checking" } }.to_json),
+      "application/x-ndjson",
+      original_filename: "all.ndjson"
+    )
+    post imports_url, params: { import: { type: "SureImport", import_file: ndjson_file } }
+    assert_equal member, SureImport.ordered.first.user
+  end
+
   test "dropping a Sure transactions.csv export presets the export sign convention" do
     exported_csv = "#{Family::DataExporter::TRANSACTIONS_CSV_HEADERS.join(",")}\n2024-05-15,Checking Account,42.5,Grocery,,,,USD\n"
 
@@ -506,10 +521,29 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("imports.create.invalid_document_file_type"), flash[:alert]
   end
 
+  test "publishing a Sure import records the publisher and enqueues the job" do
+    sign_in member = users(:family_member)
+    ndjson = { type: "Account", data: {
+      id: "account-1", name: "Checking", balance: "1.00", currency: "USD",
+      accountable_type: "Depository", accountable: { subtype: "checking" }
+    } }.to_json
+    import = member.family.imports.create!(type: "SureImport", user: users(:family_admin))
+    import.ndjson_file.attach(io: StringIO.new(ndjson), filename: "all.ndjson", content_type: "application/x-ndjson")
+    import.sync_ndjson_rows_count!
+
+    assert_enqueued_with(job: ImportJob) do
+      post publish_import_url(import)
+    end
+
+    assert_redirected_to import_path(import)
+    assert_equal "importing", import.reload.status
+    assert_equal member, import.user
+  end
+
   test "publishes import" do
     import = imports(:transaction)
 
-    TransactionImport.any_instance.expects(:publish_later).once
+    TransactionImport.any_instance.expects(:publish_later).with(user: users(:family_admin)).once
 
     post publish_import_url(import)
 

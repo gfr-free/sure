@@ -78,7 +78,10 @@ class Receipt < ApplicationRecord
   scope :ordered, -> { order(created_at: :desc) }
   scope :open, -> { where(transaction_id: nil, dismissed_at: nil) }
   scope :suggested, -> { where.not(transaction_id: nil).where(match_status: "pending", dismissed_at: nil) }
-  scope :done, -> { where.not(transaction_id: nil).where(match_status: "confirmed").or(where.not(dismissed_at: nil)) }
+  # Receipts the user linked to a transaction themselves or whose suggestion
+  # they confirmed; a pending suggestion does not count.
+  scope :linked, -> { where.not(transaction_id: nil).where(match_status: "confirmed") }
+  scope :done, -> { linked.or(where.not(dismissed_at: nil)) }
   scope :uploaded_by, ->(user) { where(uploaded_by: user) }
 
   class << self
@@ -257,6 +260,11 @@ class Receipt < ApplicationRecord
     field_sources.dig(field.to_s, "source")
   end
 
+  # Whether reading the file filled anything, as opposed to the user typing it.
+  def fields_read?
+    raw_text.present? || field_sources.values.any? { |info| info["source"].present? && info["source"] != "manual" }
+  end
+
   def field_confidence(field)
     field_sources.dig(field.to_s, "confidence")
   end
@@ -280,7 +288,9 @@ class Receipt < ApplicationRecord
     # meanwhile counts as manual and is kept.
     with_lock do
       manual = FIELDS.select { |field| field_source(field) == "manual" }
-      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: nil }
+      # On a completed read the error column keeps the notice, so the page can
+      # say why fields are blank.
+      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: result.notice }.merge(result.attributes)
       sources = field_sources.slice(*manual)
       (FIELDS - manual).each do |field|
         value = result.fields[field]

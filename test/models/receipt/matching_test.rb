@@ -26,6 +26,7 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
     assert_includes @family.receipts.suggested, receipt
     assert_not_includes @family.receipts.open, receipt
     assert_not_includes @family.receipts.done, receipt
+    assert_not_includes @family.receipts.linked, receipt, "a suggestion is not a link the user made"
     assert_equal 0, match.attachments.count, "the file is only copied once the user confirms"
   end
 
@@ -116,6 +117,7 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
     assert receipt.match_confirmed?
     assert_equal :linked, receipt.status
     assert_includes @family.receipts.done, receipt
+    assert_includes @family.receipts.linked, receipt
     assert_equal 1, transaction.attachments.count
     assert_not receipt.created_transaction?
   end

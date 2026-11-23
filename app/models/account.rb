@@ -1082,7 +1082,8 @@ class Account < ApplicationRecord
     # it. A direct write, because AASM has no event back to the prior status and
     # the restore must not fail on an unrelated validation and mask the error.
     def restore_status_after_failed_enqueue(restoring)
-      restored = Account.where(id: id, status: "pending_deletion").update_all(status: restoring)
+      # updated_at moves too, so caches keyed on Family#accounts_status_version see the account again.
+      restored = Account.where(id: id, status: "pending_deletion").update_all(status: restoring, updated_at: Time.current)
       self.status = restoring if restored == 1
       clear_attribute_changes([ :status ])
     end

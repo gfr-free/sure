@@ -37,6 +37,38 @@ class Account::DestroyLaterTest < ActiveSupport::TestCase
     assert_equal "active", @account.reload.status
   end
 
+  test "a failed enqueue changes the family's account status version" do
+    family = @account.family
+    pending_version = nil
+    # The restore happens a second after the mark, as a slow enqueue would.
+    DestroyJob.queue_adapter.stubs(:enqueue).with { pending_version = family.accounts_status_version; travel 1.second; true }
+              .raises(ActiveJob::EnqueueError, "rejected")
+
+    assert_equal false, @account.destroy_later
+
+    assert_not_nil pending_version
+    assert_not_equal pending_version, family.accounts_status_version, "totals cached while pending must not be reused"
+  end
+
+  test "totals cached while the deletion is pending are not reused after a failed enqueue" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    family = @account.family
+    other = family.accounts.where.not(id: @account.id).first
+    full_count = Transaction::Search.new(family).totals.count
+    pending_count = nil
+    # While the mark is in place another account is touched later than the restore will be.
+    DestroyJob.queue_adapter.stubs(:enqueue).with {
+      other.update_column(:updated_at, 1.hour.from_now)
+      pending_count = Transaction::Search.new(family.reload).totals.count
+      true
+    }.raises(ActiveJob::EnqueueError, "rejected")
+
+    assert_equal false, @account.destroy_later
+
+    assert_operator pending_count, :<, full_count, "the account's transactions are left out while it is pending deletion"
+    assert_equal full_count, Transaction::Search.new(family.reload).totals.count
+  end
+
   test "restores a disabled account to disabled when the enqueue fails" do
     @account.update_column(:status, "disabled")
     DestroyJob.queue_adapter.stubs(:enqueue).raises(RedisClient::CannotConnectError, "Connection refused")

@@ -1,5 +1,15 @@
 <%# locals: (form:) %>
 <div data-controller="list-filter">
+  <div class="flex items-center gap-2 p-2 mb-2 border-b border-secondary">
+    <%= form.check_box :active_accounts_only,
+                       {
+                         checked: @q[:active_accounts_only].to_s == "false",
+                         class: "checkbox checkbox--light"
+                       },
+                       "false",
+                       nil %>
+    <%= form.label :active_accounts_only, t(".include_disabled"), class: "text-sm text-primary" %>
+  </div>
   <%= render DS::SearchInput.new(
         variant: :embedded,
         placeholder: t(".filter_accounts"),

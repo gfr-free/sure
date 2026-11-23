@@ -159,6 +159,8 @@ de:
       transfer_hint_tooltip: Eine passende Transaktion in einem anderen Konto sieht wie die Gegenseite einer Überweisung aus – klicken, um beide zuzuordnen
       view_merchant: Händler anzeigen
       split_tooltip: Diese Transaktion wurde in mehrere Einträge geteilt
+      disabled_account: Konto deaktiviert
+      disabled_account_tooltip: Dieses Konto ist deaktiviert, Schnellbearbeitung ist in dieser Liste aus
     merge_duplicate:
       success: Transaktionen erfolgreich zusammengeführt
       failure: Transaktionen konnten nicht zusammengeführt werden
@@ -276,6 +278,7 @@ de:
           transfer: Überweisung
           confirmed: Bestätigt
           pending: Ausstehend
+          disabled_accounts: Deaktivierte Konten eingeblendet
           ai_current: KI
           ai_history: KI-Verlauf
           attachment_with: Mit Anhang
@@ -297,6 +300,7 @@ de:
           pending: Ausstehend
         account_filter:
           filter_accounts: Konten filtern
+          include_disabled: Buchungen deaktivierter Konten anzeigen
         category_filter:
           filter_category: Kategorie filtern
         date_filter:

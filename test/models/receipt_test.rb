@@ -278,6 +278,24 @@ class ReceiptTest < ActiveSupport::TestCase
     assert entry.transaction.reload.created_from_receipt?
   end
 
+  test "an uploader's receipts follow them to a new family; links left behind are dropped" do
+    own_account = Account.create!(family: @family, owner: @member, name: "Own Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    follows = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 1.00" ])))
+    follows.link_to!(create_transaction(account: own_account, amount: 1, date: Date.current), user: @member)
+    left_behind_transaction = create_transaction(account: @account, amount: 2, date: Date.current)
+    stays = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 2.00" ])))
+    stays.link_to!(left_behind_transaction, user: @member)
+    new_family = Family.create!(name: "Moved Family")
+
+    @member.transfer_to_family!(new_family, role: "admin")
+
+    assert_equal new_family, follows.reload.family
+    assert follows.transaction_id?
+    assert_equal new_family, stays.reload.family
+    assert_not stays.transaction_id?
+    assert_equal 1, left_behind_transaction.attachments.count
+  end
+
   test "purging an uploader removes their receipts but keeps the transaction's copy" do
     receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 9.99" ])))
     transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)

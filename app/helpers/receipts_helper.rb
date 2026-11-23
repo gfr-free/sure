@@ -22,9 +22,11 @@ module ReceiptsHelper
   def receipt_amount_input_value(receipt)
     return nil if receipt.amount.nil?
 
-    amount = receipt.amount.to_d
-    stored_digits = amount.frac.zero? ? 0 : amount.to_s("F").split(".").last.length
-    format("%.#{[ receipt_currency_precision(receipt), stored_digits ].max}f", amount)
+    # Built from the decimal string: %f would go through a float and change
+    # large amounts ("123456789012345.1234" to "...1250").
+    whole, fraction = receipt.amount.to_d.to_s("F").split(".")
+    fraction = fraction.to_s.sub(/0+\z/, "").ljust(receipt_currency_precision(receipt), "0")
+    fraction.empty? ? whole : "#{whole}.#{fraction}"
   end
 
   # "Read from PDF text, 90% sure" next to a field the reader filled; nothing for manual edits.

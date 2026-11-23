@@ -10,6 +10,9 @@ class ReceiptsHelperTest < ActionView::TestCase
     receipt.amount = BigDecimal("12.3456")
     assert_equal "12.3456", receipt_amount_input_value(receipt)
 
+    receipt.amount = BigDecimal("123456789012345.1234")
+    assert_equal "123456789012345.1234", receipt_amount_input_value(receipt)
+
     receipt.currency = "JPY"
     receipt.amount = BigDecimal("1200")
     assert_equal "1200", receipt_amount_input_value(receipt)

@@ -1,5 +1,9 @@
 ---
 en:
+  account_forecast:
+    restricted_transfer:
+      transfer_in: Transfer from another account
+      transfer_out: Transfer to another account
   account_order:
     balance_asc:
       label: Balance (Low to High)

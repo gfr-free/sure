@@ -83,6 +83,9 @@ class BillsController < ApplicationController
     compute_kpis(today, month_end)
 
     @month_pay_periods = month_pay_periods(today, month_end)
+    # Per account: do the expected payments leave it above zero (decision
+    # E13)? Only accounts with payments on them appear.
+    @account_forecasts = Account::Forecast.for_family(Current.family, user: Current.user)
 
     @detected_awaiting_review = detected_awaiting_review
     # Fresh detections wait here for confirm/dismiss. Reviewing them is bill

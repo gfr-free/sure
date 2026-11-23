@@ -1,6 +1,12 @@
 ---
 de:
   bills:
+    account_coverage:
+      title: Konten nach erwarteten Buchungen
+      covered: Gedeckt bis %{date}
+      short: Fällt am %{date} unter null, auffüllen bis %{by}
+      left_over: "%{amount} übrig"
+      missing: "%{amount} fehlen"
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}

@@ -12,6 +12,14 @@ de:
       auto_posting_since: "Bucht automatisch seit %{date}"
       auto_posting_stopped_linked: Automatisches Buchen wurde beendet, weil ein Konto dieser Rechnung jetzt mit einer Bank verknüpft ist.
       auto_posting_stopped_currency: Automatisches Buchen wurde beendet, weil die Währung des Kontos nicht mehr zu dieser Rechnung passt.
+    feed:
+      notice_deadline: "Kündigungsfrist: %{name}"
+    contract_line:
+      linked: "Vertrag: %{name}"
+      ended_on: "Der Vertrag ist am %{date} geendet, aber diese Rechnung erwartet weiter Zahlungen."
+      ended: "Der Vertrag ist beendet, aber diese Rechnung erwartet weiter Zahlungen."
+      end_bill: "Rechnung beenden"
+      record: "Als Vertrag erfassen"
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}
@@ -29,6 +37,7 @@ de:
       calendar: Kalender
       paycheck: Einkommensplan
       all: Alle Rechnungen
+      contracts: Verträge
     all:
       current_bills: Aktuelle Rechnungen
       dismissed_hidden_description: Verworfene Rechnungen sind ausgeblendet.

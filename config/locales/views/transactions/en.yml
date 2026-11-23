@@ -106,6 +106,7 @@ en:
       mark_recurring_title: Recurring Transaction
       applied_to_title: Bills this paid
       applied_to_detail: "%{amount} toward the bill due %{date}"
+      applied_to_contract: "Contract: %{name}"
       applied_to_unreviewed: Needs review
       applied_to_auto_posted: Posted automatically
       merge_duplicate: Yes, merge them

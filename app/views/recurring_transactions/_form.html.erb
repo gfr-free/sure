@@ -5,6 +5,9 @@
 <% income = recurring_transaction.is_income.present? || recurring_transaction.typed_income? %>
 
 <%= styled_form_with model: recurring_transaction, class: "space-y-4" do |f| %>
+  <% if recurring_transaction.new_record? && (contract_id = bill_dialog_params[:contract_id]) %>
+    <%= hidden_field_tag :contract_id, contract_id %>
+  <% end %>
   <section class="space-y-4">
     <% if recurring_transaction.errors.any? %>
       <%= render "shared/form_errors", model: recurring_transaction %>

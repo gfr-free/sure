@@ -45,6 +45,7 @@ class SureImport::Preflight
     "Tag" => %w[id name],
     "Merchant" => %w[id name],
     "ProviderMerchant" => %w[id name source],
+    "Contract" => %w[id name],
     "RecurringTransaction" => %w[id amount expected_day_of_month last_occurrence_date next_expected_date],
     "Transaction" => %w[id account_id date amount],
     "Transfer" => %w[inflow_transaction_id outflow_transaction_id],
@@ -85,6 +86,7 @@ class SureImport::Preflight
     "ProviderMerchant" => :merchants,
     "CustomAccountSubtype" => :custom_account_subtypes,
     "Account" => :accounts,
+    "Contract" => :contracts,
     "RecurringTransaction" => :recurring_transactions,
     "Transaction" => :transactions,
     "Budget" => :budgets

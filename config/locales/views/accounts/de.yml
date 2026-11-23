@@ -134,6 +134,7 @@ de:
         overview: Übersicht
         schedule: Tilgungsplan
         statements: Auszüge
+        contracts: Verträge
         details: Details
     update:
       success: "%{type}-Konto aktualisiert"

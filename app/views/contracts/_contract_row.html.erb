@@ -1,0 +1,35 @@
+<%# locals: (contract:) %>
+<li>
+  <%= link_to contract_path(contract), class: "group flex items-center gap-3 px-4 py-3 hover:bg-surface-hover focus-ring" do %>
+    <%= contract_avatar(contract) %>
+
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-primary truncate group-hover:underline"><%= contract.name %></p>
+      <p class="text-xs text-secondary truncate">
+        <%= contract.provider_display_name %>
+        <% if (number = contract_number_for(contract, :contract_number)) %>
+          &middot; <span class="privacy-sensitive"><%= Contract.mask(number) %></span>
+        <% end %>
+        <% if contract.account && @accessible_account_ids.include?(contract.account_id) %>
+          &middot; <%= contract.account.name %>
+        <% end %>
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <% if contract.owner_id != Current.user.id %>
+        <span title="<%= t("contracts.shared_with_you") %>"><%= icon "users", size: "sm", class: "text-secondary" %></span>
+      <% elsif contract.contract_shares.any? %>
+        <span title="<%= t("contracts.shared") %>"><%= icon "share-2", size: "sm", class: "text-secondary" %></span>
+      <% end %>
+      <p class="hidden sm:block text-sm text-secondary privacy-sensitive"><%= contract_annual_cost(@costs.fetch(contract.id, [ nil, 0 ])) %></p>
+      <% if (increase = @price_increases[contract.id]) %>
+        <%= render DS::Pill.new(label: t("contracts.price_increased_on", date: l(increase.effective_on, format: :short)), tone: :warning, marker: false, icon: "trending-up") %>
+      <% end %>
+      <% if (deadline = contract_upcoming_deadline(contract)) %>
+        <%= render DS::Pill.new(label: t("contracts.cancel_by", date: l(deadline, format: :short)), tone: :warning, marker: false, icon: "calendar-clock") %>
+      <% end %>
+      <%= contract_status_pill(contract) %>
+    </div>
+  <% end %>
+</li>

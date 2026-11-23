@@ -80,7 +80,7 @@ class Api::V1::ImportsController < Api::V1::BaseController
     end
 
     # 2. Build the import object with permitted config attributes
-    @import = family.imports.build(import_config_params.merge(type: type))
+    @import = family.imports.build(import_config_params.merge(type: type, user: current_resource_owner))
 
     # The target account must be one the API user can write to.
     if params[:account_id].present?
@@ -334,7 +334,7 @@ class Api::V1::ImportsController < Api::V1::BaseController
 
     def persist_sure_import!(family, content, filename, content_type)
       import = nil
-      import = family.imports.create!(type: "SureImport")
+      import = family.imports.create!(type: "SureImport", user: current_resource_owner)
       import.ndjson_file.attach(
         io: StringIO.new(content),
         filename: filename,

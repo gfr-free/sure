@@ -67,19 +67,17 @@ class BillsFeedsController < ApplicationController
       end
 
       events += deadlines.map do |contract, deadline|
-        <<~EVENT
-          BEGIN:VEVENT
-          UID:#{contract.id}-#{deadline.strftime("%Y%m%d")}@sure-contracts
-          DTSTAMP:#{Time.current.utc.strftime("%Y%m%dT%H%M%SZ")}
-          DTSTART;VALUE=DATE:#{deadline.strftime("%Y%m%d")}
-          SUMMARY:#{escape_ical(I18n.t("bills.feed.notice_deadline", name: contract.name))}
-          BEGIN:VALARM
-          ACTION:DISPLAY
-          DESCRIPTION:#{escape_ical(I18n.t("bills.feed.notice_deadline", name: contract.name))}
-          TRIGGER:-P7D
-          END:VALARM
-          END:VEVENT
-        EVENT
+        summary = escape_ical(I18n.t("bills.feed.notice_deadline", name: contract.name))
+
+        [
+          "BEGIN:VEVENT",
+          "UID:#{contract.id}-#{deadline.strftime("%Y%m%d")}@sure-contracts",
+          "DTSTAMP:#{Time.current.utc.strftime("%Y%m%dT%H%M%SZ")}",
+          "DTSTART;VALUE=DATE:#{deadline.strftime("%Y%m%d")}",
+          "SUMMARY:#{summary}",
+          "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:#{summary}", "TRIGGER:-P7D", "END:VALARM",
+          "END:VEVENT"
+        ].join("\n") + "\n"
       end
 
       <<~ICAL

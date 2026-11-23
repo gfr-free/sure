@@ -1,4 +1,4 @@
-<%# locals: (accounts:, account_group:, sortable: false, subgroup: nil) %>
+<%# locals: (accounts:, account_group:, copy:, sortable: false, subgroup: nil) %>
 
 <% if sortable %>
   <%# The order is saved per account type when grouped by account type, and
@@ -14,14 +14,14 @@
       <%# Rows become draggable only in sort mode (account-sort-mode). %>
       <%= tag.div class: "flex items-center gap-1 rounded-lg", data: sidebar_sortable_item_data("sortable-list", account.id) do %>
         <%= render "accounts/sort_handle", list: "sortable-list", label: t("accounts.sidebar.reorder_account", account: account.name) %>
-        <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), link_class: "min-w-0 grow" %>
+        <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), copy: copy, link_class: "min-w-0 grow" %>
       <% end %>
     <% end %>
   <% end %>
 <% else %>
   <div class="space-y-1">
     <% accounts.each do |account| %>
-      <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account) %>
+      <%= render "accounts/sidebar_account", account: account, color: account_group.color_for(account), copy: copy %>
     <% end %>
   </div>
 <% end %>

@@ -248,7 +248,7 @@ class PdfImport < Import
     outcome = pdf_reading.read(read_as: requested_way)
     analysis = Analysis.new(summary: outcome.value[:summary], document_type: outcome.value[:document_type] || "other",
                             extracted_data: outcome.value[:extracted_data])
-    update!(ai_summary: analysis.summary, document_type: analysis.document_type)
+    update!(ai_summary: analysis.summary, document_type: analysis.document_type, **contract_terms_from(analysis))
     sync_statement_metadata_from_process_result(analysis)
     analysis
   end
@@ -710,6 +710,14 @@ class PdfImport < Import
         account_last4: last4,
         currency: currency
       )
+    end
+
+    # A contract's terms are kept so the import page can offer to record it.
+    def contract_terms_from(analysis)
+      terms = analysis.extracted_data.to_h.with_indifferent_access[:contract]
+      return {} unless analysis.document_type == "contract" && terms.is_a?(Hash) && terms.compact.any?
+
+      { extracted_data: (extracted_data || {}).merge("contract" => terms.to_h.stringify_keys) }
     end
 
     def sync_statement_metadata_from_process_result(result)

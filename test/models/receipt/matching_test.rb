@@ -126,8 +126,9 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
     receipt.auto_match!
     account_shares(:depository_shared_with_member).update!(permission: "read_only")
 
-    assert_raises(ActiveRecord::RecordNotFound) { receipt.confirm_match!(user: @member) }
-    assert receipt.reload.match_pending?
+    # The share change already released the suggestion.
+    assert_raises(ActiveRecord::RecordInvalid) { receipt.confirm_match!(user: @member) }
+    assert_nil receipt.reload.transaction_id
     assert_equal 0, transaction.attachments.count
   end
 
@@ -407,6 +408,44 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
       assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @admin) }
     end
     assert_nil receipt.reload.transaction_id
+  end
+
+  test "removing the uploader's share releases their suggestion on that account" do
+    receipt = receipt_for(amount: 14, date: Date.new(2026, 11, 10), user: @member)
+    create_transaction(account: @account, amount: 14, date: Date.new(2026, 11, 10))
+    assert receipt.auto_match!
+
+    account_shares(:depository_shared_with_member).destroy!
+
+    receipt.reload
+    assert_nil receipt.transaction_id
+    assert_nil receipt.match_status
+    assert_includes @family.receipts.open, receipt
+  end
+
+  test "a share that loses write access releases the suggestion, other changes keep it" do
+    receipt = receipt_for(amount: 15, date: Date.new(2026, 11, 10), user: @member)
+    create_transaction(account: @account, amount: 15, date: Date.new(2026, 11, 10))
+    assert receipt.auto_match!
+    share = account_shares(:depository_shared_with_member)
+
+    share.update!(include_in_finances: false)
+    assert receipt.reload.suggested?
+
+    # Only full control may write; read_write annotates.
+    share.update!(permission: "read_write")
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "confirming a suggestion on an account the user can no longer write to is refused with a message" do
+    receipt = receipt_for(amount: 16, date: Date.new(2026, 11, 10), user: @member)
+    create_transaction(account: @account, amount: 16, date: Date.new(2026, 11, 10))
+    assert receipt.auto_match!
+    receipt.stubs(:writable_account?).returns(false)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) { receipt.confirm_match!(user: @member) }
+    assert_match I18n.t("activerecord.errors.models.receipt.attributes.base.suggestion_unavailable"), error.record.errors.full_messages.to_sentence
+    assert receipt.reload.match_pending?
   end
 
   private

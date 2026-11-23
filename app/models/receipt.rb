@@ -222,8 +222,12 @@ class Receipt < ApplicationRecord
   # Applies the user's own corrections and marks each changed field as manual.
   # Locked like the merge in extract!, so a read finishing at the same time
   # cannot drop the manual marks.
-  def update_fields!(attrs)
-    attrs = attrs.to_h.stringify_keys.slice(*FIELDS)
+  # `rendered` holds the values the form showed. A field submitted unchanged is
+  # left alone, so a form opened before reading finished does not blank what
+  # was read since; clearing a field on purpose still counts as a change.
+  def update_fields!(attrs, rendered = {})
+    rendered = rendered.to_h.stringify_keys
+    attrs = attrs.to_h.stringify_keys.slice(*FIELDS).reject { |field, value| rendered.key?(field) && rendered[field].to_s == value.to_s }
     with_lock do
       assign_attributes(attrs)
       normalize_fields

@@ -152,6 +152,31 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
+  test "create_transaction! locks the merchant it found for the new transaction" do
+    receipt = upload([ "Total 15.00" ])
+    merchant = @family.merchants.create!(name: "Bakery")
+
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    assert_equal merchant, entry.transaction.reload.merchant
+    assert entry.transaction.locked?(:merchant_id)
+  end
+
+  test "update_fields! leaves fields the form showed unchanged alone" do
+    receipt = upload([ "Total 15.00" ])
+    receipt.update!(amount: 15, date: Date.new(2026, 11, 20))
+
+    receipt.update_fields!({ "merchant_name" => "Bakery", "amount" => "", "date" => "", "currency" => "USD" },
+                           { "merchant_name" => "", "amount" => "", "date" => "", "currency" => "USD" })
+
+    assert_equal "Bakery", receipt.reload.merchant_name
+    assert_equal BigDecimal("15"), receipt.amount
+    assert_equal Date.new(2026, 11, 20), receipt.date
+
+    receipt.update_fields!({ "amount" => "" }, { "amount" => "15.00" })
+    assert_nil receipt.reload.amount
+  end
+
   test "a transaction created from a receipt stays marked after the receipt is deleted" do
     receipt = upload([ "Total 15.00" ])
     entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")

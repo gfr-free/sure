@@ -48,10 +48,14 @@ class RecurringTransaction
                         .where.not(id: RecurringAllocation.select(:recurring_occurrence_id))
       doomed = removable.where("due_on >= ?", Date.current)
       doomed = doomed.or(removable.where(original_due_on: single_payment_moved_from)) if single_payment_moved_from
+      # A date that already posted (its entry since deleted) must never post
+      # again, so its row is never deleted and rebuilt without the stamp.
+      posted = doomed.where.not(auto_posted_at: nil).to_a
+      doomed.where(auto_posted_at: nil).delete_all
 
-      doomed.delete_all
-
-      generate!(through: through)
+      created = generate!(through: through)
+      keep_posted_dates!(posted)
+      created
     end
 
     # Materializes a past window (catch-up/backfill). The caller decides what
@@ -63,6 +67,50 @@ class RecurringTransaction
     end
 
     private
+      # A posted date the new schedule still has follows its weekend-adjusted
+      # day and the bill's currency. One it dropped moves to the new date of
+      # its cycle when nothing else holds that date: the row already stood in
+      # for it during generation, so skipping it would leave the cycle with
+      # nothing to pay. Otherwise it is closed as skipped rather than left as
+      # an extra obligation. A paused series keeps them as they are until it
+      # resumes; an ended one skips them all.
+      def keep_posted_dates!(posted)
+        return if posted.empty? || series.paused? || series.inactive?
+
+        dates = posted.flat_map { |occurrence| [ occurrence.original_due_on, occurrence.due_on ] }
+        # Weekend adjustment moves a date by a few days at most.
+        pairs = series.active? ? series.schedule.occurrence_pairs_between(dates.min - 7, dates.max + 7).index_by(&:original_due_on) : {}
+
+        posted.each do |occurrence|
+          if (pair = pairs[occurrence.original_due_on])
+            occurrence.update!(due_on: pair.due_on, currency: series.currency)
+          elsif (replacement = replacement_pair(occurrence))
+            occurrence.update!(original_due_on: replacement.original_due_on, due_on: replacement.due_on, currency: series.currency)
+          else
+            # A new raw date landing on the same day is the same payment.
+            series.recurring_occurrences.where(due_on: occurrence.due_on, auto_posted_at: nil)
+                  .update_all(auto_posted_at: occurrence.auto_posted_at)
+            occurrence.skip!(source: "auto")
+          end
+        end
+      end
+
+      # The schedule date nearest to a dropped posted date within its cycle,
+      # when no row holds it yet. None for a paused or ended series.
+      def replacement_pair(occurrence)
+        return unless series.active?
+
+        schedule = series.schedule
+        reach = half_cycle(schedule)
+        candidates = schedule.occurrence_pairs_between(occurrence.due_on - reach, occurrence.due_on + reach)
+                             .select { |pair| (pair.due_on - occurrence.due_on).abs <= reach }
+        return if candidates.empty?
+
+        held = series.recurring_occurrences.where(original_due_on: candidates.map(&:original_due_on)).pluck(:original_due_on).to_set
+        candidates.reject { |pair| held.include?(pair.original_due_on) }
+                  .min_by { |pair| [ (pair.due_on - occurrence.due_on).abs, pair.due_on ] }
+      end
+
       def single_payment?
         series.ends_after_count? && series.end_after_count == 1
       end

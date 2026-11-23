@@ -166,6 +166,17 @@ class Assistant::Function::RecordBillPaymentTest < ActiveSupport::TestCase
     assert_equal 0, series.recurring_occurrences.order(:due_on).first.allocations.count
   end
 
+  test "a date of an auto-posting transfer into a read-only account cannot be settled" do
+    series = declare_capped_bill(amount: 100)
+    series.update_columns(bill_type: "transfer", destination_account_id: accounts(:credit_card).id, auto_post: true)
+    member = users(:family_member)
+
+    result = Assistant::Function::RecordBillPayment.new(member).call("bill_id" => series.id)
+
+    assert_match(/read-only/, result[:error])
+    assert_equal 0, series.recurring_occurrences.order(:due_on).first.allocations.count
+  end
+
   private
 
     def declare_capped_bill(amount:)

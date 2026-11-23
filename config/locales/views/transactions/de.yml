@@ -1,6 +1,12 @@
 ---
 de:
   transactions:
+    auto_posted:
+      pending: Vorläufig
+      pending_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt. Bestätige sie oder verwirf sie, wenn die Zahlung diesmal nicht nötig ist.
+      confirm: Buchung bestätigen
+      discard: Buchung verwerfen und den Termin der Rechnung überspringen
+      discard_confirm: Diese Buchung löschen und den Termin der Rechnung überspringen?
     unknown_name: Unbekannte Transaktion
     form:
       account: Konto
@@ -85,6 +91,7 @@ de:
       applied_to_title: Damit bezahlte Rechnungen
       applied_to_detail: "%{amount} für die am %{date} fällige Rechnung"
       applied_to_unreviewed: Prüfung erforderlich
+      applied_to_auto_posted: Automatisch gebucht
       memo: Memo
       original_description: Ursprüngliche Beschreibung
       payment_channel: Zahlungskanal
@@ -155,6 +162,8 @@ de:
       transfer_hint_tooltip: Eine passende Transaktion in einem anderen Konto sieht wie die Gegenseite einer Überweisung aus – klicken, um beide zuzuordnen
       view_merchant: Händler anzeigen
       split_tooltip: Diese Transaktion wurde in mehrere Einträge geteilt
+      auto_posted: Wiederkehrend
+      auto_posted_tooltip: Sure hat diese Buchung aus einer wiederkehrenden Rechnung angelegt
     merge_duplicate:
       success: Transaktionen erfolgreich zusammengeführt
       failure: Transaktionen konnten nicht zusammengeführt werden

@@ -306,7 +306,7 @@ Rails.application.routes.draw do
   get ".well-known/oauth-authorization-server", to: "oauth_metadata#authorization_server"
   post "register", to: "oauth_registration#create"
   use_doorkeeper do |mapping|
-    mapping.controllers authorizations: "oauth/authorizations"
+    mapping.controllers authorizations: "oauth/authorizations", tokens: "oauth/tokens"
   end
   # MFA routes
   resource :mfa, controller: "mfa", only: [ :new, :create ] do
@@ -505,6 +505,7 @@ Rails.application.routes.draw do
 
   resources :reports, only: %i[index] do
     patch :update_preferences, on: :collection
+    patch :update_net_worth_grouping, on: :collection
     get :export_transactions, on: :collection
     get :google_sheets_instructions, on: :collection
     get :print, on: :collection

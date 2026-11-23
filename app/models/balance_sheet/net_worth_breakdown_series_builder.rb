@@ -2,7 +2,7 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
   # Monthly interval regardless of period length so the reports chart always
   # shows one point per month in the selected range.
   INTERVAL = "1 month"
-  CACHE_VERSION = "v2"
+  CACHE_VERSION = "v3"
 
   def initialize(family, user: nil)
     @family = family
@@ -10,12 +10,15 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
   end
 
   # Returns a chart payload where each monthly point carries the net worth
-  # value plus a per-account-group breakdown (grouped by accountable type)
-  # split into assets and liabilities, for rendering in chart tooltips.
-  def breakdown_series(period:)
-    Rails.cache.fetch(cache_key(period)) do
+  # value plus a per-account-group breakdown split into assets and
+  # liabilities, for rendering in chart tooltips. Groups are formed by account
+  # type unless another dimension is given (see AccountGrouping).
+  def breakdown_series(period:, group_by: AccountGrouping::DEFAULT_PRIMARY)
+    group_by = AccountGrouping::DEFAULT_PRIMARY unless AccountGrouping.valid_dimension?(group_by)
+
+    Rails.cache.fetch(cache_key(period, group_by)) do
       net_series = series_for(historical_accounts, favorable_direction: "up", period: period)
-      groups = group_series(period)
+      groups = group_series(period, group_by)
 
       {
         start_date: period.start_date,
@@ -78,24 +81,41 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
       Money.new(total, family.currency)
     end
 
-    def group_series(period)
-      grouped_accounts.filter_map do |(classification, accountable), accounts|
-        direction = classification == "asset" ? "up" : "down"
-        series = series_for(accounts, favorable_direction: direction, period: period)
+    def group_series(period, group_by)
+      grouped_accounts(group_by).filter_map do |group|
+        direction = group[:classification] == "asset" ? "up" : "down"
+        series = series_for(group[:accounts], favorable_direction: direction, period: period)
         values_by_date = series.values.index_by(&:date).transform_values(&:value)
 
         next if values_by_date.values.all? { |money| money.amount.zero? }
 
-        {
-          name: accountable.display_name,
-          color: accountable.color,
-          classification: classification,
-          values_by_date: values_by_date
-        }
+        group.except(:accounts).merge(values_by_date: values_by_date)
       end
     end
 
-    def grouped_accounts
+    def grouped_accounts(group_by)
+      return grouped_by_account_type if group_by == AccountGrouping::DEFAULT_PRIMARY
+
+      grouping = AccountGrouping.new(group_by, user: user)
+
+      %w[asset liability].flat_map do |classification|
+        accounts = historical_accounts.select { |account| account.classification == classification }
+
+        grouping.group(accounts).map do |group|
+          { name: group.name, color: group_color(classification, group_by, group.key), classification: classification, accounts: group.accounts }
+        end
+      end
+    end
+
+    # Same colors as the report tables: a type fallback group is the account
+    # type's own group, every other group is colored by its key.
+    def group_color(classification, group_by, value)
+      return Accountable.from_type(value.accountable_type).color if value.is_a?(AccountGrouping::TypeFallback)
+
+      AccountGrouping.color_for(AccountGrouping.classified_group_key(classification, group_by, value))
+    end
+
+    def grouped_by_account_type
       historical_accounts
         .group_by { |account| [ account.classification, Accountable.from_type(account.accountable_type) ] }
         .sort_by do |(classification, accountable), _accounts|
@@ -103,6 +123,9 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
             classification == "asset" ? 0 : 1,
             Accountable::TYPES.index(accountable.name) || Float::INFINITY
           ]
+        end
+        .map do |(classification, accountable), accounts|
+          { name: accountable.display_name, color: accountable.color, classification: classification, accounts: accounts }
         end
     end
 
@@ -118,7 +141,10 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
     end
 
     def historical_accounts
-      @historical_accounts ||= BalanceSheet::HistoricalAccountScope.new(family, user: user).relation.to_a
+      # Preloads what AccountGrouping reads (provider, owner, tax treatment).
+      @historical_accounts ||= BalanceSheet::HistoricalAccountScope.new(family, user: user).relation
+        .includes(:accountable, :owner, :plaid_account, :simplefin_account, account_providers: :provider)
+        .to_a
     end
 
     def disabled_account_active_until_dates(accounts)
@@ -130,8 +156,10 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
       end
     end
 
-    def cache_key(period)
+    def cache_key(period, group_by = AccountGrouping::DEFAULT_PRIMARY)
       shares_version = user ? AccountShare.where(user: user).maximum(:updated_at)&.to_i : nil
+      # Owner groups are named after users, so a renamed user must refresh them.
+      owner_names_version = family.users.maximum(:updated_at)&.to_f if group_by == "owner"
       key = [
         "balance_sheet_net_worth_breakdown_series",
         CACHE_VERSION,
@@ -140,8 +168,10 @@ class BalanceSheet::NetWorthBreakdownSeriesBuilder
         ExchangeRate.updated_at_version,
         user&.id,
         shares_version,
+        owner_names_version,
         period.start_date,
-        period.end_date
+        period.end_date,
+        group_by
       ].compact.join("_")
 
       family.build_cache_key(

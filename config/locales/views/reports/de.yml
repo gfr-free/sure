@@ -119,6 +119,7 @@ de:
       total_liabilities: Verbindlichkeiten
       no_assets: Keine Vermögenswerte
       no_liabilities: Keine Verbindlichkeiten
+      group_by: Gruppieren nach
     spending_vs_normal:
       title: Ausgaben im Vergleich zum Üblichen
       summary_html: "%{total} in diesem Zeitraum ausgegeben. Üblich für einen so langen Zeitraum sind %{normal}, gemessen an %{baseline_start} bis %{baseline_end}."

@@ -1722,8 +1722,8 @@ class UserTest < ActiveSupport::TestCase
 
     User.transaction do
       user.update!(password: "NewSecure1!pass", password_confirmation: "NewSecure1!pass")
-      # Stands in for a concurrent /oauth/token refresh that held the old token's
-      # row lock and committed its replacement after the in-transaction sweep.
+      # Stands in for a token issued without the user lock after the
+      # in-transaction sweep has run.
       late_token = Doorkeeper::AccessToken.create!( # pipelock:ignore
         application: app,
         resource_owner_id: user.id,
@@ -1765,13 +1765,26 @@ class UserTest < ActiveSupport::TestCase
 
     assert @user.update_manual_account_order("depository", [ unshared.id, accounts(:depository).id ])
 
-    assert_equal [ accounts(:depository).id ], @user.reload.manual_account_order["depository"]
+    assert_not_includes @user.reload.manual_account_order["depository"], unshared.id
   end
 
   test "update_manual_account_order drops accounts from another group" do
     @user.update_manual_account_order("depository", [ accounts(:credit_card).id, accounts(:depository).id ])
 
-    assert_equal [ accounts(:depository).id ], @user.reload.manual_account_order["depository"]
+    assert_not_includes @user.reload.manual_account_order["depository"], accounts(:credit_card).id
+  end
+
+  test "update_manual_account_order moves only the given accounts among their positions" do
+    group = families(:dylan_family).accounts
+    first = group.create!(name: "A first", currency: "USD", balance: 0, accountable: Depository.new, owner: @user)
+    last = group.create!(name: "Z last", currency: "USD", balance: 0, accountable: Depository.new, owner: @user)
+    @user.update_manual_account_order("depository", [ first.id, accounts(:depository).id, accounts(:connected).id, last.id ])
+
+    # A subgroup holding only the first and last account swaps them; the
+    # accounts in between keep their places.
+    assert @user.update_manual_account_order("depository", [ last.id, first.id ])
+
+    assert_equal [ last.id, accounts(:depository).id, accounts(:connected).id, first.id ], @user.reload.manual_account_order["depository"]
   end
 
   test "update_manual_account_order rejects account ids that are not a list" do

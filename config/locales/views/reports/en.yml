@@ -159,6 +159,7 @@ en:
       total_liabilities: Liabilities
       no_assets: No assets
       no_liabilities: No liabilities
+      group_by: Group by
     spending_vs_normal:
       title: Spending vs normal
       summary_html: "%{total} spent in this period. Normal for a period this long is %{normal}, based on %{baseline_start} to %{baseline_end}."

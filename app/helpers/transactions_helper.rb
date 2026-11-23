@@ -24,6 +24,11 @@ module TransactionsHelper
       filters.insert(4, { key: "reconcile_status_filter", label: t("transactions.search.filters.reconcile_status"), icon: "check-circle" })
     end
 
+    # The review mark is a preview feature (see ReviewsController).
+    if Current.user&.preview_features_enabled?
+      filters << { key: "review_state_filter", label: t("transactions.search.filters.review_state"), icon: "list-checks" }
+    end
+
     if balance_updates
       filters << { key: "balance_updates_filter", label: t("transactions.search.filters.balance_updates"), icon: "scale" }
     end
@@ -93,6 +98,17 @@ module TransactionsHelper
 
   def reconcile_status_tone(status)
     RECONCILE_STATUS_PRESENTATION.fetch(status, RECONCILE_STATUS_PRESENTATION["unreconciled"])[:tone]
+  end
+
+  REVIEW_STATE_ICONS = {
+    Transaction::REVIEW_STATE_OPEN => "circle-dashed",
+    "flagged" => "flag",
+    "reviewed" => "circle-check"
+  }.freeze
+
+  # @param state [String, nil] a review mark, or "open" / nil for none
+  def review_state_icon(state)
+    REVIEW_STATE_ICONS.fetch(state.presence || Transaction::REVIEW_STATE_OPEN, REVIEW_STATE_ICONS[Transaction::REVIEW_STATE_OPEN])
   end
 
   def reconcile_status_icon(status)
@@ -172,6 +188,7 @@ module TransactionsHelper
       can_annotate_account?(entry.account),
       Current.family&.manual_reconciliation?,
       can_reconcile_account?(entry.account),
+      Current.user&.preview_features_enabled? || false, # the review flag marker
       (manual_account?(entry.account) if transfer.present?),
       counterpart.present? && @accessible_account_ids&.include?(counterpart.id),
       Setting.brand_fetch_logo_size,

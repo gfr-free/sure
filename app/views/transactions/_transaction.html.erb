@@ -99,6 +99,11 @@
                       </span>
                     <% end %>
 
+                    <%# Flagged for review by hand (preview) %>
+                    <% if transaction.review_flagged? && preview_features_enabled? %>
+                      <%= tag.span(icon("flag", size: "sm", color: "warning"), title: t("transactions.review_state.marker"), aria: { label: t("transactions.review_state.marker") }, class: "inline-flex") %>
+                    <% end %>
+
                     <%# Manual reconciliation status (manual accounts only) %>
                     <%= render "transactions/reconcile_badge", entry: entry, compact: true %>
 

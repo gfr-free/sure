@@ -28,6 +28,7 @@ en:
       duplicate: Duplicate
       edit: Edit
       reconcile: Reconcile
+      review: Review status
       selected: selected
     form:
       details: Details
@@ -206,6 +207,41 @@ en:
     dismiss_duplicate:
       success: Kept as separate transactions
       failure: Could not dismiss duplicate suggestion
+    review_state:
+      marker: Flagged for review
+      failure: Could not update the review status
+      split_parent: Review a split transaction through its parts
+      filter:
+        open: Open
+        flagged: Flagged for review
+        reviewed: Reviewed
+      actions:
+        open: Reset review status
+        flagged: Flag for review
+        reviewed: Mark as reviewed
+      updated:
+        open: Review status reset
+        flagged: Flagged for review
+        reviewed: Marked as reviewed
+      bulk_updated:
+        open:
+          one: Review status reset on 1 transaction
+          other: Review status reset on %{count} transactions
+        flagged:
+          one: 1 transaction flagged for review
+          other: "%{count} transactions flagged for review"
+        reviewed:
+          one: 1 transaction marked as reviewed
+          other: "%{count} transactions marked as reviewed"
+      drawer:
+        title: Review
+        changed_by: "%{name}, %{date}"
+        changed_on: "%{date}"
+        open_hint: Flag it to come back to it on the Review page, or mark it as reviewed to take it off the lists there.
+        states:
+          open: Not reviewed
+          flagged: Flagged for review
+          reviewed: Reviewed
     reconcile:
       success: Marked as %{status}
       failure: Could not update reconciliation status
@@ -311,6 +347,7 @@ en:
         merchant: Merchant
         ai: AI
         attachment: Attachment
+        review_state: Review status
     convert_to_trade:
       title: Convert to Security Trade
       description: Convert this transaction into a trade with security details

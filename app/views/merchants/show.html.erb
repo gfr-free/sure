@@ -68,7 +68,7 @@
           <% popover.with_custom_content do %>
             <%= render "transactions/searches/menu",
                   form: form,
-                  exclude: [ "merchant_filter", "ai_filter", "attachment_filter" ],
+                  exclude: [ "merchant_filter", "ai_filter", "attachment_filter", "review_state_filter" ],
                   clear_filters_path: merchant_path(@merchant, per_page: params[:per_page]) %>
           <% end %>
         <% end %>

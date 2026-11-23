@@ -6,6 +6,8 @@ en:
         label: Without category
       no_merchant:
         label: Without merchant
+      flagged:
+        label: Flagged for review
       long_pending:
         label: Pending for more than %{days} days
       possible_duplicate:

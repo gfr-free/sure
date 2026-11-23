@@ -618,6 +618,7 @@ Rails.application.routes.draw do
     resource :bulk_deletion, only: :create
     resource :merchant_filter, only: :show
     resource :bulk_update, only: %i[new create]
+    resource :bulk_review_state, only: :create
     resource :categorize, only: %i[show create] do
       patch :assign_entry, on: :collection
       get :preview_rule, on: :collection
@@ -629,6 +630,7 @@ Rails.application.routes.draw do
     resource :transfer_match, only: %i[new create destroy]
     resource :pending_duplicate_merges, only: %i[new create]
     resource :category, only: :update, controller: :transaction_categories
+    resource :review_state, only: :update, controller: "transactions/review_states"
     resources :attachments, only: %i[show create destroy], controller: :transaction_attachments
 
     collection do

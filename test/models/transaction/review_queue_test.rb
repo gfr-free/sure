@@ -31,6 +31,54 @@ class Transaction::ReviewQueueTest < ActiveSupport::TestCase
     assert_equal 1, counts["long_pending"]
     assert_equal 1, counts["possible_duplicate"]
     assert_equal 0, counts["transfer_suggestion"]
+    assert_equal 0, counts["flagged"]
+  end
+
+  test "flagged counts transactions flagged by hand, whatever else they lack" do
+    flagged = review_transaction(category: @category, merchant: @merchant)
+    flagged_uncategorized = review_transaction(category: nil, merchant: @merchant)
+    mark(flagged, flagged_uncategorized, state: "flagged")
+    mark(review_transaction(category: @category, merchant: @merchant), state: "reviewed")
+
+    review = queue(@admin)
+
+    assert_equal 2, review.counts["flagged"]
+    assert_equal [ flagged.transaction.id, flagged_uncategorized.transaction.id ].sort, review.transactions_for("flagged").pluck(:id).sort
+    # A flag does not hide the transaction from the kinds it also belongs to.
+    assert_equal 1, review.counts["uncategorized"]
+  end
+
+  test "reviewed takes a transaction off the category, merchant and long pending tiles only" do
+    uncategorized = review_transaction(category: nil, merchant: @merchant)
+    merchantless = review_transaction(category: @category, merchant: nil)
+    long_pending = review_transaction(category: @category, merchant: @merchant, date: 10.days.ago.to_date, extra: pending_extra)
+    duplicate = review_transaction(category: @category, merchant: @merchant,
+                                   extra: { "potential_posted_match" => { "entry_id" => SecureRandom.uuid } })
+    mark(uncategorized, merchantless, long_pending, duplicate, state: "reviewed")
+
+    counts = queue(@admin).counts
+
+    assert_equal 0, counts["uncategorized"]
+    assert_equal 0, counts["no_merchant"]
+    assert_equal 0, counts["long_pending"]
+    # Duplicates are done by merging or dismissing, not by a review mark.
+    assert_equal 1, counts["possible_duplicate"]
+  end
+
+  test "the review status filter narrows the lists" do
+    open = review_transaction(category: nil, merchant: nil)
+    flagged = review_transaction(category: nil, merchant: nil)
+    reviewed = review_transaction(category: nil, merchant: nil)
+    mark(flagged, state: "flagged")
+    mark(reviewed, state: "reviewed")
+
+    ids = ->(states) { Transaction::Search.new(@family, filters: { "search" => MARKER, "review_state" => states }).transactions_scope.pluck(:id).sort }
+
+    assert_equal [ open.transaction.id ], ids.([ "open" ])
+    assert_equal [ flagged.transaction.id ], ids.([ "flagged" ])
+    assert_equal [ open.transaction.id, reviewed.transaction.id ].sort, ids.([ "open", "reviewed" ])
+    assert_equal [ open, flagged, reviewed ].map { |e| e.transaction.id }.sort, ids.(%w[open flagged reviewed])
+    assert_equal [ open, flagged, reviewed ].map { |e| e.transaction.id }.sort, ids.([ "bogus" ])
   end
 
   test "a recent pending transaction is not pending for long" do
@@ -146,7 +194,35 @@ class Transaction::ReviewQueueTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { queue(@admin).transactions_for("everything") }
   end
 
+  test "badge counts flagged and uncategorized work once each, without reviewed rows" do
+    Current.session = @admin.sessions.create!
+    before = Transaction::ReviewQueue.badge_count
+    Current.review_badge_count = nil
+
+    flagged_uncategorized = review_transaction(category: nil, merchant: @merchant)
+    flagged = review_transaction(category: @category, merchant: @merchant)
+    mark(flagged_uncategorized, flagged, state: "flagged")
+    review_transaction(category: nil, merchant: @merchant)                   # uncategorized
+    mark(review_transaction(category: nil, merchant: @merchant), state: "reviewed")
+
+    assert_equal before + 3, Transaction::ReviewQueue.badge_count
+  end
+
+  test "badge leaves out flags on accounts the viewer may only read" do
+    Current.session = @member.sessions.create!
+    before = Transaction::ReviewQueue.badge_count
+    Current.review_badge_count = nil
+
+    mark(review_transaction(category: @category, merchant: @merchant, account: accounts(:credit_card)), state: "flagged")
+
+    assert_equal before, Transaction::ReviewQueue.badge_count
+  end
+
   private
+    def mark(*entries, state:)
+      Transaction.set_review_state!(Transaction.where(id: entries.map(&:entryable_id)), state, user: @admin)
+    end
+
     def queue(user, **filters)
       Transaction::ReviewQueue.new(@family, user: user, filters: { "search" => MARKER }.merge(filters.stringify_keys))
     end

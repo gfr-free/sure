@@ -8,7 +8,7 @@
       <p class="text-sm text-secondary font-normal"><%= t(".subtitle") %></p>
     </div>
 
-    <% if @kind == "uncategorized" && Transaction::ReviewQueue.badge_count.positive? %>
+    <% if @kind == "uncategorized" && @queue.counts["uncategorized"].positive? && Transaction::ReviewQueue.quick_categorize_available? %>
       <%= render DS::Link.new(
         text: t(".quick_categorize"),
         icon: "tag",
@@ -85,7 +85,7 @@
     <% end %>
   </div>
 
-  <nav aria-label="<%= t(".kinds_label") %>" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+  <nav aria-label="<%= t(".kinds_label") %>" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
     <% Transaction::ReviewQueue::KINDS.each do |kind| %>
       <%= render "reviews/kind_tile", kind: kind, count: @queue.counts[kind], active: kind == @kind, q: @q %>
     <% end %>

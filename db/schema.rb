@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2904,6 +2904,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.jsonb "locked_attributes", default: {}
     t.uuid "merchant_id"
     t.string "provider_entry_reference"
+    t.string "review_state"
+    t.datetime "review_state_changed_at"
+    t.uuid "review_state_changed_by_id"
     t.uuid "transfer_id"
     t.datetime "updated_at", null: false
     t.index "(((extra -> 'goal'::text) ->> 'pledge_id'::text))", name: "ix_transactions_extra_goal_pledge_id", unique: true, where: "(((extra -> 'goal'::text) ->> 'pledge_id'::text) IS NOT NULL)"
@@ -2913,8 +2916,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["investment_activity_label"], name: "index_transactions_on_investment_activity_label"
     t.index ["kind"], name: "index_transactions_on_kind"
     t.index ["merchant_id"], name: "index_transactions_on_merchant_id"
+    t.index ["review_state"], name: "index_transactions_on_review_state", where: "(review_state IS NOT NULL)"
+    t.index ["review_state_changed_by_id"], name: "index_transactions_on_review_state_changed_by_id", where: "(review_state_changed_by_id IS NOT NULL)"
     t.index ["transfer_id"], name: "index_transactions_on_transfer_id"
   end
+
+  add_check_constraint "transactions", "review_state::text = ANY (ARRAY['flagged'::character varying, 'reviewed'::character varying]::text[])", name: "chk_transactions_review_state", validate: false
 
   create_table "transfers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "amount", precision: 19, scale: 4, default: "0.0", null: false
@@ -3354,6 +3361,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
   add_foreign_key "transactions", "categories", on_delete: :nullify
   add_foreign_key "transactions", "merchants"
   add_foreign_key "transactions", "transfers"
+  add_foreign_key "transactions", "users", column: "review_state_changed_by_id", on_delete: :nullify, validate: false
   add_foreign_key "transfers", "transactions", column: "inflow_transaction_id", on_delete: :cascade
   add_foreign_key "transfers", "transactions", column: "outflow_transaction_id", on_delete: :cascade
   add_foreign_key "truelayer_accounts", "truelayer_items"

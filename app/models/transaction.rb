@@ -715,7 +715,7 @@ class Transaction < ApplicationRecord
   private
     # Moves the pending transaction's attachments (the attachment rows themselves, so the
     # blobs are not purged with the pending entry), its tags and its linked receipts
-    # to the posted one.
+    # to the posted one, which also keeps the note that a receipt created it.
     def carry_over_user_additions(from:, to:)
       if from.attachments.attached?
         # A blob already attached to the posted transaction would collide with the
@@ -727,7 +727,12 @@ class Transaction < ApplicationRecord
       new_tags = from.tags.where.not(id: to.tags.select(:id))
       to.tags << new_tags if new_tags.any?
 
+      # Read before the receipts move over: it looks at the pending transaction's receipts.
+      created_from_receipt = from.created_from_receipt?
       carry_over_receipts(from: from, to: to)
+      if created_from_receipt && to.extra&.dig("created_from_receipt") != true
+        to.update_columns(extra: (to.extra || {}).merge("created_from_receipt" => true))
+      end
     end
 
     # Receipts and the user's rejected receipt suggestions follow the booking;

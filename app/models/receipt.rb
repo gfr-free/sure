@@ -113,8 +113,17 @@ class Receipt < ApplicationRecord
       begin
         receipt.file.attach(blob)
         receipt.save!
-      rescue StandardError
-        blob.purge
+      rescue StandardError => e
+        # A rolled-back save leaves the receipt unsaved. Once it is committed, a
+        # failure in an after-commit callback must not report the upload as
+        # failed or remove the file of a stored receipt.
+        if receipt.persisted?
+          DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{receipt.id}: after-commit step failed: #{e.class}",
+                                source: "receipt_upload", family: family, user_id: user.id)
+          return receipt
+        end
+
+        discard_blob(blob)
         raise
       end
       receipt
@@ -159,6 +168,14 @@ class Receipt < ApplicationRecord
         raise
       end
       blob
+    end
+
+    # Removes a blob that will not be used, without letting a storage error
+    # replace the error that caused the removal.
+    def discard_blob(blob)
+      blob&.purge
+    rescue StandardError => e
+      Rails.logger.warn("Receipt: could not remove unused blob #{blob&.key}: #{e.class}")
     end
 
     private
@@ -507,7 +524,7 @@ class Receipt < ApplicationRecord
       copy = self.class.upload_blob!(file.download, filename: filename, content_type: content_type)
       yield copy
     rescue StandardError
-      copy&.purge
+      self.class.discard_blob(copy)
       raise
     end
 

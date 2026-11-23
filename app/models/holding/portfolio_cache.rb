@@ -49,11 +49,7 @@ class Holding::PortfolioCache
 
     price_money = Money.new(price.price, price.currency)
 
-    begin
-      converted_amount = price_money.exchange_to(account.currency, date: date).amount
-    rescue Money::ConversionError
-      converted_amount = price.price
-    end
+    converted_amount = convert_price(price_money, date)
 
     Security::Price.new(
       security_id: security_id,
@@ -99,6 +95,22 @@ class Holding::PortfolioCache
 
   private
     PriceWithPriority = Data.define(:price, :priority, :source)
+
+    # A day with no rate close by takes the nearest stored one, however far,
+    # as ExchangeRate.rates_for does: it is closer to the truth than 1. Only a
+    # currency with no stored rate at all keeps the raw price, because a
+    # holding left out would come back as cash wherever cash is derived from
+    # the total balance (see Balance::SyncCache#holdings_value_by_date).
+    def convert_price(price_money, date)
+      price_money.exchange_to(account.currency, date: date).amount
+    rescue Money::ConversionError
+      @stored_rates ||= {}
+      key = [ price_money.currency.iso_code, date ]
+      rate = @stored_rates.fetch(key) do
+        @stored_rates[key] = ExchangeRate.find_stored_rate(from: key.first, to: account.currency, date: date)&.rate
+      end
+      rate ? price_money.amount * rate : price_money.amount
+    end
 
     # Only splits the holdings can see: from the account's start date, when
     # its holdings begin, to today. A split announced for a future ex-date is

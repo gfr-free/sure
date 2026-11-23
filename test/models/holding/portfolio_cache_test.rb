@@ -588,7 +588,40 @@ class Holding::PortfolioCacheTest < ActiveSupport::TestCase
     assert_equal "CHF", converted_price.currency
   end
 
+  # A price in another currency on a day with no rate close by converts at the
+  # nearest stored rate, not 1:1.
+  test "converts a price at the nearest stored rate when none is close to its date" do
+    account = chf_brokerage
+    price_date = 2.days.ago.to_date
+    ExchangeRate.stubs(:provider).returns(nil)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "CHF", date: price_date - 30.days, rate: 0.80)
+    Security::Price.create!(security: @security, date: price_date, price: 100, currency: "USD")
+
+    price = Holding::PortfolioCache.new(account).get_price(@security.id, price_date)
+
+    assert_equal BigDecimal("80.0"), price.price
+    assert_equal "CHF", price.currency
+  end
+
+  test "converts a price dated before every stored rate at the earliest one" do
+    account = chf_brokerage
+    price_date = 2.days.ago.to_date
+    ExchangeRate.stubs(:provider).returns(nil)
+    ExchangeRate.create!(from_currency: "USD", to_currency: "CHF", date: Date.current, rate: 0.90)
+    Security::Price.create!(security: @security, date: price_date, price: 100, currency: "USD")
+
+    price = Holding::PortfolioCache.new(account).get_price(@security.id, price_date)
+
+    assert_equal BigDecimal("90.0"), price.price
+  end
+
   private
+    def chf_brokerage
+      account = families(:empty).accounts.create!(name: "CHF Brokerage", balance: 0, currency: "CHF", accountable: Investment.new)
+      create_trade(@security, account: account, qty: 1, date: 3.days.ago.to_date, price: 75, currency: "CHF")
+      account
+    end
+
     # A holding the provider reported, not one a sync calculated
     def provider_holding(security, date:, price:, currency: "USD")
       @provider_link ||= begin

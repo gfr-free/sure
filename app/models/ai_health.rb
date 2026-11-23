@@ -15,7 +15,7 @@ class AiHealth
   }.freeze
 
   attr_reader :selected_llm_provider, :effective_llm_provider, :llm_model,
-              :llm_endpoint, :llm_request_timeout, :probe_request_timeout, :openai_endpoint, :vector_store_adapter,
+              :llm_endpoint, :llm_request_timeout, :probe_request_timeout, :probe_cache_ttl, :openai_endpoint, :vector_store_adapter,
               :embedding_endpoint, :embedding_model, :embedding_dimensions,
               :pgvector_extension_available, :pgvector_extension_enabled,
               :pgvector_table_available, :qdrant_endpoint, :llm_probe,
@@ -128,13 +128,34 @@ class AiHealth
   end
 
   def last_checked_at
-    [ llm_probe, function_calling_probe, pdf_text_extraction_probe, pdf_vision_processing_probe, vector_store_probe,
-      embedding_probe ]
-      .filter_map(&:checked_at)
-      .max
+    probe_checked_at.max
+  end
+
+  # The earliest-expiring cached result decides when the next page load runs
+  # a live check again. Each result carries the expiry it was cached with, so
+  # a TTL changed since then does not misreport entries still in the cache;
+  # results without one expire one current TTL after their check. Nil once
+  # that moment has passed, e.g. when slow probes outlast the TTL. A cached
+  # result keeps the zone of the request that wrote it, so convert to the
+  # viewer's.
+  def cache_expires_at
+    expires_at = checked_probe_results.map { |result| result.expires_at || result.checked_at + probe_cache_ttl }.min
+    return unless expires_at
+
+    expires_at = expires_at.in_time_zone
+    expires_at if expires_at.future?
   end
 
   private
+    def checked_probe_results
+      [ llm_probe, function_calling_probe, pdf_text_extraction_probe, pdf_vision_processing_probe, vector_store_probe,
+        embedding_probe ].select(&:checked_at)
+    end
+
+    def probe_checked_at
+      checked_probe_results.map(&:checked_at)
+    end
+
     def load_llm_status
       @selected_llm_protocol = normalized_llm_provider(Setting.llm_provider)
       @openai_custom_endpoint = openai_uri_base.present? && !hosted_openai_endpoint?(openai_uri_base)
@@ -150,6 +171,7 @@ class AiHealth
       @llm_endpoint = endpoint(provider_for_details)
       @llm_request_timeout = request_timeout(provider_for_details)
       @probe_request_timeout = probe_request_timeout_value
+      @probe_cache_ttl = Probe.cache_ttl
       @openai_uses_responses_endpoint = @effective_llm_protocol == :openai &&
         safely(false) { @llm_provider.supports_responses_endpoint? }
       @pdf_processing_capable = safely(false) do

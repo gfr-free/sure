@@ -61,6 +61,18 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_no_match disabled_account.name, response.body
   end
 
+  test "the new transfer form only carries currencies of accounts the member can access" do
+    member = users(:family_member)
+    sign_in member
+
+    get new_transfer_url
+
+    assert_response :success
+    currencies = JSON.parse(css_select("form[data-transfer-form-account-currencies-value]").first["data-transfer-form-account-currencies-value"])
+    assert_equal Account.accessible_by(member).active.pluck(:id).sort, currencies.keys.sort
+    assert_not_includes currencies.keys, accounts(:investment).id
+  end
+
   test "can create transfers" do
     assert_difference "Transfer.count", 1 do
       post transfers_url, params: {

@@ -2,7 +2,10 @@
 
 <% copy = account_group.dom_id(tab: all_tab ? :all : nil, mobile: mobile) %>
 <div id="<%= copy %>" data-group-key="<%= account_group.key %>">
-  <% is_open = open.nil? ? (account_group.accounts.any? { |account| page_active?(account_path(account)) } || Current.user.always_expanded_account_group?(account_group.key)) : open %>
+  <%# The sidebar is cached once for every page, so the group holding the
+      open account is opened, and its link highlighted, in the browser
+      (sidebar-active-account in the application layout). %>
+  <% is_open = open.nil? ? Current.user.always_expanded_account_group?(account_group.key) : open %>
   <%# The summary owns the name's slide: it is what a tap or keyboard focus
       lands on (sidebar_name_marquee_controller). %>
   <%= render DS::Disclosure.new(align: :left, open: is_open,
@@ -80,11 +83,8 @@
           ) %>
         <% end %>
         <%= link_to account_path(account),
-                  class: class_names(
-                    "block flex items-center gap-2 px-3 py-2 rounded-lg min-w-0 grow",
-                    page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
-                  ),
-                  data: page_active?(account_path(account)) ? { active_account: true } : {},
+                  class: "block flex items-center gap-2 px-3 py-2 rounded-lg min-w-0 grow hover:bg-surface-hover",
+                  data: { sidebar_account_id: account.id },
                   title: account.name do %>
           <%= tag.span id: sidebar_logo_wrapper_id(copy, account, account_group.color), class: "shrink-0", data: kept_element_data do %>
             <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>

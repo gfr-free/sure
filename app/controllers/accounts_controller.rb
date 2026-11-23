@@ -254,6 +254,14 @@ class AccountsController < ApplicationController
     render_logo_options(Current.family.accounts.build)
   end
 
+  # The mobile account sidebar, loaded into its frame only on a screen that
+  # shows it, so a page render builds just the desktop copy.
+  def sidebar
+    return redirect_to accounts_path unless turbo_frame_request?
+
+    render partial: "accounts/mobile_sidebar", locals: { active_tab: @account_group_tab }
+  end
+
   # Saves the drag-and-drop order of one account group for the current user.
   def reorder
     if Current.user.update_manual_account_order(params[:group], params[:account_ids])

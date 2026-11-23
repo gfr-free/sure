@@ -194,6 +194,11 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nGesamtbetrag nach Rabatt 90,00\n")["amount"][:value]
   end
 
+  test "a plain total after a discount is still the total" do
+    assert_equal BigDecimal("90.00"), parse("Discount 10.00\nTotal after discount 90.00\n")["amount"][:value]
+    assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nSumme nach Rabatt\n90,00\n")["amount"][:value]
+  end
+
   private
     def parse(text, currency_hint: nil, merchant_names: [])
       Receipt::TextParser.parse(text, currency_hint:, merchant_names:)

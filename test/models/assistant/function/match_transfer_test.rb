@@ -52,6 +52,16 @@ class Assistant::Function::MatchTransferTest < ActiveSupport::TestCase
     assert_equal "standard", outflow.reload.kind
   end
 
+  test "dry run reports a move between investment accounts as funds_movement, like the real match" do
+    outflow = create_transaction(account: accounts(:crypto), amount: 321.09).transaction
+
+    dry_run = @function.call("transaction_id" => outflow.id, "target_account_id" => accounts(:investment).id, "dry_run" => true)
+    result = @function.call("transaction_id" => outflow.id, "target_account_id" => accounts(:investment).id)
+
+    assert_equal "funds_movement", dry_run[:outflow_kind]
+    assert_equal "funds_movement", result[:transfer][:outflow][:kind]
+  end
+
   test "dry run reports validation errors" do
     outflow = create_transaction(account: @checking, amount: 100).transaction
     wrong = create_transaction(account: @card, amount: -99).transaction

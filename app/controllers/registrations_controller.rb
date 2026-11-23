@@ -3,6 +3,7 @@ class RegistrationsController < ApplicationController
 
   layout "auth"
 
+  before_action :ensure_local_registration_enabled
   before_action :ensure_signup_open, if: :self_hosted?
   before_action :set_user, only: :create
   before_action :set_invitation
@@ -30,6 +31,8 @@ class RegistrationsController < ApplicationController
 
     if signup_with_invite_claim!
       redirect_to root_path, notice: t(".success")
+    elsif @local_registration_closed
+      redirect_to new_session_path, alert: t("registrations.local_signup_disabled")
     elsif @invite_code_invalid
       redirect_to new_registration_path, alert: t("registrations.create.invalid_invite_code")
     else
@@ -63,9 +66,16 @@ class RegistrationsController < ApplicationController
       success = false
 
       ActiveRecord::Base.transaction do
-        if @creating_new_family
+        unless @invitation
           User.lock_first_user_role!
-          @user.role = User.role_for_new_family_creator
+          # The first-account exception is only decided under the lock: a
+          # concurrent bootstrap signup (new family or invite-only default
+          # family) may have committed meanwhile.
+          unless AuthConfig.local_registration_allowed?
+            @local_registration_closed = true
+            raise ActiveRecord::Rollback
+          end
+          @user.role = User.role_for_new_family_creator if @creating_new_family
         end
 
         unless @user.save
@@ -113,6 +123,12 @@ class RegistrationsController < ApplicationController
       if @user.errors.present?
         render :new, status: :unprocessable_entity
       end
+    end
+
+    def ensure_local_registration_enabled
+      return if AuthConfig.local_registration_allowed?
+
+      redirect_to new_session_path, alert: t("registrations.local_signup_disabled")
     end
 
     def ensure_signup_open

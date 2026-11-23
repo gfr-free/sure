@@ -645,6 +645,16 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal Money.new(300, "USD"), totals.transfer_outflow_money
   end
 
+  test "transfer-only totals keep loan payments as transfer outflow" do
+    create_transaction(account: @checking_account, amount: 400, kind: "loan_payment")
+    create_transaction(account: @checking_account, amount: 1000, kind: "funds_movement")
+
+    totals = Transaction::Search.new(@family, filters: { types: [ "transfer" ] }).totals
+
+    assert_equal Money.new(0, "USD"), totals.expense_money
+    assert_equal Money.new(1400, "USD"), totals.transfer_outflow_money
+  end
+
   test "totals handles empty results" do
     search = Transaction::Search.new(@family)
     totals = search.totals

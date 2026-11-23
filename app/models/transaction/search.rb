@@ -270,7 +270,9 @@ class Transaction::Search
         # Loan payments (and contributions, for a family that counts investing
         # as spending) are expenses in the income statement and the cash flow
         # Sankey, so they count as expenses here too rather than as transfers.
-        spending_kinds = Transaction::TRANSFER_KINDS - family.analytics_excluded_kinds
+        # A Transfer-only filter keeps them as transfers, so its summary still
+        # shows every listed row under Inflow/Outflow.
+        spending_kinds = Array(types).sort == [ "transfer" ] ? [] : Transaction::TRANSFER_KINDS - family.analytics_excluded_kinds
         transfer_kinds = Transaction::TRANSFER_KINDS - spending_kinds
 
         result = scope

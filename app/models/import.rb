@@ -91,6 +91,36 @@ class Import < ApplicationRecord
   scope :ordered, -> { order(created_at: :desc) }
   scope :ordered_by_sequence, -> { order(:sequence, :created_at) }
 
+  # Imports whose content the user may see: every pre-existing account the
+  # import targets (its own account, account mappings) or has written into
+  # (entries) must be accessible to them. Accounts the import created itself
+  # don't count, the same exclusion as accounts_writable_by?. An import that
+  # touches no account yet stays visible to the whole family.
+  scope :visible_to, ->(user) {
+    where(<<~SQL.squish, accessible_ids: Account.accessible_by(user).select(:id))
+      NOT EXISTS (
+        SELECT 1 FROM accounts
+        WHERE accounts.family_id = imports.family_id
+          AND accounts.import_id IS DISTINCT FROM imports.id
+          AND accounts.id NOT IN (:accessible_ids)
+          AND (
+            accounts.id = imports.account_id
+            OR EXISTS (
+              SELECT 1 FROM import_mappings
+              WHERE import_mappings.import_id = imports.id
+                AND import_mappings.mappable_type = 'Account'
+                AND import_mappings.mappable_id = accounts.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM entries
+              WHERE entries.import_id = imports.id
+                AND entries.account_id = accounts.id
+            )
+          )
+      )
+    SQL
+  }
+
   enum :status, {
     pending: "pending",
     complete: "complete",

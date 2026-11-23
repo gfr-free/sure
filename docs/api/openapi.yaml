@@ -8142,7 +8142,8 @@ paths:
   "/api/v1/imports":
     get:
       summary: List imports
-      description: List all imports for the user's family with pagination and filtering.
+      description: List the imports of the user's family with pagination and filtering.
+        Imports that touch an account not shared with the user are left out.
       tags:
       - Imports
       security:
@@ -8493,7 +8494,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ImportResponse"
         '404':
-          description: import not found
+          description: import not found or touches an account not shared with the
+            user
           content:
             application/json:
               schema:
@@ -8547,7 +8549,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '404':
-          description: import not found
+          description: import not found or touches an account not shared with the
+            user
           content:
             application/json:
               schema:

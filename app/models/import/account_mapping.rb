@@ -2,16 +2,23 @@ class Import::AccountMapping < Import::Mapping
   validates :mappable, presence: true, if: :requires_mapping?
 
   class << self
+    # Existing accounts rows can go into: those the current user may write
+    # to, or the whole family when no user is acting (jobs, console).
+    def target_accounts_for(import)
+      accounts = import.family.accounts
+      Current.user ? accounts.writable_by(Current.user) : accounts
+    end
+
     def mappables_by_key(import)
       unique_values = import.rows.map(&:account).uniq
-      accounts = import.family.accounts.where(name: unique_values).index_by(&:name)
+      accounts = target_accounts_for(import).where(name: unique_values).index_by(&:name)
 
       unique_values.index_with { |value| accounts[value] }
     end
   end
 
   def selectable_values
-    family_accounts = import.family.accounts.manual.alphabetically.map { |account| [ account.name, account.id ] }
+    family_accounts = self.class.target_accounts_for(import).manual.alphabetically.map { |account| [ account.name, account.id ] }
 
     unless key.blank?
       family_accounts.unshift [ "Add as new account", CREATE_NEW_KEY ]

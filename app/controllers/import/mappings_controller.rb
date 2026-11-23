@@ -21,7 +21,7 @@ class Import::MappingsController < ApplicationController
     end
 
     def set_import
-      @import = Current.family.imports.find(params[:import_id])
+      @import = Current.family.imports.visible_to(Current.user).find(params[:import_id])
     end
 
     # The mapping row already declares what it maps to, so neither the target
@@ -32,7 +32,8 @@ class Import::MappingsController < ApplicationController
       target_class = @mapping.mappable_class
       return nil unless target_class
 
-      @mappable ||= target_class.find_by(id: mapping_params[:mappable_id], family: Current.family)
+      scope = target_class == Account ? Import::AccountMapping.target_accounts_for(@import) : target_class.where(family: Current.family)
+      @mappable ||= scope.find_by(id: mapping_params[:mappable_id])
     end
 
     def create_when_empty

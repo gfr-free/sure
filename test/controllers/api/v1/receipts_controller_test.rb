@@ -456,7 +456,7 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
 
     post confirm_api_v1_receipt_url(receipt), headers: api_headers(@member_api_key)
 
-    assert_response :not_found
+    assert_response :unprocessable_entity
     assert receipt.reload.match_pending?
     assert_equal 0, entry.transaction.attachments.count
   end

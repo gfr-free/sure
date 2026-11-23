@@ -392,13 +392,13 @@ RSpec.describe 'API V1 Receipts', type: :request do
         run_test!
       end
 
-      response '404', 'receipt not found, or its account is no longer writable' do
+      response '404', 'receipt not found' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
         let(:id) { SecureRandom.uuid }
         run_test!
       end
 
-      response '422', 'no pending suggestion' do
+      response '422', 'no pending suggestion, or its account is no longer writable' do
         schema '$ref' => '#/components/schemas/ErrorResponse'
         let(:id) { receipt.id }
         run_test!

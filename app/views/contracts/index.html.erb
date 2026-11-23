@@ -1,0 +1,88 @@
+<%= content_for :page_title, t(".title") %>
+
+<div class="space-y-4 pb-6 lg:pb-12">
+  <%= render "bills/view_switcher", active: "contracts" %>
+
+  <% if @open_contracts.empty? && @ended_contracts.empty? %>
+    <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <%= render DS::EmptyState.new(
+            icon: "file-text",
+            title: t(".empty_title"),
+            description: t(".empty_description")
+          ) do |empty_state| %>
+        <% empty_state.with_action do %>
+          <div class="flex flex-wrap justify-center gap-2">
+            <%= render DS::Link.new(text: t(".add_contract"), icon: "plus", variant: "primary", href: new_contract_path, frame: :modal) %>
+            <%= render DS::Link.new(text: t(".from_bill"), icon: "receipt", variant: "secondary", href: bills_path(view: "all", q: { status: "due" })) %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="grid grid-cols-1 sm:grid-cols-3 bg-container rounded-xl shadow-border-xs divide-y sm:divide-y-0 sm:divide-x divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".active_count_label") %></p>
+        <p class="text-primary font-medium text-xl"><%= @open_contracts.size %></p>
+      </div>
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".annual_cost_label") %></p>
+        <p class="text-primary font-medium text-xl privacy-sensitive">
+          <%= contract_annual_amount(@total_cost) || "–" %>
+        </p>
+      </div>
+      <div class="p-4 space-y-1">
+        <p class="text-sm text-secondary"><%= t(".monthly_cost_label") %></p>
+        <p class="text-primary font-medium text-xl privacy-sensitive">
+          <%= contract_annual_amount(@total_cost, per: :month) || "–" %>
+        </p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <% if @annual_savings %>
+        <p class="flex items-center gap-2 text-sm text-secondary">
+          <%= icon "piggy-bank", size: "sm" %>
+          <span>
+            <%= t(@annual_savings.negative? ? ".extra_cost" : ".savings", count: @savings_count) %>
+            <span class="font-medium text-primary privacy-sensitive"><%= t("contracts.per_year", amount: format_money(@annual_savings.abs)) %></span>
+          </span>
+        </p>
+      <% end %>
+      <div class="ml-auto">
+        <%= render DS::Link.new(text: t(".print_overview"), icon: "printer", variant: "outline", size: :sm, href: overview_contracts_path, target: "_blank") %>
+      </div>
+    </div>
+
+    <% @groups.each do |kind, contracts| %>
+      <% group_cost = @group_costs[kind] %>
+      <section class="bg-container rounded-xl shadow-border-xs" aria-labelledby="contracts-<%= kind %>">
+        <header class="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
+          <h2 id="contracts-<%= kind %>" class="flex items-center gap-2 text-sm font-medium text-primary">
+            <%= icon Contract.icon_for(kind), size: "sm" %>
+            <%= contract_kind_label(kind) %>
+            <span class="text-secondary font-normal"><%= contracts.size %></span>
+          </h2>
+          <% if contract_cost_present?(group_cost) %>
+            <p class="text-sm text-secondary privacy-sensitive">
+              <%= t("contracts.per_year", amount: contract_annual_amount(group_cost)) %>
+              <span class="hidden sm:inline">&middot; <%= t("contracts.per_month", amount: contract_annual_amount(group_cost, per: :month)) %></span>
+            </p>
+          <% end %>
+        </header>
+        <ul class="divide-y divide-subdued">
+          <%= render partial: "contracts/contract_row", collection: contracts, as: :contract %>
+        </ul>
+      </section>
+    <% end %>
+
+    <% if @ended_contracts.any? %>
+      <div class="bg-container rounded-xl shadow-border-xs px-4 py-3">
+        <%= render DS::Disclosure.new(title: t(".ended", count: @ended_contracts.size), align: "left") do %>
+          <ul class="divide-y divide-subdued">
+            <%= render partial: "contracts/contract_row", collection: @ended_contracts, as: :contract %>
+          </ul>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

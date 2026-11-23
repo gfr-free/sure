@@ -1,0 +1,19 @@
+<%# locals: (counterparty:) %>
+<%= styled_form_with model: counterparty, class: "space-y-4", data: { turbo_frame: :_top } do |f| %>
+  <% if counterparty.errors.any? %>
+    <%= render DS::Alert.new(message: counterparty.errors.full_messages.to_sentence, variant: :error) %>
+  <% end %>
+
+  <%= f.text_field :name, label: t(".name_label"), placeholder: t(".name_placeholder"), required: true, autofocus: true, maxlength: 100 %>
+
+  <% if counterparty.new_record? %>
+    <%= f.select :default_currency,
+          Money::Currency.as_options.map { |currency| [ "#{currency.name} (#{currency.iso_code})", currency.iso_code ] },
+          { label: t(".currency_label") } %>
+    <p class="text-xs text-secondary"><%= t(".currency_hint") %></p>
+  <% end %>
+
+  <%= f.text_area :note, label: t(".note_label"), rows: 3 %>
+
+  <%= f.submit counterparty.new_record? ? t(".create") : t(".update") %>
+<% end %>

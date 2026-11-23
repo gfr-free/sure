@@ -16,6 +16,9 @@
 # migration — only the vocabulary the code and the UI speak was wrong.
 class Insight < ApplicationRecord
   belongs_to :family
+  # Set for insights about something private to one member (a contract they
+  # own); nil keeps the insight family-wide, as every insight used to be.
+  belongs_to :user, optional: true
   has_many :push_deliveries, dependent: :destroy
 
   # A new insight, or a new notification_version (GenerateInsightsJob bumps it
@@ -37,6 +40,10 @@ class Insight < ApplicationRecord
     bill_not_covered
     loan_payment_change
     bank_fees
+    contract_notice_deadline
+    contract_price_increase
+    contract_charges_after_end
+    contract_price_guarantee_ending
     fixed_commitments_ratio
   ].freeze
 
@@ -55,6 +62,8 @@ class Insight < ApplicationRecord
 
   # Everything the user hasn't acknowledged; what the feed renders.
   scope :visible, -> { where(status: [ :active, :read ]).about_shared_accounts }
+  # Family-wide insights plus the ones addressed to this user.
+  scope :for_user, ->(user) { where(user_id: nil).or(where(user_id: user.id)) }
 
   # The feed is shared by the whole family, so an insight that names an
   # account (metadata account_id) shows only while every active member can
@@ -118,6 +127,8 @@ class Insight < ApplicationRecord
   # shared-account visibility mirror the feed.
   def notifies?(user)
     return false unless active? && user.active? && user.family_id == family_id && user.preview_features_enabled?
+    # An insight about one member's private record (a contract) only reaches them.
+    return false if user_id.present? && user_id != user.id
     return false unless priority_high? || (insight_type == "budget_at_risk" && priority_medium? && user.push_budget_warnings_enabled?)
 
     Insight.about_shared_accounts.exists?(id)

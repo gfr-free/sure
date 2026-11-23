@@ -1788,6 +1788,17 @@ end
     assert_equal false, row["excluded"]
   end
 
+  test "deleting a transaction booked to another member's person is forbidden" do
+    key, entry = shared_member_key_and_entry("full_control")
+    person = @user.family.counterparties.create!(name: "Alice", default_currency: "USD", created_by: @user)
+    leg = Counterparty::Assignment.new(entry).update!(person, user: @user)
+
+    delete api_v1_transaction_url(entry), headers: api_headers(key)
+
+    assert_includes [ 403, 404 ], response.status
+    assert Entry.exists?(leg.id)
+  end
+
   private
 
     def foreign_category

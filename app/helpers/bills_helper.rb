@@ -39,6 +39,13 @@ module BillsHelper
     date == Date.current ? t("bills.row_today") : bills_upcoming_date(date)
   end
 
+  # The write rule RecurringTransactionsController#ensure_series_writable
+  # enforces: a bill on an account needs write access to it; an accountless
+  # bill has no account gate.
+  def bill_writable?(series)
+    series.account_id.nil? || Account.writable_by(Current.user).where(id: series.account_id).exists?
+  end
+
   # The bills buttons that start a chat (the AI review, the prompt chips) use
   # chat's own check, since chat doesn't go through the router. Smart-fill and
   # smart-configure ask the router for `bill_setup` (ai_feature_available?).

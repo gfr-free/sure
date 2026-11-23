@@ -32,6 +32,10 @@ module EntryableResource
 
   def destroy
     return unless require_account_permission!(@entry.account)
+    unless Counterparty::Assignment.legs_deletable_by?(@entry, Current.user)
+      redirect_back_or_to account_path(@entry.account), alert: t("accounts.not_authorized")
+      return
+    end
 
     @entry.destroy!
     @entry.sync_account_later

@@ -133,6 +133,7 @@ de:
         overview: Übersicht
         schedule: Tilgungsplan
         statements: Auszüge
+        contracts: Verträge
     update:
       success: "%{type}-Konto aktualisiert"
     sidebar:
@@ -160,6 +161,7 @@ de:
       property: Immobilie
       vehicle: Fahrzeug
       other_asset: Sonstiges Vermögen
+      clearing: Person
       credit_card: Kreditkarte
       loan: Darlehen
       other_liability: Sonstige Verbindlichkeit
@@ -208,6 +210,7 @@ de:
       investment: Investments
       loan: Kredite
       other_asset: Sonstige Vermögenswerte
+      clearing: Personen
       other_liability: Sonstige Verbindlichkeiten
       property: Immobilien
       vehicle: Fahrzeuge

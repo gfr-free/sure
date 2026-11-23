@@ -20,6 +20,12 @@ class Transfer < ApplicationRecord
   # (or its entry) is deleted, so the surviving leg never keeps a transfer kind
   # without a transfer.
   before_destroy :release_transactions
+  # A leg on a person's clearing account only exists for this transfer, so
+  # removing the transfer (by "Remove transfer", deleting the bank entry or
+  # its account, or re-splitting) removes that leg too.
+  before_destroy :remember_clearing_legs
+  after_destroy :destroy_clearing_legs
+  after_destroy_commit :sync_clearing_accounts
 
   class << self
     # The outflow leg's kind for a transfer into this account. Transfer::Creator,
@@ -29,7 +35,11 @@ class Transfer < ApplicationRecord
     # contribution when the source isn't itself an investment/crypto account,
     # otherwise it's a plain funds movement.
     def kind_for_account(account, from_account: nil)
-      if account.loan?
+      # Money paid for or received from a person only moves between the user
+      # and that person, whatever the bank side is.
+      if account.clearing? || from_account&.clearing?
+        "funds_movement"
+      elsif account.loan?
         "loan_payment"
       elsif account.credit_card?
         "cc_payment"
@@ -241,6 +251,32 @@ class Transfer < ApplicationRecord
       transaction.locked?(:kind) &&
         %w[investment_contribution funds_movement].include?(transaction.kind) &&
         contribution_by_default?
+    end
+
+    def remember_clearing_legs
+      deleted_leg_key = destroyed_by_association&.foreign_key&.to_s
+      @clearing_leg_entry_ids = { "inflow_transaction_id" => inflow_transaction, "outflow_transaction_id" => outflow_transaction }
+        .reject { |key, _| key == deleted_leg_key }
+        .values
+        .filter_map(&:entry)
+        .select { |entry| entry.account&.clearing? }
+        .map(&:id)
+    end
+
+    # Loads the legs afresh: the in-memory ones still point at this transfer.
+    def destroy_clearing_legs
+      @cleared_accounts = Entry.where(id: @clearing_leg_entry_ids).find_each.map do |entry|
+        entry.destroy!
+        [ entry.account_id, entry.date ]
+      end
+    end
+
+    # After commit, so a clearing account deleted in the same transaction is
+    # simply skipped.
+    def sync_clearing_accounts
+      Array(@cleared_accounts).group_by(&:first).each do |account_id, rows|
+        Account.find_by(id: account_id)&.sync_later(window_start_date: rows.map(&:last).min)
+      end
     end
 
     # Gives each surviving transaction back its standalone state. When the

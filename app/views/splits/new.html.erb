@@ -74,6 +74,7 @@
                      name: row[:name],
                      amount: row[:amount],
                      step: amount_step,
+                     counterparties: @counterparties,
                      categories: @categories,
                      merchants: @merchants,
                      tags: @tags,
@@ -85,6 +86,7 @@
         <%= render "splits/row",
                    index: "ROW_IDX_PLACEHOLDER",
                    step: amount_step,
+                   counterparties: @counterparties,
                    categories: @categories,
                    merchants: @merchants,
                    tags: @tags %>

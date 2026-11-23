@@ -12,6 +12,7 @@ class Family::FinancialDataReset
     import_rows
     import_mappings
     accounts
+    counterparties
     account_shares
     account_providers
     entries
@@ -138,6 +139,7 @@ class Family::FinancialDataReset
       delete_provider_items!
       family.financekit_account_lineages.destroy_all
       scope(:accounts).destroy_all
+      scope(:counterparties).destroy_all
     end
 
     def active_storage_blob_ids
@@ -267,6 +269,7 @@ class Family::FinancialDataReset
           budget_categories: BudgetCategory.where(budget_id: budget_ids),
           categories: Category.where(family_id: family.id),
           tags: tag_scope,
+          counterparties: Counterparty.where(family_id: family.id),
           taggings: Tagging.where(tag_id: tag_scope.select(:id)),
           merchants: FamilyMerchant.where(family_id: family.id),
           family_merchant_associations: FamilyMerchantAssociation.where(family_id: family.id),

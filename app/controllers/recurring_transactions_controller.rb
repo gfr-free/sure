@@ -18,6 +18,8 @@ class RecurringTransactionsController < ApplicationController
   before_action :ensure_recurring_enabled, only: %i[new create edit update confirm dismiss]
   before_action :set_recurring_transaction, only: %i[edit update toggle_status destroy confirm dismiss]
   before_action :ensure_series_writable, only: %i[update toggle_status destroy confirm dismiss]
+  # "Add payment" on a contract: the new bill is linked to it on save.
+  before_action :set_link_contract, only: %i[new create]
 
   helper_method :series_writable?, :separate_bill_chosen?
 
@@ -166,10 +168,16 @@ class RecurringTransactionsController < ApplicationController
 
     if saved
       flash[:notice] = @recurring_transaction.typed_income? ? t(".success_income") : t(".success")
+      destination = bills_path
+
+      if @link_contract
+        @recurring_transaction.update!(contract: @link_contract)
+        destination = contract_path(@link_contract)
+      end
 
       respond_to do |format|
-        format.html { redirect_to bills_path }
-        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, bills_path) }
+        format.html { redirect_to destination }
+        format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, destination) }
       end
     else
       render :new, status: :unprocessable_entity, layout: dialog_layout
@@ -282,6 +290,19 @@ class RecurringTransactionsController < ApplicationController
     end
 
   private
+    # Only a contract this user may change; any other id is ignored and the
+    # bill is saved unlinked.
+    def set_link_contract
+      return if params[:contract_id].blank?
+
+      @link_contract = Current.family.contracts.editable_by(Current.user).find_by(id: params[:contract_id])
+    end
+
+    # Query params every step of the add-bill dialog carries forward.
+    def bill_dialog_params
+      { income: params[:income].presence, contract_id: @link_contract&.id }.compact
+    end
+    helper_method :bill_dialog_params
 
     # "Create a separate bill anyway" posts allow_duplicate=1, and only that
     # counts as the choice: a "0" or "false" from a direct POST does not.

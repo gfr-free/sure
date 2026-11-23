@@ -97,6 +97,28 @@ class PdfImportTest < ActiveSupport::TestCase
     assert @import.valid?
   end
 
+  test "process_with_ai keeps the terms of a contract document" do
+    reading = mock("pdf_reading")
+    reading.stubs(:read).returns(stub(value: {
+      summary: "Home contents insurance policy", document_type: "contract",
+      extracted_data: { "contract" => { "name" => "Home contents", "provider" => "Allianz", "kind" => "insurance" } }
+    }))
+    @import.stubs(:pdf_reading).returns(reading)
+
+    @import.process_with_ai
+
+    assert_equal "contract", @import.reload.document_type
+    assert_equal "Allianz", @import.extracted_data.dig("contract", "provider")
+  end
+
+  test "the PDF reading asks for contract terms but never for contract numbers" do
+    instructions = Rails.root.join("app/prompts/read_pdf/instructions.txt.erb").read
+
+    assert_includes instructions, '"notice_period_value"'
+    assert_includes instructions, "Never include contract, policy"
+    assert_includes Ai::Generations::ReadPdf.static_schema.dig(:properties, :extracted_data, :required), "contract"
+  end
+
   test "process_with_ai_later enqueues ProcessPdfJob" do
     import = PdfImport.create_from_statement!(statement: create_pdf_statement)
 

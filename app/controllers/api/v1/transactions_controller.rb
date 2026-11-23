@@ -250,7 +250,11 @@ class Api::V1::TransactionsController < Api::V1::BaseController
     def ensure_write_permission
       level = action_name == "update" && annotate_only_update? ? :annotate : :write
 
-      require_api_account_permission!(@entry.account, level, resource: "transaction")
+      return unless require_api_account_permission!(@entry.account, level, resource: "transaction")
+      return unless action_name == "destroy"
+      return if Counterparty::Assignment.legs_deletable_by?(@entry, current_resource_owner)
+
+      render_json({ error: "forbidden", message: "Transaction is booked to a person whose account you can't change" }, status: :forbidden)
     end
 
     # Judged on the permitted params, not raw params: keys outside

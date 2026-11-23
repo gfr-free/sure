@@ -3,7 +3,7 @@ Rails.application.config.to_prepare do
   module ActiveStorageAttachmentAuthorization
     extend ActiveSupport::Concern
     # STI subclasses (PdfImport, SureImport, ...) are stored under their base class, "Import".
-    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement FamilyExport Import FamilyDocument Receipt].freeze
+    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement FamilyExport Import FamilyDocument Receipt ContractDocument].freeze
 
     included do
       include Authentication
@@ -45,6 +45,8 @@ Rails.application.config.to_prepare do
           family_record_attachment_authorized?(attachment)
         when "Receipt"
           receipt_attachment_authorized?(attachment)
+        when "ContractDocument"
+          contract_document_attachment_authorized?(attachment)
         else
           false
         end
@@ -107,6 +109,16 @@ Rails.application.config.to_prepare do
 
         record.family_id == Current.family&.id
       rescue ActiveRecord::RecordNotFound, NoMethodError
+        false
+      end
+
+      # Only people who may see the contract, as on the contract page itself.
+      def contract_document_attachment_authorized?(attachment)
+        document = attachment.record
+        return false if document.nil? || Current.user.nil? || Current.family.nil?
+
+        Current.family.contracts.accessible_by(Current.user).exists?(id: document.contract_id)
+      rescue ActiveRecord::RecordNotFound
         false
       end
 

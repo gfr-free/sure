@@ -4,7 +4,7 @@
 
 <%= content_for :previous_path, import_upload_path(@import) %>
 
-<% type_options = Accountable::TYPES.map { |type| [ type.constantize.singular_display_name, type ] } %>
+<% type_options = Accountable::USER_SELECTABLE_TYPES.map { |type| [ type.constantize.singular_display_name, type ] } %>
 <% target_options = [ [ t(".new_account"), "" ] ] + @target_accounts.map { |account| [ account.name, account.id ] } %>
 <% master_toggle = lambda do |group, label|
      safe_join([

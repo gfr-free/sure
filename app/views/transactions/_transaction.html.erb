@@ -4,9 +4,11 @@
 
 <%# Cached per row; see TransactionsHelper#transaction_row_cache_key for what
     busts it; list any new partial or component in TRANSACTION_ROW_SOURCES.
-    A pending transfer match is never cached: its confirm and reject forms
-    embed the session's CSRF token, and the session may not be loaded yet. %>
-<% cache_unless transaction.transfer&.pending?, transaction_row_cache_key(entry, view_ctx: view_ctx, in_split_group: in_split_group), expires_in: 12.hours, skip_digest: true do %>
+    A pending transfer match and an entry Sure posted for a bill are never
+    cached: their confirm and reject forms embed the session's CSRF token, the
+    session may not be loaded yet, and their review state and the user's write
+    access are not part of the key. %>
+<% cache_unless transaction.transfer&.pending? || @auto_posted_allocations&.key?(entry.id), transaction_row_cache_key(entry, view_ctx: view_ctx, in_split_group: in_split_group), expires_in: 12.hours, skip_digest: true do %>
 <% transaction_security_logo_url = transaction.activity_security&.display_logo_url %>
 <%# Only the transactions list's opt-in filter shows disabled accounts; it drops their inline edit controls.
     Re-renders from other actions (account page, drawer saves) leave the row as it always was. %>
@@ -145,6 +147,11 @@
                           title: t("transactions.transaction.potential_duplicate_tooltip")
                         ) %>
                       <% end %>
+                    <% end %>
+
+                    <%# Posted by an auto-posting bill %>
+                    <% if (auto_posted_allocation = @auto_posted_allocations&.[](entry.id)) %>
+                      <%= render "transactions/auto_posted", allocation: auto_posted_allocation, account_id: entry.account_id %>
                     <% end %>
 
                     <%# Split indicator %>

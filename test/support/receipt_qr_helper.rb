@@ -1,6 +1,18 @@
 # Draws QR codes as PNG files and as one-page PDFs, for tests that read receipts
 # without shipping binary fixtures.
 module ReceiptQrHelper
+  # Tests that decode real codes need zbarimg (and pdftoppm for PDFs). Without
+  # them a local run skips these tests; CI sets RECEIPT_QR_REQUIRED so a missing
+  # program fails there instead.
+  def require_qr_tools!(pdf: false)
+    programs = [ "zbarimg", *("pdftoppm" if pdf) ]
+    missing = programs.reject { |program| Receipt::ExternalCommand.available?(program) }
+    return if missing.empty?
+
+    message = "#{missing.join(', ')} not installed"
+    ENV["RECEIPT_QR_REQUIRED"].present? ? flunk(message) : skip(message)
+  end
+
   def receipt_qr_png(payload, size: 360)
     RQRCode::QRCode.new(payload).as_png(size: size, border_modules: 4).to_s
   end

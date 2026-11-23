@@ -98,6 +98,7 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "extract! reads a till receipt's QR code on a photo" do
+    require_qr_tools!
     travel_to Time.zone.parse("2026-11-22 12:00") do
       receipt = upload_image(receipt_qr_png(german_till_payload))
 
@@ -116,6 +117,7 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "extract! takes the merchant from a PDF's text when its QR code has none" do
+    require_qr_tools!(pdf: true)
     travel_to Time.zone.parse("2026-11-22 12:00") do
       receipt = upload_content(receipt_qr_pdf(german_till_payload))
       Receipt::Extraction.any_instance.stubs(:pdf_text).returns("Bakery Demo\nSumme 11,59 EUR")
@@ -130,6 +132,7 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "a receipt from a till seen before gets the merchant of the earlier receipt's transaction" do
+    require_qr_tools!
     travel_to Time.zone.parse("2026-11-22 12:00") do
       first = upload_image(receipt_qr_png(german_till_payload))
       first.extract!
@@ -152,6 +155,7 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "a learned merchant only comes from transactions the uploader can see" do
+    require_qr_tools!
     travel_to Time.zone.parse("2026-11-22 12:00") do
       first = upload_image(receipt_qr_png(german_till_payload))
       first.extract!
@@ -172,6 +176,7 @@ class ReceiptTest < ActiveSupport::TestCase
   end
 
   test "extract! keeps a PDF's QR fields when its text layer cannot be read" do
+    require_qr_tools!(pdf: true)
     travel_to Time.zone.parse("2026-11-22 12:00") do
       receipt = upload_content(receipt_qr_pdf(german_till_payload))
       Receipt::Extraction.any_instance.stubs(:pdf_text).raises(Receipt::Extraction::Error, "unreadable_pdf")

@@ -5,12 +5,14 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
   include ReceiptQrHelper
 
   test "reads a QR code from a photo and keeps its line breaks" do
+    require_qr_tools!
     payload = epc_payload
 
     assert_equal [ payload ], Receipt::QrReader.read(receipt_qr_png(payload), content_type: "image/png")
   end
 
   test "reads a GiroCode in Latin-1 as UTF-8" do
+    require_qr_tools!
     payload = epc_payload(name: "Müller Demo GmbH").sub("\n1\n", "\n2\n")
     png = RQRCode::QRCode.new(payload.encode("ISO-8859-1").b, mode: :byte_8bit).as_png(size: 360).to_s
 
@@ -18,6 +20,7 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
   end
 
   test "reads a phone photo that is stored sideways with an EXIF orientation" do
+    require_qr_tools!
     payload = german_till_payload
     image = Vips::Image.new_from_buffer(receipt_qr_png(payload), "").colourspace(:srgb).rot(:d270)
     image = image.mutate { |mutable| mutable.set_type!(GObject::GINT_TYPE, "orientation", 6) }
@@ -26,12 +29,14 @@ class Receipt::QrReaderTest < ActiveSupport::TestCase
   end
 
   test "reads a QR code printed in a PDF" do
+    require_qr_tools!(pdf: true)
     payload = german_till_payload
 
     assert_equal [ payload ], Receipt::QrReader.read(receipt_qr_pdf(payload), content_type: "application/pdf")
   end
 
   test "keeps a code on one PDF page when another page has none" do
+    require_qr_tools!
     payload = german_till_payload
     Receipt::QrReader.any_instance.stubs(:render_pdf).with do |dir|
       File.binwrite(File.join(dir, "page-1.png"), receipt_qr_png(payload))

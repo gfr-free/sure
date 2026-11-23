@@ -247,6 +247,21 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_nil receipt.date
   end
 
+  test "corrected fields that make one transaction fit return a suggestion" do
+    receipt = upload_for(@admin, "unread.pdf")
+    receipt.update!(extraction_status: "failed")
+    entry = @account.entries.create!(name: "Fitting shop", date: Date.new(2026, 11, 6), amount: 12.34, currency: "USD", entryable: Transaction.new)
+
+    patch api_v1_receipt_url(receipt),
+          params: { amount: "12.34", currency: "USD", date: "2026-11-05" },
+          headers: api_headers(@api_key)
+
+    assert_response :ok
+    data = response.parsed_body["data"]
+    assert_equal "suggested", data["status"]
+    assert_equal entry.transaction.id, data["transaction"]["id"]
+  end
+
   test "rejects fields it cannot read" do
     receipt = upload_for(@admin, "bad.pdf")
 
@@ -461,6 +476,19 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
       delete api_v1_receipt_url(receipt), headers: api_headers(@api_key)
     end
     assert_response :no_content
+  end
+
+  test "reopening a receipt that fits one transaction returns a suggestion" do
+    receipt = upload_for(@admin, "later.pdf")
+    receipt.update!(amount: 9.87, currency: "USD", date: Date.new(2026, 11, 5), extraction_status: "completed", dismissed_at: Time.current)
+    entry = @account.entries.create!(name: "Later shop", date: Date.new(2026, 11, 6), amount: 9.87, currency: "USD", entryable: Transaction.new)
+
+    post reopen_api_v1_receipt_url(receipt), headers: api_headers(@api_key)
+
+    assert_response :ok
+    data = response.parsed_body["data"]
+    assert_equal "suggested", data["status"]
+    assert_equal entry.transaction.id, data["transaction"]["id"]
   end
 
   private

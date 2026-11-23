@@ -79,6 +79,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
     return if performed?
 
     @receipt.update_submitted_fields!(attrs)
+    @receipt.auto_match!
     render :show
   rescue ActiveRecord::RecordInvalid => e
     render_record_invalid(e.record)
@@ -132,6 +133,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
 
   def reopen
     @receipt.reopen!
+    @receipt.auto_match!
     render :show
   end
 

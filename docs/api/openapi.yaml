@@ -9473,7 +9473,8 @@ paths:
       summary: Correct the fields read from a receipt
       description: Sets merchant_name, date, amount or currency. Each field sent is
         marked as entered by hand, so reading the receipt again keeps it. null clears
-        a field.
+        a field. When exactly one transaction then fits, the response already carries
+        it as a suggestion.
       tags:
       - Receipts
       security:
@@ -9811,6 +9812,8 @@ paths:
         type: string
     post:
       summary: Reopen a dismissed receipt
+      description: When exactly one transaction fits the reopened receipt, the response
+        already carries it as a suggestion.
       tags:
       - Receipts
       security:

@@ -187,7 +187,8 @@ RSpec.describe 'API V1 Receipts', type: :request do
 
     patch 'Correct the fields read from a receipt' do
       description 'Sets merchant_name, date, amount or currency. Each field sent is marked as entered by hand, ' \
-                  'so reading the receipt again keeps it. null clears a field.'
+                  'so reading the receipt again keeps it. null clears a field. When exactly one transaction then fits, ' \
+                  'the response already carries it as a suggestion.'
       tags 'Receipts'
       security [ { apiKeyAuth: [] } ]
       consumes 'application/json'
@@ -453,6 +454,7 @@ RSpec.describe 'API V1 Receipts', type: :request do
     parameter name: :id, in: :path, type: :string, format: :uuid, required: true
 
     post 'Reopen a dismissed receipt' do
+      description 'When exactly one transaction fits the reopened receipt, the response already carries it as a suggestion.'
       tags 'Receipts'
       security [ { apiKeyAuth: [] } ]
       produces 'application/json'

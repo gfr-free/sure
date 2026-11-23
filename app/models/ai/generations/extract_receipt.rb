@@ -1,0 +1,53 @@
+class Ai::Generations::ExtractReceipt < Ai::Generation
+  feature :extract_receipt
+  prompt "extract_receipt"
+  schema_name "receipt"
+
+  schema({
+    type: "object",
+    properties: {
+      merchant_name: { type: %w[string null] }, currency: { type: %w[string null] },
+      date: { type: %w[string null], description: "The purchase or invoice date as YYYY-MM-DD" },
+      line_items: { type: "array", items: {
+        type: "object", properties: { name: { type: "string" }, amount: { type: "number" } },
+        required: %w[name amount], additionalProperties: false
+      } },
+      tax: { type: %w[number null] }, discount: { type: %w[number null] }, total: { type: %w[number null] }
+    },
+    required: %w[merchant_name currency date line_items tax discount total], additionalProperties: false
+  }.freeze)
+
+  # text: a PDF's text the caller has already read, so the file isn't read twice.
+  def initialize(attachment:, family:, user:, text: nil)
+    super(family:, user:)
+    @attachment = attachment
+    @text = text
+  end
+
+  def prompt_locals = { text: pdf_text.presence }
+
+  def needs = attachments.map(&:capability).uniq
+
+  def attachments
+    return [] if pdf_text.present?
+
+    [ Ai::Attachment.new(filename: @attachment.filename.to_s, content_type: @attachment.content_type, data: content) ]
+  end
+
+  private
+    def content
+      @content ||= @attachment.download
+    rescue ActiveStorage::FileNotFoundError, IOError, SystemCallError
+      raise Ai::Error::InvalidOutput, "The receipt attachment could not be read"
+    end
+
+    def pdf_text
+      return @pdf_text if defined?(@pdf_text)
+      return @pdf_text = @text if @text.present? && @attachment.content_type == "application/pdf"
+
+      # Card numbers and IBANs aren't needed to read a receipt, so they never leave masked.
+      @pdf_text = @attachment.content_type == "application/pdf" ? Receipt::TextParser.mask(Pdf::TextExtractor.pages(content).join("\n\n")).presence : nil
+    rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError
+      raise Ai::Error::InvalidOutput, "The receipt PDF could not be read"
+    end
+end

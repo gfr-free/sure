@@ -1,0 +1,6 @@
+en:
+  receipts:
+    sources:
+      ai: AI
+    index:
+      ai_notice: With your AI model, Sure also reads photos and PDFs without readable text. It then sends the file or its text to that model.

@@ -34,6 +34,19 @@ class ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: other.filename, count: 0
   end
 
+  test "says the file may go to AI only while the uploader's AI reading is available" do
+    get receipts_url
+    assert_select "p", text: I18n.t("receipts.index.ai_notice"), count: 0
+
+    use_ai_routes(extract_receipt: %w[openai/gpt-4.1-mini])
+    get receipts_url
+    assert_select "p", text: I18n.t("receipts.index.ai_notice")
+
+    @admin.update!(ai_enabled: false)
+    get receipts_url
+    assert_select "p", text: I18n.t("receipts.index.ai_notice"), count: 0
+  end
+
   test "uploads several files and reports duplicates" do
     first = uploaded_receipt(receipt_pdf([ "Total 1.00" ]), filename: "a.pdf")
     second = uploaded_receipt(receipt_pdf([ "Total 2.00" ]), filename: "b.pdf")

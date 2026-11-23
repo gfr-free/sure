@@ -156,6 +156,9 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      - name: Network policy guard
+        run: ruby script/ci/deny_provider_http.rb
+
       - name: DB setup and smoke test
         run: |
           bin/rails db:create
@@ -332,6 +335,9 @@ jobs:
         with:
           ruby-version: .ruby-version
           bundler-cache: true
+
+      - name: Network policy guard
+        run: ruby script/ci/deny_provider_http.rb
 
       - name: DB setup and smoke test
         run: |

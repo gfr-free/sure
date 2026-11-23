@@ -143,6 +143,26 @@ class Api::V1::ValuationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @account.id, response_data["account"]["id"]
   end
 
+  test "a valuation on a linked account sets the balance it shows" do
+    account = accounts(:connected)
+    account.account_providers.find_or_create_by!(provider_type: "PlaidAccount", provider_id: plaid_accounts(:one).id)
+    account.entries.create!(
+      name: Valuation.build_current_anchor_name(account.accountable_type),
+      amount: 4500,
+      date: 1.day.ago.to_date,
+      currency: account.currency,
+      entryable: Valuation.new(kind: "current_anchor")
+    )
+
+    post api_v1_valuations_url,
+         params: { valuation: { account_id: account.id, amount: 4750.25, date: Date.current } },
+         headers: api_headers(@api_key)
+
+    assert_response :created
+    assert_equal 4750.25, account.reload.balance
+    assert_equal Date.current, account.valuations.current_anchor.sole.entry.date
+  end
+
   test "should upsert valuation for same account and date when requested" do
     existing_entry = @valuation.entry
     valuation_params = {

@@ -14,7 +14,11 @@ class Account::ReconciliationManager
     prior_valuation_amount = prepared_valuation.amount_in_database
 
     unless dry_run
-      prepared_valuation.save!
+      if moves_current_anchor?(prepared_valuation)
+        save_as_current_anchor!(prepared_valuation)
+      else
+        prepared_valuation.save!
+      end
       contribution = valuation_contribution(prepared_valuation, prior_valuation_amount, old_balance_components)
       GoalPledge::Reconciler.new(prepared_valuation, valuation_delta: contribution).run
     end
@@ -78,6 +82,47 @@ class Account::ReconciliationManager
     def valuation_contribution(valuation, prior_valuation_amount, old_balance_components)
       prior_balance = prior_valuation_amount || old_balance_components[:balance] || 0
       valuation.amount.to_d - prior_balance.to_d
+    end
+
+    # A linked account's balances are calculated backwards from its current
+    # anchor, so a valuation dated after the anchor would never be read, and
+    # the displayed balance is the anchor's. A valuation from the anchor's
+    # date up to today therefore becomes the current anchor; the provider's
+    # next sync replaces it like any other anchor.
+    def moves_current_anchor?(valuation_entry)
+      return false unless account.linked?
+      return false if valuation_entry.date.nil? || valuation_entry.date > Date.current
+
+      # Read here rather than through Account#current_anchor_date, which
+      # memoizes the anchor on the account this call is about to move.
+      anchor_date = account.valuations.current_anchor.joins(:entry).maximum("entries.date") || Date.current
+      valuation_entry.date >= anchor_date
+    end
+
+    # Same rotation as a provider sync (see Account::CurrentBalanceManager):
+    # the previous anchor stays behind as a reconciliation waypoint. Locked,
+    # with the anchors re-read, because a sync can move the anchor meanwhile.
+    def save_as_current_anchor!(valuation_entry)
+      account.with_lock do
+        other_anchors = account.valuations.current_anchor.includes(:entry)
+          .reject { |valuation| valuation.entry.id == valuation_entry.id }
+
+        if other_anchors.any? { |valuation| valuation.entry.date > valuation_entry.date }
+          valuation_entry.save!
+          next
+        end
+
+        other_anchors.each do |valuation|
+          valuation.update!(kind: "reconciliation")
+          valuation.entry.update!(name: Valuation.build_reconciliation_name(account.accountable_type))
+        end
+
+        valuation_entry.entryable.kind = "current_anchor"
+        valuation_entry.name = Valuation.build_current_anchor_name(account.accountable_type)
+        valuation_entry.save!
+
+        account.update!(balance: valuation_entry.amount)
+      end
     end
 
     def prepare_reconciliation(balance, date, existing_valuation)

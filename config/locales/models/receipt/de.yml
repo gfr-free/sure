@@ -1,0 +1,20 @@
+---
+de:
+  activerecord:
+    attributes:
+      receipt:
+        amount: Betrag
+        currency: Währung
+        date: Datum
+        due_date: Fällig am
+        invoice_number: Rechnungsnummer
+        merchant_name: Händler
+        tax_amount: Steuer
+    errors:
+      models:
+        receipt:
+          attributes:
+            base:
+              already_linked: Dieser Beleg ist schon einer Buchung zugeordnet
+              invalid_transaction: Gib für die neue Buchung ein gültiges Datum und einen gültigen Betrag ein
+              too_many_attachments: Die Buchung hat schon %{max} Anhänge

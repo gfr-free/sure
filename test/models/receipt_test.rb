@@ -1,0 +1,661 @@
+require "test_helper"
+
+class ReceiptTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+  include ReceiptPdfHelper
+
+  setup do
+    @family = families(:dylan_family)
+    @admin = users(:family_admin)
+    @member = users(:family_member)
+    @account = accounts(:depository)
+  end
+
+  test "stores an upload and reads it in the background" do
+    receipt = nil
+    assert_enqueued_with(job: ReceiptExtractionJob) do
+      receipt = upload([ "Coffee House", "Total 12.40 USD", "Date 2026-11-20" ])
+    end
+
+    assert receipt.extraction_pending?
+    assert_equal "application/pdf", receipt.content_type
+    assert_equal @family.currency, receipt.currency
+    assert receipt.file.attached?
+  end
+
+  test "rejects a second upload of the same file and unsupported types" do
+    content = receipt_pdf([ "Total 1.00" ])
+    upload_content(content)
+
+    assert_raises(Receipt::DuplicateUploadError) { upload_content(content) }
+    assert_raises(Receipt::InvalidUploadError) do
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt("plain text", filename: "notes.txt", content_type: "text/plain"))
+    end
+  end
+
+  test "every way in stores receipts alike and may leave the reading to the caller" do
+    receipt = nil
+    assert_no_enqueued_jobs(only: ReceiptExtractionJob) do
+      receipt = Receipt.create_from_content!(family: @family, user: @admin, content: receipt_pdf([ "Total 2.00" ]), filename: "mail.pdf",
+                                             source: "email", extract_later: false)
+    end
+
+    assert receipt.email?
+    assert_equal "mail.pdf", receipt.filename
+    assert receipt.extraction_pending?
+    assert_raises(Receipt::InvalidUploadError) do
+      Receipt.create_from_content!(family: @family, user: @admin, content: "", filename: "empty.pdf")
+    end
+  end
+
+  test "another member may upload the same file, and long filenames are shortened" do
+    content = receipt_pdf([ "Total 1.00" ])
+    upload_content(content)
+
+    receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(content, filename: "#{'a' * 300}.pdf"))
+
+    assert_equal 255, receipt.filename.length
+    assert receipt.filename.end_with?(".pdf")
+  end
+
+  test "extract! keeps a field the user edited while the file was being read" do
+    receipt = upload([ "Coffee House", "Total 12.40 USD" ])
+    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("12.40"), confidence: 0.9, source: "pdf_text" } }, raw_text: "Total 12.40")
+    Receipt::Extraction.any_instance.stubs(:run).with do
+      Receipt.find(receipt.id).update_fields!(amount: "13.00")
+      true
+    end.returns(result)
+
+    receipt.extract!
+
+    assert_equal BigDecimal("13"), receipt.reload.amount
+    assert_equal "manual", receipt.field_source(:amount)
+  end
+
+  test "update_fields! does not mark a field manual when normalizing leaves it unchanged" do
+    receipt = upload([ "Total 1.00" ])
+
+    receipt.update_fields!(currency: receipt.currency.downcase)
+
+    assert_nil receipt.field_source(:currency)
+  end
+
+  test "extract! fills the fields from the PDF text and keeps manual edits" do
+    travel_to Date.new(2026, 11, 22) do
+      receipt = upload([ "Coffee House", "Total 12.40 USD", "Date 2026-11-20 08:15", "Card 4111 1111 1111 1234" ])
+      receipt.update_fields!(merchant_name: "My Cafe")
+
+      receipt.extract!
+
+      assert receipt.extraction_completed?
+      assert_equal "My Cafe", receipt.merchant_name
+      assert_equal "manual", receipt.field_source(:merchant_name)
+      assert_equal BigDecimal("12.40"), receipt.amount
+      assert_equal "USD", receipt.currency
+      assert_equal Date.new(2026, 11, 20), receipt.date
+      assert_equal "pdf_text", receipt.field_source(:amount)
+      assert_includes receipt.raw_text, "****1234"
+      assert_not_includes receipt.raw_text, "4111"
+    end
+  end
+
+  test "extract! leaves an image's fields blank when no stage reads images" do
+    Receipt::Extraction.stubs(:stages).returns([ Receipt::Extraction::Stages::PdfText ])
+    receipt = Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(file_fixture("square-placeholder.png").binread, filename: "photo.png", content_type: "image/png"))
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_nil receipt.amount
+    assert_nil receipt.raw_text
+    assert_equal :open, receipt.status
+  end
+
+  test "extract! marks a broken PDF as failed" do
+    receipt = upload_content("%PDF-1.4 broken")
+
+    receipt.extract!
+
+    assert receipt.extraction_failed?
+    assert_equal "unreadable_pdf", receipt.extraction_error
+  end
+
+  test "match candidates are transactions with the amount near the date on writable accounts" do
+    receipt = upload([ "Total 42.00" ])
+    receipt.update!(amount: 42, currency: "USD", date: Date.current)
+    near = create_transaction(account: @account, amount: 42, date: 3.days.ago.to_date)
+    create_transaction(account: @account, amount: 41, date: Date.current)
+    create_transaction(account: @account, amount: 42, date: 40.days.ago.to_date)
+    shared_read_only = create_transaction(account: accounts(:credit_card), amount: 42, date: Date.current)
+
+    assert_equal [ shared_read_only, near ], receipt.match_candidates(@admin).to_a
+    assert_equal [ near ], receipt.match_candidates(@member).to_a
+  end
+
+  test "match candidates keep the amount filter when the currency is unknown" do
+    receipt = upload([ "Total 25.00" ])
+    receipt.update!(amount: 25, currency: nil, date: nil)
+    match = create_transaction(account: @account, amount: 25, date: 5.days.ago.to_date)
+    create_transaction(account: @account, amount: 26, date: Date.current)
+
+    assert_equal [ match ], receipt.match_candidates(@admin).to_a
+  end
+
+  test "a file named .pdf without PDF bytes is refused" do
+    assert_raises(Receipt::InvalidUploadError) do
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt("just some text", filename: "receipt.pdf"))
+    end
+  end
+
+  test "a failed storage write removes the partial file and keeps the error" do
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ENOSPC)
+    ActiveStorage::Blob.any_instance.expects(:delete).once.raises(Errno::EIO)
+
+    assert_no_difference [ "Receipt.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(Errno::ENOSPC) { upload([ "Total 1.00" ]) }
+    end
+  end
+
+  test "create_transaction! refuses amounts that round to zero or past the ledger's capacity" do
+    receipt = upload([ "Total 15.00" ])
+
+    [ BigDecimal("0.00001"), BigDecimal("999999999999999.99999") ].each do |amount|
+      assert_no_difference -> { @account.entries.count } do
+        assert_raises(ActiveRecord::RecordInvalid) do
+          receipt.create_transaction!(account: @account, user: @admin, name: "Odd", date: Date.current, amount: amount, currency: "USD")
+        end
+      end
+    end
+  end
+
+  test "create_transaction! locks the merchant it found for the new transaction" do
+    receipt = upload([ "Total 15.00" ])
+    merchant = @family.merchants.create!(name: "Bakery")
+
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    assert_equal merchant, entry.transaction.reload.merchant
+    assert entry.transaction.locked?(:merchant_id)
+  end
+
+  test "update_fields! leaves fields the form showed unchanged alone" do
+    receipt = upload([ "Total 15.00" ])
+    receipt.update!(amount: 15, date: Date.new(2026, 11, 20))
+
+    receipt.update_fields!({ "merchant_name" => "Bakery", "amount" => "", "date" => "", "currency" => "USD" },
+                           { "merchant_name" => "", "amount" => "", "date" => "", "currency" => "USD" })
+
+    assert_equal "Bakery", receipt.reload.merchant_name
+    assert_equal BigDecimal("15"), receipt.amount
+    assert_equal Date.new(2026, 11, 20), receipt.date
+
+    receipt.update_fields!({ "amount" => "" }, { "amount" => "15.00" })
+    assert_nil receipt.reload.amount
+  end
+
+  test "a transaction created from a receipt stays marked after the receipt is deleted" do
+    receipt = upload([ "Total 15.00" ])
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    receipt.destroy!
+
+    assert entry.transaction.reload.created_from_receipt?
+  end
+
+  test "an uploader's receipts follow them to a new family; links left behind are dropped" do
+    own_account = Account.create!(family: @family, owner: @member, name: "Own Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    follows = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 1.00" ])))
+    follows.link_to!(create_transaction(account: own_account, amount: 1, date: Date.current), user: @member)
+    left_behind_transaction = create_transaction(account: @account, amount: 2, date: Date.current)
+    stays = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 2.00" ])))
+    stays.link_to!(left_behind_transaction, user: @member)
+    new_family = Family.create!(name: "Moved Family")
+
+    @member.transfer_to_family!(new_family, role: "admin")
+
+    assert_equal new_family, follows.reload.family
+    assert follows.transaction_id?
+    assert_equal new_family, stays.reload.family
+    assert_not stays.transaction_id?
+    assert_equal 1, left_behind_transaction.attachments.count
+  end
+
+  test "another member's receipt drops its link to an account that moves to a new family" do
+    own_account = Account.create!(family: @family, owner: @member, name: "Own Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    moved_transaction = create_transaction(account: own_account, amount: 3, date: Date.current)
+    stays = upload([ "Total 3.00" ])
+    stays.update_columns(transaction_id: moved_transaction.id, linked_at: Time.current)
+
+    @member.transfer_to_family!(Family.create!(name: "Moved Family"), role: "admin")
+
+    assert_equal @family, stays.reload.family
+    assert_not stays.transaction_id?
+    assert stays.valid?
+  end
+
+  test "purging an uploader removes their receipts but keeps the transaction's copy" do
+    receipt = Receipt.create_from_upload!(family: @family, user: @member, file: uploaded_receipt(receipt_pdf([ "Total 9.99" ])))
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.link_to!(transaction, user: @member)
+
+    @member.purge
+
+    assert_not Receipt.exists?(receipt.id)
+    assert_equal 1, transaction.reload.attachments.count
+  end
+
+  test "link_to! copies the file onto the transaction" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+
+    receipt.link_to!(transaction, user: @admin)
+
+    assert_equal transaction, receipt.reload.linked_transaction
+    assert_equal :linked, receipt.status
+    assert_equal 1, transaction.attachments.count
+    assert_not_equal receipt.file.blob_id, transaction.attachments.first.blob_id
+
+    receipt.destroy!
+    assert_equal 1, transaction.reload.attachments.count
+  end
+
+  test "link_to! fails without linking when the copy cannot be stored" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ECONNREFUSED)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(Errno::ECONNREFUSED) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_nil receipt.reload.transaction_id
+    assert_equal 0, transaction.reload.attachments.count
+  end
+
+  test "an upload that cannot be stored leaves no receipt, so the same file can be tried again" do
+    content = receipt_pdf([ "Total 4.20" ])
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).raises(Errno::ECONNREFUSED)
+
+    assert_no_difference [ "Receipt.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(Errno::ECONNREFUSED) { upload_content(content) }
+    end
+
+    ActiveStorage::Blob.any_instance.unstub(:upload_without_unfurling)
+    assert upload_content(content).file.attached?
+  end
+
+  test "a refused link removes the copy it uploaded" do
+    receipt = upload([ "Total 9.99" ])
+    other = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.link_to!(other, user: @admin)
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(transaction, user: @admin) }
+    end
+  end
+
+  test "link_to! refuses an account the user cannot write to" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: accounts(:credit_card), amount: 9.99, date: Date.current)
+
+    assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @member) }
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "link_to! and create_transaction! check write access again once the copy is stored" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    receipt.stubs(:writable_account?).returns(true).then.returns(false)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_equal 0, transaction.reload.attachments.count
+
+    receipt.stubs(:writable_account?).returns(true).then.returns(false)
+    assert_no_difference [ "Entry.count", "ActiveStorage::Blob.count" ] do
+      assert_raises(ActiveRecord::RecordNotFound) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("9.99"), currency: "USD")
+      end
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "an upload stays stored when a step after the commit fails" do
+    Receipt.any_instance.stubs(:extract_later).raises(RuntimeError, "queue down")
+
+    receipt = upload([ "Total 4.20" ])
+
+    assert receipt.persisted?
+    assert receipt.reload.file.attached?
+  end
+
+  test "a failed cleanup does not hide why the upload failed" do
+    Receipt.any_instance.stubs(:save!).raises(ArgumentError, "save failed")
+    ActiveStorage::Blob.any_instance.stubs(:purge).raises(Errno::ECONNREFUSED)
+
+    error = assert_raises(ArgumentError) { upload([ "Total 4.20" ]) }
+    assert_equal "save failed", error.message
+  end
+
+  test "link_to! refuses a transaction that is full" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    Transaction::MAX_ATTACHMENTS_PER_TRANSACTION.times do |index|
+      transaction.attachments.attach(io: StringIO.new("%PDF-1.4 #{index}"), filename: "a#{index}.pdf", content_type: "application/pdf")
+    end
+
+    assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(transaction, user: @admin) }
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "create_transaction! records an expense, links it and marks it as created from the receipt" do
+    receipt = upload([ "Total 15.00" ])
+
+    entry = nil
+    assert_difference -> { @account.entries.count }, 1 do
+      entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+    end
+
+    assert_equal BigDecimal("15"), entry.amount
+    assert_equal "Bakery", entry.name
+    assert receipt.reload.created_transaction?
+    assert_equal entry.transaction, receipt.linked_transaction
+    assert entry.transaction.created_from_receipt?
+    assert_equal 1, entry.transaction.attachments.count
+  end
+
+  test "create_transaction! finishes the new entry even when the account sync cannot be queued" do
+    receipt = upload([ "Total 15.00" ])
+    Entry.any_instance.stubs(:sync_account_later).raises(RedisClient::CannotConnectError)
+    Rule.expects(:apply_immediately_later).once
+
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    assert entry.reload.user_modified?
+    assert entry.locked?(:amount)
+    assert_equal entry.transaction, receipt.reload.linked_transaction
+  end
+
+  test "a receipt whose reading cannot be queued is marked failed" do
+    ReceiptExtractionJob.stubs(:perform_later).raises(RedisClient::CannotConnectError)
+
+    receipt = upload([ "Total 2.00" ])
+
+    assert receipt.reload.extraction_failed?
+    assert_equal "enqueue_failed", receipt.extraction_error
+  end
+
+  test "a receipt whose job is silently not enqueued is marked failed" do
+    ReceiptExtractionJob.stubs(:perform_later).returns(false)
+
+    receipt = upload([ "Total 2.00" ])
+
+    assert receipt.reload.extraction_failed?
+    assert_equal "enqueue_failed", receipt.extraction_error
+  end
+
+  test "extract! marks the receipt failed when a read value cannot be saved" do
+    receipt = upload([ "Total 2.00" ])
+    result = Receipt::Extraction::Result.new(fields: { "amount" => { value: BigDecimal("1e16"), confidence: 0.9, source: "pdf_text" } }, raw_text: "x")
+    Receipt::Extraction.any_instance.stubs(:run).returns(result)
+
+    receipt.extract!
+
+    assert receipt.reload.extraction_failed?
+    assert_nil receipt.amount
+  end
+
+  test "extract! masks a card number read as the merchant" do
+    receipt = upload([ "Total 2.00" ])
+    Receipt::TextParser.stubs(:parse).returns({ "merchant_name" => { value: "Shop 4111 1111 1111 1234", confidence: 0.3 } })
+
+    receipt.extract!
+
+    assert_equal "Shop ****1234", receipt.reload.merchant_name
+  end
+
+  test "link_to! does not link when the transaction refuses the attachment" do
+    receipt = upload([ "Total 9.99" ])
+    transaction = create_transaction(account: @account, amount: 9.99, date: Date.current)
+    ActiveStorage::Attached::Many.any_instance.stubs(:attach).returns(false)
+
+    assert_no_difference "ActiveStorage::Blob.count" do
+      assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "a linked receipt cannot be linked again or recorded twice" do
+    receipt = upload([ "Total 15.00" ])
+    receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+    other = create_transaction(account: @account, amount: 15, date: Date.current)
+
+    assert_raises(ActiveRecord::RecordInvalid) { receipt.link_to!(other, user: @admin) }
+    assert_no_difference -> { @account.entries.count } do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+      end
+    end
+    assert_equal 0, other.attachments.count
+  end
+
+  test "create_transaction! refuses an unknown currency" do
+    receipt = upload([ "Total 15.00" ])
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      receipt.create_transaction!(account: @account, user: @admin, name: "Shop", date: Date.current, amount: BigDecimal("15"), currency: "XYZ")
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "create_transaction! refuses an amount too large to store" do
+    receipt = upload([ "Total 2.00" ])
+
+    assert_no_difference -> { @account.entries.count } do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Huge", date: Date.current, amount: BigDecimal("1e20"), currency: "USD")
+      end
+    end
+  end
+
+  test "create_transaction! refuses an amount that is not positive" do
+    receipt = upload([ "Total 15.00" ])
+
+    assert_no_difference -> { @account.entries.count } do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        receipt.create_transaction!(account: @account, user: @admin, name: "Refund", date: Date.current, amount: BigDecimal("-15"), currency: "USD")
+      end
+    end
+  end
+
+  test "extract! records an unexpected error without the receipt's text" do
+    receipt = upload([ "Total 1.00" ])
+    Receipt::Extraction.any_instance.stubs(:run).raises(NoMethodError, "secret text")
+
+    assert_difference -> { DebugLogEntry.count }, 1 do
+      receipt.extract!
+    end
+
+    assert receipt.extraction_failed?
+    assert_equal "unexpected_error", receipt.extraction_error
+    assert_not_includes DebugLogEntry.last.message, "secret text"
+  end
+
+  test "deleting the transaction returns the receipt to the inbox" do
+    receipt = upload([ "Total 15.00" ])
+    entry = receipt.create_transaction!(account: @account, user: @admin, name: "Bakery", date: Date.current, amount: BigDecimal("15"), currency: "USD")
+
+    entry.destroy!
+
+    assert_nil receipt.reload.transaction_id
+    assert_includes @family.receipts.open, receipt
+  end
+
+  test "dismiss! and reopen! move the receipt between open and done" do
+    receipt = upload([ "Total 1.00" ])
+
+    receipt.dismiss!
+    assert_includes @family.receipts.done, receipt
+
+    receipt.reopen!
+    assert_includes @family.receipts.open, receipt
+  end
+
+  test "extract! reads an XRechnung XML file with its invoice details" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    assert receipt.xml?
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_equal "Demo Energy AG", receipt.merchant_name
+    assert_equal Date.new(2026, 10, 30), receipt.date
+    assert_equal BigDecimal("49.98"), receipt.amount
+    assert_equal "EUR", receipt.currency
+    assert_equal "DEMO-UBL-7", receipt.invoice_number
+    assert_equal Date.new(2026, 11, 13), receipt.due_date
+    assert_equal BigDecimal("7.98"), receipt.tax_amount
+    assert_equal "einvoice", receipt.field_source(:amount)
+    assert_equal 1.0, receipt.field_confidence(:amount)
+    assert receipt.fields_read?
+  end
+
+  test "extract! takes a hybrid PDF's values from its XML, not its printed text" do
+    travel_to Date.new(2026, 11, 22) do
+      receipt = upload_content(receipt_pdf([ "Other Shop", "Total 5.00", "Date 2026-11-20" ], attachments: { "factur-x.xml" => e_invoice_xml("cii_invoice") }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_equal BigDecimal("119.00"), receipt.amount
+      assert_equal Date.new(2026, 11, 5), receipt.date
+      assert_equal "einvoice", receipt.field_source(:merchant_name)
+      assert_nil receipt.raw_text
+    end
+  end
+
+  test "extract! does not guess a credit note's amount from the PDF text" do
+    travel_to Date.new(2026, 11, 22) do
+      credit_note = e_invoice_xml("cii_invoice").sub("<ram:TypeCode>380", "<ram:TypeCode>381")
+      receipt = upload_content(receipt_pdf([ "Credit note", "Total 119.00" ], attachments: { "factur-x.xml" => credit_note }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_nil receipt.amount
+      assert_nil receipt.tax_amount
+    end
+  end
+
+  test "extract! fills what the e-invoice lacks from the PDF text, except the amount" do
+    travel_to Date.new(2026, 11, 22) do
+      xml = e_invoice_xml("cii_invoice").sub('format="102">20261105', 'format="610">202611').sub("<ram:GrandTotalAmount>119.00", "<ram:GrandTotalAmount>n/a")
+      receipt = upload_content(receipt_pdf([ "Other Shop", "Total 5.00", "Date 2026-11-20" ], attachments: { "factur-x.xml" => xml }))
+
+      receipt.extract!
+
+      assert_equal "Demo Supplies GmbH", receipt.merchant_name
+      assert_equal Date.new(2026, 11, 20), receipt.date
+      assert_equal "pdf_text", receipt.field_source(:date)
+      assert_nil receipt.amount
+    end
+  end
+
+  test "extract! still reads the PDF text when the e-invoice reader fails" do
+    travel_to Date.new(2026, 11, 22) do
+      receipt = upload([ "Coffee House", "Total 12.40 USD", "Date 2026-11-20" ])
+      Receipt::EInvoice.stubs(:from_pdf).raises(NoMethodError)
+
+      assert_difference -> { DebugLogEntry.where(source: "receipt_extraction").count }, 1 do
+        receipt.extract!
+      end
+
+      assert receipt.extraction_completed?
+      assert_equal BigDecimal("12.40"), receipt.amount
+    end
+  end
+
+  test "extract! fails an XML receipt whose file cannot be downloaded" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    ActiveStorage::Blob.any_instance.stubs(:download).raises(Errno::ECONNRESET)
+
+    receipt.extract!
+
+    assert receipt.extraction_failed?
+    assert_nil receipt.amount
+  end
+
+  test "the tax is shown only while the currency is the e-invoice's" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice").sub(">7.98<", ">0.00<"))
+    receipt.extract!
+
+    assert_equal Money.new(0, "EUR"), receipt.tax_money
+    assert receipt.invoice_details?
+
+    receipt.update_fields!(currency: "USD")
+    assert_nil receipt.tax_money
+  end
+
+  test "extract! clears invoice details the file no longer has" do
+    receipt = upload([ "Total 1.00" ])
+    receipt.update!(invoice_number: "OLD-1", due_date: Date.current, tax_amount: 1)
+
+    receipt.extract!
+
+    assert_nil receipt.invoice_number
+    assert_nil receipt.due_date
+    assert_nil receipt.tax_amount
+  end
+
+  test "an XML that is not an e-invoice completes with nothing read" do
+    receipt = upload_xml("<note><to>Demo</to></note>")
+
+    receipt.extract!
+
+    assert receipt.extraction_completed?
+    assert_nil receipt.amount
+    assert_not receipt.fields_read?
+  end
+
+  test "an e-invoice without an XML declaration is accepted and read" do
+    xml = e_invoice_xml("ubl_invoice").sub(/\A<\?xml[^>]*\?>\s*/, "")
+    receipt = upload_xml(xml)
+
+    receipt.extract!
+
+    assert_equal "application/xml", receipt.content_type
+    assert receipt.fields_read?
+  end
+
+  test "text that only starts like XML is rejected" do
+    assert_raises(Receipt::InvalidUploadError) { upload_xml("<b>not closed") }
+  end
+
+  test "link_to! attaches an e-invoice XML to the transaction" do
+    receipt = upload_xml(e_invoice_xml("ubl_invoice"))
+    transaction = create_transaction(account: @account, amount: 49.98, date: Date.current)
+
+    receipt.link_to!(transaction, user: @admin)
+
+    assert_equal 1, transaction.reload.attachments.count
+    assert_includes Transaction::XML_CONTENT_TYPES, transaction.attachments.first.content_type
+  end
+
+  private
+    def upload_xml(content)
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(content, filename: "invoice.xml", content_type: "application/xml"))
+    end
+
+    def upload(lines)
+      upload_content(receipt_pdf(lines))
+    end
+
+    def upload_content(content)
+      Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(content))
+    end
+
+    def create_transaction(account:, amount:, date:)
+      account.entries.create!(name: "Purchase", date: date, amount: amount, currency: "USD", entryable: Transaction.new).transaction
+    end
+end

@@ -1,6 +1,11 @@
 <%# locals: (transaction:, can_upload: false, can_delete: false) %>
 
 <div id="transaction_attachments_<%= transaction.id %>" class="pb-4">
+  <% if transaction.created_from_receipt? %>
+    <div class="mb-3">
+      <%= render DS::Pill.new(label: t(".created_from_receipt"), tone: :info, marker: false, icon: "receipt") %>
+    </div>
+  <% end %>
   <!-- Upload Form -->
   <% if can_upload && transaction.attachments.count < Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>
     <%= styled_form_with url: transaction_attachments_path(transaction),
@@ -30,7 +35,7 @@
 
             <%= form.file_field :attachments,
                   multiple: true,
-                  accept: Transaction::ALLOWED_CONTENT_TYPES.join(","),
+                  accept: Transaction::ATTACHMENT_ACCEPT,
                   class: "hidden",
                   data: {
                     attachment_upload_target: "fileInput",
@@ -88,14 +93,17 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <%= render DS::Link.new(
-                    href: transaction_attachment_path(transaction, attachment, disposition: :inline),
-                    variant: :outline,
-                    size: :sm,
-                    icon: "eye",
-                    text: "",
-                    target: "_blank"
-                  ) %>
+              <%# Browsers download XML instead of showing it, so it only gets the download button. %>
+              <% unless Transaction::XML_CONTENT_TYPES.include?(attachment.content_type) %>
+                <%= render DS::Link.new(
+                      href: transaction_attachment_path(transaction, attachment, disposition: :inline),
+                      variant: :outline,
+                      size: :sm,
+                      icon: "eye",
+                      text: "",
+                      target: "_blank"
+                    ) %>
+              <% end %>
 
               <%= render DS::Link.new(
                     href: transaction_attachment_path(transaction, attachment, disposition: :attachment),

@@ -55,6 +55,18 @@ class TransactionImport < Import
           name: row.name,
           exclude_entry_ids: claimed_entry_ids
         )
+        # On a linked account the row may already have arrived via sync.
+        # Provider names rarely match a CSV's, so only date, amount and
+        # currency count, as for statement imports.
+        duplicate_entry ||= if mapped_account.linked?
+          adapter.find_duplicate_transaction(
+            date: row.date_iso,
+            amount: row.signed_amount,
+            currency: effective_currency,
+            exclude_entry_ids: claimed_entry_ids,
+            include_provider_entries: true
+          )
+        end
 
         if duplicate_entry
           # Update existing transaction instead of creating a new one. It keeps

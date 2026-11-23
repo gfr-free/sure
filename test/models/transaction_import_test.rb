@@ -373,6 +373,34 @@ class TransactionImportTest < ActiveSupport::TestCase
     assert existing_entry.import_locked?
   end
 
+  test "updates a synced entry on a linked account instead of adding a copy" do
+    account = accounts(:connected)
+    synced = account.entries.create!(
+      date: Date.new(2024, 1, 1), amount: 100, currency: "USD", name: "COFFEE SHOP #123",
+      external_id: "plaid-txn-1", source: "plaid", entryable: Transaction.new
+    )
+
+    @import.update!(
+      account: account,
+      raw_file_str: "date,name,amount\n01/01/2024,Coffee Shop,100\n",
+      date_col_label: "date",
+      amount_col_label: "amount",
+      name_col_label: "name",
+      date_format: "%m/%d/%Y",
+      amount_type_strategy: "signed_amount",
+      signage_convention: "inflows_negative"
+    )
+    @import.generate_rows_from_csv
+    @import.reload
+
+    assert_no_difference -> { Entry.count } do
+      @import.publish
+    end
+
+    assert synced.reload.import_locked?
+    assert_equal "plaid-txn-1", synced.external_id
+  end
+
   test "revert keeps a pre-existing entry the import matched as a duplicate" do
     account = accounts(:depository)
     existing_entry = account.entries.create!(

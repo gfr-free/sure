@@ -18,6 +18,7 @@ en:
         plan: Plan
         portfolio: Portfolio
         reports: Reports
+        review: Review
         goals: Goals
         transactions: Transactions
     auth:

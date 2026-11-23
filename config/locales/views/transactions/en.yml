@@ -253,6 +253,7 @@ en:
       edit_merchants: "Edit merchants"
       edit_imports: "Edit imports"
       new_transaction: "New transaction"
+      review: "Review"
       categorize_button:
         one: "Categorize (1)"
         other: "Categorize (%{count})"

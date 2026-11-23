@@ -1,0 +1,23 @@
+---
+en:
+  reviews:
+    kinds:
+      uncategorized:
+        label: Without category
+      no_merchant:
+        label: Without merchant
+      long_pending:
+        label: Pending for more than %{days} days
+      possible_duplicate:
+        label: Possible duplicates
+      transfer_suggestion:
+        label: Suggested transfers
+    show:
+      title: Review
+      subtitle: Transactions that still need attention. Filters narrow every count.
+      kinds_label: What needs review
+      quick_categorize: Quick categorize
+      open_auto_matches: Review all suggestions
+      empty:
+        title: Nothing to review here
+        description: No transactions in this group match the current filters.

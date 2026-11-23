@@ -1,4 +1,4 @@
-<%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, desktop_only: false, preview: false) %>
+<%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, desktop_only: false, preview: false, count: nil) %>
 
 <%= link_to path, class: "space-y-1 group block relative pb-1 focus-ring rounded-lg", aria: { current: ("page" if active) } do %>
   <div class="grow flex flex-col lg:flex-row gap-1 items-center">
@@ -9,7 +9,10 @@
       active ? "bg-container shadow-xs text-primary" : "group-hover:bg-surface-hover text-secondary"
     ) do %>
       <%= icon(icon, color: active ? "current" : "default", custom: icon_custom) %>
-      <% if preview %>
+      <% if count.to_i.positive? %>
+        <%# The count chip takes the corner the preview dot would use. %>
+        <%= render "layouts/shared/count_chip", count: count, position_class: "-top-1.5 -right-2" %>
+      <% elsif preview %>
         <span class="absolute -top-0.5 -right-0.5">
           <%= render DS::Pill.new(tone: :violet, dot_only: true, title: t("shared.preview")) %>
         </span>

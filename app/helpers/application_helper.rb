@@ -170,6 +170,26 @@ module ApplicationHelper
     )
   end
 
+  # Transactions that still need attention. Preview-gated and desktop-only like
+  # Portfolio; on phones the Transactions menu links to it. The count is what
+  # the viewer can still categorize (cached, see Transaction::ReviewQueue).
+  def review_nav_item
+    # Checked first so users without the flag never pay for the count query.
+    return nil unless preview_features_enabled? && Current.family
+
+    preview_gated_nav_item(
+      {
+        name: t("layouts.application.nav.review"),
+        path: review_path,
+        icon: "list-checks",
+        icon_custom: false,
+        active: page_active?(review_path),
+        desktop_only: true,
+        count: Transaction::ReviewQueue.uncategorized_count
+      }
+    )
+  end
+
   # Wrapper around I18n.l to support custom date formats
   def format_date(object, format = :default, options = {})
     date = object.to_date

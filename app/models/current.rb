@@ -3,6 +3,8 @@ class Current < ActiveSupport::CurrentAttributes
 
   attribute :session
   attribute :latest_sync_by_syncable, :latest_completed_sync_by_syncable, :syncing_by_syncable
+  # Per-request memo for Transaction::ReviewQueue.uncategorized_count.
+  attribute :uncategorized_count
 
   delegate :family, to: :user, allow_nil: true
 

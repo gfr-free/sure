@@ -1,6 +1,7 @@
 class TransactionsController < ApplicationController
   include EntryableResource
   include FilterClearable
+  include TransactionSearchParams
 
   before_action :set_entry_for_unlock, only: :unlock
   before_action :set_entry_for_tags, only: :update_tags
@@ -77,9 +78,7 @@ class TransactionsController < ApplicationController
 
     # Counts what the categorize wizard can act on, so read-only shares don't
     # keep the "Categorize" menu item visible.
-    @uncategorized_count = Rails.cache.fetch(uncategorized_count_cache_key) do
-      Current.annotatable_entries.uncategorized_transactions.count
-    end
+    @uncategorized_count = Transaction::ReviewQueue.uncategorized_count
 
     # Load projected recurring transactions for next 10 days. Only the IDs are
     # cached: cached ActiveRecord objects outlive schema changes across
@@ -588,11 +587,6 @@ class TransactionsController < ApplicationController
   end
 
   private
-    def uncategorized_count_cache_key
-      "transactions_uncategorized_count/v5/#{Current.family.id}/#{Current.user.id}/" \
-        "#{Current.family.entries_version}/#{Current.family.accounts_status_version}/#{Current.account_share_version}"
-    end
-
     def projected_recurring_cache_key
       "transactions_projected_recurring/v6/#{Current.family.id}/#{Current.user.id}/#{Date.current}/" \
         "#{Current.family.recurring_transactions_version}/#{Current.family.accounts_status_version}/" \
@@ -833,35 +827,6 @@ class TransactionsController < ApplicationController
       end
 
       permitted
-    end
-
-    # Permitted search filters from the q param, with blank values and
-    # unsupported ai_status / attachment_status values dropped.
-    def search_params
-      cleaned_params = params.fetch(:q, {})
-              .permit(
-                :start_date, :end_date, :search, :amount,
-                :amount_operator, :active_accounts_only,
-                accounts: [], account_ids: [],
-                categories: [], merchants: [], types: [], tags: [], status: [], ai_status: [],
-                attachment_status: [], reconcile_status: []
-              )
-              .to_h
-              .compact_blank
-
-      cleaned_params.delete(:amount_operator) unless cleaned_params[:amount].present?
-
-      if cleaned_params[:ai_status]
-        cleaned_params[:ai_status] &= Transaction::Search::AI_STATUSES
-        cleaned_params.delete(:ai_status) if cleaned_params[:ai_status].empty?
-      end
-
-      if cleaned_params[:attachment_status]
-        cleaned_params[:attachment_status] &= Transaction::Search::ATTACHMENT_STATUSES
-        cleaned_params.delete(:attachment_status) if cleaned_params[:attachment_status].empty?
-      end
-
-      cleaned_params
     end
 
     def store_params!

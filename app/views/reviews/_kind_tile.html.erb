@@ -1,0 +1,16 @@
+<%# locals: (kind:, count:, active:, q:) %>
+<%= link_to review_path(kind: kind, q: q.presence),
+      id: "review-kind-#{kind}",
+      class: "block rounded-xl focus-ring",
+      aria: { current: ("page" if active) } do %>
+  <%= render DS::Card.new(class: class_names("h-full gap-2 text-primary", active ? "border border-primary" : "border border-tertiary hover:bg-surface-hover")) do %>
+    <div class="flex items-center justify-between gap-2">
+      <%= icon(review_kind_icon(kind), color: count.zero? ? "default" : "current") %>
+      <% if count.zero? %>
+        <%= icon("check", size: "sm", color: "success") %>
+      <% end %>
+    </div>
+    <p class="<%= class_names("text-2xl font-medium", count.zero? ? "text-secondary" : "text-primary") %>"><%= number_with_delimiter(count) %></p>
+    <p class="text-sm text-secondary"><%= t("reviews.kinds.#{kind}.label", days: Transaction::ReviewQueue::LONG_PENDING_AFTER.in_days.to_i) %></p>
+  <% end %>
+<% end %>

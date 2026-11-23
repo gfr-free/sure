@@ -24,6 +24,7 @@ module Account::Liquidity
 
   LEVELS = %w[immediate short_term locked long_term].freeze
   AVAILABLE_LEVELS = %w[immediate short_term].freeze
+  BOUND_LEVELS = %w[locked long_term].freeze
 
   # Form value for "follow the subtype again".
   AUTOMATIC = "automatic".freeze

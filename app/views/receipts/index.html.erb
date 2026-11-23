@@ -35,6 +35,14 @@
     <% end %>
   <% end %>
 
-  <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open") %>
+  <% if @suggested_receipts.any? %>
+    <%= render DS::Section.new(title: t(".suggested_title"), count: @suggested_receipts.size) do %>
+      <% @suggested_receipts.each do |receipt| %>
+        <%= render "receipts/suggestion", receipt: receipt %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open"), bank_wait: @bank_wait %>
   <%= render "receipts/table", title: t(".done_title"), receipts: @done_receipts, pagy: @done_pagy, empty: t(".empty_done") %>
 </div>

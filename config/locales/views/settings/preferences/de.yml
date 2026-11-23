@@ -3,6 +3,12 @@ de:
   settings:
     preferences:
       show:
+        receipt_bank_wait_days: Bei Belegen auf die Bank warten
+        receipt_bank_wait_days_hint: Ein Beleg ohne passende Buchung lässt sich auf einem Konto mit Bank-Sync erst so viele Tage nach seinem Datum als neue Buchung anlegen. Die Buchung der Bank kommt meist in dieser Zeit und wäre sonst doppelt.
+        receipt_bank_wait_days_option:
+          one: 1 Tag
+          other: "%{count} Tage"
+          zero: Nicht warten
         country: Land
         currency: Währung
         date_format: Datumsformat

@@ -819,9 +819,12 @@ Rails.application.routes.draw do
   end
 
   resources :receipts, only: %i[index show create update destroy] do
+    post :prefill, on: :collection
     member do
       get :file
       post :link
+      post :confirm_match
+      post :reject_match
       post :create_transaction
       patch :dismiss
       patch :reopen
@@ -907,6 +910,18 @@ Rails.application.routes.draw do
         get :forecast, on: :member
       end
       resources :account_statements, only: [ :index, :show, :create ]
+      resources :receipts, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :file
+          get :candidates
+          post :link
+          post :create_transaction
+          post :confirm
+          post :reject
+          post :dismiss
+          post :reopen
+        end
+      end
       resources :balances, only: [ :index, :show ]
       resources :budgets, only: [ :index, :show ]
       resources :budget_categories, only: [ :index, :show ]

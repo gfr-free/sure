@@ -768,13 +768,31 @@ class Transaction < ApplicationRecord
       SQL
       from.paperless_links.update_all(linkable_id: to.id, updated_at: Time.current)
 
-      # Receipts linked to the pending transaction follow it, so the inbox keeps
-      # pointing at the transaction that holds their copy.
+      # Read before the receipts move over: it looks at the pending transaction's receipts.
       created_from_receipt = from.created_from_receipt?
-      from.receipts.update_all(transaction_id: to.id)
+      carry_over_receipts(from: from, to: to)
       if created_from_receipt && to.extra&.dig("created_from_receipt") != true
         to.update_columns(extra: (to.extra || {}).merge("created_from_receipt" => true))
       end
+    end
+
+    # Receipts and the user's rejected receipt suggestions follow the booking;
+    # deleting the pending entry would unlink or forget them. Afterwards the
+    # posted booking keeps the suggestion rules: no suggestion for a rejected
+    # pair, none next to a confirmed receipt, and at most one.
+    def carry_over_receipts(from:, to:)
+      now = Time.current
+      rejected_on_posted = RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)
+      RejectedReceiptMatch.where(transaction_id: from.id).where.not(receipt_id: rejected_on_posted).update_all(transaction_id: to.id, updated_at: now)
+      Receipt.where(transaction_id: from.id).update_all(transaction_id: to.id, updated_at: now)
+
+      receipts = Receipt.where(transaction_id: to.id)
+      pending = receipts.where(match_status: "pending")
+      released = pending.where(id: RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)).pluck(:id)
+      suggestions = pending.where.not(id: released).order(:linked_at, :id).pluck(:id)
+      confirmed = receipts.where.not(id: pending.select(:id)).exists?
+      released += confirmed ? suggestions : suggestions.drop(1)
+      Receipt.where(id: released).update_all(transaction_id: nil, match_status: nil, linked_at: nil, updated_at: now) if released.any?
     end
 
     def attachment_count_after_merge(from:, to:)

@@ -20,6 +20,12 @@ en:
         budgets_enabled_hint: Show budgets in the navigation, reports, insights, the assistant and the API. Turning this off keeps your budget data.
         plan_enabled: Plan
         plan_enabled_hint: Show the Plan hub and goals. Turning this off keeps your goals.
+        receipt_bank_wait_days: Wait for the bank before recording a receipt
+        receipt_bank_wait_days_hint: A receipt without a matching transaction can be recorded on a bank-synced account only after this many days from its date. The bank's own booking usually arrives in that time and would otherwise appear twice.
+        receipt_bank_wait_days_option:
+          one: 1 day
+          other: "%{count} days"
+          zero: No wait
         default_period: Default Period
         default_account_order: Default Account Order
         default_account_order_hint: With Manual, drag accounts in the sidebar to set their order.

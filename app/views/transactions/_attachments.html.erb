@@ -6,6 +6,13 @@
       <%= render DS::Pill.new(label: t(".created_from_receipt"), tone: :info, marker: false, icon: "receipt") %>
     </div>
   <% end %>
+  <% if (suggested_receipts = suggested_receipts_for(transaction)).any? %>
+    <div class="mb-3 rounded-lg border border-subdued">
+      <% suggested_receipts.each do |receipt| %>
+        <%= render "receipts/suggestion", receipt: receipt, describe: :receipt %>
+      <% end %>
+    </div>
+  <% end %>
   <!-- Upload Form -->
   <% if can_upload && transaction.attachments.count < Transaction::MAX_ATTACHMENTS_PER_TRANSACTION %>
     <%= styled_form_with url: transaction_attachments_path(transaction),

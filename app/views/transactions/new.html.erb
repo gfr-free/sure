@@ -1,6 +1,9 @@
 <%= render DS::Dialog.new(scrollable: false, content_class: "lg:max-h-none lg:overflow-y-auto") do |dialog| %>
   <% dialog.with_header(title: t(".new_transaction")) %>
   <% dialog.with_body do %>
+    <% if receipts_available? %>
+      <%= render "transactions/receipt_prefill", receipt: @prefill_receipt, existing_matches: @receipt_existing_matches || [] %>
+    <% end %>
     <%= render "form",
                entry: @entry,
                account_currencies: @account_currencies,

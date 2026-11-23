@@ -22,6 +22,9 @@
         replay a token that already committed an entry and silently
         redirect a distinct submission onto that old one. %>
     <%= hidden_field_tag "entry[idempotency_key]", new_transaction_idempotency_key, data: { "transaction-form-target": "idempotencyKey" } %>
+    <% if @prefill_receipt %>
+      <%= hidden_field_tag :receipt_id, @prefill_receipt.id %>
+    <% end %>
   </section>
 
   <section class="space-y-2">

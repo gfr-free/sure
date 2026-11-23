@@ -7,6 +7,7 @@ class Transaction < ApplicationRecord
 
   has_many :taggings, as: :taggable, dependent: :destroy
   has_many :tags, through: :taggings
+  has_many :receipts, inverse_of: :linked_transaction
 
   # File attachments (receipts, invoices, etc.) using Active Storage
   # Supports images (JPEG, PNG, GIF, WebP) and PDFs up to 10MB each
@@ -35,6 +36,12 @@ class Transaction < ApplicationRecord
   def tag_ids=(ids)
     id_type = Tag.type_for_attribute(:id)
     super(Array(ids).uniq { |id| id_type.cast(id) || id })
+  end
+
+  # Stored on the transaction, so it outlives the receipt in the inbox; the
+  # receipt check covers transactions created before the flag existed.
+  def created_from_receipt?
+    extra["created_from_receipt"] == true || receipts.exists?(created_transaction: true)
   end
 
   def tags=(tags)
@@ -707,7 +714,8 @@ class Transaction < ApplicationRecord
 
   private
     # Moves the pending transaction's attachments (the attachment rows themselves, so the
-    # blobs are not purged with the pending entry) and adds its tags to the posted one.
+    # blobs are not purged with the pending entry), its tags and its linked receipts
+    # to the posted one, which also keeps the note that a receipt created it.
     def carry_over_user_additions(from:, to:)
       if from.attachments.attached?
         # A blob already attached to the posted transaction would collide with the
@@ -718,6 +726,32 @@ class Transaction < ApplicationRecord
 
       new_tags = from.tags.where.not(id: to.tags.select(:id))
       to.tags << new_tags if new_tags.any?
+
+      # Read before the receipts move over: it looks at the pending transaction's receipts.
+      created_from_receipt = from.created_from_receipt?
+      carry_over_receipts(from: from, to: to)
+      if created_from_receipt && to.extra&.dig("created_from_receipt") != true
+        to.update_columns(extra: (to.extra || {}).merge("created_from_receipt" => true))
+      end
+    end
+
+    # Receipts and the user's rejected receipt suggestions follow the booking;
+    # deleting the pending entry would unlink or forget them. Afterwards the
+    # posted booking keeps the suggestion rules: no suggestion for a rejected
+    # pair, none next to a confirmed receipt, and at most one.
+    def carry_over_receipts(from:, to:)
+      now = Time.current
+      rejected_on_posted = RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)
+      RejectedReceiptMatch.where(transaction_id: from.id).where.not(receipt_id: rejected_on_posted).update_all(transaction_id: to.id, updated_at: now)
+      Receipt.where(transaction_id: from.id).update_all(transaction_id: to.id, updated_at: now)
+
+      receipts = Receipt.where(transaction_id: to.id)
+      pending = receipts.where(match_status: "pending")
+      released = pending.where(id: RejectedReceiptMatch.where(transaction_id: to.id).select(:receipt_id)).pluck(:id)
+      suggestions = pending.where.not(id: released).order(:linked_at, :id).pluck(:id)
+      confirmed = receipts.where.not(id: pending.select(:id)).exists?
+      released += confirmed ? suggestions : suggestions.drop(1)
+      Receipt.where(id: released).update_all(transaction_id: nil, match_status: nil, linked_at: nil, updated_at: now) if released.any?
     end
 
     def attachment_count_after_merge(from:, to:)

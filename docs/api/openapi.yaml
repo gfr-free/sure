@@ -271,6 +271,255 @@ components:
             "$ref": "#/components/schemas/AccountStatement"
         meta:
           "$ref": "#/components/schemas/Pagination"
+    ReceiptFieldSource:
+      type: object
+      required:
+      - source
+      - confidence
+      properties:
+        source:
+          type: string
+          description: Where the value came from, e.g. pdf_text or manual
+        confidence:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+    ReceiptTransaction:
+      type: object
+      required:
+      - id
+      - entry_id
+      - name
+      - date
+      - amount_decimal
+      - currency
+      - account
+      properties:
+        id:
+          type: string
+          format: uuid
+        entry_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        amount_decimal:
+          type: string
+          description: Stored amount; positive is an outflow
+        currency:
+          type: string
+        account:
+          type: object
+          required:
+          - id
+          - name
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+    Receipt:
+      type: object
+      required:
+      - id
+      - status
+      - source
+      - filename
+      - content_type
+      - byte_size
+      - content_sha256
+      - extraction_status
+      - field_sources
+      - created_transaction
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - reading
+          - open
+          - suggested
+          - linked
+          - dismissed
+        source:
+          type: string
+          enum:
+          - web
+          - api
+        filename:
+          type: string
+        content_type:
+          type: string
+        byte_size:
+          type: integer
+          minimum: 1
+        content_sha256:
+          type: string
+          description: SHA-256 of the file (lowercase hex); each user stores a file
+            once
+        extraction_status:
+          type: string
+          enum:
+          - pending
+          - completed
+          - failed
+        extraction_error:
+          type: string
+          nullable: true
+        merchant_name:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+          description: Total as a positive decimal string
+        currency:
+          type: string
+          nullable: true
+        field_sources:
+          type: object
+          description: 'Per field (merchant_name, date, amount, currency): where its
+            value came from, or null'
+          additionalProperties:
+            type: object
+            required:
+            - source
+            - confidence
+            properties:
+              source:
+                type: string
+                description: Where the value came from, e.g. pdf_text or manual
+              confidence:
+                type: number
+                nullable: true
+                minimum: 0
+                maximum: 1
+            nullable: true
+        transaction:
+          type: object
+          required:
+          - id
+          - entry_id
+          - name
+          - date
+          - amount_decimal
+          - currency
+          - account
+          properties:
+            id:
+              type: string
+              format: uuid
+            entry_id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            date:
+              type: string
+              format: date
+            amount_decimal:
+              type: string
+              description: Stored amount; positive is an outflow
+            currency:
+              type: string
+            account:
+              type: object
+              required:
+              - id
+              - name
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+          nullable: true
+          description: Linked transaction, while the caller can see its account
+        match_status:
+          type: string
+          enum:
+          - pending
+          - confirmed
+          -
+          nullable: true
+          description: 'pending: Sure suggested the transaction and waits for confirm
+            or reject; confirmed: linked for good'
+        bank_wait_until:
+          type: string
+          format: date
+          nullable: true
+          description: While set, a new transaction from this receipt is refused on
+            bank-synced accounts, because the bank booking usually arrives later
+        created_transaction:
+          type: boolean
+          description: True when the linked transaction was created from this receipt
+        linked_at:
+          type: string
+          format: date-time
+          nullable: true
+        dismissed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ReceiptResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          "$ref": "#/components/schemas/Receipt"
+        meta:
+          type: object
+          required:
+          - duplicate
+          properties:
+            duplicate:
+              type: boolean
+              description: True when the caller had already uploaded this file; the
+                existing receipt is returned
+    ReceiptCollection:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            "$ref": "#/components/schemas/Receipt"
+        meta:
+          "$ref": "#/components/schemas/Pagination"
+    ReceiptCandidateCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          maxItems: 20
+          items:
+            "$ref": "#/components/schemas/ReceiptTransaction"
     FamilyExportFile:
       type: object
       required:
@@ -9061,6 +9310,521 @@ paths:
                 "$ref": "#/components/schemas/ErrorResponse"
         '204':
           description: token unregistered
+  "/api/v1/receipts":
+    get:
+      summary: List your receipts
+      description: Lists receipts the caller uploaded, newest first. Receipts are
+        private to their uploader. Requires an admin or member with preview features
+        enabled.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - reading
+          - open
+          - suggested
+          - linked
+          - dismissed
+        description: 'Same values as a receipt''s status: reading (fields still being
+          read), open, suggested (a transaction awaits confirmation), linked or dismissed'
+      - name: extraction_status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - pending
+          - completed
+          - failed
+      - name: content_sha256
+        in: query
+        required: false
+        description: Find the receipt for a file by its SHA-256 (hex)
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        description: 'Page number (default: 1)'
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        description: 'Items per page (default: 25, max: 100)'
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: receipts listed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptCollection"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: guest, or preview features not enabled
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: invalid filter
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+    post:
+      summary: Upload a receipt
+      description: Stores a photo (JPEG, PNG, GIF, WebP) or PDF of a receipt, max
+        10 MB, and reads its merchant, date, amount and currency in the background
+        (status "reading" until done). Uploading a file the caller already uploaded
+        returns the existing receipt with meta.duplicate = true.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: receipt stored
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '200':
+          description: file already uploaded
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: guest, API key without write scope, or preview features not
+            enabled
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: missing or unsupported file
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+        required: true
+        description: Receipt photo or PDF
+  "/api/v1/receipts/{id}":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: Show a receipt
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: receipt found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '404':
+          description: receipt not found, or uploaded by someone else
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Correct the fields read from a receipt
+      description: Sets merchant_name, date, amount or currency. Each field sent is
+        marked as entered by hand, so reading the receipt again keeps it. null clears
+        a field. When exactly one transaction then fits, the response already carries
+        it as a suggestion.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: receipt updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '422':
+          description: unreadable value
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                merchant_name:
+                  type: string
+                  nullable: true
+                date:
+                  type: string
+                  format: date
+                  nullable: true
+                amount:
+                  type: string
+                  nullable: true
+                  description: Positive decimal
+                currency:
+                  type: string
+                  nullable: true
+                  description: ISO 4217 code
+        required: true
+    delete:
+      summary: Delete a receipt
+      description: Deletes the receipt and its file. A copy already attached to a
+        transaction stays there.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '204':
+          description: receipt deleted
+        '404':
+          description: receipt not found
+  "/api/v1/receipts/{id}/file":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: Download the receipt file
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters:
+      - name: disposition
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - inline
+          - attachment
+      responses:
+        '200':
+          description: receipt file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: receipt not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/receipts/{id}/candidates":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    get:
+      summary: List transactions the receipt may belong to
+      description: Up to 20 transactions on accounts the caller can write to, within
+        30 days of the receipt date and, when the amount is known, for exactly that
+        amount. Nearest date first.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: candidates listed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptCandidateCollection"
+  "/api/v1/receipts/{id}/link":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Link a receipt to a transaction
+      description: Attaches a copy of the file to the transaction. Needs write access
+        to its account.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: receipt linked
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '404':
+          description: transaction not found or not writable
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: receipt already linked, or the transaction has too many attachments
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - transaction_id
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+        required: true
+  "/api/v1/receipts/{id}/create_transaction":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Record a receipt as a new transaction
+      description: Creates an expense on the account and links the receipt to it.
+        Values left out are taken from the receipt.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: transaction created and linked
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '404':
+          description: account not found or not writable
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: no usable date or amount
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - account_id
+              properties:
+                account_id:
+                  type: string
+                  format: uuid
+                  description: Account the caller can write to
+                name:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                amount:
+                  type: string
+                  description: Positive decimal
+                currency:
+                  type: string
+        required: true
+  "/api/v1/receipts/{id}/confirm":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Confirm the suggested transaction
+      description: Accepts the transaction Sure matched automatically and copies the
+        file onto it. Needs write access to its account. Pass transaction_id to make
+        sure the suggestion has not changed since the client read it.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters:
+      - name: transaction_id
+        in: query
+        format: uuid
+        required: false
+        description: The suggested transaction the client is confirming; a different
+          current suggestion is a 422
+        schema:
+          type: string
+      responses:
+        '200':
+          description: suggestion confirmed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '404':
+          description: receipt not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: no pending suggestion, or its account is no longer writable
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/receipts/{id}/reject":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Reject the suggested transaction
+      description: Unlinks the suggested transaction; Sure does not suggest it for
+        this receipt again. Pass transaction_id to make sure the suggestion has not
+        changed since the client read it.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      parameters:
+      - name: transaction_id
+        in: query
+        format: uuid
+        required: false
+        description: The suggested transaction the client is rejecting; a different
+          current suggestion is a 422
+        schema:
+          type: string
+      responses:
+        '200':
+          description: suggestion rejected
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+        '422':
+          description: no pending suggestion
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/receipts/{id}/dismiss":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Dismiss a receipt
+      description: Moves a receipt that needs no transaction out of the open list.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: receipt dismissed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
+  "/api/v1/receipts/{id}/reopen":
+    parameters:
+    - name: id
+      in: path
+      format: uuid
+      required: true
+      schema:
+        type: string
+    post:
+      summary: Reopen a dismissed receipt
+      description: When exactly one transaction fits the reopened receipt, the response
+        already carries it as a suggestion.
+      tags:
+      - Receipts
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: receipt reopened
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReceiptResponse"
   "/api/v1/recurring_transactions":
     get:
       summary: List recurring transactions

@@ -17,6 +17,7 @@ class TransactionsController < ApplicationController
     prefill_params_from_duplicate!
     super
     apply_duplicate_attributes!
+    apply_receipt_attributes!
     set_new_transaction_form_options
   end
 
@@ -121,6 +122,8 @@ class TransactionsController < ApplicationController
   def create
     account = Current.user.accessible_accounts.find_by(id: params.dig(:entry, :account_id))
 
+    prefill_receipt
+
     if account.nil?
       @entry = Current.family.entries.new(entry_params)
       @entry.valid?
@@ -146,12 +149,22 @@ class TransactionsController < ApplicationController
 
     @entry = account.entries.new(entry_params_with_idempotency_key(idempotency_key))
 
+    # Same wait as for receipts recorded from the receipts page: the bank's own
+    # booking is likely still to come.
+    if prefill_receipt && account.linked? && prefill_receipt.awaiting_bank?
+      @entry.errors.add(:base, t("transactions.create.receipt_awaiting_bank", date: l(prefill_receipt.bank_wait_until, format: :long)))
+      set_new_transaction_form_options
+      render :new, status: :unprocessable_entity
+      return
+    end
+
     if @entry.save
       @entry.sync_account_later
       @entry.lock_saved_attributes!
       @entry.mark_user_modified!
       @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
       @entry.apply_immediate_rules_later
+      link_prefill_receipt(@entry)
 
       respond_with_created_entry(@entry)
     else
@@ -659,6 +672,49 @@ class TransactionsController < ApplicationController
       @entry.entryable.tag_ids = duplicate_source.entryable.tag_ids
     end
 
+    # The receipt read in this form (ReceiptsController#prefill): the user's own,
+    # still open, and only while receipts are available to them.
+    def prefill_receipt
+      return @prefill_receipt if defined?(@prefill_receipt)
+
+      @prefill_receipt = if params[:receipt_id].present? && preview_features_enabled? && Receipt.manager?(Current.user)
+        receipts = Current.family.receipts.uploaded_by(Current.user)
+        receipts.open.or(receipts.suggested).find_by(id: params[:receipt_id])
+      end
+    end
+
+    def apply_receipt_attributes!
+      receipt = prefill_receipt
+      return unless receipt && duplicate_source.nil?
+
+      @entry.assign_attributes(
+        name: receipt.merchant_name,
+        date: receipt.date || Date.current,
+        amount: receipt.amount,
+        currency: receipt.currency.presence || @entry.currency
+      )
+      @entry.entryable.merchant = receipt.suggested_merchant
+      @receipt_existing_matches = receipt.existing_matches(Current.user)
+    end
+
+    # Linking never undoes the saved transaction: if the receipt can no longer be
+    # linked (another tab linked it, too many attachments), it stays in the inbox.
+    def link_prefill_receipt(entry)
+      return if params[:receipt_id].blank? || !entry.entryable.is_a?(Transaction)
+
+      receipt = prefill_receipt
+      raise ActiveRecord::RecordNotFound if receipt.nil?
+
+      receipt.link_to!(entry.transaction, user: Current.user, created: true)
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound
+      flash[:alert] = t("transactions.create.receipt_not_linked")
+    rescue StandardError => e
+      # A storage failure while copying the file; the saved transaction stays.
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{receipt&.id}: link after create failed: #{e.class}",
+                            source: "receipt_prefill", family: Current.family, user_id: Current.user.id)
+      flash[:alert] = t("transactions.create.receipt_not_linked")
+    end
+
     def set_entry_for_unlock
       transaction = accessible_transactions.find(params[:id])
       @entry = transaction.entry
@@ -771,6 +827,8 @@ class TransactionsController < ApplicationController
       @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically.to_a
       @tags = Current.family.tags.alphabetically.to_a
+      # Also when a failed save renders the form again.
+      @receipt_existing_matches ||= prefill_receipt&.existing_matches(Current.user)
     end
 
     # Autocomplete suggestions for the name field, only queried when the

@@ -1,0 +1,26 @@
+<%# locals: (receipt:, describe: :transaction) %>
+<%# A receipt Sure linked on its own, with the buttons that confirm or reject
+    it. `describe` names the other side: the transaction on the receipt pages,
+    the receipt in a transaction's drawer. %>
+<% entry = receipt.linked_transaction.entry %>
+<%= render DS::ReviewRow.new do |row| %>
+  <% row.with_actions do %>
+    <%= render DS::Button.new(text: t("receipts.suggestion.reject"), variant: :outline, size: :sm, href: reject_match_receipt_path(receipt, transaction_id: receipt.transaction_id), method: :post, frame: "_top") %>
+    <%= render DS::Button.new(text: t("receipts.suggestion.confirm"), size: :sm, href: confirm_match_receipt_path(receipt, transaction_id: receipt.transaction_id), method: :post, frame: "_top") %>
+  <% end %>
+  <% if describe == :receipt %>
+    <%= link_to receipt_path(receipt), class: "flex items-center gap-2 text-sm font-medium text-primary hover:underline", data: { turbo_frame: "_top" } do %>
+      <%= icon(receipt_file_icon(receipt), size: "sm") %>
+      <span class="@md:truncate"><%= receipt.filename %></span>
+    <% end %>
+    <p class="text-xs text-secondary"><%= t("receipts.suggestion.receipt_hint") %></p>
+  <% else %>
+    <%= link_to receipt_path(receipt), class: "text-sm font-medium text-primary hover:underline @md:truncate block", data: { turbo_frame: "_top" } do %>
+      <%= receipt.merchant_name.presence || receipt.filename %>
+    <% end %>
+    <p class="text-xs text-secondary">
+      <%= t("receipts.suggestion.transaction_hint", name: entry.name, account: entry.account.name, date: l(entry.date, format: :long)) %>
+      <span class="privacy-sensitive">· <%= format_money(entry.amount_money) %></span>
+    </p>
+  <% end %>
+<% end %>

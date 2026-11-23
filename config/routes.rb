@@ -779,6 +779,19 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :receipts, only: %i[index show create update destroy] do
+    post :prefill, on: :collection
+    member do
+      get :file
+      post :link
+      post :confirm_match
+      post :reject_match
+      post :create_transaction
+      patch :dismiss
+      patch :reopen
+    end
+  end
+
   # Convenience routes for polymorphic paths
   # Example: account_path(Account.new(accountable: Depository.new)) => /depositories/123
   direct :edit_account do |model, options|
@@ -847,6 +860,18 @@ Rails.application.routes.draw do
       # Production API endpoints
       resources :accounts, only: [ :index, :show ]
       resources :account_statements, only: [ :index, :show, :create ]
+      resources :receipts, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :file
+          get :candidates
+          post :link
+          post :create_transaction
+          post :confirm
+          post :reject
+          post :dismiss
+          post :reopen
+        end
+      end
       resources :balances, only: [ :index, :show ]
       resources :budgets, only: [ :index, :show ]
       resources :budget_categories, only: [ :index, :show ]

@@ -80,6 +80,11 @@ class Receipt::TextParser
     new(text, currency_hint:, merchant_names:).parse
   end
 
+  # Today on the server may still be yesterday where the receipt was printed.
+  def self.plausible_date?(date)
+    date <= Date.current + 1 && date >= Date.current - MAX_AGE
+  end
+
   def self.mask(text)
     text.to_s
       .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\u202F\r\n")[-4..]}" }
@@ -91,6 +96,16 @@ class Receipt::TextParser
     @lines = @text.lines.map(&:strip)
     @currency_hint = currency_hint.to_s.upcase.presence
     @merchant_names = merchant_names
+  end
+
+  # Every amount printed in the text, as positive decimals.
+  def amounts
+    amounts_in(@text).map { _1[:value] }
+  end
+
+  # Every plausible date in the text, read the way #parse reads them.
+  def dates
+    parse_dates.map { _1[:date] }
   end
 
   # Returns { "field" => { value:, confidence: } } for each field it could read.
@@ -277,6 +292,15 @@ class Receipt::TextParser
     end
 
     def parse_date
+      found = parse_dates
+      return nil if found.empty?
+
+      labelled = found.find { _1[:labelled] }
+      pick = labelled || found.first
+      { value: pick[:date], confidence: labelled ? 0.9 : 0.6 }
+    end
+
+    def parse_dates
       found = []
       @lines.each do |line|
         labelled = line.match?(DATE_LABELS) || line.match?(TIME_OF_DAY)
@@ -290,11 +314,7 @@ class Receipt::TextParser
         # Formats are scanned one after another; keep the order they are printed in.
         found.concat(in_line.sort_by { _1[:position] })
       end
-      return nil if found.empty?
-
-      labelled = found.find { _1[:labelled] }
-      pick = labelled || found.first
-      { value: pick[:date], confidence: labelled ? 0.9 : 0.6 }
+      found
     end
 
     def build_date(match)
@@ -303,7 +323,7 @@ class Receipt::TextParser
       day, month = match[:day].to_i, match[:month].to_i
       day, month = month, day if match.names.include?("separator") && match[:separator] == "/" && month_first?
       date = Date.new(year, month, day)
-      date if date <= Date.current + 1 && date >= Date.current - MAX_AGE
+      date if self.class.plausible_date?(date)
     rescue Date::Error
       nil
     end

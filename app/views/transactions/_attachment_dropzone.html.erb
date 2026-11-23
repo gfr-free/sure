@@ -20,7 +20,7 @@
 
     <%= form.file_field :attachments,
           multiple: true,
-          accept: Transaction::ALLOWED_CONTENT_TYPES.join(","),
+          accept: Transaction::ATTACHMENT_ACCEPT,
           class: "hidden",
           data: {
             attachment_upload_target: "fileInput",

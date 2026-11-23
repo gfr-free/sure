@@ -1,0 +1,6 @@
+de:
+  receipts:
+    sources:
+      ocr: Texterkennung
+    notices:
+      ocr_unavailable: Sure hat in dieser Datei keinen Text gefunden. Die Texterkennung für Fotos und Scans ist auf diesem Server nicht installiert. Trag die Angaben unten ein.

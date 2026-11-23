@@ -41,7 +41,7 @@ en:
       receipt: receipt
       reading: Sure is reading this receipt. Refresh the page in a moment.
       extraction_failed: Sure could not read this file. Enter the details below.
-      nothing_read: Sure found no text to read in this file yet. Enter the details below.
+      nothing_read: Sure found no readable text in this file. Enter the details below.
       fields_title: Details
       field_hint: "Read from %{source}, %{confidence} sure"
       merchant_name: Merchant

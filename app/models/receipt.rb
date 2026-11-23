@@ -300,6 +300,10 @@ class Receipt < ApplicationRecord
     Money.new(amount, currency)
   end
 
+  def text_recognition_unavailable?
+    extraction_completed? && extraction_error == "ocr_unavailable"
+  end
+
   def field_source(field)
     field_sources.dig(field.to_s, "source")
   end

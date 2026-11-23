@@ -7,6 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # for existing profile/avatar images. AccountStatement.original_file only stores
 # PDF/CSV/XLSX originals, but the devcontainer needs this broader image stack.
 # poppler-utils provides pdftoppm, required for the PDF vision processing path.
+# tesseract-ocr with the German and English packs reads receipt photos and scans;
+# zbar-tools provides zbarimg, which reads QR codes on receipts.
 RUN apt-get update -qq \
   && apt-get -y install --no-install-recommends \
     apt-utils \
@@ -23,7 +25,11 @@ RUN apt-get update -qq \
     postgresql-client \
     poppler-utils \
     procps \
+    tesseract-ocr \
+    tesseract-ocr-deu \
+    tesseract-ocr-eng \
     vim \
+    zbar-tools \
   && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 RUN gem install bundler foreman

@@ -49,6 +49,18 @@ class ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("receipts.create.duplicates", count: 1), flash[:alert]
   end
 
+  test "a storage error on one file keeps the count of files already stored" do
+    first = uploaded_receipt(receipt_pdf([ "Total 1.00" ]), filename: "a.pdf")
+    second = uploaded_receipt(receipt_pdf([ "Total 2.00" ]), filename: "b.pdf")
+    ActiveStorage::Blob.any_instance.stubs(:upload_without_unfurling).returns(nil).then.raises(Errno::ENOSPC)
+
+    assert_difference -> { @family.receipts.count }, 1 do
+      post receipts_url, params: { receipt: { files: [ first, second ] } }
+    end
+    assert_redirected_to receipts_url
+    assert_equal [ I18n.t("receipts.create.uploaded", count: 1), I18n.t("receipts.create.failed", count: 1) ].join(" "), flash[:notice]
+  end
+
   test "another user's receipt is not found" do
     other = upload_for(@member, "other.pdf")
 

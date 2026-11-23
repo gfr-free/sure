@@ -64,6 +64,17 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal BigDecimal("5.80"), parse("5,80 EUR Summe\n")["amount"][:value]
   end
 
+  test "skips the tax inside an inclusion clause after the label" do
+    assert_equal BigDecimal("12.00"), parse("Grand Total (incl. VAT 2.00 EUR) 12.00 EUR\n")["amount"][:value]
+    assert_equal BigDecimal("12.00"), parse("Grand Total 12.00 EUR (incl. VAT 2.00 EUR)\n")["amount"][:value]
+  end
+
+  test "takes dates on one line in the order they are printed" do
+    fields = parse("Invoice date: 03.11.2026  Due: 2026-11-20\n", currency_hint: "EUR")
+
+    assert_equal Date.new(2026, 11, 3), fields["date"][:value]
+  end
+
   test "keeps a total that says what it includes" do
     assert_equal BigDecimal("23.80"), parse("Netto 20,00\nMwSt 3,80\nGesamtbetrag inkl. MwSt 23,80\n")["amount"][:value]
     assert_equal BigDecimal("120.00"), parse("Sous-total 100,00\nTVA 20,00\nNet à payer 120,00\n")["amount"][:value]
@@ -134,6 +145,39 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_includes masked, "****3000"
     assert_not_includes masked, "4111"
     assert_not_includes masked, "3704"
+  end
+
+  test "masks card numbers and IBANs split by non-breaking spaces" do
+    masked = Receipt::TextParser.mask("Karte 4111\u00A01111\u00A01111\u00A01234\nIBAN DE89\u00A03704\u00A00044\u00A00532\u00A00130\u00A000")
+
+    assert_includes masked, "****1234"
+    assert_includes masked, "****3000"
+    assert_not_includes masked, "4111"
+    assert_not_includes masked, "3704"
+  end
+
+  test "masks lowercase IBANs" do
+    masked = Receipt::TextParser.mask("iban nl91 abna 0417 1643 00")
+
+    assert_includes masked, "****4300"
+    assert_not_includes masked, "0417"
+  end
+
+  test "takes the currency printed before the total label" do
+    fields = parse("VAT 1.00 EUR\nUSD TOTAL 12.34\nDate 10/11/2026\n")
+
+    assert_equal BigDecimal("12.34"), fields["amount"][:value]
+    assert_equal "USD", fields["currency"][:value]
+    assert_equal Date.new(2026, 10, 11), fields["date"][:value]
+  end
+
+  test "a total of a bare zero does not borrow the next line's amount" do
+    assert_nil parse("Total 0 EUR\nCash 20.00 EUR\n")["amount"]
+  end
+
+  test "a label alone on its line does not take a tax line's amount" do
+    assert_equal BigDecimal("12.00"), parse("TOTAL\nVAT 2.00 EUR\n12.00 EUR\n")["amount"][:value]
+    assert_equal BigDecimal("12.00"), parse("TOTAL\n12.00 EUR\n")["amount"][:value]
   end
 
   private

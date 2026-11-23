@@ -201,8 +201,9 @@ class Receipt < ApplicationRecord
     (date || created_at.to_date) + family.receipt_bank_wait_days
   end
 
+  # A dismissed receipt waits too: recording it reopens it as a new transaction.
   def awaiting_bank?(today = Date.current)
-    family.receipt_bank_wait_days.positive? && !transaction_id? && !dismissed_at? && today < bank_wait_until
+    family.receipt_bank_wait_days.positive? && !transaction_id? && today < bank_wait_until
   end
 
   def image?
@@ -350,9 +351,11 @@ class Receipt < ApplicationRecord
         candidates = auto_match_candidates.limit(2).to_a
         if candidates.one?
           transaction = candidates.first
-          # The transaction's lock keeps two receipts from both taking it.
+          # The transaction's lock keeps two receipts from both taking it; the
+          # rules are checked again on the locked row, since the transaction may
+          # have been edited, excluded or taken meanwhile.
           transaction.with_lock do
-            unless transaction.receipts.exists?
+            if auto_match_candidates.exists?(id: transaction.id)
               update!(linked_transaction: transaction, match_status: "pending", linked_at: Time.current, created_transaction: false)
               matched = transaction
             end
@@ -397,7 +400,12 @@ class Receipt < ApplicationRecord
     raise ActiveRecord::RecordNotFound unless writable_account?(transaction.entry.account, user)
 
     with_file_copy do |copy|
-      with_lock { attach_to!(transaction, copy, created: created) }
+      with_lock do
+        # Checked again after the copy: the account may have been unshared meanwhile.
+        raise ActiveRecord::RecordNotFound unless writable_account?(transaction.entry.account, user)
+
+        attach_to!(transaction, copy, created: created)
+      end
     end
   end
 
@@ -413,6 +421,7 @@ class Receipt < ApplicationRecord
     entry = nil
     with_file_copy do |copy|
       with_lock do
+        raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
         refuse!(:already_linked) if transaction_id?
         # Checked again on the locked row: the date may have changed during the copy.
         refuse!(:awaiting_bank, date: I18n.l(bank_wait_until)) if account.linked? && awaiting_bank?

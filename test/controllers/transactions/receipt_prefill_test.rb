@@ -141,6 +141,15 @@ class Transactions::ReceiptPrefillTest < ActionDispatch::IntegrationTest
     assert_nil @receipt.reload.transaction_id
   end
 
+  test "a failed save still warns about an existing booking" do
+    @account.entries.create!(name: "CARD PAYMENT BAKERY", date: Date.new(2026, 11, 21), amount: 6.4, currency: "USD", entryable: Transaction.new)
+
+    post transactions_url, params: { receipt_id: @receipt.id, entry: new_entry_params.merge(amount: "") }
+
+    assert_response :unprocessable_entity
+    assert_select "p", text: /CARD PAYMENT BAKERY/
+  end
+
   test "without preview features the receipt is ignored" do
     @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => false))
 

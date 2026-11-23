@@ -375,6 +375,40 @@ class Receipt::MatchingTest < ActiveSupport::TestCase
     assert @family.valid?
   end
 
+  test "a dismissed receipt still waits for the bank before it is recorded on a bank-synced account" do
+    travel_to Date.new(2026, 11, 12) do
+      receipt = receipt_for(amount: 20, date: Date.new(2026, 11, 10))
+      receipt.dismiss!
+
+      assert_no_difference -> { Entry.count } do
+        assert_raises(ActiveRecord::RecordInvalid) do
+          receipt.create_transaction!(account: @bank_account, user: @admin, name: "Shop", date: receipt.date, amount: receipt.amount, currency: "USD")
+        end
+      end
+    end
+  end
+
+  test "auto_match! checks the transaction again once it holds the lock" do
+    receipt = receipt_for(amount: 12, date: Date.new(2026, 11, 10))
+    transaction = create_transaction(account: @account, amount: 12, date: Date.new(2026, 11, 10))
+    # Excluded by another request between the candidate query and the lock.
+    Transaction.any_instance.stubs(:with_lock).with { transaction.entry.update_columns(excluded: true) }.yields
+
+    assert_nil receipt.auto_match!
+    assert_nil receipt.reload.transaction_id
+  end
+
+  test "link_to! checks write access again after copying the file" do
+    receipt = receipt_for(amount: 8, date: Date.new(2026, 11, 10))
+    transaction = create_transaction(account: @account, amount: 8, date: Date.new(2026, 11, 10))
+    receipt.stubs(:writable_account?).returns(true).then.returns(false)
+
+    assert_no_difference -> { ActiveStorage::Blob.count } do
+      assert_raises(ActiveRecord::RecordNotFound) { receipt.link_to!(transaction, user: @admin) }
+    end
+    assert_nil receipt.reload.transaction_id
+  end
+
   private
     def receipt_for(amount:, date:, user: @admin, name: "receipt")
       receipt = Receipt.create_from_upload!(family: @family, user: user,

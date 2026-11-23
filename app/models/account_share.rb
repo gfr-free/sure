@@ -17,6 +17,11 @@ class AccountShare < ApplicationRecord
   validate :cannot_share_with_owner
   validate :user_in_same_family
 
+  # A receipt suggestion on this account needs its uploader to keep write access.
+  # One declaration: Rails keeps only the last of several commit callbacks
+  # naming the same method.
+  after_commit :release_receipt_suggestions, on: %i[update destroy], if: -> { destroyed? || saved_change_to_permission? }
+
   scope :with_permission, ->(permission) { where(permission: permission) }
 
   def full_control?
@@ -40,6 +45,9 @@ class AccountShare < ApplicationRecord
   end
 
   private
+    def release_receipt_suggestions
+      Receipt.release_unwritable_suggestions(account)
+    end
 
     def cannot_share_with_owner
       if account && user && account.owner_id == user_id

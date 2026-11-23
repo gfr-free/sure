@@ -17,4 +17,5 @@ en:
               invalid_transaction: Enter a valid date and amount for the new transaction
               not_suggested: This receipt has no suggested transaction to confirm or reject
               suggestion_changed: The suggestion for this receipt has changed. Check the new transaction and try again
+              suggestion_unavailable: You no longer have write access to the suggested transaction's account. Reject the suggestion or link the receipt to another transaction
               too_many_attachments: The transaction already has %{max} attachments

@@ -148,6 +148,21 @@ class Receipt < ApplicationRecord
       end
     end
 
+    # Drops pending suggestions on `account` whose uploader may no longer write
+    # to it, so the receipt is back in the inbox instead of stuck on a
+    # suggestion they can neither see nor confirm.
+    def release_unwritable_suggestions(account)
+      pending = where(family_id: account.family_id, match_status: "pending")
+                  .where(transaction_id: Transaction.joins(:entry).where(entries: { account_id: account.id }).select(:id))
+      pending.where.not(uploaded_by_id: nil).includes(:uploaded_by).find_each do |receipt|
+        next if receipt.uploaded_by && Account.writable_by(receipt.uploaded_by).exists?(id: account.id)
+
+        receipt.with_lock do
+          receipt.update!(linked_transaction: nil, match_status: nil, linked_at: nil) if receipt.match_pending?
+        end
+      end
+    end
+
     # Uploads the file before the blob row is saved, so a storage error leaves
     # neither a row nor a receipt behind. Active Storage would otherwise upload
     # after the commit, and a failure there would keep a receipt without a file
@@ -385,7 +400,7 @@ class Receipt < ApplicationRecord
     with_file_copy do |copy|
       with_lock do
         refuse_changed_suggestion!(transaction_id)
-        raise ActiveRecord::RecordNotFound unless writable_account?(linked_transaction.entry.account, user)
+        refuse!(:suggestion_unavailable) unless writable_account?(linked_transaction.entry.account, user)
 
         attach_to!(linked_transaction, copy, created: false)
       end

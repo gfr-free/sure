@@ -7,6 +7,12 @@ class TransactionsController < ApplicationController
   before_action :set_entry_for_tags, only: :update_tags
   before_action :store_params!, only: :index
 
+  # Filters only persist when they were set on the transactions page itself:
+  # its search form, pagination and redirects carry this marker. Drill-down
+  # links from the dashboard, reports, budgets or insights apply their filters
+  # to that one visit without replacing the remembered ones.
+  REMEMBER_FILTERS_PARAM = :remember_filters
+
   helper_method :new_transaction_idempotency_key
 
   def show
@@ -120,7 +126,7 @@ class TransactionsController < ApplicationController
 
     Current.session.update!(prev_transaction_page_params: updated_params)
 
-    redirect_to transactions_path(updated_params)
+    redirect_to transactions_path(updated_params.merge(REMEMBER_FILTERS_PARAM => "1"))
   end
 
   def create
@@ -958,8 +964,15 @@ class TransactionsController < ApplicationController
         params_to_restore[:q] = stored_params["q"].presence || {}
         params_to_restore[:page] = stored_params["page"].presence || 1
         params_to_restore[:per_page] = stored_params["per_page"].presence || 50
+        params_to_restore[REMEMBER_FILTERS_PARAM] = "1"
 
         redirect_to transactions_path(params_to_restore)
+      elsif drill_down_request?
+        if params[:per_page].present?
+          Current.session.update!(
+            prev_transaction_page_params: stored_params.merge("per_page" => params[:per_page])
+          )
+        end
       else
         Current.session.update!(
           prev_transaction_page_params: {
@@ -969,6 +982,10 @@ class TransactionsController < ApplicationController
           }
         )
       end
+    end
+
+    def drill_down_request?
+      search_params.present? && params[REMEMBER_FILTERS_PARAM].blank?
     end
 
     def should_restore_params?

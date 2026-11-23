@@ -189,9 +189,26 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_not_includes masked, "0532"
   end
 
+  test "masks wrapped card numbers and IBANs with blanks around the line break" do
+    [ "Karte 4111 1111\n 1111 1234\nIBAN DE89 3704 0044\n 0532 0130 00",
+      "Karte 4111 1111 \n1111 1234\nIBAN DE89 3704 0044 \r\n\t0532 0130 00" ].each do |text|
+      masked = Receipt::TextParser.mask(text)
+
+      assert_includes masked, "****1234"
+      assert_includes masked, "****3000"
+      assert_not_includes masked, "4111"
+      assert_not_includes masked, "0532"
+    end
+  end
+
   test "a discount line never replaces the total, whatever its label" do
     assert_equal BigDecimal("100.00"), parse("Gesamtbetrag 100,00 EUR\nRabatt auf Gesamtbetrag 10,00 EUR\n")["amount"][:value]
     assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nGesamtbetrag nach Rabatt 90,00\n")["amount"][:value]
+  end
+
+  test "a plain total after a discount is still the total" do
+    assert_equal BigDecimal("90.00"), parse("Discount 10.00\nTotal after discount 90.00\n")["amount"][:value]
+    assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nSumme nach Rabatt\n90,00\n")["amount"][:value]
   end
 
   private

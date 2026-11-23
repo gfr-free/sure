@@ -40,7 +40,7 @@ class Receipt::TextParser
   EXCLUDED_LABELS = [
     "zwischensumme", "subtotal", "sub-total", "sous-total", "netto", "net", "mwst", "ust", "steuer", "tax", "vat",
     "tva", "iva", "btw", "rückgeld", "rueckgeld", "wechselgeld", "gegeben", "change", "rendu", "resto", "trinkgeld",
-    "tip", "rabatt", "discount", "pfand"
+    "tip", "pfand"
   ].freeze
 
   # A discount line can carry a strong label ("Rabatt auf Gesamtbetrag"), so it
@@ -68,9 +68,10 @@ class Receipt::TextParser
   MERCHANT_LINES = 8
 
   # Card numbers and IBANs never need to be stored in full.
-  # A line break may split either one where the PDF wraps it.
-  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0-]|\r?\n)?){12,18}\d(?!\d)/
-  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0]|\r?\n)?[A-Z0-9]){11,30}\b/i
+  # A line break, with blanks around it, may split either one where the PDF wraps it.
+  WRAP = /[ \t\u00A0]*\r?\n[ \t\u00A0]*/
+  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0-]|#{WRAP})?){12,18}\d(?!\d)/
+  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0]|#{WRAP})?[A-Z0-9]){11,30}\b/i
 
   def self.parse(text, currency_hint: nil, merchant_names: [])
     new(text, currency_hint:, merchant_names:).parse
@@ -78,8 +79,8 @@ class Receipt::TextParser
 
   def self.mask(text)
     text.to_s
-      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \u00A0\r\n")[-4..]}" }
-      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \u00A0\r\n-")[-4..]}" }
+      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n")[-4..]}" }
+      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n-")[-4..]}" }
   end
 
   def initialize(text, currency_hint: nil, merchant_names: [])
@@ -159,9 +160,9 @@ class Receipt::TextParser
     end
 
     # A subtotal, tax, change or discount line, unless the word only says what
-    # the total includes ("Gesamt inkl. MwSt").
+    # the total includes ("Gesamt inkl. MwSt") or comes after ("Total after discount").
     def excluded_line?(line)
-      EXCLUDED_LABELS.any? do |label|
+      discount_line?(line) || EXCLUDED_LABELS.any? do |label|
         line.to_enum(:scan, label_regexp(label)).any? do
           !line[0...Regexp.last_match.begin(0)].match?(INCLUDING)
         end

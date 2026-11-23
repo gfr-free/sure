@@ -12,7 +12,7 @@
         <%= link_to holding.name, holding_path(holding), data: { turbo_frame: :drawer }, class: "hover:underline" %>
 
         <% if holding.amount %>
-          <%= tag.p holding.ticker, class: "text-secondary text-xs uppercase" %>
+          <%= tag.p holding_subtitle(holding), class: "text-secondary text-xs uppercase" %>
         <% else %>
           <%= render "missing_price_tooltip" %>
         <% end %>
@@ -30,7 +30,7 @@
 
     <div class="col-span-2 text-right">
       <%= render "holdings/cost_basis_cell", holding: holding, editable: false %>
-      <%= tag.p t(".per_share"), class: "font-normal text-secondary" %>
+      <%= tag.p t(holding_unit_key(holding, ".per_share")), class: "font-normal text-secondary" %>
     </div>
 
     <div class="col-span-2 text-right">
@@ -39,7 +39,7 @@
       <% else %>
         <%= tag.p "--", class: "text-secondary" %>
       <% end %>
-      <%= tag.p t(".shares", qty: format_quantity(holding.qty, exact: crypto)), class: "font-normal text-secondary privacy-sensitive" %>
+      <%= tag.p t(holding_unit_key(holding, ".shares"), qty: format_quantity(holding.qty, exact: crypto)), class: "font-normal text-secondary privacy-sensitive" %>
     </div>
 
     <div class="col-span-2 text-right">

@@ -44,7 +44,9 @@ class Receipt < ApplicationRecord
 
   has_one_attached :file, dependent: :purge_later
 
-  enum :source, { web: "web" }, validate: true, default: "web"
+  # How a receipt arrived: the web upload, the API or an e-mail to the uploader's
+  # receipt address.
+  enum :source, { web: "web", api: "api", email: "email" }, validate: true, default: "web"
   enum :extraction_status, { pending: "pending", completed: "completed", failed: "failed" }, validate: true, default: "pending", prefix: :extraction
 
   validates :filename, :content_type, :byte_size, :content_sha256, presence: true
@@ -57,7 +59,10 @@ class Receipt < ApplicationRecord
 
   before_validation :normalize_fields
 
-  after_create_commit :extract_later
+  # Set by a caller that reads the receipt right away itself.
+  attr_accessor :skip_extract_later
+
+  after_create_commit :extract_later, unless: :skip_extract_later
 
   scope :ordered, -> { order(created_at: :desc) }
   scope :open, -> { where(transaction_id: nil, dismissed_at: nil) }
@@ -71,8 +76,16 @@ class Receipt < ApplicationRecord
       user&.admin? || user&.member?
     end
 
-    def create_from_upload!(family:, user:, file:)
-      content = read_upload!(file)
+    def create_from_upload!(family:, user:, file:, source: "web", extract_later: true)
+      create_from_content!(family: family, user: user, content: read_upload!(file), filename: file.original_filename.to_s,
+                           source: source, extract_later: extract_later)
+    end
+
+    # Every way in (web, API, e-mail) ends here. `extract_later: false` leaves
+    # the reading to the caller, which reads the receipt right away.
+    def create_from_content!(family:, user:, content:, filename:, source: "web", extract_later: true)
+      raise InvalidUploadError if content.empty? || content.bytesize > MAX_FILE_SIZE
+
       # Decided from the bytes alone: with a name hint, Marcel falls back to the
       # extension, so any file named ".pdf" would pass.
       content_type = Marcel::MimeType.for(StringIO.new(content))
@@ -84,12 +97,14 @@ class Receipt < ApplicationRecord
 
       receipt = family.receipts.build(
         uploaded_by: user,
-        filename: upload_filename(file),
+        source: source,
+        filename: upload_filename(filename),
         content_type: content_type,
         byte_size: content.bytesize,
         content_sha256: content_sha256,
         currency: family.currency
       )
+      receipt.skip_extract_later = !extract_later
       blob = upload_blob!(content, filename: receipt.filename, content_type: content_type)
       begin
         receipt.file.attach(blob)
@@ -147,8 +162,8 @@ class Receipt < ApplicationRecord
 
     private
       # Fits the 255-character column, keeping the extension.
-      def upload_filename(file)
-        name = ActiveStorage::Filename.new(file.original_filename.to_s.presence || "receipt").sanitized
+      def upload_filename(original)
+        name = ActiveStorage::Filename.new(original.to_s.presence || "receipt").sanitized
         return name if name.length <= 255
 
         extension = File.extname(name).first(20)

@@ -40,11 +40,19 @@ class Receipt::TextParser
   EXCLUDED_LABELS = [
     "zwischensumme", "subtotal", "sub-total", "sous-total", "netto", "net", "mwst", "ust", "steuer", "tax", "vat",
     "tva", "iva", "btw", "rückgeld", "rueckgeld", "wechselgeld", "gegeben", "change", "rendu", "resto", "trinkgeld",
-    "tip", "rabatt", "discount", "pfand"
+    "tip", "pfand"
   ].freeze
+
+  # A discount line can carry a strong label ("Rabatt auf Gesamtbetrag"), so it
+  # is skipped whatever the label's weight, unless the total comes after it
+  # ("Gesamtbetrag nach Rabatt").
+  DISCOUNT_LABELS = [ "rabatt", "nachlass", "discount", "remise", "sconto", "descuento", "korting" ].freeze
+  AFTER_DISCOUNT = /(?:nach|after|abzgl|abzüglich|less|minus|inkl|incl)\.?\s*\z/i
 
   # "inkl. MwSt" or "incl. VAT" on a total line names the total, not the tax.
   INCLUDING = /(?:inkl|incl|including|inclus|compris|ttc|iva incluida)\.?\s*\z/i
+  # "(incl. VAT 2.00 EUR)": the tax inside is never the total.
+  INCLUSION_CLAUSE = /\([^()]*(?<![[:alpha:]])(?:inkl|incl|including|inclus|compris|iva incluida)(?![[:alpha:]])[^()]*\)/i
   # Slash dates read month first for these currencies' receipts.
   MONTH_FIRST_CURRENCIES = %w[USD].freeze
 
@@ -60,8 +68,10 @@ class Receipt::TextParser
   MERCHANT_LINES = 8
 
   # Card numbers and IBANs never need to be stored in full.
-  CARD_NUMBER = /(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)/
-  IBAN = /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b/
+  # A line break, with blanks around it, may split either one where the PDF wraps it.
+  WRAP = /[ \t\u00A0]*\r?\n[ \t\u00A0]*/
+  CARD_NUMBER = /(?<!\d)(?:\d(?:[ \u00A0-]|#{WRAP})?){12,18}\d(?!\d)/
+  IBAN = /\b[A-Z]{2}\d{2}(?:(?:[ \u00A0]|#{WRAP})?[A-Z0-9]){11,30}\b/i
 
   def self.parse(text, currency_hint: nil, merchant_names: [])
     new(text, currency_hint:, merchant_names:).parse
@@ -69,8 +79,8 @@ class Receipt::TextParser
 
   def self.mask(text)
     text.to_s
-      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(' ')[-4..]}" }
-      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(' -')[-4..]}" }
+      .gsub(IBAN) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n")[-4..]}" }
+      .gsub(CARD_NUMBER) { |match| "#{'*' * 4}#{match.delete(" \t\u00A0\r\n-")[-4..]}" }
   end
 
   def initialize(text, currency_hint: nil, merchant_names: [])
@@ -112,15 +122,22 @@ class Receipt::TextParser
       candidates = []
       @lines.each_with_index do |line, index|
         normalized = line.downcase
-        weight, label_end = total_label(normalized)
+        weight, label_start, label_end = total_label(normalized)
         next unless weight
         next if weight < 3 && excluded_line?(normalized)
+        next if discount_line?(normalized)
 
         # The first amount after the label ("Total 119.00 EUR (incl. VAT 19.00 EUR)"),
-        # else one printed before it, else the next line's.
-        amount = amounts_in(line[label_end..], keep_zero: true).first || amounts_in(line[0...label_end], keep_zero: true).last ||
-                 amounts_in(next_line(index), keep_zero: true).first
-        candidates << amount.merge(weight: weight, index: index) if amount
+        # skipping an inclusion clause, else one printed before it, else the next line's.
+        after_label = line[label_end..].gsub(INCLUSION_CLAUSE, " ")
+        before_label = line[0...label_end]
+        amount = amounts_in(after_label, keep_zero: true).first || amounts_in(before_label, keep_zero: true).last ||
+                 bare_zero(after_label) || continuation_amount(index)
+        next unless amount
+
+        # "USD TOTAL 12.34": a currency printed just before the label.
+        amount = amount.merge(currency: currency_before(line[0...label_start])) if amount[:currency].nil?
+        candidates << amount.merge(weight: weight, index: index)
       end
 
       return fallback_total if candidates.empty?
@@ -131,23 +148,31 @@ class Receipt::TextParser
       best.merge(confidence: confirmed ? 0.9 : 0.7)
     end
 
-    # The strongest label on the line and where it ends.
+    # The strongest label on the line and where it starts and ends.
     def total_label(line)
       TOTAL_LABELS.each do |weight, labels|
         labels.each do |label|
           match = line.match(label_regexp(label))
-          return [ weight, match.end(0) ] if match
+          return [ weight, match.begin(0), match.end(0) ] if match
         end
       end
       nil
     end
 
     # A subtotal, tax, change or discount line, unless the word only says what
-    # the total includes ("Gesamt inkl. MwSt").
+    # the total includes ("Gesamt inkl. MwSt") or comes after ("Total after discount").
     def excluded_line?(line)
-      EXCLUDED_LABELS.any? do |label|
+      discount_line?(line) || EXCLUDED_LABELS.any? do |label|
         line.to_enum(:scan, label_regexp(label)).any? do
           !line[0...Regexp.last_match.begin(0)].match?(INCLUDING)
+        end
+      end
+    end
+
+    def discount_line?(line)
+      DISCOUNT_LABELS.any? do |label|
+        line.to_enum(:scan, label_regexp(label)).any? do
+          !line[0...Regexp.last_match.begin(0)].match?(AFTER_DISCOUNT)
         end
       end
     end
@@ -157,6 +182,26 @@ class Receipt::TextParser
     def fallback_total
       largest = @lines.reject { excluded_line?(_1.downcase) }.flat_map { amounts_in(_1) }.max_by { _1[:value] }
       largest&.merge(confidence: 0.3)
+    end
+
+    # "Total 0 EUR": an explicit zero without decimals, so the total does not
+    # borrow the next line's amount.
+    def bare_zero(text)
+      { value: BigDecimal("0"), currency: nil } if text.match?(/\A[\s:=]*0(?![\d.,])/)
+    end
+
+    # A label alone on its line takes the next line's amount, unless that line
+    # is a tax, subtotal or change line of its own.
+    def continuation_amount(index)
+      line = next_line(index)
+      return nil if excluded_line?(line.downcase)
+
+      amounts_in(line, keep_zero: true).first
+    end
+
+    def currency_before(text)
+      token = text.to_s[/(?:(?<![[:alpha:]])[A-Z]{3}|[€$£¥])\s*\z/]
+      resolve_currency(token.to_s.strip)
     end
 
     def next_line(index)
@@ -215,13 +260,16 @@ class Receipt::TextParser
     def parse_date
       found = []
       @lines.each do |line|
-        DATE_FORMATS.each do |format|
-          line.to_enum(:scan, format).each do
+        labelled = line.match?(DATE_LABELS) || line.match?(TIME_OF_DAY)
+        in_line = DATE_FORMATS.flat_map do |format|
+          line.to_enum(:scan, format).filter_map do
             match = Regexp.last_match
             date = build_date(match)
-            found << { date: date, labelled: line.match?(DATE_LABELS) || line.match?(TIME_OF_DAY) } if date
+            { date: date, labelled: labelled, position: match.begin(0) } if date
           end
         end
+        # Formats are scanned one after another; keep the order they are printed in.
+        found.concat(in_line.sort_by { _1[:position] })
       end
       return nil if found.empty?
 

@@ -38,7 +38,7 @@ class Receipt < ApplicationRecord
   end
 
   belongs_to :family
-  belongs_to :uploaded_by, class_name: "User", optional: true
+  belongs_to :uploaded_by, class_name: "User", optional: true, inverse_of: :uploaded_receipts
   # Not `transaction`: that name is ActiveRecord's own transaction method.
   belongs_to :linked_transaction, class_name: "Transaction", foreign_key: :transaction_id, optional: true, inverse_of: :receipts
 
@@ -71,7 +71,9 @@ class Receipt < ApplicationRecord
 
     def create_from_upload!(family:, user:, file:)
       content = read_upload!(file)
-      content_type = Marcel::MimeType.for(StringIO.new(content), name: file.original_filename.to_s)
+      # Decided from the bytes alone: with a name hint, Marcel falls back to the
+      # extension, so any file named ".pdf" would pass.
+      content_type = Marcel::MimeType.for(StringIO.new(content))
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
 
       content_sha256 = Digest::SHA256.hexdigest(content)
@@ -108,11 +110,17 @@ class Receipt < ApplicationRecord
     # whose checksum blocks the next try as a duplicate.
     def upload_blob!(content, filename:, content_type:)
       blob = ActiveStorage::Blob.build_after_unfurling(io: StringIO.new(content), filename: filename, content_type: content_type, identify: false)
-      blob.upload_without_unfurling(StringIO.new(content))
       begin
+        blob.upload_without_unfurling(StringIO.new(content))
         blob.save!
       rescue StandardError
-        blob.delete
+        # A failed write can leave a partial file at the key; removing it must
+        # not hide the original error.
+        begin
+          blob.delete
+        rescue StandardError
+          nil
+        end
         raise
       end
       blob
@@ -214,8 +222,12 @@ class Receipt < ApplicationRecord
   # Applies the user's own corrections and marks each changed field as manual.
   # Locked like the merge in extract!, so a read finishing at the same time
   # cannot drop the manual marks.
-  def update_fields!(attrs)
-    attrs = attrs.to_h.stringify_keys.slice(*FIELDS)
+  # `rendered` holds the values the form showed. A field submitted unchanged is
+  # left alone, so a form opened before reading finished does not blank what
+  # was read since; clearing a field on purpose still counts as a change.
+  def update_fields!(attrs, rendered = {})
+    rendered = rendered.to_h.stringify_keys
+    attrs = attrs.to_h.stringify_keys.slice(*FIELDS).reject { |field, value| rendered.key?(field) && rendered[field].to_s == value.to_s }
     with_lock do
       assign_attributes(attrs)
       normalize_fields
@@ -234,7 +246,8 @@ class Receipt < ApplicationRecord
   def match_candidates(user)
     scope = linkable_transactions(user).where(entries: { excluded: false }).includes(entry: :account)
 
-    scope = scope.where(entries: { amount: amount, currency: currency }) if amount.present? && currency.present?
+    scope = scope.where(entries: { amount: amount }) if amount.present?
+    scope = scope.where(entries: { currency: currency }) if amount.present? && currency.present?
 
     if date.present?
       scope = scope.where(entries: { date: (date - CANDIDATE_DATE_WINDOW)..(date + CANDIDATE_DATE_WINDOW) })
@@ -264,6 +277,9 @@ class Receipt < ApplicationRecord
   # Records the receipt as a new expense on `account`, then links it.
   def create_transaction!(account:, user:, name:, date:, amount:, currency:)
     raise ActiveRecord::RecordNotFound unless writable_account?(account, user)
+    # Checked at the ledger's scale (numeric(19,4)), so an amount that rounds
+    # to zero or past the column's capacity is refused rather than stored.
+    amount = amount.to_d.round(4) if amount.is_a?(Numeric)
     refuse!(:invalid_transaction) unless amount.is_a?(Numeric) && amount.positive? && amount < MAX_AMOUNT && date.is_a?(Date) && known_currency?(currency)
 
     entry = nil
@@ -276,16 +292,18 @@ class Receipt < ApplicationRecord
           date: date,
           amount: amount,
           currency: currency,
-          entryable: Transaction.new(merchant: merchant_for(name))
+          entryable: Transaction.new(merchant: merchant_for(name), extra: { "created_from_receipt" => true })
         )
+        entry.lock_saved_attributes!
+        entry.mark_user_modified!
         attach_to!(entry.transaction, copy, created: true)
       end
     end
 
-    entry.sync_account_later
-    entry.lock_saved_attributes!
-    entry.mark_user_modified!
-    entry.apply_immediate_rules_later
+    # The entry and link are committed at this point, so a failed enqueue must
+    # not fail the request: a retry would only see the receipt as already linked.
+    enqueue_after_create(entry, :sync_account_later)
+    enqueue_after_create(entry, :apply_immediate_rules_later)
     entry
   end
 
@@ -298,6 +316,13 @@ class Receipt < ApplicationRecord
   end
 
   private
+    def enqueue_after_create(entry, method)
+      entry.public_send(method)
+    rescue StandardError => e
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: #{method} failed for Entry##{entry.id}: #{e.class}",
+                            source: "receipt_transaction", family: family, user_id: uploaded_by_id)
+    end
+
     def enqueue_failed!(reason)
       DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt##{id}: could not queue reading: #{reason}",
                             source: "receipt_extraction", family: family, user_id: uploaded_by_id)

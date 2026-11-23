@@ -69,6 +69,9 @@ en:
       invalid:
         one: 1 file was not a supported image or PDF.
         other: "%{count} files were not supported images or PDFs."
+      failed:
+        one: 1 file could not be stored. Please try again.
+        other: "%{count} files could not be stored. Please try again."
     update:
       updated: Receipt details saved.
     link:

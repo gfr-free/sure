@@ -6,10 +6,10 @@
 # is added to the catalog, for hand-built structures.
 module ReceiptPdfHelper
   def receipt_pdf(lines, attachments: {}, compress: true, extra_objects: [], catalog_extra: "")
-    escaped = lines.map { |line| line.gsub(/[\\()]/) { |char| "\\#{char}" } }
+    # WinAnsiEncoding is Windows-1252; encoding first keeps /Length and the xref
+    # offsets right for text such as "ü" or "€".
+    escaped = lines.map { |line| line.encode("Windows-1252").gsub(/[\\()]/) { |char| "\\#{char}" }.force_encoding(Encoding::BINARY) }
     text = escaped.each_with_index.map { |line, index| "BT /F1 10 Tf 40 #{780 - index * 14} Td (#{line}) Tj ET" }.join("\n")
-    # Non-ASCII characters become "?", as a plain Type1 font has no Unicode map.
-    text = text.encode("BINARY", invalid: :replace, undef: :replace)
     objects = [
       nil,
       "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

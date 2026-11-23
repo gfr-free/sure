@@ -10,7 +10,7 @@ class IdentifyRecurringTransactionsJobTest < ActiveJob::TestCase
     coinbase_item = @family.coinbase_items.create!(
       name: "Coinbase Pro",
       api_key: "test-api-key-#{SecureRandom.hex(4)}",
-      api_secret: "test-api-secret-#{SecureRandom.hex(8)}"
+      api_secret: coinbase_api_secret
     )
     Sync.create!(syncable: coinbase_item, status: :syncing)
 

@@ -1,0 +1,30 @@
+<%# locals: (title:, receipts:, pagy:, empty:) %>
+<section class="space-y-2">
+  <div class="flex items-center gap-1.5 px-1 text-xs font-medium text-secondary uppercase">
+    <h2><%= title %></h2>
+    <span class="text-subdued">&middot;</span>
+    <span><%= pagy.count %></span>
+  </div>
+
+  <% if receipts.any? %>
+    <%= render DS::Table.new(rows: receipts, label: title) do |table| %>
+      <% table.with_column(t("receipts.table.file")) do |receipt| %>
+        <%= link_to receipt_path(receipt), class: "flex items-center gap-2 min-w-0 text-sm font-medium text-primary hover:underline" do %>
+          <%= icon(receipt_file_icon(receipt), size: "sm") %>
+          <span class="truncate max-w-48"><%= receipt.filename %></span>
+        <% end %>
+      <% end %>
+      <% table.with_column(t("receipts.table.merchant")) { |receipt| receipt.merchant_name.presence || t("receipts.unknown") } %>
+      <% table.with_column(t("receipts.table.date")) { |receipt| receipt.date ? l(receipt.date, format: :long) : t("receipts.unknown") } %>
+      <% table.with_column(t("receipts.table.amount"), numeric: true, class: "privacy-sensitive") { |receipt| receipt_amount(receipt) } %>
+      <% table.with_column(t("receipts.table.status")) { |receipt| receipt_status_pill(receipt) } %>
+    <% end %>
+    <% if pagy.pages > 1 %>
+      <%= render "shared/pagination", pagy: pagy %>
+    <% end %>
+  <% else %>
+    <%= render DS::Card.new do %>
+      <%= render DS::EmptyState.new(icon: "receipt", title: empty) %>
+    <% end %>
+  <% end %>
+</section>

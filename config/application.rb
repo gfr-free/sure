@@ -89,6 +89,13 @@ module Sure
     default_layout = ENV.fetch("DEFAULT_UI_LAYOUT", "dashboard")
     config.x.ui.default_layout = default_layout.in?(%w[dashboard intro]) ? default_layout : "dashboard"
 
+    # Receipts by e-mail. Without ACTION_MAILBOX_INGRESS the ingress endpoints
+    # answer 404; the IMAP poller works without one. Mail is only held until its
+    # attachments are turned into receipts, and its jobs use queues Sidekiq runs.
+    config.action_mailbox.ingress = ENV["ACTION_MAILBOX_INGRESS"].presence&.to_sym
+    config.action_mailbox.incinerate_after = 1.hour
+    config.action_mailbox.queues = { routing: :medium_priority, incineration: :low_priority }
+
     config.x.debug_log = ActiveSupport::OrderedOptions.new
     retention_days = ENV.fetch("DEBUG_LOG_RETENTION_DAYS", "90").to_i
     config.x.debug_log.retention_days = retention_days.positive? ? retention_days : 90

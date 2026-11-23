@@ -1,0 +1,121 @@
+<%= content_for :page_title, @receipt.filename %>
+
+<div class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2 min-w-0">
+      <%= render DS::Link.new(icon: "arrow-left", variant: "icon", href: receipts_path, aria: { label: t(".back") }) %>
+      <h1 class="text-xl font-medium text-primary truncate"><%= @receipt.filename %></h1>
+      <%= receipt_status_pill(@receipt) %>
+      <% if @receipt.email? %>
+        <%= render DS::Pill.new(label: t(".from_email")) %>
+      <% end %>
+    </div>
+    <div class="flex items-center gap-2">
+      <%= render DS::Link.new(text: t(".download"), icon: "download", variant: "outline", href: file_receipt_path(@receipt, disposition: "attachment")) %>
+      <% if @receipt.dismissed_at? %>
+        <%= render DS::Button.new(text: t(".reopen"), variant: :secondary, href: reopen_receipt_path(@receipt), method: :patch) %>
+      <% elsif @receipt.status == :open || @receipt.status == :reading %>
+        <%= render DS::Button.new(text: t(".dismiss"), variant: :secondary, href: dismiss_receipt_path(@receipt), method: :patch) %>
+      <% end %>
+      <%= render DS::Button.new(text: t(".delete"), variant: :destructive, href: receipt_path(@receipt), method: :delete,
+                                confirm: CustomConfirm.for_resource_deletion(t(".receipt"), high_severity: true)) %>
+    </div>
+  </header>
+
+  <div class="grid gap-4 lg:grid-cols-2">
+    <%= render DS::Card.new do %>
+      <% if @receipt.image? %>
+        <%= image_tag file_receipt_path(@receipt), alt: @receipt.filename, class: "w-full rounded-lg" %>
+      <% else %>
+        <%= render DS::EmptyState.new(icon: "file-text", title: @receipt.filename, description: number_to_human_size(@receipt.byte_size)) do |empty_state| %>
+          <% empty_state.with_action do %>
+            <%= render DS::Link.new(text: t(".open_pdf"), icon: "external-link", variant: "outline", href: file_receipt_path(@receipt), target: "_blank") %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <div class="space-y-4">
+      <% if @receipt.extraction_pending? %>
+        <%= render DS::Alert.new(message: t(".reading"), variant: :info) %>
+      <% elsif @receipt.extraction_failed? %>
+        <%= render DS::Alert.new(message: t(".extraction_failed"), variant: :warning) %>
+      <% elsif !@receipt.fields_read? %>
+        <%= render DS::Alert.new(message: receipt_nothing_read_message(@receipt), variant: :info) %>
+      <% end %>
+
+      <%= render DS::Card.new(class: "gap-3") do %>
+        <h2 class="text-sm font-medium text-primary"><%= t(".fields_title") %></h2>
+        <%= styled_form_with model: @receipt, url: receipt_path(@receipt), method: :patch, class: "space-y-3" do |form| %>
+          <%= hidden_field_tag "rendered[merchant_name]", @receipt.merchant_name.to_s %>
+          <%= hidden_field_tag "rendered[date]", @receipt.date&.iso8601.to_s %>
+          <%= hidden_field_tag "rendered[amount]", receipt_amount_input_value(@receipt).to_s %>
+          <%= hidden_field_tag "rendered[currency]", @receipt.currency.to_s %>
+          <%= form.text_field :merchant_name, label: t(".merchant_name"), maxlength: 200 %>
+          <% if (hint = receipt_field_hint(@receipt, :merchant_name)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <%= form.date_field :date, label: t(".date") %>
+          <% if (hint = receipt_field_hint(@receipt, :date)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency %>
+          <% if (hint = receipt_field_hint(@receipt, :amount)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <div class="flex justify-end">
+            <%= render DS::Button.new(text: t(".save"), type: :submit) %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <% if @receipt.transaction_id? %>
+        <%= render DS::Card.new(class: "gap-2") do %>
+          <h2 class="text-sm font-medium text-primary"><%= @receipt.created_transaction? ? t(".created_title") : t(".linked_title") %></h2>
+          <% if @linked_entry %>
+            <%= link_to transaction_path(@linked_entry), class: "flex items-center justify-between gap-3 text-sm text-primary hover:underline", data: { turbo_frame: :drawer } do %>
+              <span class="truncate"><%= @linked_entry.name %> · <%= @linked_entry.account.name %> · <%= l(@linked_entry.date, format: :long) %></span>
+              <span class="privacy-sensitive"><%= format_money(@linked_entry.amount_money) %></span>
+            <% end %>
+          <% else %>
+            <p class="text-sm text-secondary"><%= t(".linked_hidden") %></p>
+          <% end %>
+        <% end %>
+      <% elsif !@receipt.dismissed_at? %>
+        <%= render DS::Card.new(class: "gap-3") do %>
+          <h2 class="text-sm font-medium text-primary"><%= t(".candidates_title") %></h2>
+          <% if @candidates.any? %>
+            <ul class="divide-y divide-subdued">
+              <% @candidates.each do |transaction| %>
+                <li class="flex items-center justify-between gap-3 py-2">
+                  <div class="min-w-0">
+                    <p class="text-sm text-primary truncate"><%= transaction.entry.name %></p>
+                    <p class="text-xs text-secondary"><%= transaction.entry.account.name %> · <%= l(transaction.entry.date, format: :long) %></p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-sm text-primary privacy-sensitive"><%= format_money(transaction.entry.amount_money) %></span>
+                    <%= render DS::Button.new(text: t(".link"), size: :sm, variant: :outline, href: link_receipt_path(@receipt, transaction_id: transaction.id), method: :post) %>
+                  </div>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-sm text-secondary"><%= t(".no_candidates") %></p>
+          <% end %>
+        <% end %>
+
+        <%= render DS::Card.new(class: "gap-3") do %>
+          <h2 class="text-sm font-medium text-primary"><%= t(".new_transaction_title") %></h2>
+          <% if @accounts.any? %>
+            <%= styled_form_with url: create_transaction_receipt_path(@receipt), scope: :transaction, class: "space-y-3" do |form| %>
+              <%= form.select :account_id, @accounts.map { |account| [ account.name, account.id ] }, { label: t(".account") }, name: "account_id" %>
+              <%= form.text_field :name, label: t(".name"), value: @receipt.merchant_name %>
+              <%= form.date_field :date, label: t(".date"), value: @receipt.date || Date.current, required: true %>
+              <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency, required: true %>
+              <p class="text-xs text-secondary"><%= t(".new_transaction_hint") %></p>
+              <div class="flex justify-end">
+                <%= render DS::Button.new(text: t(".create_transaction"), type: :submit) %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-sm text-secondary"><%= t(".no_accounts") %></p>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

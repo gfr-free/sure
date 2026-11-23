@@ -1,0 +1,44 @@
+<%= content_for :page_title, t(".title") %>
+
+<div class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex items-center gap-2 text-primary font-medium">
+    <h1 class="text-xl"><%= t(".title") %></h1>
+    <%= render DS::Pill.new(label: t(".preview")) %>
+  </header>
+
+  <%= render DS::Card.new(class: "gap-3") do %>
+    <div>
+      <p class="text-sm font-medium text-primary"><%= t(".upload_title") %></p>
+      <p class="text-xs text-secondary"><%= t(".upload_description", max_size: Receipt::MAX_FILE_SIZE / 1.megabyte) %></p>
+    </div>
+
+    <%= styled_form_with url: receipts_path, scope: :receipt, multipart: true, class: "flex flex-col gap-3 md:flex-row md:items-end" do |form| %>
+      <div class="md:flex-1">
+        <%= form.file_field :files,
+                            label: t(".files_label"),
+                            multiple: true,
+                            accept: Receipt::ALLOWED_CONTENT_TYPES.join(","),
+                            data: { testid: "receipt-files" } %>
+      </div>
+      <%# Opens the camera straight away on a phone; ignored on a desktop browser. %>
+      <div class="md:hidden">
+        <%= form.file_field :files,
+                            label: t(".camera_label"),
+                            multiple: true,
+                            id: "receipt_camera",
+                            accept: "image/*",
+                            capture: "environment" %>
+      </div>
+      <div>
+        <%= render DS::Button.new(text: t(".upload"), icon: "upload", type: :submit) %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%= render "receipts/table", title: t(".open_title"), receipts: @open_receipts, pagy: @open_pagy, empty: t(".empty_open") %>
+  <%= render "receipts/table", title: t(".done_title"), receipts: @done_receipts, pagy: @done_pagy, empty: t(".empty_done") %>
+
+  <% if Receipt::EmailInbox.configured? %>
+    <%= render "receipts/email_inbox" %>
+  <% end %>
+</div>

@@ -1,0 +1,17 @@
+---
+en:
+  activerecord:
+    attributes:
+      receipt:
+        amount: Amount
+        currency: Currency
+        date: Date
+        merchant_name: Merchant
+    errors:
+      models:
+        receipt:
+          attributes:
+            base:
+              already_linked: This receipt is already linked to a transaction
+              invalid_transaction: Enter a valid date and amount for the new transaction
+              too_many_attachments: The transaction already has %{max} attachments

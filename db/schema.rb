@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -131,6 +131,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
     t.check_constraint "cost_basis_method::text = ANY (ARRAY['average'::character varying::text, 'fifo'::character varying::text])", name: "accounts_cost_basis_method_known"
+  end
+
+  create_table "action_mailbox_inbound_emails", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "status", default: 0, null: false
+    t.string "message_id", null: false
+    t.string "message_checksum", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["message_id", "message_checksum"], name: "index_action_mailbox_inbound_emails_uniqueness", unique: true
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2092,6 +2101,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["status"], name: "index_questrade_items_on_status"
   end
 
+  create_table "receipts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "amount", precision: 19, scale: 4
+    t.bigint "byte_size", null: false
+    t.string "content_sha256", limit: 64, null: false
+    t.string "content_type", limit: 100, null: false
+    t.datetime "created_at", null: false
+    t.boolean "created_transaction", default: false, null: false
+    t.string "currency", limit: 3
+    t.date "date"
+    t.datetime "dismissed_at"
+    t.string "extraction_error", limit: 100
+    t.string "extraction_status", default: "pending", null: false
+    t.uuid "family_id", null: false
+    t.jsonb "field_sources", default: {}, null: false
+    t.string "filename", limit: 255, null: false
+    t.datetime "linked_at"
+    t.string "merchant_name", limit: 200
+    t.text "raw_text"
+    t.string "source", default: "web", null: false
+    t.uuid "transaction_id"
+    t.datetime "updated_at", null: false
+    t.uuid "uploaded_by_id"
+    t.index ["family_id"], name: "index_receipts_on_family_id"
+    t.index ["transaction_id"], name: "index_receipts_on_transaction_id"
+    t.index ["uploaded_by_id", "content_sha256"], name: "index_receipts_on_uploaded_by_id_and_content_sha256", unique: true
+    t.index ["uploaded_by_id", "created_at"], name: "index_receipts_on_uploaded_by_id_and_created_at"
+  end
+
   create_table "recurrence_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "day_of_month"
@@ -3043,6 +3080,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.string "otp_secret"
     t.string "password_digest"
     t.jsonb "preferences", default: {}, null: false
+    t.text "receipt_inbox_senders"
+    t.string "receipt_inbox_token"
     t.string "role", default: "member", null: false
     t.datetime "rule_prompt_dismissed_at"
     t.boolean "rule_prompts_disabled", default: false
@@ -3063,6 +3102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["locale"], name: "index_users_on_locale"
     t.index ["otp_secret"], name: "index_users_on_otp_secret", unique: true, where: "(otp_secret IS NOT NULL)"
     t.index ["preferences"], name: "index_users_on_preferences", using: :gin
+    t.index ["receipt_inbox_token"], name: "index_users_on_receipt_inbox_token", unique: true
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true, where: "(webauthn_id IS NOT NULL)"
   end
 
@@ -3296,6 +3336,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "questrade_accounts", "questrade_items"
   add_foreign_key "questrade_items", "families"
+  add_foreign_key "receipts", "families"
+  add_foreign_key "receipts", "transactions", on_delete: :nullify
+  add_foreign_key "receipts", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "recurrence_rules", "recurring_transactions", on_delete: :cascade
   add_foreign_key "recurring_allocations", "entries", on_delete: :nullify
   add_foreign_key "recurring_allocations", "recurring_occurrences", column: ["recurring_occurrence_id", "currency"], primary_key: ["id", "currency"], name: "fk_recurring_allocations_currency_matches_occurrence", on_delete: :cascade

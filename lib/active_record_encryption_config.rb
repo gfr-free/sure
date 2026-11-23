@@ -77,7 +77,7 @@ module ActiveRecordEncryptionConfig
   # older, narrower version back into "not complete" until they re-run the
   # task - otherwise the legacy-plaintext fallback would get disabled for
   # models the install's last backfill never actually covered.
-  CURRENT_BACKFILL_VERSION = 13
+  CURRENT_BACKFILL_VERSION = 15
 
   # Single source of truth for which models/fields security:backfill_encryption
   # covers, keyed by the same symbol the task's `results` hash uses. Model
@@ -102,7 +102,7 @@ module ActiveRecordEncryptionConfig
   # listed: it is a PostgreSQL array column, which Active Record encryption
   # does not support.
   BACKFILL_MANIFEST = {
-    users: [ "User", %i[otp_secret email unconfirmed_email first_name last_name] ],
+    users: [ "User", %i[otp_secret email unconfirmed_email first_name last_name receipt_inbox_token receipt_inbox_senders] ],
     invitations: [ "Invitation", %i[token email] ],
     invite_codes: [ "InviteCode", %i[token] ],
     mobile_devices: [ "MobileDevice", %i[device_id] ],
@@ -164,7 +164,8 @@ module ActiveRecordEncryptionConfig
     api_keys: [ "ApiKey", %i[display_key] ],
     sso_providers: [ "SsoProvider", %i[client_secret] ],
     sso_identity_blocks: [ "SsoIdentityBlock", %i[identity_label uid legacy_digest_key] ],
-    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ]
+    security_audit_logs: [ "SecurityAuditLog", %i[user_email ip_address user_agent] ],
+    receipts: [ "Receipt", %i[raw_text] ]
   }.freeze
 
   module_function

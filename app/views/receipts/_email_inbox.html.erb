@@ -1,0 +1,35 @@
+<%= render DS::Card.new(class: "gap-3") do %>
+  <div>
+    <p class="text-sm font-medium text-primary"><%= t(".title") %></p>
+    <p class="text-xs text-secondary"><%= t(".description") %></p>
+  </div>
+
+  <% if (address = Receipt::EmailInbox.address_for(Current.user)) %>
+    <div class="bg-container rounded-lg p-3 border border-primary" data-controller="clipboard" data-clipboard-copied-text-value="<%= t(".copied") %>">
+      <div class="flex flex-col items-start gap-2 md:flex-row md:items-center md:justify-between">
+        <code class="font-mono text-sm text-primary break-all min-w-0" data-clipboard-target="source" data-testid="receipt-inbox-address"><%= address %></code>
+        <%= render DS::Button.new(text: t(".copy"), variant: "ghost", icon: "copy", data: { action: "clipboard#copy" }) %>
+      </div>
+    </div>
+    <p class="text-xs text-secondary"><%= t(".senders_hint", email: Current.user.email) %></p>
+
+    <%= styled_form_with url: receipts_email_inbox_path, method: :patch, scope: :email_inbox, class: "space-y-3" do |form| %>
+      <%= form.text_area :senders, label: t(".senders_label"), rows: 3,
+                                   value: Current.user.receipt_inbox_senders,
+                                   placeholder: t(".senders_placeholder") %>
+      <div class="flex justify-end">
+        <%= render DS::Button.new(text: t(".save_senders"), variant: :secondary, type: :submit) %>
+      </div>
+    <% end %>
+
+    <div class="flex flex-wrap justify-end gap-2 border-t border-subdued pt-3">
+      <%= render DS::Button.new(text: t(".new_address"), variant: :outline, href: receipts_email_inbox_path, method: :post,
+                                confirm: CustomConfirm.new(title: t(".new_address_confirm_title"), body: t(".new_address_confirm_body"), btn_text: t(".new_address"))) %>
+      <%= render DS::Button.new(text: t(".disable"), variant: :outline, href: receipts_email_inbox_path, method: :delete) %>
+    </div>
+  <% else %>
+    <div class="flex justify-end">
+      <%= render DS::Button.new(text: t(".enable"), icon: "mail", href: receipts_email_inbox_path, method: :post) %>
+    </div>
+  <% end %>
+<% end %>

@@ -779,6 +779,21 @@ Rails.application.routes.draw do
     end
   end
 
+  # Before `resources :receipts`, whose PATCH /receipts/:id would take it.
+  namespace :receipts do
+    resource :email_inbox, only: %i[create update destroy]
+  end
+
+  resources :receipts, only: %i[index show create update destroy] do
+    member do
+      get :file
+      post :link
+      post :create_transaction
+      patch :dismiss
+      patch :reopen
+    end
+  end
+
   # Convenience routes for polymorphic paths
   # Example: account_path(Account.new(accountable: Depository.new)) => /depositories/123
   direct :edit_account do |model, options|

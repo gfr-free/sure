@@ -3,7 +3,7 @@ Rails.application.config.to_prepare do
   module ActiveStorageAttachmentAuthorization
     extend ActiveSupport::Concern
     # STI subclasses (PdfImport, SureImport, ...) are stored under their base class, "Import".
-    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement FamilyExport Import FamilyDocument].freeze
+    PROTECTED_RECORD_TYPES = %w[Transaction AccountStatement FamilyExport Import FamilyDocument Receipt].freeze
 
     included do
       include Authentication
@@ -21,6 +21,8 @@ Rails.application.config.to_prepare do
         raise ActiveRecord::RecordNotFound if attachments.empty?
         # Archived exports belong to no family; ArchivedExportsController releases them by download token only.
         raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "ArchivedExport" }
+        # Raw inbound e-mails are only read by Action Mailbox, never served.
+        raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "ActionMailbox::InboundEmail" }
         # Family exports hold the whole family's data; FamilyExportsController releases them to family admins only.
         raise ActiveRecord::RecordNotFound if attachments.any? { |attachment| attachment.record_type == "FamilyExport" && !family_admin_export?(attachment) }
 
@@ -43,6 +45,8 @@ Rails.application.config.to_prepare do
           import_attachment_authorized?(attachment)
         when "FamilyDocument"
           family_record_attachment_authorized?(attachment)
+        when "Receipt"
+          receipt_attachment_authorized?(attachment)
         else
           false
         end
@@ -56,6 +60,17 @@ Rails.application.config.to_prepare do
         account = transaction.entry.account
         account.family_id == Current.family&.id && account.shared_with?(Current.user)
       rescue ActiveRecord::RecordNotFound, NoMethodError
+        false
+      end
+
+      # Mirrors ReceiptsController: a receipt's file is shown to its uploader only,
+      # and only while they may still manage receipts (guests may not).
+      def receipt_attachment_authorized?(attachment)
+        receipt = attachment.record
+        return false if receipt.nil? || !Receipt.manager?(Current.user)
+
+        receipt.family_id == Current.family&.id && receipt.uploaded_by_id == Current.user.id
+      rescue ActiveRecord::RecordNotFound
         false
       end
 

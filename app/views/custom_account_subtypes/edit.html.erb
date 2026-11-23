@@ -1,0 +1,6 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title")) %>
+  <% dialog.with_body do %>
+    <%= render "form", custom_account_subtype: @custom_account_subtype, template: nil %>
+  <% end %>
+<% end %>

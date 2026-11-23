@@ -4,6 +4,7 @@ de:
     encryption_migration_guide: Anleitung zur Einrichtung der Verschlüsselung und zur Migration
     settings_nav:
       accounts_label: Konten
+      account_subtypes_label: Eigene Subtypen
       advanced_section_title: Erweitert
       ai_prompts_label: KI-Eingabeaufforderungen
       auto_matches_label: Automatischer Abgleich

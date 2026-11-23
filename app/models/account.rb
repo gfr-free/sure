@@ -1,5 +1,5 @@
 class Account < ApplicationRecord
-  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Logoable
+  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Liquidity, CustomSubtype, Logoable
 
   before_validation :assign_default_owner, if: -> { owner_id.blank? }
 
@@ -894,14 +894,15 @@ class Account < ApplicationRecord
     first_valuation&.amount_money || balance_money
   end
 
-  # Get short version of the subtype label
+  # Get short version of the subtype label. A family's own subtype
+  # (Account::CustomSubtype) takes precedence over the built-in one.
   def short_subtype_label
-    accountable_class.short_subtype_label_for(subtype) || accountable_class.display_name
+    custom_account_subtype&.name || accountable_class.short_subtype_label_for(subtype) || accountable_class.display_name
   end
 
   # Get long version of the subtype label
   def long_subtype_label
-    accountable_class.long_subtype_label_for(subtype) || accountable_class.display_name
+    custom_account_subtype&.name || accountable_class.long_subtype_label_for(subtype) || accountable_class.display_name
   end
 
   def supports_default?
@@ -1030,6 +1031,13 @@ class Account < ApplicationRecord
   end
 
   private
+    # Account::Liquidity locks `liquidity` itself, only when the user picks a
+    # level. Locking it whenever it changed would freeze the subtype default
+    # written on create as if the user had chosen it.
+    def ignored_enrichable_attributes
+      super + %w[liquidity locked_attributes]
+    end
+
     # [date, signed amount in account currency] for each scheduled entry that
     # contributes to the projection.
     def scheduled_entry_flows

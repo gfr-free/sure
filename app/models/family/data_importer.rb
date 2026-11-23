@@ -31,7 +31,7 @@ class Family::DataImporter
     end
   end
 
-  SUPPORTED_TYPES = %w[Account Balance Category Tag Merchant ProviderMerchant RecurringTransaction RecurrenceRule RecurringOccurrence RecurringAllocation RecurringPriceChange RecurringMatchRejection Transaction Transfer RejectedTransfer Trade Holding Valuation Budget BudgetCategory Rule].freeze
+  SUPPORTED_TYPES = %w[CustomAccountSubtype Account Balance Category Tag Merchant ProviderMerchant RecurringTransaction RecurrenceRule RecurringOccurrence RecurringAllocation RecurringPriceChange RecurringMatchRejection Transaction Transfer RejectedTransfer Trade Holding Valuation Budget BudgetCategory Rule].freeze
   PROPERTY_DETAIL_ATTRIBUTES = %w[year_built area_value area_unit].freeze
   PROPERTY_ADDRESS_ATTRIBUTES = %w[line1 line2 locality region county postal_code country].freeze
   VEHICLE_DETAIL_ATTRIBUTES = %w[make model year mileage_value mileage_unit].freeze
@@ -54,6 +54,7 @@ class Family::DataImporter
   end
 
   MAPPING_TYPES = {
+    custom_account_subtypes: "CustomAccountSubtype",
     accounts: "Account",
     categories: "Category",
     tags: "Tag",
@@ -66,6 +67,7 @@ class Family::DataImporter
     rules: "Rule"
   }.freeze
   SUMMARY_KEYS = {
+    "CustomAccountSubtype" => "custom_account_subtypes",
     "Account" => "accounts",
     "Balance" => "balances",
     "Category" => "categories",
@@ -98,6 +100,7 @@ class Family::DataImporter
     @import = import
     @strict_references = import_session.present?
     @id_mappings = {
+      custom_account_subtypes: {},
       accounts: {},
       categories: {},
       tags: {},
@@ -125,6 +128,7 @@ class Family::DataImporter
 
     Import.transaction do
       # Import in dependency order
+      import_custom_account_subtypes(records["CustomAccountSubtype"] || [])
       import_accounts(records["Account"] || [])
       import_balances(records["Balance"] || [])
       import_categories(records["Category"] || [])
@@ -384,6 +388,8 @@ class Family::DataImporter
         # wins, matching SureImport::Preflight#validate_accountables.
         imported_subtype = accountable_data["subtype"].presence || data["subtype"].presence
         account.subtype = imported_subtype if imported_subtype
+        assign_imported_custom_subtype(account, data)
+        assign_imported_liquidity(account, data)
         # A file from before the setting existed leaves the account's own.
         account.cost_basis_method = data["cost_basis_method"] if Account.cost_basis_methods.key?(data["cost_basis_method"])
         # Older exports predate the choice and keep the account's own.
@@ -409,6 +415,95 @@ class Family::DataImporter
         increment_summary("Account", created ? :created : :updated)
       end
     end
+
+    # The family's own subtypes (CustomAccountSubtype). Matched by type and
+    # name, so importing into a family that already has the subtype reuses it;
+    # the imported rules win. A record that does not validate is skipped and
+    # its accounts keep their built-in subtype.
+    def import_custom_account_subtypes(records)
+      records.each do |record|
+        data = record["data"]
+        accountable_type = data["accountable_type"].to_s
+        name = data["name"].to_s.strip
+
+        unless accountable_type.in?(Accountable::TYPES) && name.present?
+          increment_summary("CustomAccountSubtype", :skipped)
+          next
+        end
+
+        custom_subtype = @family.custom_account_subtypes
+          .where(accountable_type: accountable_type)
+          .find_by("lower(name) = ?", name.downcase)
+        created = custom_subtype.nil?
+        custom_subtype ||= @family.custom_account_subtypes.new(accountable_type: accountable_type, name: name)
+
+        rules = data["rules"].is_a?(Hash) ? data["rules"] : {}
+        custom_subtype.liquidity = rules["liquidity"]
+        custom_subtype.tax_treatment = rules["tax_treatment"]
+
+        if custom_subtype.save
+          map_source!(:custom_account_subtypes, data["id"].to_s, custom_subtype)
+          increment_summary("CustomAccountSubtype", created ? :created : :updated)
+        else
+          increment_summary("CustomAccountSubtype", :skipped)
+        end
+      end
+    end
+
+    # Only a subtype that came in with this import (or an earlier chunk of
+    # the same import session) and fits the account's type is assigned. An
+    # unresolved reference leaves the account as it is rather than failing
+    # the import or clearing a subtype it already has.
+    def assign_imported_custom_subtype(account, data)
+      old_id = data["custom_account_subtype_id"].to_s
+      return if old_id.blank?
+
+      custom_subtype_id = mapped_id(:custom_account_subtypes, old_id, record_type: "Account", required: false)
+      custom_subtype = custom_subtype_id && @family.custom_account_subtypes.find_by(id: custom_subtype_id)
+      return if custom_subtype.nil? || custom_subtype.accountable_type != account.accountable_type
+
+      account.custom_account_subtype = custom_subtype
+    end
+
+    # Availability (Account::Liquidity). A level the user picked travels as
+    # the exported lock and stays manual; without one the account takes its
+    # subtype's default, as a new account would. Out-of-range values were
+    # already reported by SureImport::Preflight and are ignored here, so they
+    # leave an already imported account's value alone, as does a field missing
+    # from the record (an export from before availability existed). A blank
+    # value clears the field.
+    def assign_imported_liquidity(account, data)
+      level = data["liquidity"].to_s
+      if level.in?(Account::Liquidity::LEVELS)
+        manual = data.dig("locked_attributes", "liquidity").present?
+        account.liquidity_choice = manual ? level : Account::Liquidity::AUTOMATIC
+      end
+
+      assign_importable(account, :available_on, data) { |value| parse_import_date(value) }
+      assign_importable(account, :renewal_term_months, data) do |value|
+        importable_integer(value, 1..Account::Liquidity::MAX_RENEWAL_TERM_MONTHS)
+      end
+      if data.key?("auto_renew") || data.key?("renewal_term_months")
+        renew = data.key?("auto_renew") ? ActiveModel::Type::Boolean.new.cast(data["auto_renew"]) == true : account.auto_renew?
+        account.auto_renew = account.renewal_term_months.present? && renew
+      end
+    end
+
+    def assign_importable(account, attribute, data)
+      key = attribute.to_s
+      return unless data.key?(key)
+
+      raw = data[key]
+      value = raw.blank? ? nil : yield(raw)
+      return if raw.present? && value.nil?
+
+      account.public_send("#{key}=", value)
+    end
+
+    def importable_integer(value, range)
+      integer = Integer(value.to_s, exception: false)
+      integer if integer && range.cover?(integer)
+      end
 
     # What the property form edits. Provider links (avm_*) are left out: the
     # restored family has to link its own provider. A missing or null value

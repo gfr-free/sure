@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -131,15 +131,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.index ["simplefin_account_id"], name: "index_accounts_on_simplefin_account_id"
     t.index ["status"], name: "index_accounts_on_status"
     t.check_constraint "cost_basis_method::text = ANY (ARRAY['average'::character varying::text, 'fifo'::character varying::text])", name: "accounts_cost_basis_method_known"
-  end
-
-  create_table "action_mailbox_inbound_emails", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.integer "status", default: 0, null: false
-    t.string "message_id", null: false
-    t.string "message_checksum", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["message_id", "message_checksum"], name: "index_action_mailbox_inbound_emails_uniqueness", unique: true
   end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1938,6 +1929,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "page_cache_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "bytes", null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.datetime "last_used_at", null: false
+    t.string "page_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["family_id"], name: "index_page_cache_entries_on_family_id"
+    t.index ["last_used_at"], name: "index_page_cache_entries_on_last_used_at"
+    t.index ["page_key"], name: "index_page_cache_entries_on_page_key", unique: true
+  end
+
   create_table "plaid_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "available_balance", precision: 19, scale: 4
     t.datetime "created_at", null: false
@@ -2543,6 +2546,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.jsonb "raw_transactions_payload"
     t.uuid "simplefin_item_id", null: false
     t.datetime "updated_at", null: false
+    t.datetime "holdings_requested_at"
+    t.datetime "account_requested_at"
     t.index ["account_id"], name: "index_simplefin_accounts_on_account_id"
     t.index ["simplefin_item_id", "account_id"], name: "idx_unique_sfa_per_item_and_upstream", unique: true, where: "(account_id IS NOT NULL)"
     t.index ["simplefin_item_id"], name: "index_simplefin_accounts_on_simplefin_item_id"
@@ -3079,8 +3084,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.string "unconfirmed_email"
     t.datetime "updated_at", null: false
     t.string "webauthn_id"
-    t.string "receipt_inbox_token"
-    t.text "receipt_inbox_senders"
     t.index ["default_account_id"], name: "index_users_on_default_account_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["family_id"], name: "index_users_on_family_id"
@@ -3088,7 +3091,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
     t.index ["locale"], name: "index_users_on_locale"
     t.index ["otp_secret"], name: "index_users_on_otp_secret", unique: true, where: "(otp_secret IS NOT NULL)"
     t.index ["preferences"], name: "index_users_on_preferences", using: :gin
-    t.index ["receipt_inbox_token"], name: "index_users_on_receipt_inbox_token", unique: true
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true, where: "(webauthn_id IS NOT NULL)"
   end
 
@@ -3314,6 +3316,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_130100) do
   add_foreign_key "oidc_identities", "users"
   add_foreign_key "onchain_wallet_accounts", "onchain_wallet_items"
   add_foreign_key "onchain_wallet_items", "families"
+  add_foreign_key "page_cache_entries", "families", on_delete: :cascade
   add_foreign_key "plaid_accounts", "plaid_items"
   add_foreign_key "plaid_items", "families"
   add_foreign_key "plaid_items", "users", column: "owner_id", on_delete: :nullify

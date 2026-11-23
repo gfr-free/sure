@@ -838,6 +838,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.boolean "auto_sync_on_login", default: true, null: false
     t.jsonb "bayes_settings", default: {}, null: false
     t.string "bills_feed_token"
+    t.boolean "budgets_enabled", default: true, null: false
     t.boolean "categories_locked", default: false, null: false
     t.decimal "categorization_confidence_threshold", precision: 3, scale: 2, default: "0.7", null: false
     t.string "categorization_provider", default: "llm", null: false
@@ -861,6 +862,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.integer "month_start_day", default: 1, null: false
     t.string "name"
     t.boolean "personal_budgets", default: false, null: false
+    t.boolean "plan_enabled", default: true, null: false
     t.boolean "recurring_transactions_disabled", default: false, null: false
     t.string "stripe_customer_id"
     t.string "timezone"

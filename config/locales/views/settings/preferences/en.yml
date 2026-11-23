@@ -14,6 +14,12 @@ en:
         transactions_subtitle: Configure how transactions behave
         manual_reconciliation: Manual reconciliation
         manual_reconciliation_hint: Show reconcile controls on manually-entered accounts. Accounts with a bank sync use statement reconciliation instead.
+        planning_features_title: Budgets and Plan
+        planning_features_subtitle: Turn planning features on or off for everyone in your %{moniker}
+        budgets_enabled: Budgets
+        budgets_enabled_hint: Show budgets in the navigation, reports, insights, the assistant and the API. Turning this off keeps your budget data.
+        plan_enabled: Plan
+        plan_enabled_hint: Show the Plan hub and goals. Turning this off keeps your goals.
         default_period: Default Period
         default_account_order: Default Account Order
         default_account_order_hint: With Manual, drag accounts in the sidebar to set their order.

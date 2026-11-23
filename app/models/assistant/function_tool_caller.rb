@@ -4,8 +4,12 @@ class Assistant::FunctionToolCaller
 
   attr_reader :functions
 
-  def initialize(functions = [])
+  # With a user, budget and plan tools are checked against the family's
+  # current switches on every call, since a chat response keeps the tool list
+  # it was built with while an admin may turn either feature off mid-response.
+  def initialize(functions = [], user: nil)
     @functions = functions
+    @user = user
   end
 
   def fulfill_requests(function_requests)
@@ -73,6 +77,22 @@ class Assistant::FunctionToolCaller
     end
 
     def find_function(function_request)
-      functions.find { |f| f.name == function_request.function_name }
+      fn = functions.find { |f| f.name == function_request.function_name }
+      fn if fn && !switched_off?(fn)
+    end
+
+    def switched_off?(fn)
+      return false if @user.nil?
+
+      budget_tool = Assistant::BUDGET_FUNCTION_CLASSES.include?(fn.class)
+      plan_tool = Assistant::PLAN_FUNCTION_CLASSES.include?(fn.class)
+      return false unless budget_tool || plan_tool
+
+      # Uncached: the response job's query cache may still hold the switches
+      # from before an admin changed them in another process.
+      budgets_enabled, plan_enabled = Family.uncached do
+        Family.where(id: @user.family_id).pick(:budgets_enabled, :plan_enabled)
+      end
+      (budget_tool && budgets_enabled == false) || (plan_tool && plan_enabled == false)
     end
 end

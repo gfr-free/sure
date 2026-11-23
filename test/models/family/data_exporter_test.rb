@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Family::DataExporterTest < ActiveSupport::TestCase
+  include ReceiptPdfHelper
   setup do
     @family = families(:dylan_family)
     @other_family = families(:empty)
@@ -134,6 +135,91 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       assert_equal "file", document_item["name"]
       assert_equal false, document_item["binary_included"]
     end
+  end
+
+  test "exports receipts with their read data and lists their files" do
+    linked_entry = create_transaction_entry(@account, amount: 12.40, date: Date.parse("2026-11-20"), name: "Coffee House")
+    linked = create_receipt!(lines: [ "Coffee House", "Total 12.40" ], filename: "coffee.pdf")
+    linked.update!(merchant_name: "Coffee House", date: Date.parse("2026-11-20"), amount: 12.40, currency: "USD",
+                   raw_text: "Coffee House Total 12.40", extraction_status: "completed",
+                   field_sources: { "amount" => { "source" => "text", "confidence" => 0.9 } })
+    linked.link_to!(linked_entry.transaction, user: users(:family_admin))
+    open_receipt = create_receipt!(lines: [ "Bakery" ], filename: "bakery.pdf", user: users(:family_member))
+    other_receipt = Receipt.create_from_upload!(family: @other_family, user: users(:empty),
+                                                file: uploaded_receipt(receipt_pdf([ "Elsewhere" ]), filename: "other.pdf"))
+
+    Zip::File.open_buffer(@exporter.generate_export) do |zip|
+      receipts = parse_ndjson(zip, "Receipt").to_h { |record| [ record["data"]["id"], record["data"] ] }
+
+      assert_equal [ linked.id, open_receipt.id ].sort, receipts.keys.sort
+      data = receipts.fetch(linked.id)
+      assert_equal linked_entry.transaction.id, data["transaction_id"]
+      assert_equal users(:family_admin).id, data["uploaded_by_id"]
+      assert_equal "Coffee House", data["merchant_name"]
+      assert_equal "2026-11-20", data["date"]
+      assert_equal "12.4", data["amount"]
+      assert_equal "Coffee House Total 12.40", data["raw_text"]
+      assert_equal "text", data.dig("field_sources", "amount", "source")
+      assert_nil receipts.fetch(open_receipt.id)["transaction_id"]
+
+      receipt_items = JSON.parse(zip.read("attachments.json"))["attachments"].select { |item| item["record_type"] == "Receipt" }
+      assert_equal %w[bakery.pdf coffee.pdf], receipt_items.map { |item| item["filename"] }.sort
+      assert_equal linked_entry.transaction.id, receipt_items.find { |item| item["record_id"] == linked.id }["transaction_id"]
+      assert receipt_items.none? { |item| item["binary_included"] || item["path"] }
+      assert_empty zip.entries.map(&:name).grep(%r{\Afiles/})
+      refute_includes receipts.keys, other_receipt.id
+    end
+  end
+
+  test "puts the attachment files in the zip when asked" do
+    entry = create_transaction_entry(@account, amount: 5, date: Date.current, name: "Attached")
+    entry.transaction.attachments.attach(io: StringIO.new("transaction bytes"), filename: "../same.pdf", content_type: "application/pdf")
+    document = @family.family_documents.create!(filename: "same.pdf", status: "ready")
+    document.file.attach(io: StringIO.new("document bytes"), filename: "same.pdf", content_type: "application/pdf")
+    receipt = create_receipt!(lines: [ "Receipt" ], filename: "same.pdf")
+    Receipt.create_from_upload!(family: @other_family, user: users(:empty),
+                                file: uploaded_receipt(receipt_pdf([ "Elsewhere" ]), filename: "other.pdf"))
+
+    zip_data = Family::DataExporter.new(@family, include_files: true).generate_export
+
+    Zip::File.open_buffer(zip_data) do |zip|
+      manifest = JSON.parse(zip.read("attachments.json"))
+      items = manifest["attachments"].index_by { |item| item["record_type"] }
+
+      assert manifest["binary_included"]
+      assert items.values.all? { |item| item["binary_included"] }
+      assert_equal "transaction bytes", zip.read(items.fetch("Transaction")["path"])
+      assert_equal "document bytes", zip.read(items.fetch("FamilyDocument")["path"])
+      assert_equal receipt.file.download, zip.read(items.fetch("Receipt")["path"]).b
+      assert_equal "files/Receipt/#{receipt.id}/#{receipt.file.attachment.id}-same.pdf", items.fetch("Receipt")["path"]
+      assert_equal 3, zip.entries.map(&:name).grep(%r{\Afiles/}).size
+      assert zip.entries.map(&:name).grep(%r{\Afiles/}).none? { |name| name.include?("../") || name.count("/") != 3 }
+    end
+  end
+
+  test "marks a file missing from storage as not included" do
+    entry = create_transaction_entry(@account, amount: 5, date: Date.current, name: "Attached")
+    entry.transaction.attachments.attach(io: StringIO.new("bytes"), filename: "gone.pdf", content_type: "application/pdf")
+    ActiveStorage::Blob.any_instance.stubs(:download).raises(ActiveStorage::FileNotFoundError)
+    progress_calls = 0
+
+    zip_data = assert_difference -> { DebugLogEntry.where(category: "family_export").count }, 1 do
+      Family::DataExporter.new(@family, include_files: true, on_progress: -> { progress_calls += 1 }).generate_export
+    end
+
+    Zip::File.open_buffer(zip_data) do |zip|
+      manifest = JSON.parse(zip.read("attachments.json"))
+      item = manifest["attachments"].find { |attachment| attachment["filename"] == "gone.pdf" }
+
+      assert_equal false, manifest["binary_included"]
+      assert_equal false, item["binary_included"]
+      assert_nil item["path"]
+      assert_empty zip.entries.map(&:name).grep(%r{\Afiles/})
+    end
+    assert_equal manifest_size(zip_data), progress_calls
+    log = DebugLogEntry.where(category: "family_export").last
+    assert_equal({ "ActiveStorage::FileNotFoundError" => manifest_size(zip_data) }, log.metadata["skipped_by_error"])
+    refute_includes log.message, "gone.pdf"
   end
 
   test "exports split parent receipts in attachment manifest" do
@@ -1486,6 +1572,21 @@ class Family::DataExporterTest < ActiveSupport::TestCase
 
 
   private
+    def create_receipt!(lines:, filename:, user: users(:family_admin))
+      Receipt.create_from_upload!(family: @family, user: user, file: uploaded_receipt(receipt_pdf(lines), filename: filename))
+    end
+
+    def manifest_size(zip_data)
+      zip_data.rewind
+      size = nil
+      Zip::File.open_buffer(zip_data) { |zip| size = JSON.parse(zip.read("attachments.json"))["attachments"].size }
+      size
+    end
+
+    def parse_ndjson(zip, type)
+      zip.read("all.ndjson").split("\n").map { |line| JSON.parse(line) }.select { |record| record["type"] == type }
+    end
+
 
     def create_transaction_entry(account, amount:, date:, name:)
       account.entries.create!(

@@ -21,6 +21,9 @@ en:
       transaction_history: Transaction history
       investment_trades: Investment trades
       categories_tags_rules: Categories, tags and rules
+      receipts_and_attachments: Receipts and the list of attached files
+      include_files_label: Include attached files
+      include_files_description: Adds the files of receipts, transaction attachments and documents to the ZIP. The export can get much larger.
       note_label: Note
       note_description: This export includes all of your data, but only some of the data can be imported back via the CSV import feature. We support account, transaction (with category and tags), and trade imports. Other account data cannot be imported and is for your records only.
       cancel: Cancel

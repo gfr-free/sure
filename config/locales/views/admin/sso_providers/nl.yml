@@ -91,6 +91,8 @@ nl:
         saml_sp_callback_url_label: "SP-callback-URL (ACS-URL)"
         saml_sp_callback_url_help: "Configureer deze URL als Assertion Consumer Service-URL in uw IdP"
         copy_button: "Kopiëren"
+        copied: "Gekopieerd!"
+        copy_failed: "Kopiëren mislukt"
         cancel: "Annuleren"
         submit: "Provider opslaan"
         create_provider: "Provider aanmaken"

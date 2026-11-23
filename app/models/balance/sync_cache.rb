@@ -75,9 +75,9 @@ class Balance::SyncCache
             # here: `BaseCalculator#derive_cash_balance_on_date_from_total` derives cash as
             # `total_balance - holdings_value`, so a dropped holding reappears as phantom cash.
             # Report it rather than silently accepting the wrong number.
-            key = [ h.currency, h.date ]
+            key = [ error.from_currency, error.to_currency, h.date ]
             rate = stored_rates.fetch(key) do
-              stored_rates[key] = ExchangeRate.find_stored_rate(from: h.currency, to: account.currency, date: h.date)&.rate
+              stored_rates[key] = ExchangeRate.find_stored_rate(from: error.from_currency, to: error.to_currency, date: h.date)&.rate
             end
 
             if rate

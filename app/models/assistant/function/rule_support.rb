@@ -225,7 +225,7 @@ module Assistant::Function::RuleSupport
         return [ "#{path}: value is required for #{type}." ] if value.blank?
 
         allowed = allowed_values(type)
-        allowed += saved_merchant_values(rule) if type == "set_transaction_merchant"
+        allowed += saved_action_values(rule, type) if type.in?(%w[set_transaction_merchant set_as_transfer_or_payment])
         return [ "#{path}: '#{value}' is not a valid value for #{type}. #{value_hint(type)}" ] if allowed && !allowed.include?(value)
       end
 
@@ -246,17 +246,21 @@ module Assistant::Function::RuleSupport
       [ e.message ]
     end
 
-    # A merchant another member saved on the rule may be on accounts this user
-    # can't see. Re-submitting the rule keeps it, as the rule form does (see
-    # Rule::Action#options), without letting the user pick it anew elsewhere.
-    def saved_merchant_values(rule)
-      rule.actions.select { |action| action.persisted? && action.action_type == "set_transaction_merchant" }
+    # A merchant or transfer target another member saved on the rule may be
+    # one this user can't pick. Re-submitting the rule keeps it, as the rule
+    # form does (see Rule::Action#options), without letting the user pick it
+    # anew elsewhere.
+    def saved_action_values(rule, type)
+      rule.actions.select { |action| action.persisted? && action.action_type_was == type }
         .map { |action| action.value_was.to_s }
     end
 
     # nil means free text (no fixed list of values).
     def allowed_values(key)
       case key
+      # The rule books entries into a transfer target, so only accounts the
+      # user may write to are offered, as Rule::ActionExecutor::SetAsTransferOrPayment does.
+      when "set_as_transfer_or_payment" then family.accounts.writable_by(user).pluck(:id).map(&:to_s)
       when *ACCOUNT_KEYS then accessible_accounts.pluck(:id).map(&:to_s)
       when *CATEGORY_KEYS then family.categories.pluck(:id).map(&:to_s)
       when *TAG_KEYS then family.tags.pluck(:id).map(&:to_s)
@@ -269,6 +273,7 @@ module Assistant::Function::RuleSupport
 
     def value_hint(key)
       case key
+      when "set_as_transfer_or_payment" then "Use the id of an account from get_accounts that you can edit."
       when *ACCOUNT_KEYS then "Use an account id from get_accounts."
       when *CATEGORY_KEYS then "Use a category id from get_categories."
       when *TAG_KEYS then "Use tag ids from get_tags."

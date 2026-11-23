@@ -68,6 +68,17 @@ class Rule::ConditionFilter
     nil
   end
 
+  # The option for a saved value that options leaves out, so editing the rule
+  # keeps the value. nil if there is none.
+  def option_for(value)
+    nil
+  end
+
+  # Whether the current user may newly choose +value+.
+  def selectable_value?(value)
+    true
+  end
+
   def operators
     OPERATORS_MAP.dig(type).map { |label_key, operator| [ operator_label(label_key), operator ] }
   end

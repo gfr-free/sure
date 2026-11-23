@@ -15,6 +15,7 @@ de:
         rule/action:
           attributes:
             value:
+              not_selectable: "muss ein Konto sein, das mit dir geteilt ist"
               invalid_config: "muss eine gültige Split-Konfiguration sein"
               invalid_split_count: "muss zwischen %{min} und %{max} Splits enthalten"
               split_name_required: "Split #%{index} hat keinen Namen"
@@ -31,11 +32,13 @@ de:
         rule/condition:
           attributes:
             value:
+              not_selectable: "muss ein Konto sein, das mit dir geteilt ist"
               regex_invalid: ist kein gültiger regulärer Ausdruck
               regex_too_complex: ist zu komplex, um sicher ausgeführt zu werden
               regex_too_long: "ist zu lang (höchstens %{count} Zeichen)"
               regex_backreference: darf keine Rückverweise (\1 bis \9) enthalten
   rule:
+    account_not_shared: "Nicht mit dir geteiltes Konto"
     actions:
       set_transaction_merchant:
         not_accessible: "Händler auf einem Konto ohne Zugriff"

@@ -10,7 +10,6 @@ en:
       reading: Reading
     sources:
       pdf_text: PDF text
-      qr: QR code
     table:
       amount: Amount
       date: Date

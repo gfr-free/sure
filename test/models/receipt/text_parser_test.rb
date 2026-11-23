@@ -226,6 +226,12 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal BigDecimal("12.00"), parse("Total 3\n12.00\n", currency_hint: "EUR")["amount"][:value]
   end
 
+  test "a savings line after the total is not the total" do
+    text = "SUBTOTAL 11.50\nTAX 1.00\nTOTAL 12.50\nVISA 12.50\nCHANGE DUE 0.00\nTOTAL SAVINGS 3.00\n"
+    assert_equal BigDecimal("12.50"), parse(text, currency_hint: "USD")["amount"][:value]
+    assert_equal BigDecimal("20.00"), parse("Summe 20,00 EUR\nIhre Ersparnis 2,00 EUR\n")["amount"][:value]
+  end
+
   test "a plain total after a discount is still the total" do
     assert_equal BigDecimal("90.00"), parse("Discount 10.00\nTotal after discount 90.00\n")["amount"][:value]
     assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nSumme nach Rabatt\n90,00\n")["amount"][:value]

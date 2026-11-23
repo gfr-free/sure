@@ -61,7 +61,9 @@ class Receipt < ApplicationRecord
 
   scope :ordered, -> { order(created_at: :desc) }
   scope :open, -> { where(transaction_id: nil, dismissed_at: nil) }
-  scope :done, -> { where.not(transaction_id: nil).or(where.not(dismissed_at: nil)) }
+  # Receipts the user linked to a transaction themselves.
+  scope :linked, -> { where.not(transaction_id: nil) }
+  scope :done, -> { linked.or(where.not(dismissed_at: nil)) }
   scope :uploaded_by, ->(user) { where(uploaded_by: user) }
 
   class << self
@@ -190,9 +192,9 @@ class Receipt < ApplicationRecord
     field_sources.dig(field.to_s, "source")
   end
 
-  # Whether reading the file filled any field, from its text or a QR code.
+  # Whether reading the file filled anything, as opposed to the user typing it.
   def fields_read?
-    raw_text.present? || field_sources.values.any? { |source| source["source"].present? && source["source"] != "manual" }
+    raw_text.present? || field_sources.values.any? { |info| info["source"].present? && info["source"] != "manual" }
   end
 
   def field_confidence(field)
@@ -218,7 +220,9 @@ class Receipt < ApplicationRecord
     # meanwhile counts as manual and is kept.
     with_lock do
       manual = FIELDS.select { |field| field_source(field) == "manual" }
-      attrs = { raw_text: result.raw_text, merchant_identifiers: result.identifiers, extraction_status: "completed", extraction_error: nil }
+      # On a completed read the error column keeps the notice, so the page can
+      # say why fields are blank.
+      attrs = { raw_text: result.raw_text, extraction_status: "completed", extraction_error: result.notice }.merge(result.attributes)
       sources = field_sources.slice(*manual)
       (FIELDS - manual).each do |field|
         value = result.fields[field]
@@ -333,26 +337,6 @@ class Receipt < ApplicationRecord
     enqueue_after_create(entry, :sync_account_later)
     enqueue_after_create(entry, :apply_immediate_rules_later)
     entry
-  end
-
-  # The merchant of the most recently linked receipt from the same till or
-  # payee, read from its transaction now, so a merchant set later by hand or by
-  # a rule counts too. Only transactions on accounts the uploader can see are
-  # consulted.
-  def learned_merchant(identifiers)
-    digests = Array(identifiers).filter_map { |identifier| identifier["digest"].presence }
-    return nil if digests.empty? || uploaded_by.nil?
-
-    earlier = family.receipts
-      .where.not(id: id)
-      .where("receipts.merchant_identifiers @> ANY (ARRAY[?]::jsonb[])", digests.map { |digest| [ { digest: digest } ].to_json })
-      .joins(linked_transaction: :entry)
-      .where(entries: { account_id: family.accounts.accessible_by(uploaded_by).select(:id) })
-      .where.not(transactions: { merchant_id: nil })
-      .order(linked_at: :desc)
-      .first
-
-    earlier&.linked_transaction&.merchant
   end
 
   def dismiss!

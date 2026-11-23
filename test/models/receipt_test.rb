@@ -502,7 +502,7 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_equal BigDecimal("7.98"), receipt.tax_amount
     assert_equal "einvoice", receipt.field_source(:amount)
     assert_equal 1.0, receipt.field_confidence(:amount)
-    assert receipt.read_any_field?
+    assert receipt.fields_read?
   end
 
   test "extract! takes a hybrid PDF's values from its XML, not its printed text" do
@@ -599,7 +599,7 @@ class ReceiptTest < ActiveSupport::TestCase
 
     assert receipt.extraction_completed?
     assert_nil receipt.amount
-    assert_not receipt.read_any_field?
+    assert_not receipt.fields_read?
   end
 
   test "an e-invoice without an XML declaration is accepted and read" do
@@ -609,7 +609,7 @@ class ReceiptTest < ActiveSupport::TestCase
     receipt.extract!
 
     assert_equal "application/xml", receipt.content_type
-    assert receipt.read_any_field?
+    assert receipt.fields_read?
   end
 
   test "text that only starts like XML is rejected" do

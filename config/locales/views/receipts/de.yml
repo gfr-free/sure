@@ -9,7 +9,6 @@ de:
       open: Zu prüfen
       reading: Wird gelesen
     sources:
-      einvoice: E-Rechnung
       pdf_text: PDF-Text
     table:
       amount: Betrag

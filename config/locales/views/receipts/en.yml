@@ -9,7 +9,6 @@ en:
       open: To review
       reading: Reading
     sources:
-      einvoice: e-invoice
       pdf_text: PDF text
     table:
       amount: Amount

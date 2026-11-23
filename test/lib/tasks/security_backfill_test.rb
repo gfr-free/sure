@@ -388,7 +388,8 @@ class SecurityBackfillTest < ActiveSupport::TestCase
     12 => "4122d5a8520c242fb5bad505511319806da13ed45996b47df2cb2ee34a4c041f",
     13 => "72593348d2ae17c23317f826de2e65b983356766c09fa3bcf92af01c26d54aa0",
     14 => "4eaa8b21ca49058f799c9682fac1fc3018300a21bcbcde3cf5e8532543c1e71d",
-    15 => "4bf6b2650a551b9c2b3a305711cbda7c77783b4864b9c2fae457a6b14fe00317"
+    15 => "4bf6b2650a551b9c2b3a305711cbda7c77783b4864b9c2fae457a6b14fe00317",
+    16 => "3e417f5c5a80cbae8489c25cad33a31b79cb2e848aaecf06e4324e5b84300e20"
   }.freeze
 
   test "backfill manifest changes come with a CURRENT_BACKFILL_VERSION bump" do

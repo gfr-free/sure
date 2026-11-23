@@ -99,6 +99,7 @@ export default class extends Controller {
       });
     }
     document.removeEventListener("turbo:morph", this.refreshSavedOrder);
+    this.#allowPrefetch();
     this.stopAutoscroll();
     this.cancelHold();
   }
@@ -395,9 +396,7 @@ export default class extends Controller {
     }
 
     this.keyboardGrabbedElement = section;
-    // A page Turbo prefetches on hover while a row is held would show the
-    // order from before the move, even after saveBeforeVisit saved it.
-    this.element.dataset.turboPrefetch = "false";
+    this.#blockPrefetch();
     section.setAttribute("aria-grabbed", "true");
     section.classList.add("ring-2", "ring-primary", "ring-offset-2");
   }
@@ -411,8 +410,10 @@ export default class extends Controller {
         "ring-offset-2",
       );
       this.keyboardGrabbedElement = null;
-      delete this.element.dataset.turboPrefetch;
-      return this.saveOrder();
+      const saved = Promise.resolve(this.saveOrder());
+      const allow = () => this.#allowPrefetch();
+      saved.then(allow, allow);
+      return saved;
     }
   }
 
@@ -442,6 +443,22 @@ export default class extends Controller {
       this.element.insertBefore(nextSibling, section);
       this.keyboardFocusElement?.focus();
     }
+  }
+
+  // A page Turbo prefetches on hover while a row is held, or before its move
+  // is saved, would show the order from before the move, even after
+  // saveBeforeVisit waited for the save. Any link on the page can show the
+  // sidebar, so prefetching pauses everywhere until then.
+  #blockPrefetch() {
+    if (this.preventPrefetch) return;
+    this.preventPrefetch = (event) => event.preventDefault();
+    document.addEventListener("turbo:before-prefetch", this.preventPrefetch);
+  }
+
+  #allowPrefetch() {
+    if (!this.preventPrefetch) return;
+    document.removeEventListener("turbo:before-prefetch", this.preventPrefetch);
+    this.preventPrefetch = null;
   }
 
   get itemSelector() {

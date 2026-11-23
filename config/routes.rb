@@ -765,7 +765,6 @@ Rails.application.routes.draw do
     collection do
       post :sync_all
       get :logo_options, action: :new_logo_options
-      get :sidebar
       patch :reorder
     end
 

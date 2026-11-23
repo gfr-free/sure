@@ -4,7 +4,7 @@ require "application_system_test_case"
 # marks the open account in it: the layout carries the account's id and the
 # browser highlights its link and opens its group, before a Turbo render shows
 # the page. These tests check that from the user's side, for a full load, a
-# Turbo visit, a morph refresh, and the mobile sidebar's lazy frame.
+# Turbo visit, a morph refresh, and the phone drawer.
 class SidebarActiveAccountTest < ApplicationSystemTestCase
   setup do
     @user = users(:family_admin)
@@ -52,24 +52,17 @@ class SidebarActiveAccountTest < ApplicationSystemTestCase
     assert_no_selector "#sidebar-scroll a[data-active-account]", visible: :all
   end
 
-  test "a wide screen never loads the mobile sidebar" do
-    visit account_path(accounts(:depository))
-
-    assert_selector "turbo-frame#mobile-account-sidebar:not([complete])", visible: :all
-    assert_no_selector "turbo-frame#mobile-account-sidebar a[data-sidebar-account-id]", visible: :all
-  end
-
-  test "on a phone the mobile sidebar loads and highlights the open account" do
+  test "on a phone the drawer highlights the open account" do
     page.driver.browser.manage.window.resize_to(390, 844)
     account = accounts(:depository)
     visit account_path(account)
 
     find("nav.lg\\:hidden [data-action*='app-layout#openMobileSidebar']", match: :first).click
 
-    within "turbo-frame#mobile-account-sidebar" do
+    within "[data-app-layout-target='mobileSidebar']" do
       link = find("[role=tabpanel]:not(.hidden) a[data-sidebar-account-id='#{account.id}']")
-      assert link[:class].split.include?("bg-container")
       assert_equal "true", link["data-active-account"]
+      assert link[:class].split.include?("bg-container")
       assert link.ancestor("details")[:open]
     end
   end

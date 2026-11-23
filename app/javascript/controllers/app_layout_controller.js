@@ -3,12 +3,7 @@ import { markLayoutAnimating } from "utils/layout_animating";
 
 // Connects to data-controller="dialog"
 export default class extends Controller {
-  static targets = [
-    "leftSidebar",
-    "rightSidebar",
-    "mobileSidebar",
-    "mobileSidebarFrame",
-  ];
+  static targets = ["leftSidebar", "rightSidebar", "mobileSidebar"];
   static values = { userId: String };
   static classes = [
     "expandedSidebar",
@@ -16,15 +11,6 @@ export default class extends Controller {
     "expandedTransition",
     "collapsedTransition",
   ];
-
-  // The mobile account sidebar is a lazy frame. Below the lg breakpoint, where
-  // the drawer can open, it loads right away so it is ready when opened; on a
-  // wider screen it is never shown and never loaded.
-  mobileSidebarFrameTargetConnected(frame) {
-    if (window.matchMedia("(max-width: 63.999rem)").matches) {
-      frame.loading = "eager";
-    }
-  }
 
   openMobileSidebar() {
     this.mobileSidebarTarget.classList.remove("hidden");

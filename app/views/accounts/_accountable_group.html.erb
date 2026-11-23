@@ -4,7 +4,7 @@
 <div id="<%= copy %>" data-group-key="<%= account_group.key %>">
   <%# The sidebar is cached once for every page, so the group holding the
       open account is opened, and its link highlighted, in the browser
-      (sidebar-active-account in the application layout). %>
+      (markActiveSidebarAccount in the application layout). %>
   <% is_open = open.nil? ? Current.user.always_expanded_account_group?(account_group.key) : open %>
   <%# The summary owns the name's slide: it is what a tap or keyboard focus
       lands on (sidebar_name_marquee_controller). %>

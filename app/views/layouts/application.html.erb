@@ -43,18 +43,12 @@ end %>
         </div>
       <% end %>
 
-      <%# Loaded on a screen that shows it (app_layout_controller), or when the
-          drawer opens, so a desktop page render doesn't build a second copy
-          of the sidebar. A refresh after a sync reloads a loaded copy. %>
-      <%= turbo_frame_tag "mobile-account-sidebar",
-            src: sidebar_accounts_path(account_sidebar_tab: @account_group_tab),
-            loading: :lazy,
-            refresh: :morph,
-            data: { app_layout_target: "mobileSidebarFrame" } do %>
-        <div class="flex justify-center py-6">
-          <%= icon "loader", size: "sm", class: "animate-spin" %>
-        </div>
-      <% end %>
+      <%= render(
+        "accounts/account_sidebar_tabs",
+        family: Current.family,
+        active_tab: @account_group_tab,
+        mobile: true
+      ) %>
     </div>
 
     <%# MOBILE - Top nav %>
@@ -159,6 +153,32 @@ end %>
       </div>
     <% end %>
 
+    <%# The account sidebar is cached once for every page, so the open
+        account's link is highlighted and its group opened in the browser,
+        from the id this layout carries outside the cache. This runs before
+        the main content is parsed, so a full load paints the sidebar marked;
+        on a Turbo visit or morph refresh the script below marks the incoming
+        body before it is shown. %>
+    <script nonce="<%= content_security_policy_nonce %>">
+      window.markActiveSidebarAccount = function (root) {
+        var holder = root.querySelector("[data-sidebar-active-account-id]");
+        var activeId = holder ? holder.getAttribute("data-sidebar-active-account-id") : "";
+        Array.prototype.slice.call(root.querySelectorAll("a[data-sidebar-account-id]")).forEach(function (link) {
+          var active = !!activeId && link.getAttribute("data-sidebar-account-id") === activeId;
+          link.classList.toggle("bg-container", active);
+          link.classList.toggle("hover:bg-surface-hover", !active);
+          if (active) {
+            link.setAttribute("data-active-account", "true");
+            var group = link.closest("details");
+            if (group) group.open = true;
+          } else {
+            link.removeAttribute("data-active-account");
+          }
+        });
+      };
+      window.markActiveSidebarAccount(document);
+    </script>
+
     <%# SHARED - Main content %>
     <%# On phones the bottom padding keeps the page, full-height pages too,
         above the bottom nav. Safari can leave a scroll container's bottom
@@ -256,9 +276,9 @@ end %>
   // navigations so the sidebar height stays stable and the scroll position
   // (restored by the `preserve-scroll` controller) is not clamped to the top.
   //
-  // Each account group is a <details> whose open state is decided server-side:
-  // a group is open when it holds the active account or is in the user's
-  // "always expanded" preference. Navigating between accounts re-renders a
+  // Each account group is a <details>: open when it is in the user's "always
+  // expanded" preference (server-side) or holds the active account
+  // (markActiveSidebarAccount, above). Navigating between accounts re-renders a
   // different set of open groups, which changes the sidebar's scrollHeight.
   // If the new sidebar is shorter than the saved offset, the browser clamps
   // the restored scrollTop to the new maximum and the user sees the sidebar
@@ -345,7 +365,7 @@ end %>
     }
 
     // Key of the group holding the active account, or null. The active account
-    // link is marked data-active-account in the sidebar partial; every copy of
+    // link is marked data-active-account by markActiveSidebarAccount; every copy of
     // the account (per tab panel, desktop + mobile) shares the same group key,
     // so the first match resolves to the right group.
     function activeGroupKey() {
@@ -373,8 +393,8 @@ end %>
       if (!el || !state.groupStates) return;
       var activeKey = activeGroupKey();
       // Re-apply the user's pre-navigation open/closed state to every group we
-      // captured. A group the user collapsed stays closed even if the server
-      // re-opens it (active account or "always expanded" preference); the group
+      // captured. A group the user collapsed stays closed even if the new page
+      // opens it ("always expanded" preference); the group
       // holding the active account is forced open so it is never hidden.
       // Groups not in state.groupStates (new since capture) are left as the
       // server rendered them.
@@ -390,44 +410,14 @@ end %>
       if (typeof state.scrollTop === "number") el.scrollTop = state.scrollTop;
     }
 
-    // The sidebar fragment is cached once for every page, so the open
-    // account's link is highlighted and its group opened here, from the id
-    // the layout carries outside the cache. On a Turbo visit or a morph
-    // refresh this runs on the incoming body before it is shown, so the
-    // highlight never flickers and a morph never closes the group again.
-    function markActiveAccount(root, idSource) {
-      var holder = (idSource || root).querySelector("[data-sidebar-active-account-id]");
-      var activeId = holder ? holder.getAttribute("data-sidebar-active-account-id") : "";
-      Array.prototype.slice.call(root.querySelectorAll("a[data-sidebar-account-id]")).forEach(function (link) {
-        var active = !!activeId && link.getAttribute("data-sidebar-account-id") === activeId;
-        link.classList.toggle("bg-container", active);
-        link.classList.toggle("hover:bg-surface-hover", !active);
-        if (active) {
-          link.setAttribute("data-active-account", "true");
-          var group = link.closest("details");
-          if (group) group.open = true;
-        } else {
-          link.removeAttribute("data-active-account");
-        }
-      });
-    }
-
     if (!window.__sidebarScrollPreserveBound) {
       window.__sidebarScrollPreserveBound = true;
       window.addEventListener("turbo:before-cache", capture);
       window.addEventListener("turbo:before-render", function (event) {
-        if (event.detail && event.detail.newBody) markActiveAccount(event.detail.newBody);
+        if (event.detail && event.detail.newBody) window.markActiveSidebarAccount(event.detail.newBody);
       });
       window.addEventListener("turbo:render", restore);
-      // The mobile sidebar arrives in its own frame request, whose path is
-      // not the account's, so it takes the page's id.
-      window.addEventListener("turbo:before-frame-render", function (event) {
-        if (event.target.id === "mobile-account-sidebar" && event.detail && event.detail.newFrame) {
-          markActiveAccount(event.detail.newFrame, document);
-        }
-      });
     }
-    markActiveAccount(document);
     restore();
   })();
 

@@ -2347,42 +2347,6 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-sidebar-active-account-id='']"
   end
 
-  test "the page leaves the mobile sidebar to a lazy frame" do
-    get account_url(@account)
-
-    assert_select "turbo-frame#mobile-account-sidebar[loading=lazy][refresh=morph][src=?]",
-                  sidebar_accounts_path(account_sidebar_tab: "asset")
-    assert_select "turbo-frame#mobile-account-sidebar [data-sortable-list-id], turbo-frame#mobile-account-sidebar a[data-sidebar-account-id]", count: 0
-    assert_select "#sidebar-scroll a[data-sidebar-account-id=?]", @account.id
-  end
-
-  test "the mobile sidebar frame holds the sidebar for the chosen tab" do
-    get sidebar_accounts_url(account_sidebar_tab: "liability"), headers: { "Turbo-Frame" => "mobile-account-sidebar" }
-
-    assert_response :success
-    assert_select "turbo-frame#mobile-account-sidebar a[data-sidebar-account-id=?]", accounts(:credit_card).id
-    assert_select "turbo-frame#mobile-account-sidebar [id^='mobile_']"
-    assert_select "turbo-frame#mobile-account-sidebar [role=tabpanel][data-id=liability]:not(.hidden)"
-    assert_select "turbo-frame#mobile-account-sidebar [role=tabpanel][data-id=asset].hidden"
-  end
-
-  test "the mobile sidebar is not a page of its own" do
-    get sidebar_accounts_url
-
-    assert_redirected_to accounts_path
-  end
-
-  test "the mobile sidebar shows a member only the accounts shared with them" do
-    sign_in member = users(:family_member)
-    hidden = member.family.accounts.where.not(id: member.accessible_accounts.select(:id)).first
-    skip "fixture member can see every account" unless hidden
-
-    get sidebar_accounts_url, headers: { "Turbo-Frame" => "mobile-account-sidebar" }
-
-    assert_response :success
-    assert_select "a[data-sidebar-account-id=?]", hidden.id, count: 0
-  end
-
   test "sidebar shows drag handles only with the manual account order" do
     get account_url(@account)
     assert_select "[data-controller~='sortable-list']", count: 0

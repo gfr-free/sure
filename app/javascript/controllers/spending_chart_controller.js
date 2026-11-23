@@ -13,7 +13,7 @@ import SettledResize from "utils/settled_resize";
 const CURRENT_COLOR = "var(--color-success)";
 // Compared months, newest first; the server offers at most this many.
 const COMPARISON_COLORS = [
-  "var(--color-gray-400)",
+  "var(--utility-bg-subdued)",
   "var(--color-blue-500)",
   "var(--color-violet-500)",
   "var(--color-orange-500)",
@@ -212,7 +212,7 @@ export default class extends Controller {
       .attr("x2", innerWidth)
       .attr("y1", (d) => y(d))
       .attr("y2", (d) => y(d))
-      .attr("stroke", "var(--color-gray-300)")
+      .attr("stroke", "var(--utility-border-primary)")
       .attr("stroke-dasharray", "4, 4")
       .attr("stroke-opacity", 0.6);
 

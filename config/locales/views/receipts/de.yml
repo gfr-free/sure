@@ -22,7 +22,7 @@ de:
       title: Belege
       preview: Vorschau
       upload_title: Belege hinzufügen
-      upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Sure liest Händler, Datum und Betrag aus, danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
+      upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Aus PDFs mit lesbarem Text liest Sure Händler, Datum und Betrag aus, bei Fotos trägst du sie selbst ein. Danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
       files_label: Dateien
       camera_label: Foto aufnehmen
       upload: Hochladen

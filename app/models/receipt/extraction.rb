@@ -22,6 +22,9 @@ class Receipt::Extraction
   # is capped.
   MAX_RAW_TEXT_LENGTH = 20_000
   MAX_PDF_PAGES = 5
+  # Parsing and masking run on at most this much text per page, so a page full
+  # of text cannot make them slow. A receipt's header and total fit well within.
+  MAX_PAGE_TEXT_LENGTH = 20_000
   REQUIRED_FIELDS = %w[amount date].freeze
 
   attr_reader :receipt
@@ -58,7 +61,7 @@ class Receipt::Extraction
     end
 
     def pdf_text
-      Pdf::TextExtractor.pages(content, max_pages: MAX_PDF_PAGES).join("\n")
+      Pdf::TextExtractor.pages(content, max_pages: MAX_PDF_PAGES).map { _1.first(MAX_PAGE_TEXT_LENGTH) }.join("\n")
     rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError, PDF::Reader::EncryptedPDFError
       raise Error, "unreadable_pdf"
     end

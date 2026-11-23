@@ -715,7 +715,7 @@ class Transaction < ApplicationRecord
   private
     # Moves the pending transaction's attachments (the attachment rows themselves, so the
     # blobs are not purged with the pending entry), its tags and its linked receipts
-    # to the posted one.
+    # to the posted one, which also keeps the note that a receipt created it.
     def carry_over_user_additions(from:, to:)
       if from.attachments.attached?
         # A blob already attached to the posted transaction would collide with the
@@ -729,7 +729,11 @@ class Transaction < ApplicationRecord
 
       # Receipts linked to the pending transaction follow it, so the inbox keeps
       # pointing at the transaction that holds their copy.
+      created_from_receipt = from.created_from_receipt?
       from.receipts.update_all(transaction_id: to.id)
+      if created_from_receipt && to.extra&.dig("created_from_receipt") != true
+        to.update_columns(extra: (to.extra || {}).merge("created_from_receipt" => true))
+      end
     end
 
     def attachment_count_after_merge(from:, to:)

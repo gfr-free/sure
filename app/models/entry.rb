@@ -358,6 +358,11 @@ class Entry < ApplicationRecord
 
         unless dry_run
           pending_entry.update!(excluded: true)
+          # The booked copy carries on the user's review mark, as a manual merge does.
+          if (posted_tx = posted_match.entryable).is_a?(Transaction)
+            review_attrs = posted_tx.review_attributes_taken_from(pending_entry.entryable)
+            posted_tx.update!(review_attrs) if review_attrs.any?
+          end
           Rails.logger.info("Reconciled pending→posted duplicate: excluded entry #{pending_entry.id} (#{pending_entry.name}) matched to #{posted_match.id}")
         end
         next
@@ -717,8 +722,19 @@ class Entry < ApplicationRecord
     with_split_lock do
       next false unless split_parent?
 
+      previous_marks = child_entries.order(:created_at, :id).includes(:entryable).map { |child| child.entryable.try(:review_attributes) }
       unsplit!
       children = split!(splits)
+
+      # Editing amounts keeps each part's own review mark; with a different
+      # number of parts there is no telling which is which, so they all take
+      # the combined mark unsplit! gave the parent.
+      if previous_marks.size == children.size
+        children.zip(previous_marks).each do |child, marks|
+          child.entryable.update!(marks) if marks && child.entryable.is_a?(Transaction)
+        end
+      end
+
       yield children if block_given?
       true
     end
@@ -763,7 +779,9 @@ class Entry < ApplicationRecord
           category_id: split_attrs[:category_id],
           merchant_id: split_attrs[:merchant_id].presence || entryable.try(:merchant_id),
           tag_ids: split_attrs[:tag_ids] || [],
-          kind: entryable.try(:kind)
+          kind: entryable.try(:kind),
+          # Each part keeps the parent's review mark.
+          **(entryable.try(:review_attributes) || {})
         )
         if lock_attributes
           locked_at = Time.current
@@ -804,7 +822,15 @@ class Entry < ApplicationRecord
   # Removes split children and restores parent entry.
   def unsplit!
     self.class.transaction do
-      child_entries.each do |child|
+      children = child_entries.includes(:entryable).to_a
+
+      # The parent takes back its parts' review marks: flagged if any part
+      # was, reviewed if all were, otherwise open.
+      if entryable.is_a?(Transaction) && children.any?
+        entryable.update!(Transaction.combined_review_attributes(children.map(&:entryable).grep(Transaction)))
+      end
+
+      children.each do |child|
         child.unsplitting = true
         child.destroy!
       end

@@ -461,4 +461,34 @@ class Transaction::MergeWithDuplicateTest < ActiveSupport::TestCase
     assert_includes posted_tx.tags, reimbursable
     assert_equal "Lunch with client", @posted_entry.reload.notes
   end
+
+  test "merge keeps the pending transaction's review mark when the posted one has none" do
+    Transaction.set_review_state!(Transaction.where(id: @pending_entry.entryable_id), "flagged", user: users(:family_admin))
+
+    @pending_entry.transaction.merge_with_duplicate!
+
+    posted = @posted_entry.reload.transaction
+    assert posted.review_flagged?
+    assert_equal users(:family_admin).id, posted.review_state_changed_by_id
+  end
+
+  test "merge lets flagged win over reviewed" do
+    Transaction.set_review_state!(Transaction.where(id: @pending_entry.entryable_id), "flagged", user: users(:family_admin))
+    Transaction.set_review_state!(Transaction.where(id: @posted_entry.entryable_id), "reviewed", user: users(:family_member))
+
+    @pending_entry.transaction.merge_with_duplicate!
+
+    assert @posted_entry.reload.transaction.review_flagged?
+  end
+
+  test "merge keeps the posted transaction's own mark otherwise" do
+    Transaction.set_review_state!(Transaction.where(id: @pending_entry.entryable_id), "reviewed", user: users(:family_admin))
+    Transaction.set_review_state!(Transaction.where(id: @posted_entry.entryable_id), "flagged", user: users(:family_member))
+
+    @pending_entry.transaction.merge_with_duplicate!
+
+    posted = @posted_entry.reload.transaction
+    assert posted.review_flagged?
+    assert_equal users(:family_member).id, posted.review_state_changed_by_id
+  end
 end

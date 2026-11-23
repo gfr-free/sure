@@ -629,6 +629,7 @@ Rails.application.routes.draw do
     resource :merchant_filter, only: :show
     resource :bulk_update, only: %i[new create]
     resource :bulk_transfer_unlink, only: :create
+    resource :bulk_review_state, only: :create
     resource :categorize, only: %i[show create] do
       patch :assign_entry, on: :collection
       get :preview_rule, on: :collection
@@ -643,6 +644,7 @@ Rails.application.routes.draw do
     resource :pending_duplicate_merges, only: %i[new create]
     resource :category, only: :update, controller: :transaction_categories
     resource :counterparty, only: :update, controller: "transactions/counterparties"
+    resource :review_state, only: :update, controller: "transactions/review_states"
     resources :attachments, only: %i[show create destroy], controller: :transaction_attachments
     resources :paperless_links, only: %i[new create destroy], controller: :transaction_paperless_links do
       get "thumbs/:document_id", action: :thumb, on: :collection, as: :thumb, constraints: { document_id: /\d+/ }

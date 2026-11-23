@@ -1,0 +1,25 @@
+<%# Bulk review mark for the selected transactions (preview). Read-only rows
+    in the selection are skipped by the controller. %>
+<% if preview_features_enabled? && !Current.user.guest? %>
+  <div data-bulk-select-target="reviewMenu">
+    <%= render DS::Menu.new(variant: "button") do |menu| %>
+      <% menu.with_button(
+          class: "p-1.5 group/review hover:bg-inverse flex items-center justify-center rounded-md",
+          aria: { label: t("transactions.selection_bar.review") }
+        ) do %>
+        <%= icon "flag", class: "group-hover/review:text-inverse" %>
+      <% end %>
+
+      <% Transaction::REVIEW_STATE_FILTER_VALUES.reverse.each do |state| %>
+        <% menu.with_item(
+            variant: "button",
+            text: t("transactions.review_state.actions.#{state}"),
+            icon: state == Transaction::REVIEW_STATE_OPEN ? "rotate-ccw" : review_state_icon(state),
+            href: transactions_bulk_review_state_path(bulk_review_state: { state: state }),
+            method: :post,
+            frame: :_top
+          ) %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

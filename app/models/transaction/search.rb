@@ -189,6 +189,7 @@ class Transaction::Search
   attribute :tags, array: true
   attribute :ai_status, array: true
   attribute :attachment_status, array: true
+  attribute :review_state, array: true
   attribute :active_accounts_only, :boolean, default: true
 
   attr_reader :family, :accessible_account_ids
@@ -218,6 +219,7 @@ class Transaction::Search
       query = self.class.apply_tag_filter(query, tags)
       query = apply_ai_status_filter(query, ai_status)
       query = apply_attachment_status_filter(query, attachment_status)
+      query = apply_review_state_filter(query, review_state)
       query = EntrySearch.apply_search_filter(query, search)
       query = EntrySearch.apply_date_filters(query, start_date, end_date)
       query = EntrySearch.apply_amount_filter(query, amount, amount_operator)
@@ -392,6 +394,17 @@ class Transaction::Search
       SQL
 
       wanted == [ "with" ] ? query.where(attached_sql) : query.where.not(attached_sql)
+    end
+
+    # Filter by the manual review mark: "open" (no mark), "flagged" and
+    # "reviewed", in any combination. All three selected is no filter.
+    def apply_review_state_filter(query, states)
+      wanted = Array(states) & Transaction::REVIEW_STATE_FILTER_VALUES
+      return query if wanted.empty? || wanted.size == Transaction::REVIEW_STATE_FILTER_VALUES.size
+
+      marks = wanted - [ Transaction::REVIEW_STATE_OPEN ]
+      marks << nil if wanted.include?(Transaction::REVIEW_STATE_OPEN)
+      query.where(transactions: { review_state: marks })
     end
 
     # Filter transactions by status (pending or confirmed)

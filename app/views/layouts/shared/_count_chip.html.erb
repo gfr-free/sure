@@ -1,0 +1,5 @@
+<%# locals: (count:, position_class: "top-1 right-1") %>
+<%# Small inverse count chip pinned to the corner of a relative nav icon.
+    Hand-rolled rather than DS::Pill: the pill's filled neutral tone is not
+    theme-swapped and disappears on dark nav surfaces. %>
+<span class="<%= class_names("absolute min-w-4 h-4 px-1 rounded-full bg-inverse text-inverse text-[10px] font-medium flex items-center justify-center pointer-events-none", position_class) %>"><%= count > 9 ? "9+" : count %></span>

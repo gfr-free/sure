@@ -1,0 +1,23 @@
+---
+de:
+  reviews:
+    kinds:
+      uncategorized:
+        label: Ohne Kategorie
+      no_merchant:
+        label: Ohne Händler
+      long_pending:
+        label: Länger als %{days} Tage vorgemerkt
+      possible_duplicate:
+        label: Mögliche Duplikate
+      transfer_suggestion:
+        label: Überweisungs-Vorschläge
+    show:
+      title: Prüfen
+      subtitle: Buchungen, die noch Arbeit brauchen. Filter schränken alle Zähler ein.
+      kinds_label: Was zu prüfen ist
+      quick_categorize: Schnell kategorisieren
+      open_auto_matches: Alle Vorschläge prüfen
+      empty:
+        title: Hier ist nichts zu prüfen
+        description: Keine Buchung in dieser Gruppe passt zu den aktuellen Filtern.

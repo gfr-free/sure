@@ -19,6 +19,7 @@ en:
         portfolio: Portfolio
         people: People
         reports: Reports
+        review: Review
         goals: Goals
         transactions: Transactions
     auth:

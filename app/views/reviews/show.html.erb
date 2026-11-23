@@ -1,0 +1,101 @@
+<div class="space-y-4 pb-6 lg:pb-12 flex flex-col">
+  <header class="flex justify-between items-center gap-4 text-primary font-medium">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-xl"><%= t(".title") %></h1>
+        <%= render DS::Pill.new(label: t("shared.preview"), size: :md) %>
+      </div>
+      <p class="text-sm text-secondary font-normal"><%= t(".subtitle") %></p>
+    </div>
+
+    <% if @kind == "uncategorized" && Transaction::ReviewQueue.badge_count.positive? %>
+      <%= render DS::Link.new(
+        text: t(".quick_categorize"),
+        icon: "tag",
+        variant: "outline",
+        href: transactions_categorize_path,
+        frame: :_top
+      ) %>
+    <% elsif @kind == "transfer_suggestion" && @queue.counts["transfer_suggestion"].positive? %>
+      <%= render DS::Link.new(
+        text: t(".open_auto_matches"),
+        icon: "link-2",
+        variant: "outline",
+        href: auto_matches_path,
+        frame: :_top
+      ) %>
+    <% end %>
+  </header>
+
+  <div>
+    <%= form_with url: review_path,
+          id: "review-search",
+          scope: :q,
+          method: :get,
+          data: { controller: "auto-submit-form" } do |form| %>
+      <%= hidden_field_tag :kind, @kind %>
+      <%= hidden_field_tag :per_page, params[:per_page] %>
+
+      <div class="flex gap-2">
+        <%= render DS::SearchInput.new(
+              name: "q[search]",
+              value: @q[:search],
+              placeholder: t("transactions.searches.form.search_placeholder"),
+              class: "grow",
+              data: { auto_submit_form_target: "auto" }
+            ) %>
+
+        <%= render DS::Popover.new(variant: "button", no_padding: true) do |popover| %>
+          <% popover.with_button(
+            id: "review-filters-button",
+            type: "button",
+            text: t("transactions.searches.form.filter"),
+            variant: "outline",
+            icon: "list-filter"
+          ) %>
+
+          <% popover.with_custom_content do %>
+            <%= render "transactions/searches/menu",
+                  form: form,
+                  clear_filters_path: review_path(kind: @kind, per_page: params[:per_page]) %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% filter_badges = @q.except(:amount_operator) %>
+    <% if filter_badges.present? %>
+      <ul id="review-filters" class="flex items-center flex-wrap gap-2 mt-4">
+        <% filter_badges.each do |param_key, param_value| %>
+          <% if param_key == "amount" %>
+            <%= render "transactions/searches/filters/badge",
+                  param_key: "amount",
+                  param_value: "#{transaction_amount_operator_label(@q[:amount_operator])} #{param_value}",
+                  clear_filter_path: clear_filter_review_path(param_key: "amount", param_value: param_value, **request.query_parameters) %>
+          <% else %>
+            <% Array(param_value).each do |value| %>
+              <%= render "transactions/searches/filters/badge",
+                    param_key: param_key,
+                    param_value: value,
+                    clear_filter_path: clear_filter_review_path(param_key: param_key, param_value: value, **request.query_parameters) %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+
+  <nav aria-label="<%= t(".kinds_label") %>" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+    <% Transaction::ReviewQueue::KINDS.each do |kind| %>
+      <%= render "reviews/kind_tile", kind: kind, count: @queue.counts[kind], active: kind == @kind, q: @q %>
+    <% end %>
+  </nav>
+
+  <% if @pagy.count.zero? %>
+    <div class="bg-container rounded-xl shadow-border-xs">
+      <%= render DS::EmptyState.new(icon: "check", title: t(".empty.title"), description: t(".empty.description")) %>
+    </div>
+  <% else %>
+    <%= render "transactions/list", transactions: @transactions, projected_recurring: @projected_recurring, q: @q, pagy: @pagy, toolbar: false %>
+  <% end %>
+</div>

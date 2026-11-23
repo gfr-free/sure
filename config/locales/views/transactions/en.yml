@@ -297,6 +297,7 @@ en:
       edit_imports: "Edit imports"
       receipts: "Receipts"
       new_transaction: "New transaction"
+      review: "Review"
       categorize_button:
         one: "Categorize (1)"
         other: "Categorize (%{count})"

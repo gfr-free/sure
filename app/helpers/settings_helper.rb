@@ -46,6 +46,11 @@ module SettingsHelper
     }
   end
 
+  # [month name, month number] pairs in the active locale, January first.
+  def fiscal_year_start_month_options
+    t("date.month_names").compact.each_with_index.map { |name, index| [ name, index + 1 ] }
+  end
+
   def settings_section(title: nil, subtitle: nil, collapsible: false, open: true, auto_open_param: nil, status: nil, meta: nil, actions: nil, badge: nil, &block)
     content = capture(&block)
     render partial: "settings/section", locals: { title: title, subtitle: subtitle, content: content, collapsible: collapsible, open: open, auto_open_param: auto_open_param, status: status, meta: meta, actions: actions, badge: badge }

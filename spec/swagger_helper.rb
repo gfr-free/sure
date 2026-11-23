@@ -477,7 +477,7 @@ RSpec.configure do |config|
           },
           FamilySettings: {
             type: :object,
-            required: %w[id currency locale date_format month_start_day moniker default_account_sharing custom_enabled_currencies enabled_currencies created_at updated_at],
+            required: %w[id currency locale date_format month_start_day fiscal_year_start_month moniker default_account_sharing custom_enabled_currencies enabled_currencies created_at updated_at],
             properties: {
               id: { type: :string, format: :uuid },
               name: { type: :string, nullable: true },
@@ -487,6 +487,7 @@ RSpec.configure do |config|
               country: { type: :string, nullable: true },
               timezone: { type: :string, nullable: true },
               month_start_day: { type: :integer, minimum: 1, maximum: 28 },
+              fiscal_year_start_month: { type: :integer, minimum: 1, maximum: 12 },
               moniker: { type: :string, enum: Family::MONIKERS },
               default_account_sharing: { type: :string, enum: %w[shared private] },
               custom_enabled_currencies: { type: :boolean },

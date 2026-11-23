@@ -96,7 +96,7 @@ class Assistant::Function::GetBalanceSheet < Assistant::Function
           end_date: Date.parse(params["end_date"])
         )
       elsif Period.valid_key?(params["period"].to_s)
-        Period.from_key(params["period"])
+        Period.from_key_for(params["period"], family)
       else
         observation_start_date = [ 5.years.ago.to_date, family.oldest_entry_date ].max
         Period.custom(start_date: observation_start_date, end_date: Date.current)

@@ -580,6 +580,37 @@ class RecurringTransaction < ApplicationRecord
     later ? later.previous_amount : amount
   end
 
+  # Confirmed payments since the family's year started: its fiscal year when
+  # it has one, else the calendar year.
+  def paid_this_year_amount
+    confirmed_payment_allocations
+      .where("recurring_allocations.paid_on >= ?", family.fiscal_year_start_for(Date.current))
+      .sum(:allocated_amount)
+  end
+
+  # Total and average payment per year, newest year first, counted by the
+  # family's fiscal year. Shifting the due date back by the fiscal year's
+  # offset from January 1 lets Postgres truncate to the right year.
+  def yearly_payment_metrics(limit: 4)
+    offset_months, offset_days = family.uses_fiscal_year? ? [ family.fiscal_year_start_month - 1, family.month_start_day - 1 ] : [ 0, 0 ]
+    year_sql = Arel.sql(self.class.sanitize_sql_array([
+      "date_trunc('year', recurring_occurrences.due_on - make_interval(months => ?, days => ?))", offset_months, offset_days
+    ]))
+
+    totals = confirmed_payment_allocations.group(year_sql).sum(:allocated_amount)
+    counts = confirmed_payment_allocations.group(year_sql).count
+
+    totals.map do |year, total|
+      year_start = family.fiscal_year_starting_in(year.to_date.year)
+      {
+        year: year_start.year,
+        label: family.fiscal_year_label(year_start),
+        total: Money.new(total, currency),
+        average: Money.new(total / counts.fetch(year, 1), currency)
+      }
+    end.sort_by { |row| -row[:year] }.first(limit)
+  end
+
   # The newest price changes, most recent first. Sorts in Ruby when a caller
   # preloaded the association so the detail panel costs no extra query.
   def recent_price_changes(count = 5)
@@ -1138,6 +1169,11 @@ class RecurringTransaction < ApplicationRecord
   end
 
   private
+    def confirmed_payment_allocations
+      RecurringAllocation.confirmed
+        .joins(:recurring_occurrence)
+        .where(recurring_occurrences: { recurring_transaction_id: id })
+    end
     # Issue #1590: a recurring transfer's future occurrences rarely share the
     # seed's name (user free-text, importer wording, the auto-matcher's
     # "Transfer to ..."), so name-based matching returns [] and the Cleaner

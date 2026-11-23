@@ -938,6 +938,28 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
     assert_match "$78.50", response.body
   end
 
+  # With a fiscal year from April, "Paid this year" and the per-year table
+  # count from April instead of January.
+  test "bill history follows the family's fiscal year" do
+    @family.update!(fiscal_year_start_month: 4)
+
+    travel_to Date.new(2026, 11, 19) do
+      bill = create_bill(name: "Water Co", amount: 50)
+      [ [ Date.new(2026, 3, 15), 50 ], [ Date.new(2026, 5, 15), 70 ] ].each do |due, charged|
+        occurrence = bill.recurring_occurrences.create!(
+          family: @family, original_due_on: due, due_on: due, currency: "USD")
+        RecurringTransaction::Allocator.new(occurrence).allocate!(amount: charged.to_s, paid_on: due)
+      end
+
+      get_bill_history(bill)
+
+      assert_response :success
+      assert_select "div", text: /#{I18n.t("bills.detail.ytd")}\s*\$70\.00/
+      assert_select "p.text-secondary", text: "2026/27"
+      assert_select "p.text-secondary", text: "2025/26"
+    end
+  end
+
   # There is no bill page: everything about a bill is in its drawer, and its
   # actions sit in the drawer's header.
   test "the drawer is the whole bill, actions included" do

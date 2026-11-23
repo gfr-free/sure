@@ -13,6 +13,11 @@ de:
       comparison_label: vs. Wochenstart
       label: Aktuelle Woche
       label_short: Woche
+    fiscal_year_label: "%{start_year}/%{end_year}"
+    current_fiscal_year:
+      comparison_label: vs. Beginn des Geschäftsjahres
+      label: Aktuelles Geschäftsjahr
+      label_short: GJ
     current_year:
       comparison_label: vs. Jahresstart
       label: Aktuelles Jahr

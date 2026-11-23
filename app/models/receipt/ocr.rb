@@ -268,7 +268,8 @@ class Receipt::Ocr
 
     def result_for(pages)
       confidences = pages.flat_map { _1[:confidences] }
-      text = Receipt::Ocr::TextCleanup.call(pages.map { _1[:text] }.join("\n"))
+      # Capped per page like a PDF text layer, so parsing stays fast.
+      text = Receipt::Ocr::TextCleanup.call(pages.map { _1[:text].first(Receipt::Extraction::MAX_PAGE_TEXT_LENGTH) }.join("\n"))
       confidence = confidences.any? ? (confidences.sum / confidences.size / 100.0).round(2) : 0.0
       Result.new(text: text, confidence: confidence)
     end

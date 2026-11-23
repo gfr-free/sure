@@ -21,7 +21,7 @@ en:
       title: Receipts
       preview: Preview
       upload_title: Add receipts
-      upload_description: Photos (JPEG, PNG, WebP, GIF) or PDFs, up to %{max_size} MB each. Sure reads the merchant, date and amount, then you link each receipt to a transaction or record it as a new one.
+      upload_description: Photos (JPEG, PNG, WebP, GIF) or PDFs, up to %{max_size} MB each. Sure reads the merchant, date and amount from PDFs with readable text; for photos you enter them yourself. Then you link each receipt to a transaction or record it as a new one.
       files_label: Files
       camera_label: Take a photo
       upload: Upload

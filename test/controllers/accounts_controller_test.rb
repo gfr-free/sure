@@ -645,10 +645,13 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[role='menuitemradio'][aria-checked='true'][href*='start_date=']", count: 1
   end
 
-  test "show filter menu offers the same filters as transactions except the account tab" do
-    get account_url(@account)
+  test "the activity filter menu offers the same filters as transactions except the account tab" do
+    get activity_filters_account_url(@account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
 
     assert_response :success
+    assert_select "turbo-frame#account-activity-filter-menu"
+    # The account search applies no attachment filter, so the menu leaves it out.
+    assert_select "#transaction-filters-menu button[data-id=?]", "attachment_filter", count: 0
     assert_select "#transaction-filters-menu button[data-id=?]", "account_filter", count: 0
     assert_select "#transaction-filters-menu button[data-id=?]", "category_filter", count: 1
     assert_select "#transaction-filters-menu button[data-id=?]", "tag_filter", count: 1
@@ -682,6 +685,8 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "##{dom_id(cleared)}"
     assert_select "##{dom_id(unreconciled)}", count: 0
+
+    get activity_filters_account_url(@account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
     assert_select "#transaction-filters-menu button[data-id=?]", "reconcile_status_filter"
   end
 
@@ -693,8 +698,11 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     get account_url(synced_account), params: { q: { reconcile_status: [ "unreconciled" ] } }
 
     assert_response :success
-    assert_select "#transaction-filters-menu button[data-id=?]", "reconcile_status_filter", count: 0
     assert_select "##{dom_id(entry)}"
+
+    get activity_filters_account_url(synced_account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }, params: { q: { reconcile_status: [ "unreconciled" ] } }
+    assert_select "#transaction-filters-menu button[data-id=?]", "reconcile_status_filter", count: 0
+    assert_select "#transaction-filters-menu button[data-id=?]", "category_filter", count: 1
   end
 
   test "reconcile_all marks every transaction on a manual account and keeps statement data" do
@@ -913,6 +921,8 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "##{dom_id(transaction)}"
     assert_select "##{dom_id(balance_update)}", count: 0
+
+    get activity_filters_account_url(account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
     assert_select "#transaction-filters-menu button[data-id=?]", "balance_updates_filter", count: 1
     assert_select "input[type=checkbox][name=?]:not([checked])", "q[balance_updates]"
   end
@@ -926,9 +936,11 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "##{dom_id(balance_update)}", text: /Synced balance/
-    # Nothing left to switch in the filter: it shows as on, and points to Preferences.
-    assert_select "input[type=checkbox][name=?][checked][disabled]", "q[balance_updates]"
     assert_select "#account-activity-filters li", count: 0
+
+    # Nothing left to switch in the filter: it shows as on, and points to Preferences.
+    get activity_filters_account_url(account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
+    assert_select "input[type=checkbox][name=?][checked][disabled]", "q[balance_updates]"
   end
 
   test "the activity filter shows balance updates for one view without saving the preference" do
@@ -963,6 +975,9 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "##{dom_id(balance_update)}"
+
+    get activity_filters_account_url(@account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
+    assert_select "#transaction-filters-menu", count: 1
     assert_select "#transaction-filters-menu button[data-id=?]", "balance_updates_filter", count: 0
   end
 
@@ -970,10 +985,50 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     account = accounts(:connected)
     account.entries.balance_updates.destroy_all
 
-    get account_url(account)
+    get activity_filters_account_url(account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
 
     assert_response :success
+    assert_select "#transaction-filters-menu", count: 1
     assert_select "#transaction-filters-menu button[data-id=?]", "balance_updates_filter", count: 0
+  end
+
+  # The menu loads when its popover opens. Until then the active filters ride
+  # along as hidden inputs, so a search typed first keeps them.
+  test "show defers the activity filter menu and keeps the active filters in the search form" do
+    get account_url(@account), params: { q: { categories: [ "Food & Drink" ], amount: "12", amount_operator: "less", search: "grocery" } }
+
+    assert_response :success
+    assert_select "#transaction-filters-menu", count: 0
+    assert_select "form#entries-search turbo-frame#account-activity-filter-menu[loading=lazy]" do |frame|
+      src = frame.first["src"]
+      assert_includes src, activity_filters_account_path(@account)
+      assert_includes CGI.unescape(src), "q[categories][]=Food & Drink"
+    end
+    assert_select "form#entries-search turbo-frame#account-activity-filter-menu input[type=hidden][name=?][value=?]", "q[categories][]", "Food & Drink"
+    assert_select "form#entries-search turbo-frame#account-activity-filter-menu input[type=hidden][name=?][value=?]", "q[amount]", "12"
+    assert_select "form#entries-search turbo-frame#account-activity-filter-menu input[type=hidden][name=?][value=?]", "q[amount_operator]", "less"
+    assert_select "form#entries-search turbo-frame#account-activity-filter-menu input[name=?]", "q[search]", count: 0
+  end
+
+  test "the activity filter menu checks the active filters" do
+    get activity_filters_account_url(@account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }, params: { q: { categories: [ "Food & Drink" ] } }
+
+    assert_response :success
+    assert_select "input[type=checkbox][name=?][value=?][checked]", "q[categories][]", "Food & Drink"
+  end
+
+  test "the activity filter menu does not reach an account in another family" do
+    other_account = Account.create!(
+      family: families(:inactive_trial),
+      name: "Someone else's account",
+      balance: 0,
+      currency: "USD",
+      accountable: Depository.new
+    )
+
+    get activity_filters_account_url(other_account), headers: { "Turbo-Frame" => "account-activity-filter-menu" }
+
+    assert_response :not_found
   end
 
   test "show renders a badge for each active filter" do

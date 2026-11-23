@@ -2,7 +2,7 @@ class AccountsController < ApplicationController
   include StreamExtensions
   include FilterClearable
 
-  before_action :set_account, only: %i[show sparkline sync set_default remove_default clear_filter]
+  before_action :set_account, only: %i[show activity_filters sparkline sync set_default remove_default clear_filter]
   before_action :set_manageable_account, only: %i[logo_options toggle_active toggle_exclude_from_reports reconcile_all destroy unlink confirm_unlink select_provider]
   before_action :ensure_linked_account, only: %i[confirm_unlink unlink]
   include Periodable
@@ -83,6 +83,14 @@ class AccountsController < ApplicationController
     family.request_plaid_transactions_refreshes_later(source: "AccountsController#sync_all")
     family.sync_later
     redirect_to accounts_path, notice: t("accounts.sync_all.syncing")
+  end
+
+  # The activity feed's Filter menu, loaded into its popover when it opens, so
+  # the account page does not build the category, tag and merchant lists on
+  # every view.
+  def activity_filters
+    @q = activity_search_params
+    render layout: false if turbo_frame_request?
   end
 
   def show

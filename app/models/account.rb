@@ -978,6 +978,12 @@ class Account < ApplicationRecord
     linked? && balance_type != :non_cash
   end
 
+  # The activity Filter menu offers to show synced balance updates on an
+  # account that hides them by default, once it has any.
+  def offers_balance_updates_filter?
+    hides_balance_updates_by_default? && entries.balance_updates.exists?
+  end
+
   def owned_by?(user)
     user.present? && owner_id == user.id
   end

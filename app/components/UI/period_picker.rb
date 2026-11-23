@@ -32,7 +32,7 @@ class UI::PeriodPicker < ApplicationComponent
 
   # [key, label] pairs, in menu order.
   def items
-    options || Period.all.map { |period| [ period.key, period.label_short ] }
+    options || Period.key_options
   end
 
   def selected_label

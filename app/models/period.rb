@@ -122,8 +122,14 @@ class Period
       PERIODS.map { |key, period| from_key(key) }
     end
 
+    # [key, short label] for every preset, without evaluating the date ranges:
+    # All Time's range queries the family's first activity.
+    def key_options
+      PERIODS.keys.map { |key| [ key, new(key: key).label_short ] }
+    end
+
     def as_options
-      all.map { |period| [ period.label_short, period.key ] }
+      key_options.map { |key, label| [ label, key ] }
     end
 
     def current_month_for(family)

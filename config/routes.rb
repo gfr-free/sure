@@ -751,6 +751,7 @@ Rails.application.routes.draw do
       post :sync
       get :logo_options
       get :sparkline
+      get :activity_filters
       patch :toggle_active
       patch :toggle_exclude_from_reports
       patch :reconcile_all

@@ -483,6 +483,39 @@ class SyncTest < ActiveSupport::TestCase
     assert_equal new_end,   sync.window_end_date
   end
 
+  # The running sync already calculated from its own window, so a change
+  # dated earlier would otherwise keep stale balances and miss transfer
+  # matching until the next full sync.
+  test "a request reaching before a running sync's window marks it for a full sync" do
+    account = accounts(:depository)
+    running = Sync.create!(syncable: account, status: "syncing", window_start_date: 3.days.ago.to_date)
+
+    assert_no_difference -> { Sync.where(syncable: account).count } do
+      assert_equal running, account.sync_later(window_start_date: 60.days.ago.to_date)
+    end
+
+    assert running.reload.full_resync_requested?
+    assert_equal 3.days.ago.to_date, running.window_start_date
+  end
+
+  test "a request inside a running sync's window does not mark it" do
+    account = accounts(:depository)
+    running = Sync.create!(syncable: account, status: "syncing", window_start_date: 3.days.ago.to_date)
+
+    account.sync_later(window_start_date: 1.day.ago.to_date)
+
+    assert_not running.reload.full_resync_requested?
+  end
+
+  test "a full request marks a running windowed sync" do
+    account = accounts(:depository)
+    running = Sync.create!(syncable: account, status: "syncing", window_start_date: 3.days.ago.to_date)
+
+    account.sync_later
+
+    assert running.reload.full_resync_requested?
+  end
+
   test "a completed sync queues a full follow-up when requested" do
     account = accounts(:loan)
     sync = Sync.create!(syncable: account, full_resync_requested: true)

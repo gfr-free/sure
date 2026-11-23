@@ -61,6 +61,7 @@ vi:
       delete: Xóa
       delete_subtitle: Thao tác này sẽ xóa danh mục nắm giữ và tất cả giao dịch liên quan trong tài khoản này. Không thể hoàn tác.
       delete_title: Xóa danh mục nắm giữ
+      edit_cost_basis: Chỉnh sửa giá trung bình
       edit_security: Chỉnh sửa chứng khoán
       history: Lịch sử
       no_trade_history: Không có lịch sử giao dịch cho danh mục nắm giữ này.

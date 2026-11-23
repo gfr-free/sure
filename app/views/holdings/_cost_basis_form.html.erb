@@ -22,7 +22,7 @@
     form_data[:turbo_confirm] = CustomConfirm.new(
       title: t("holdings.cost_basis_cell.overwrite_confirm_title"),
       body: t("holdings.cost_basis_cell.overwrite_confirm_body", current: format_money(holding.avg_cost))
-    ).to_data_attribute
+    ).to_data_attribute.merge(privacySensitive: true)
   end
 %>
 

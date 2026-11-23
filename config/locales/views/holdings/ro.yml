@@ -25,6 +25,7 @@ ro:
       missing_data: Date lipsă
     show:
       avg_cost_label: Cost mediu
+      edit_cost_basis: Editează costul mediu
       current_market_price_label: Preț curent de piață
       delete: Șterge
       delete_subtitle: Aceasta va șterge deținerea și toate tranzacțiile asociate

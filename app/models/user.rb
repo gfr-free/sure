@@ -423,9 +423,10 @@ class User < ApplicationRecord
   # FOR NO KEY UPDATE still conflicts with every update and delete of this
   # row, but not with the FOR KEY SHARE lock Postgres takes on it whenever
   # another transaction inserts a row pointing at this user (an import
-  # creating owned accounts, a chat, another session). FOR UPDATE would wait
-  # for each of those transactions to commit, holding the sign-in request
-  # and its Puma thread for as long as they run.
+  # creating owned accounts, a chat). FOR UPDATE would wait for each of those
+  # transactions to commit, holding the sign-in request and its Puma thread
+  # for as long as they run. Two sign-ins of the same user still serialize,
+  # both here and on the sessions_count / last_login_at update.
   def with_active_lock!(password_fingerprint: nil)
     lock_acquired = false
 

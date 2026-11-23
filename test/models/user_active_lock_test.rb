@@ -30,7 +30,7 @@ class UserActiveLockTest < ActiveSupport::TestCase
     end
   end
 
-  test "issuing a session still waits on a concurrent delete of the user row" do
+  test "issuing a session still waits on a FOR UPDATE lock, as a delete of the user row takes" do
     with_user_row_held_elsewhere("SELECT 1 FROM users WHERE id = $1 FOR UPDATE") do
       assert_raises(ActiveRecord::LockWaitTimeout) do
         with_short_lock_timeout { @user.with_active_lock! { flunk "lock must not be granted" } }

@@ -588,8 +588,8 @@ class Holding::PortfolioCacheTest < ActiveSupport::TestCase
     assert_equal "CHF", converted_price.currency
   end
 
-  # we-promise/sure#1592: a price in another currency on a day with no rate
-  # close by was taken at 1:1, so the holding showed the raw foreign figure.
+  # A price in another currency on a day with no rate close by converts at the
+  # nearest stored rate, not 1:1.
   test "converts a price at the nearest stored rate when none is close to its date" do
     account = chf_brokerage
     price_date = 2.days.ago.to_date

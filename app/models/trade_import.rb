@@ -1,7 +1,7 @@
 class TradeImport < Import
   def import!
     transaction do
-      mappings.each(&:create_mappable!)
+      mappings_to_create.each(&:create_mappable!)
 
       trades = rows.map do |row|
         mapped_account = if account
@@ -57,9 +57,7 @@ class TradeImport < Import
   def dry_run
     mappings = { transactions: rows_count }
 
-    mappings.merge(
-      accounts: Import::AccountMapping.for_import(self).creational.count
-    ) if account.nil?
+    mappings[:accounts] = Import::AccountMapping.for_import(self).creational.count if account.nil?
 
     mappings
   end

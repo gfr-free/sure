@@ -91,6 +91,36 @@ class Receipt::OcrTest < ActiveSupport::TestCase
     assert_operator prepared.min, :<, 50
   end
 
+  test "a transparent 16-bit image is flattened onto white" do
+    # Black ink everywhere, opaque only where the text is: transparent paper.
+    alpha = Vips::Image.black(400, 200).cast(:ushort).draw_rect(65_535, 100, 80, 200, 40, fill: true)
+    image = Vips::Image.black(400, 200).bandjoin(alpha).cast(:ushort).copy(interpretation: :grey16)
+    prepared = Tempfile.create([ "prepared", ".png" ]) do |file|
+      Receipt::Ocr.new.send(:prepare_image, Vips::Image.pngload_buffer(image.pngsave_buffer(bitdepth: 16)), file.path)
+      Vips::Image.new_from_file(file.path).copy_memory
+    end
+
+    assert_operator prepared.percent(50), :>, 200
+    assert_operator prepared.min, :<, 50
+  end
+
+  test "later PDF pages only get the time left in the budget, and a page cut off keeps the ones read" do
+    Receipt::Ocr.stubs(:installed_languages).returns(%w[eng])
+    Receipt::Ocr.stubs(:run).returns([ "", "", stub(success?: true) ])
+    Dir.stubs(:glob).returns(%w[page-1.png page-2.png])
+    ocr = Receipt::Ocr.new
+    ocr.stubs(:prepare_image)
+    Vips::Image.stubs(:pngload)
+    ocr.stubs(:monotonic_now).returns(0, 80, 80)
+    ocr.expects(:recognize).with(anything, timeout: Receipt::Ocr::COMMAND_TIMEOUT).returns({ text: "SUMME 4,70", confidences: [ 90.0 ] })
+    ocr.expects(:recognize).with(anything, timeout: 10).raises(Receipt::Ocr::Error.new("ocr_timeout"))
+
+    result = ocr.read_pdf("%PDF-1.4", max_pages: 2)
+
+    assert_equal "SUMME 4,70", result.text
+    assert_equal 0.9, result.confidence
+  end
+
   test "refuses an image whose canvas is larger than the pixel limit" do
     Receipt::Ocr.stubs(:installed_languages).returns(%w[eng])
     Receipt::Ocr.expects(:run).never

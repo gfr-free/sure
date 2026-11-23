@@ -56,6 +56,9 @@ class Receipt::Extraction
 
       texts << text
       parsed = Receipt::TextParser.parse(text, currency_hint: receipt.family.currency, merchant_names: merchant_names)
+      # The currency belongs to the amount: a stage that supplies the amount
+      # also decides its currency, even when an earlier stage read one.
+      fields.delete("currency") if parsed.key?("amount") && !fields.key?("amount")
       parsed.each do |field, value|
         value = value.merge(value: Receipt::TextParser.mask(value[:value])) if field == "merchant_name"
         fields[field] ||= value.merge(source: stage[:source], confidence: scaled_confidence(value[:confidence], stage))

@@ -175,7 +175,18 @@ class Receipt::Ocr
 
         prepared = "#{page}.ocr.png"
         prepare_image(Vips::Image.pngload(page), prepared)
-        read << recognize(prepared)
+        # Later pages only get the time left in the budget; the first page is
+        # always read in full so a slow scan still yields something.
+        timeout = read.empty? ? COMMAND_TIMEOUT : (deadline - monotonic_now).clamp(0, COMMAND_TIMEOUT)
+        break if timeout <= 0
+
+        begin
+          read << recognize(prepared, timeout: timeout)
+        rescue Error => e
+          raise if read.empty? || e.code != "ocr_timeout"
+
+          break
+        end
       end
       result_for(read)
     end
@@ -190,13 +201,18 @@ class Receipt::Ocr
       raise Error, "image_too_large" if image.width.to_i * image.height.to_i > MAX_PIXELS
 
       image = image.autorot
-      image = image.flatten(background: [ 255 ] * (image.bands - 1)) if image.has_alpha?
+      # White is 65535 in a 16-bit image, not 255.
+      image = image.flatten(background: [ white_point(image) ] * (image.bands - 1)) if image.has_alpha?
       # Also scales a 16-bit PNG down to 8 bits.
       image = image.colourspace(:b_w)
       image = image.extract_band(0) if image.bands > 1
       image = stretch_contrast(image)
       image = resize(image)
       image.cast(:uchar).pngsave(path)
+    end
+
+    def white_point(image)
+      %i[grey16 rgb16].include?(image.interpretation) ? 65_535 : 255
     end
 
     # Spreads the darkest and brightest percent over the full range, which lifts
@@ -219,11 +235,11 @@ class Receipt::Ocr
       scale ? image.resize(scale) : image
     end
 
-    def recognize(path)
+    def recognize(path, timeout: COMMAND_TIMEOUT)
       raise Error, "ocr_unavailable" if languages.empty?
 
       stdout, _stderr, status = self.class.run(
-        "tesseract", path, "stdout", "-l", languages.join("+"), "--psm", PAGE_SEGMENTATION_MODE, "tsv"
+        "tesseract", path, "stdout", "-l", languages.join("+"), "--psm", PAGE_SEGMENTATION_MODE, "tsv", timeout: timeout
       )
       raise Error, "ocr_failed" unless status.success?
 

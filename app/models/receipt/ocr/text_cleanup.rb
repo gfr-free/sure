@@ -5,6 +5,7 @@
 #
 # - a letter O read for a zero inside a number: "12,3O" → "12,30"
 # - a space after the decimal separator: "SUMME EUR 12, 30" → "SUMME EUR 12,30"
+#   (also with an O among the decimals: "12, 3O" → "12,30")
 #
 # Only tokens shaped like an amount with two decimals are touched; words stay
 # as they are. A split amount is joined only at the end of a line that names a
@@ -13,7 +14,7 @@ module Receipt::Ocr::TextCleanup
   # Digits or O's, a separator, then two digits or O's, with at least one real
   # digit before the separator.
   LETTER_O_AMOUNT = /(?<![[:alpha:]\d])(?=[0-9Oo]*\d)[0-9Oo]{1,7}[.,][0-9Oo]{2}(?![[:alnum:]])/
-  SPLIT_DECIMALS = /(?<=\d)([.,]) (?=\d{2}\s*(?:€|£|\$|[A-Z]{3})?\s*\z)/
+  SPLIT_DECIMALS = /(?<=\d)([.,]) (?=[0-9Oo]{2}\s*(?:€|£|\$|[A-Z]{3})?\s*\z)/
   CURRENCY = /€|£|\$|\b(?:EUR|USD|GBP|CHF)\b/i
 
   def self.call(text)

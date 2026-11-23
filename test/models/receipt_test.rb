@@ -138,6 +138,18 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_nil text_pdf.date
   end
 
+  test "extract! takes the currency from the stage that read the amount" do
+    Receipt::Ocr.stubs(:pdf_available?).returns(true)
+    Receipt::Ocr.any_instance.expects(:read_pdf)
+                .returns(Receipt::Ocr::Result.new(text: "Total 20.00 USD\nDate #{Date.current.iso8601}", confidence: 1.0))
+    scan = upload([ "Total 0.00 EUR" ])
+
+    scan.extract!
+
+    assert_equal BigDecimal("20.00"), scan.amount
+    assert_equal "USD", scan.currency
+  end
+
   test "extract! keeps what the PDF text gave when text recognition fails" do
     Receipt::Ocr.stubs(:pdf_available?).returns(true)
     Receipt::Ocr.any_instance.expects(:read_pdf).raises(Receipt::Ocr::Error.new("ocr_timeout"))

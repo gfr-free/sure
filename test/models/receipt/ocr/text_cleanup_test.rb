@@ -10,6 +10,7 @@ class Receipt::Ocr::TextCleanupTest < ActiveSupport::TestCase
     assert_equal "SUMME EUR 12,30", cleanup("SUMME EUR 12, 30")
     assert_equal "Total 4.70 USD", cleanup("Total 4. 70 USD")
     assert_equal "Brot\nSUMME 6,75\n", cleanup("Brot\nSUMME 6, 75\n")
+    assert_equal "SUMME EUR 12,30", cleanup("SUMME EUR 12, 3O")
   end
 
   test "leaves words and other numbers alone" do

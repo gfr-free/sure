@@ -382,6 +382,18 @@ class Insight::Generators::SpendingAnomalyGeneratorTest < ActiveSupport::TestCas
     end
   end
 
+  test "flags a rollover category that carries an overspend instead of savings" do
+    @anchor_day = 15
+    budget_line(rollover_enabled: true, carry_overspend: true, budgeted_spending: 1_000, rolled_over_amount: -200)
+
+    travel_to anchor do
+      baseline_months.each { |month| spend(month, 100) }
+      spend(current_month, 600, day: 5)
+
+      assert_equal [ "above" ], generate.map { |insight| insight.metadata[:direction] }
+    end
+  end
+
   test "flags a category without rollover even when its budget covers the spend" do
     @anchor_day = 15
     budget_line(rollover_enabled: false, budgeted_spending: 1_000)

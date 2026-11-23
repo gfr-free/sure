@@ -78,7 +78,9 @@ class TransactionsController < ApplicationController
 
     # Counts what the categorize wizard can act on, so read-only shares don't
     # keep the "Categorize" menu item visible.
-    @uncategorized_count = Transaction::ReviewQueue.uncategorized_count
+    @uncategorized_count = Rails.cache.fetch(uncategorized_count_cache_key) do
+      Current.annotatable_entries.uncategorized_transactions.count
+    end
 
     # Load projected recurring transactions for next 10 days. Only the IDs are
     # cached: cached ActiveRecord objects outlive schema changes across
@@ -587,6 +589,11 @@ class TransactionsController < ApplicationController
   end
 
   private
+    def uncategorized_count_cache_key
+      "transactions_uncategorized_count/v5/#{Current.family.id}/#{Current.user.id}/" \
+        "#{Current.family.entries_version}/#{Current.family.accounts_status_version}/#{Current.account_share_version}"
+    end
+
     def projected_recurring_cache_key
       "transactions_projected_recurring/v6/#{Current.family.id}/#{Current.user.id}/#{Date.current}/" \
         "#{Current.family.recurring_transactions_version}/#{Current.family.accounts_status_version}/" \

@@ -3,7 +3,7 @@
       id: "review-kind-#{kind}",
       class: "block rounded-xl focus-ring",
       aria: { current: ("page" if active) } do %>
-  <%= render DS::Card.new(class: class_names("h-full gap-2 text-primary", active ? "border border-primary" : "border border-tertiary hover:bg-surface-hover")) do %>
+  <%= render DS::Card.new(class: class_names("h-full gap-2 text-primary", active ? "border border-inverse" : "border border-tertiary hover:bg-surface-hover")) do %>
     <div class="flex items-center justify-between gap-2">
       <%= icon(review_kind_icon(kind), color: count.zero? ? "default" : "current") %>
       <% if count.zero? %>

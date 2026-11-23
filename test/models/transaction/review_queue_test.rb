@@ -67,6 +67,14 @@ class Transaction::ReviewQueueTest < ActiveSupport::TestCase
     assert_equal 0, counts["no_merchant"]
   end
 
+  test "an uncategorized transfer counts once, on its outflow leg" do
+    outflow = review_transaction(category: nil, merchant: nil, amount: 50, kind: "loan_payment")
+    inflow = review_transaction(category: nil, merchant: nil, amount: -50, kind: "loan_payment", account: accounts(:credit_card))
+    Transfer.create!(outflow_transaction: outflow.transaction, inflow_transaction: inflow.transaction, status: "confirmed")
+
+    assert_equal [ outflow.transaction.id ], queue(@admin).transactions_for("uncategorized").pluck(:id)
+  end
+
   test "excluded transactions are not review work" do
     review_transaction(category: nil, merchant: nil, excluded: true)
 

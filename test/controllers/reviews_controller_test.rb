@@ -91,14 +91,31 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{review_path}']", count: 0
   end
 
-  test "the nav badge counts what the viewer can still categorize" do
-    expected = Current.set(session: @user.sessions.first || @user.sessions.create!) do
-      @user.family.entries.joins(:account).merge(Account.annotatable_by(@user)).uncategorized_transactions.count
-    end
+  test "the nav badge counts what the viewer can still categorize, like the tile" do
+    create_transaction(name: "#{MARKER} badge", category: nil, merchant: nil)
 
-    get transactions_path
+    get review_path(kind: "uncategorized")
 
-    assert_select "a[href='#{review_path}'] span", text: (expected > 9 ? "9+" : expected.to_s)
+    tile_count = css_select("#review-kind-uncategorized p.text-2xl").first.text.strip.to_i
+    assert_operator tile_count, :>, 0
+    assert_select "a[href='#{review_path}'] span", text: (tile_count > 9 ? "9+" : tile_count.to_s)
+  end
+
+  test "the nav badge leaves out read-only shared accounts" do
+    member = users(:family_member)
+    enable_preview(member)
+    sign_in member
+
+    get review_path(kind: "uncategorized")
+    badge_before = css_select("a[href='#{review_path}'] span").map { |node| node.text.strip }
+    tile_before = css_select("#review-kind-uncategorized p.text-2xl").first.text.strip.to_i
+
+    create_transaction(name: "#{MARKER} card", category: nil, merchant: nil, account: accounts(:credit_card))
+    get review_path(kind: "uncategorized")
+
+    # The member only reads the credit card: the tile lists the row, the badge does not count it.
+    assert_equal tile_before + 1, css_select("#review-kind-uncategorized p.text-2xl").first.text.strip.to_i
+    assert_equal badge_before, css_select("a[href='#{review_path}'] span").map { |node| node.text.strip }
   end
 
   test "renders a page of rows without a query per row" do

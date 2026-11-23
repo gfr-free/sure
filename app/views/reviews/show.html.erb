@@ -8,7 +8,7 @@
       <p class="text-sm text-secondary font-normal"><%= t(".subtitle") %></p>
     </div>
 
-    <% if @kind == "uncategorized" && Transaction::ReviewQueue.uncategorized_count.positive? %>
+    <% if @kind == "uncategorized" && Transaction::ReviewQueue.badge_count.positive? %>
       <%= render DS::Link.new(
         text: t(".quick_categorize"),
         icon: "tag",

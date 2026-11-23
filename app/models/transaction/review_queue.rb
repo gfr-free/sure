@@ -8,17 +8,20 @@ class Transaction::ReviewQueue
   # A pending transaction older than this counts as "pending for a long time".
   LONG_PENDING_AFTER = 5.days
 
-  # Badge count for the Review nav entry: what the viewer can still
-  # categorize, the same number as the Transactions "Categorize (N)" item.
-  # Memoized per request: the layout and the page both ask for it.
-  def self.uncategorized_count
-    Current.uncategorized_count ||= Rails.cache.fetch(uncategorized_count_cache_key) do
-      Current.annotatable_entries.uncategorized_transactions.count
+  # Badge count for the Review nav entry: the uncategorized transactions the
+  # viewer can still categorize, counted like the "Without category" tile.
+  # Memoized per request and cached until entries, accounts or shares change.
+  def self.badge_count
+    Current.review_badge_count ||= Rails.cache.fetch(badge_count_cache_key) do
+      Current.annotatable_entries
+        .uncategorized_transactions
+        .where.not(entryable_id: Transfer.select(:inflow_transaction_id))
+        .count
     end
   end
 
-  def self.uncategorized_count_cache_key
-    "transactions_uncategorized_count/v5/#{Current.family.id}/#{Current.user.id}/" \
+  def self.badge_count_cache_key
+    "review_badge_count/v1/#{Current.family.id}/#{Current.user.id}/" \
       "#{Current.family.entries_version}/#{Current.family.accounts_status_version}/#{Current.account_share_version}"
   end
 
@@ -37,8 +40,13 @@ class Transaction::ReviewQueue
   def transactions_for(kind)
     case kind
     when "uncategorized"
-      # Same set as Entry.uncategorized_transactions and Quick Categorize.
-      base_scope.where(category_id: nil).where.not(kind: Transaction::UNCATEGORIZED_EXCLUDED_KINDS)
+      # Entry.uncategorized_transactions, minus the inflow leg of a transfer:
+      # its category lives on the outflow leg, and the list shows a transfer
+      # once, on that leg.
+      base_scope
+        .where(category_id: nil)
+        .where.not(kind: Transaction::UNCATEGORIZED_EXCLUDED_KINDS)
+        .where.not(id: Transfer.select(:inflow_transaction_id))
     when "no_merchant"
       # Transfers and loan or investment payments have no merchant by design.
       base_scope.where(merchant_id: nil, kind: "standard")

@@ -32,12 +32,17 @@ module ReceiptsHelper
     money ? format_money(money) : t("receipts.unknown")
   end
 
-  # The amount as a number input value at the currency's precision ("5.80",
-  # "1200" for JPY), always with a dot, whatever the user's locale.
+  # The amount as a number input value, padded to the currency's precision
+  # ("5.80", "1200" for JPY) but never rounded, so saving the form unchanged
+  # keeps a stored "12.3456". Always with a dot, whatever the user's locale.
   def receipt_amount_input_value(receipt)
     return nil if receipt.amount.nil?
 
-    format("%.#{receipt_currency_precision(receipt)}f", receipt.amount)
+    # Built from the decimal string: %f would go through a float and change
+    # large amounts ("123456789012345.1234" to "...1250").
+    whole, fraction = receipt.amount.to_d.to_s("F").split(".")
+    fraction = fraction.to_s.sub(/0+\z/, "").ljust(receipt_currency_precision(receipt), "0")
+    fraction.empty? ? whole : "#{whole}.#{fraction}"
   end
 
   # "Read from PDF text, 90% sure" next to a field the reader filled; nothing for manual edits.

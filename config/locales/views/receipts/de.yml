@@ -76,6 +76,9 @@ de:
       invalid:
         one: 1 Datei war kein unterstütztes Bild oder PDF.
         other: "%{count} Dateien waren keine unterstützten Bilder oder PDFs."
+      failed:
+        one: 1 Datei konnte nicht gespeichert werden. Bitte versuch es noch einmal.
+        other: "%{count} Dateien konnten nicht gespeichert werden. Bitte versuch es noch einmal."
     update:
       updated: Angaben gespeichert.
     link:

@@ -38,8 +38,10 @@ class Transaction < ApplicationRecord
     super(Array(ids).uniq { |id| id_type.cast(id) || id })
   end
 
+  # Stored on the transaction, so it outlives the receipt in the inbox; the
+  # receipt check covers transactions created before the flag existed.
   def created_from_receipt?
-    receipts.exists?(created_transaction: true)
+    extra["created_from_receipt"] == true || receipts.exists?(created_transaction: true)
   end
 
   def tags=(tags)

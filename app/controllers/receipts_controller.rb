@@ -46,6 +46,7 @@ class ReceiptsController < ApplicationController
     created = 0
     duplicates = 0
     invalid = 0
+    failed = 0
     files.each do |file|
       Receipt.create_from_upload!(family: Current.family, user: Current.user, file: file)
       created += 1
@@ -53,13 +54,18 @@ class ReceiptsController < ApplicationController
       duplicates += 1
     rescue Receipt::InvalidUploadError, ActiveRecord::RecordInvalid
       invalid += 1
+    rescue StandardError => e
+      # A storage error on one file must not hide the files already stored.
+      failed += 1
+      DebugLogEntry.capture(category: "receipts", level: "error", message: "Receipt upload failed: #{e.class}",
+                            source: "receipt_upload", family: Current.family, user_id: Current.user.id)
     end
 
-    redirect_to receipts_path, upload_flash(created:, duplicates:, invalid:)
+    redirect_to receipts_path, upload_flash(created:, duplicates:, invalid:, failed:)
   end
 
   def update
-    @receipt.update_fields!(receipt_params)
+    @receipt.update_fields!(receipt_params, params.fetch(:rendered, {}).permit(*Receipt::FIELDS))
     @receipt.auto_match!
     redirect_to receipt_path(@receipt), notice: t(".updated")
   rescue ActiveRecord::RecordInvalid
@@ -179,11 +185,12 @@ class ReceiptsController < ApplicationController
       raise ActiveRecord::RecordInvalid, @receipt
     end
 
-    def upload_flash(created:, duplicates:, invalid:)
+    def upload_flash(created:, duplicates:, invalid:, failed:)
       messages = []
       messages << t(".uploaded", count: created) if created.positive?
       messages << t(".duplicates", count: duplicates) if duplicates.positive?
       messages << t(".invalid", count: invalid) if invalid.positive?
+      messages << t(".failed", count: failed) if failed.positive?
       key = created.positive? ? :notice : :alert
       { key => messages.join(" ") }
     end

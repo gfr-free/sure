@@ -827,6 +827,8 @@ class TransactionsController < ApplicationController
       @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically.to_a
       @tags = Current.family.tags.alphabetically.to_a
+      # Also when a failed save renders the form again.
+      @receipt_existing_matches ||= prefill_receipt&.existing_matches(Current.user)
     end
 
     # Autocomplete suggestions for the name field, only queried when the

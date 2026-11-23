@@ -84,7 +84,8 @@ class ReceiptTest < ActiveSupport::TestCase
     end
   end
 
-  test "extract! leaves an image's fields blank until a reader for images exists" do
+  test "extract! leaves an image's fields blank when no stage reads images" do
+    Receipt::Extraction.stubs(:stages).returns([ Receipt::Extraction::Stages::PdfText ])
     receipt = Receipt.create_from_upload!(family: @family, user: @admin, file: uploaded_receipt(file_fixture("square-placeholder.png").binread, filename: "photo.png", content_type: "image/png"))
 
     receipt.extract!

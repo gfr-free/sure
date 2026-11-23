@@ -1,0 +1,86 @@
+---
+de:
+  receipts:
+    unknown: "—"
+    status:
+      dismissed: Verworfen
+      failed: Nicht lesbar
+      linked: Zugeordnet
+      open: Zu prüfen
+      reading: Wird gelesen
+    sources:
+      pdf_text: PDF-Text
+    table:
+      amount: Betrag
+      date: Datum
+      file: Datei
+      merchant: Händler
+      status: Status
+    index:
+      title: Belege
+      preview: Vorschau
+      upload_title: Belege hinzufügen
+      upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Aus PDFs mit lesbarem Text liest Sure Händler, Datum und Betrag aus, bei Fotos trägst du sie selbst ein. Danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
+      files_label: Dateien
+      camera_label: Foto aufnehmen
+      upload: Hochladen
+      open_title: Zu prüfen
+      done_title: Erledigt
+      empty_open: Keine Belege zu prüfen
+      empty_done: Noch keine zugeordneten oder verworfenen Belege
+    show:
+      back: Zurück zu den Belegen
+      open_pdf: PDF öffnen
+      download: Herunterladen
+      reopen: Wieder öffnen
+      dismiss: Verwerfen
+      delete: Löschen
+      receipt: Beleg
+      reading: Sure liest diesen Beleg gerade. Lade die Seite gleich neu.
+      extraction_failed: Sure konnte diese Datei nicht lesen. Trag die Angaben unten ein.
+      nothing_read: Sure hat in dieser Datei noch keinen lesbaren Text gefunden. Trag die Angaben unten ein.
+      fields_title: Angaben
+      field_hint: "Aus %{source} gelesen, zu %{confidence} sicher"
+      merchant_name: Händler
+      date: Datum
+      amount: Betrag
+      currency: Währung
+      save: Speichern
+      linked_title: Zugeordnete Buchung
+      linked_hidden: Die Buchung liegt auf einem Konto, das du nicht mehr sehen kannst.
+      created_title: Angelegte Buchung
+      candidates_title: Passende Buchungen
+      link: Zuordnen
+      no_candidates: Keine Buchung mit diesem Betrag bis 30 Tage um das Belegdatum. Prüf Betrag und Datum oder leg eine neue Buchung an.
+      new_transaction_title: Als neue Buchung anlegen
+      new_transaction_hint: Bei einem Konto mit Bank-Sync warte, bis die Bank die Zahlung gebucht hat, sonst erscheint die Buchung doppelt.
+      account: Konto
+      name: Name
+      create_transaction: Buchung anlegen
+      no_accounts: Du hast kein Konto, in dem du Buchungen anlegen darfst.
+    create:
+      no_files: Wähl mindestens eine Datei aus.
+      uploaded:
+        one: 1 Beleg hinzugefügt.
+        other: "%{count} Belege hinzugefügt."
+      duplicates:
+        one: 1 Datei war schon in deinen Belegen.
+        other: "%{count} Dateien waren schon in deinen Belegen."
+      invalid:
+        one: 1 Datei war kein unterstütztes Bild oder PDF.
+        other: "%{count} Dateien waren keine unterstützten Bilder oder PDFs."
+      failed:
+        one: 1 Datei konnte nicht gespeichert werden. Bitte versuch es noch einmal.
+        other: "%{count} Dateien konnten nicht gespeichert werden. Bitte versuch es noch einmal."
+    update:
+      updated: Angaben gespeichert.
+    link:
+      linked: Beleg der Buchung zugeordnet.
+    create_transaction:
+      created: Buchung aus dem Beleg angelegt.
+    dismiss:
+      dismissed: Beleg verworfen.
+    reopen:
+      reopened: Beleg wieder geöffnet.
+    destroy:
+      deleted: Beleg gelöscht.

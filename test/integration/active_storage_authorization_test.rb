@@ -471,6 +471,36 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "uploader can access their receipt file" do
+    receipt = upload_receipt_for(@user_a)
+    sign_in @user_a
+
+    get rails_blob_path(receipt.file)
+
+    assert_response :redirect
+    follow_redirect!
+    assert_response :success
+  end
+
+  test "an uploader who became a guest cannot access their receipt file" do
+    receipt = upload_receipt_for(@user_a)
+    @user_a.update!(role: "guest")
+    sign_in @user_a
+
+    get rails_blob_path(receipt.file)
+
+    assert_response :not_found
+  end
+
+  test "another member of the family cannot access a receipt file" do
+    receipt = upload_receipt_for(@user_a)
+    sign_in users(:family_member)
+
+    get rails_blob_path(receipt.file)
+
+    assert_response :not_found
+  end
+
   test "every attachment is either access-checked or intentionally public" do
     # Logos and avatars are not sensitive. Archived exports have no owning family;
     # ArchivedExportsController releases them by download token.
@@ -495,6 +525,14 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+    def upload_receipt_for(user)
+      Receipt.create_from_upload!(
+        family: user.family,
+        user: user,
+        file: uploaded_file(filename: "receipt.pdf", content_type: "application/pdf", content: "%PDF-1.4 Family A Receipt")
+      )
+    end
 
     def attach_family_export(family)
       export = family.family_exports.create!(status: :completed)

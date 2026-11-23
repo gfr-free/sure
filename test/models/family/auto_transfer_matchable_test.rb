@@ -22,23 +22,6 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     end
   end
 
-  # Candidates for a page of transactions are searched within the page's date
-  # span widened by the match window, so a counterpart at the far edge of the
-  # window, outside the page's own dates, must still be found -- on either side.
-  test "candidates for given transactions reach a counterpart at the edge of the window" do
-    outflow = create_transaction(date: Date.new(2026, 3, 10), account: @depository, amount: 432.10)
-    early_inflow = create_transaction(date: Date.new(2026, 3, 6), account: @credit_card, amount: -432.10)
-    late_inflow = create_transaction(date: Date.new(2026, 3, 14), account: @other_asset, amount: -432.10)
-    beyond = create_transaction(date: Date.new(2026, 3, 15), account: @loan, amount: -432.10)
-
-    pairs = @family.transfer_match_candidates(date_window: 4, transaction_ids: [ outflow.entryable_id ])
-      .map { |candidate| [ candidate.inflow_transaction_id, candidate.outflow_transaction_id ] }
-
-    assert_includes pairs, [ early_inflow.entryable_id, outflow.entryable_id ]
-    assert_includes pairs, [ late_inflow.entryable_id, outflow.entryable_id ]
-    assert_not_includes pairs, [ beyond.entryable_id, outflow.entryable_id ], "five days apart is outside a four-day window"
-  end
-
   test "auto-matched transfer into a locked account counts as saving" do
     ensure_investment_contributions_category(@family)
     term_deposit = @family.accounts.create!(
@@ -56,6 +39,23 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     outflow = outflow_entry.transaction.reload
     assert_equal "investment_contribution", outflow.kind
     assert_equal @family.investment_contributions_category, outflow.category
+  end
+
+  # Candidates for a page of transactions are searched within the page's date
+  # span widened by the match window, so a counterpart at the far edge of the
+  # window, outside the page's own dates, must still be found -- on either side.
+  test "candidates for given transactions reach a counterpart at the edge of the window" do
+    outflow = create_transaction(date: Date.new(2026, 3, 10), account: @depository, amount: 432.10)
+    early_inflow = create_transaction(date: Date.new(2026, 3, 6), account: @credit_card, amount: -432.10)
+    late_inflow = create_transaction(date: Date.new(2026, 3, 14), account: @other_asset, amount: -432.10)
+    beyond = create_transaction(date: Date.new(2026, 3, 15), account: @loan, amount: -432.10)
+
+    pairs = @family.transfer_match_candidates(date_window: 4, transaction_ids: [ outflow.entryable_id ])
+      .map { |candidate| [ candidate.inflow_transaction_id, candidate.outflow_transaction_id ] }
+
+    assert_includes pairs, [ early_inflow.entryable_id, outflow.entryable_id ]
+    assert_includes pairs, [ late_inflow.entryable_id, outflow.entryable_id ]
+    assert_not_includes pairs, [ beyond.entryable_id, outflow.entryable_id ], "five days apart is outside a four-day window"
   end
 
   test "auto-matched transfers wait for confirmation before changing transaction kinds" do

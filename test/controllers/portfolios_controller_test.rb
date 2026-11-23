@@ -212,8 +212,8 @@ class PortfoliosControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", portfolio_path, count: 0
   end
 
-  # Portfolio is the only desktop-only entry, so every other item still
-  # reaches both bars: the mobile bar is the desktop rail without Portfolio,
+  # Portfolio and Review are the desktop-only entries, so every other item
+  # still reaches both bars: the mobile bar is the desktop rail without them,
   # plus the mobile-only Assistant.
   test "every other nav item still renders in both bars" do
     get root_path
@@ -223,7 +223,8 @@ class PortfoliosControllerTest < ActionDispatch::IntegrationTest
     mobile = css_select("nav[data-viewport-target=bottomNav] a").map { |link| link["href"] }
 
     assert_includes desktop, portfolio_path
-    assert_equal desktop - [ portfolio_path ], mobile - [ chats_path ]
+    assert_includes desktop, review_path
+    assert_equal desktop - [ portfolio_path, review_path ], mobile - [ chats_path ]
     assert_includes mobile, chats_path if @family.assistant_enabled?
   end
 

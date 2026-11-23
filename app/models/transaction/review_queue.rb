@@ -10,19 +10,14 @@ class Transaction::ReviewQueue
 
   # Badge count for the Review nav entry: the uncategorized transactions the
   # viewer can still categorize, counted like the "Without category" tile.
-  # Memoized per request and cached until entries, accounts or shares change.
+  # One COUNT per request (memoized), not cached: a cache key that stays
+  # correct here (entries, categories, account status and shares) costs more
+  # queries on every page than the count itself.
   def self.badge_count
-    Current.review_badge_count ||= Rails.cache.fetch(badge_count_cache_key) do
-      Current.annotatable_entries
-        .uncategorized_transactions
-        .where.not(entryable_id: Transfer.select(:inflow_transaction_id))
-        .count
-    end
-  end
-
-  def self.badge_count_cache_key
-    "review_badge_count/v1/#{Current.family.id}/#{Current.user.id}/" \
-      "#{Current.family.entries_version}/#{Current.family.accounts_status_version}/#{Current.account_share_version}"
+    Current.review_badge_count ||= Current.annotatable_entries
+      .uncategorized_transactions
+      .where.not(entryable_id: Transfer.select(:inflow_transaction_id))
+      .count
   end
 
   def initialize(family, user:, filters: {})

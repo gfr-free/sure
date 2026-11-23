@@ -52,9 +52,9 @@ class Portfolio::FlowClassifier
   # the money went, and between two accounts in scope it went nowhere. A nil rule means the label decides nothing and
   # the fallthrough applies (a Trade is internal; a Transaction goes by kind).
   #
-  # "Exchange" is internal on both a Trade and a Transaction here, following
-  # Transaction::INTERNAL_MOVEMENT_LABELS. Trade::INTERNAL_MOVEMENT_LABELS
-  # excludes it because a security-for-security exchange can realise a gain;
+  # The exchange labels are internal on both a Trade and a Transaction here,
+  # following Transaction::INTERNAL_MOVEMENT_LABELS. Trade::INTERNAL_MOVEMENT_LABELS
+  # excludes them because a security-for-security exchange can realise a gain;
   # that is a cost-basis question, not a cash-flow one, and this table only
   # answers the latter.
   #
@@ -71,6 +71,8 @@ class Portfolio::FlowClassifier
     "Sweep In" => :internal,
     "Sweep Out" => :internal,
     "Exchange" => :internal,
+    "Currency Exchange" => :internal,
+    "Security Exchange" => :internal,
     "Contribution" => :external,
     "Withdrawal" => :external,
     "Transfer" => :transfer,

@@ -420,6 +420,30 @@ class Rule::ActionTest < ActiveSupport::TestCase
     assert_nil @txn1.reload.investment_activity_label
   end
 
+  test "set_investment_activity_label offers the cash picker labels" do
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_investment_activity_label")
+    values = action.options.map(&:last)
+
+    assert_includes values, "Currency Exchange"
+    assert_not_includes values, "Exchange"
+  end
+
+  test "set_investment_activity_label keeps a legacy label selectable and applies it" do
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_investment_activity_label", value: "Exchange")
+
+    assert_includes action.options.map(&:last), "Exchange"
+    assert_equal "Exchange", action.value_display
+
+    action.apply(@rule_scope)
+    assert_equal "Exchange", @txn2.reload.investment_activity_label
+  end
+
+  test "set_investment_activity_label does not add an invalid stored value to the options" do
+    action = Rule::Action.new(rule: @transaction_rule, action_type: "set_investment_activity_label", value: "InvalidLabel")
+
+    assert_not_includes action.options.map(&:last), "InvalidLabel"
+  end
+
   test "set as transfer into a pledged account resolves the pledge" do
     investment = accounts(:investment)
     pledge = open_transfer_pledge(investment, amount: 100)

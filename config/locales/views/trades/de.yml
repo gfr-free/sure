@@ -28,6 +28,8 @@ de:
       interest: Zinsen
       contribution: Einlage
       exchange: Umtausch
+      currency_exchange: Währungstausch
+      security_exchange: Wertpapiertausch
       fee: Gebühr
       other: Sonstige
       reinvestment: Reinvestition

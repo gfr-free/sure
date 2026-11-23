@@ -513,6 +513,10 @@ class User < ApplicationRecord
     receipts.where.not(transaction_id: nil).where.not(transaction_id: moved_transactions)
             .update_all(transaction_id: nil, linked_at: nil, created_transaction: false, updated_at: now)
     receipts.update_all(family_id: to.id, updated_at: now)
+
+    # Other members' receipts stay behind, so their links to moved accounts go.
+    Receipt.where(family_id: from_family_id).where.not(uploaded_by_id: id).where(transaction_id: moved_transactions)
+           .update_all(transaction_id: nil, linked_at: nil, created_transaction: false, updated_at: now)
   end
 
   def provider_items_for_transfer(accounts_to_move)

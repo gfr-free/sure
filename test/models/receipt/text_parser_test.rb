@@ -206,6 +206,26 @@ class Receipt::TextParserTest < ActiveSupport::TestCase
     assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nGesamtbetrag nach Rabatt 90,00\n")["amount"][:value]
   end
 
+  test "masks card numbers grouped with narrow no-break spaces" do
+    masked = Receipt::TextParser.mask("Karte 4111\u202F1111\u202F1111\u202F1234")
+
+    assert_includes masked, "****1234"
+    assert_not_includes masked, "4111"
+  end
+
+  test "the tax inside an inclusion clause before the label is not the total" do
+    assert_equal BigDecimal("12.00"), parse("12.00 (incl. VAT 2.00) TOTAL\n")["amount"][:value]
+  end
+
+  test "a whole-number total counts for a currency without minor units" do
+    fields = parse("TOTAL JPY 1500\nCash JPY 2000.00\n")
+    assert_equal BigDecimal("1500"), fields["amount"][:value]
+    assert_equal "JPY", fields["currency"][:value]
+
+    assert_equal BigDecimal("1500"), parse("Total 1,500\n", currency_hint: "JPY")["amount"][:value]
+    assert_equal BigDecimal("12.00"), parse("Total 3\n12.00\n", currency_hint: "EUR")["amount"][:value]
+  end
+
   test "a plain total after a discount is still the total" do
     assert_equal BigDecimal("90.00"), parse("Discount 10.00\nTotal after discount 90.00\n")["amount"][:value]
     assert_equal BigDecimal("90.00"), parse("Rabatt 10,00\nSumme nach Rabatt\n90,00\n")["amount"][:value]

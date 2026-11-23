@@ -1,0 +1,5 @@
+<%# locals: (form:, receipt:, currency:, required: false) %>
+<div class="grid grid-cols-[1fr_6rem] gap-3">
+  <%= form.number_field :amount, label: t("receipts.show.amount"), value: receipt_amount_input_value(receipt), step: "any", min: 0, required: required, class: "privacy-sensitive" %>
+  <%= form.text_field :currency, label: t("receipts.show.currency"), value: currency, maxlength: 3 %>
+</div>

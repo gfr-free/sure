@@ -1,0 +1,21 @@
+---
+de:
+  activerecord:
+    attributes:
+      receipt:
+        amount: Betrag
+        currency: Währung
+        date: Datum
+        merchant_name: Händler
+    errors:
+      models:
+        receipt:
+          attributes:
+            base:
+              already_linked: Dieser Beleg ist schon einer Buchung zugeordnet
+              awaiting_bank: "Lege diesen Beleg auf einem Konto mit Bank-Sync erst ab %{date} an, damit die Buchung der Bank nicht doppelt erscheint"
+              invalid_transaction: Gib für die neue Buchung ein gültiges Datum und einen gültigen Betrag ein
+              not_suggested: Dieser Beleg hat keine vorgeschlagene Buchung zum Bestätigen oder Ablehnen
+              suggestion_changed: Der Vorschlag für diesen Beleg hat sich geändert. Prüfe die neue Buchung und versuche es noch einmal
+              suggestion_unavailable: Du hast keine Schreibrechte mehr für das Konto der vorgeschlagenen Buchung. Lehne den Vorschlag ab oder ordne den Beleg einer anderen Buchung zu
+              too_many_attachments: Die Buchung hat schon %{max} Anhänge

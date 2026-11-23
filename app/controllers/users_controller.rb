@@ -119,7 +119,7 @@ class UsersController < ApplicationController
     def user_params
       family_attrs = [ :name, :currency, :country, :date_format, :timezone, :locale, :month_start_day, :id ]
       if Current.user.admin?
-        family_attrs.push(:personal_budgets, :household_budget_enabled, :investment_contributions_as_spending, :manual_reconciliation) # Needed for updating existing family
+        family_attrs.push(:personal_budgets, :household_budget_enabled, :investment_contributions_as_spending, :manual_reconciliation, :receipt_bank_wait_days) # Needed for updating existing family
         family_attrs.push(:moniker, :default_account_sharing)
         family_attrs << { enabled_currencies: [] }
       end
@@ -148,9 +148,10 @@ class UsersController < ApplicationController
       household_budget_enabled_changed = family_attrs.key?(:household_budget_enabled)
       investment_contributions_as_spending_changed = family_attrs.key?(:investment_contributions_as_spending)
       manual_reconciliation_changed = family_attrs.key?(:manual_reconciliation)
+      receipt_bank_wait_days_changed = family_attrs.key?(:receipt_bank_wait_days)
 
       moniker_changed || sharing_changed || enabled_currencies_changed || personal_budgets_changed || household_budget_enabled_changed ||
-        investment_contributions_as_spending_changed || manual_reconciliation_changed
+        investment_contributions_as_spending_changed || manual_reconciliation_changed || receipt_bank_wait_days_changed
     end
 
     def ensure_admin

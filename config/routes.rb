@@ -779,6 +779,19 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :receipts, only: %i[index show create update destroy] do
+    post :prefill, on: :collection
+    member do
+      get :file
+      post :link
+      post :confirm_match
+      post :reject_match
+      post :create_transaction
+      patch :dismiss
+      patch :reopen
+    end
+  end
+
   # Convenience routes for polymorphic paths
   # Example: account_path(Account.new(accountable: Depository.new)) => /depositories/123
   direct :edit_account do |model, options|

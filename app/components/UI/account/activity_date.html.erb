@@ -24,6 +24,11 @@
               <%= render DS::Pill.new(label: t("UI.account.activity_date.projected"), tone: :neutral, marker: false, icon: "calendar") %>
             <% end %>
             <span class="font-medium privacy-sensitive"><%= end_balance_money.format %></span>
+            <% if rates && balance %>
+              <span class="privacy-sensitive">
+                <%= render "entries/family_currency_total", total: family_currency_balance_money, currency: rates.to %>
+              </span>
+            <% end %>
             <%= render DS::Tooltip.new(text: t(projected? ? "UI.account.activity_date.projected_balance_tooltip" : "UI.account.activity_date.balance_tooltip"), placement: "left", size: "sm", as: :span) %>
           </div>
           <%= helpers.icon "chevron-down", class: "group-open:rotate-180" %>

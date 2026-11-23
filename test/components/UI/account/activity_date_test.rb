@@ -15,7 +15,8 @@ class UI::Account::ActivityDateTest < ViewComponent::TestCase
       balance: nil,
       projected_balance_money: projected,
       transfers: [],
-      split_parents: {}
+      split_parents: {},
+      rates: nil
     )
 
     component = UI::Account::ActivityDate.new(account: account, data: data)
@@ -43,7 +44,8 @@ class UI::Account::ActivityDateTest < ViewComponent::TestCase
       balance: nil,
       projected_balance_money: nil,
       transfers: [],
-      split_parents: {}
+      split_parents: {},
+      rates: nil
     )
 
     component = UI::Account::ActivityDate.new(account: account, data: data)
@@ -67,7 +69,8 @@ class UI::Account::ActivityDateTest < ViewComponent::TestCase
       balance: balance,
       projected_balance_money: nil,
       transfers: [],
-      split_parents: {}
+      split_parents: {},
+      rates: nil
     )
 
     component = UI::Account::ActivityDate.new(account: account, data: data)

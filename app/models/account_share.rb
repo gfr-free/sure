@@ -46,6 +46,9 @@ class AccountShare < ApplicationRecord
 
   private
     def release_receipt_suggestions
+      # Gone with its account (e.g. a family data reset): nothing to release.
+      return if account.nil? || account.destroyed?
+
       Receipt.release_unwritable_suggestions(account)
     end
 

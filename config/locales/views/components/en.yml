@@ -3,6 +3,13 @@ en:
   UI:
     period_picker:
       aria_label: "Time period: %{period}"
+      custom_range:
+        open: Custom range…
+        title: Custom date range
+        start_date: Start date
+        end_date: End date
+        apply: Apply
+        cancel: Cancel
     account:
       activity_feed:
         toggle_selection_checkboxes: Toggle selection

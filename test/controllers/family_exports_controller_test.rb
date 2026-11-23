@@ -71,6 +71,26 @@ class FamilyExportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", export.status
   end
 
+  test "admin can create an export with attached files" do
+    post family_exports_path, params: { family_export: { include_files: "1" } }
+
+    assert_redirected_to family_exports_path
+    assert @family.family_exports.order(:created_at).last.include_files?
+  end
+
+  test "an export leaves attached files out by default" do
+    post family_exports_path
+
+    assert_not @family.family_exports.order(:created_at).last.include_files?
+  end
+
+  test "a malformed export param falls back to the default export" do
+    post family_exports_path, params: { family_export: "1" }
+
+    assert_redirected_to family_exports_path
+    assert_not @family.family_exports.order(:created_at).last.include_files?
+  end
+
   test "admin can view export list" do
     export1 = @family.family_exports.create!(status: "completed")
     export2 = @family.family_exports.create!(status: "processing")

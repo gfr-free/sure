@@ -279,20 +279,14 @@ class Receipt < ApplicationRecord
   def update_fields!(attrs, rendered = {})
     rendered = rendered.to_h.stringify_keys
     attrs = attrs.to_h.stringify_keys.slice(*FIELDS).reject { |field, value| rendered.key?(field) && rendered[field].to_s == value.to_s }
-    with_lock do
-      assign_attributes(attrs)
-      normalize_fields
-      sources = field_sources.dup
-      FIELDS.each do |field|
-        sources[field] = { "source" => "manual", "confidence" => 1.0 } if will_save_change_to_attribute?(field)
-      end
-      self.field_sources = sources
-      # A suggestion was made for the old amount, currency or date.
-      if suggested? && %w[amount currency date].any? { |field| will_save_change_to_attribute?(field) }
-        assign_attributes(linked_transaction: nil, match_status: nil, linked_at: nil)
-      end
-      save!
-    end
+    save_fields!(attrs, mark_submitted: false)
+  end
+
+  # For API clients, which send only the fields they mean to set: each one
+  # becomes manual even when its value is unchanged, so a read finishing later
+  # cannot replace it.
+  def update_submitted_fields!(attrs)
+    save_fields!(attrs.to_h.stringify_keys.slice(*FIELDS), mark_submitted: true)
   end
 
   # Transactions on accounts the user may write to, near the receipt's date and,
@@ -460,6 +454,25 @@ class Receipt < ApplicationRecord
   end
 
   private
+    def save_fields!(attrs, mark_submitted:)
+      with_lock do
+        assign_attributes(attrs)
+        normalize_fields
+        sources = field_sources.dup
+        FIELDS.each do |field|
+          next unless will_save_change_to_attribute?(field) || (mark_submitted && attrs.key?(field))
+
+          sources[field] = { "source" => "manual", "confidence" => 1.0 }
+        end
+        self.field_sources = sources
+        # A suggestion was made for the old amount, currency or date.
+        if suggested? && %w[amount currency date].any? { |field| will_save_change_to_attribute?(field) }
+          assign_attributes(linked_transaction: nil, match_status: nil, linked_at: nil)
+        end
+        save!
+      end
+    end
+
     def enqueue_after_create(entry, method)
       entry.public_send(method)
     rescue StandardError => e

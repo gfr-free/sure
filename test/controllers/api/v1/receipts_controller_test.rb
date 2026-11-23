@@ -234,6 +234,19 @@ class Api::V1::ReceiptsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "manual", response.parsed_body["data"]["field_sources"]["date"]["source"]
   end
 
+  test "a submitted field stays manual even when its value does not change" do
+    receipt = upload_for(@admin, "unchanged.pdf")
+    assert_nil receipt.date
+
+    patch api_v1_receipt_url(receipt),
+          params: { date: nil }.to_json,
+          headers: api_headers(@api_key).merge("Content-Type" => "application/json")
+
+    assert_response :ok
+    assert_equal "manual", receipt.reload.field_source(:date)
+    assert_nil receipt.date
+  end
+
   test "rejects fields it cannot read" do
     receipt = upload_for(@admin, "bad.pdf")
 

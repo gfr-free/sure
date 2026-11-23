@@ -394,12 +394,58 @@ components:
           description: 'Per field (merchant_name, date, amount, currency): where its
             value came from, or null'
           additionalProperties:
-            allOf:
-            - "$ref": "#/components/schemas/ReceiptFieldSource"
+            type: object
+            required:
+            - source
+            - confidence
+            properties:
+              source:
+                type: string
+                description: Where the value came from, e.g. pdf_text or manual
+              confidence:
+                type: number
+                nullable: true
+                minimum: 0
+                maximum: 1
             nullable: true
         transaction:
-          allOf:
-          - "$ref": "#/components/schemas/ReceiptTransaction"
+          type: object
+          required:
+          - id
+          - entry_id
+          - name
+          - date
+          - amount_decimal
+          - currency
+          - account
+          properties:
+            id:
+              type: string
+              format: uuid
+            entry_id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            date:
+              type: string
+              format: date
+            amount_decimal:
+              type: string
+              description: Stored amount; positive is an outflow
+            currency:
+              type: string
+            account:
+              type: object
+              required:
+              - id
+              - name
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
           nullable: true
           description: Linked transaction, while the caller can see its account
         match_status:
@@ -407,6 +453,7 @@ components:
           enum:
           - pending
           - confirmed
+          -
           nullable: true
           description: 'pending: Sure suggested the transaction and waits for confirm
             or reject; confirmed: linked for good'

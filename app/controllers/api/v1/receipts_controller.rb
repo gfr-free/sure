@@ -78,7 +78,7 @@ class Api::V1::ReceiptsController < Api::V1::BaseController
     attrs = field_params
     return if performed?
 
-    @receipt.update_fields!(attrs)
+    @receipt.update_submitted_fields!(attrs)
     render :show
   rescue ActiveRecord::RecordInvalid => e
     render_record_invalid(e.record)

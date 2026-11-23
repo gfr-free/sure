@@ -17,6 +17,35 @@ RSpec.configure do |config|
     }
   }
 
+  receipt_field_source_schema = {
+    type: :object,
+    required: %w[source confidence],
+    properties: {
+      source: { type: :string, description: 'Where the value came from, e.g. pdf_text or manual' },
+      confidence: { type: :number, nullable: true, minimum: 0, maximum: 1 }
+    }
+  }
+  receipt_transaction_schema = {
+    type: :object,
+    required: %w[id entry_id name date amount_decimal currency account],
+    properties: {
+      id: { type: :string, format: :uuid },
+      entry_id: { type: :string, format: :uuid },
+      name: { type: :string },
+      date: { type: :string, format: :date },
+      amount_decimal: { type: :string, description: 'Stored amount; positive is an outflow' },
+      currency: { type: :string },
+      account: {
+        type: :object,
+        required: %w[id name],
+        properties: {
+          id: { type: :string, format: :uuid },
+          name: { type: :string }
+        }
+      }
+    }
+  }
+
   config.openapi_specs = {
     'openapi.yaml' => {
       openapi: '3.0.3',
@@ -204,34 +233,8 @@ RSpec.configure do |config|
               meta: { '$ref' => '#/components/schemas/Pagination' }
             }
           },
-          ReceiptFieldSource: {
-            type: :object,
-            required: %w[source confidence],
-            properties: {
-              source: { type: :string, description: 'Where the value came from, e.g. pdf_text or manual' },
-              confidence: { type: :number, nullable: true, minimum: 0, maximum: 1 }
-            }
-          },
-          ReceiptTransaction: {
-            type: :object,
-            required: %w[id entry_id name date amount_decimal currency account],
-            properties: {
-              id: { type: :string, format: :uuid },
-              entry_id: { type: :string, format: :uuid },
-              name: { type: :string },
-              date: { type: :string, format: :date },
-              amount_decimal: { type: :string, description: 'Stored amount; positive is an outflow' },
-              currency: { type: :string },
-              account: {
-                type: :object,
-                required: %w[id name],
-                properties: {
-                  id: { type: :string, format: :uuid },
-                  name: { type: :string }
-                }
-              }
-            }
-          },
+          ReceiptFieldSource: receipt_field_source_schema,
+          ReceiptTransaction: receipt_transaction_schema,
           Receipt: {
             type: :object,
             required: %w[id status source filename content_type byte_size content_sha256 extraction_status field_sources
@@ -253,18 +256,14 @@ RSpec.configure do |config|
               field_sources: {
                 type: :object,
                 description: 'Per field (merchant_name, date, amount, currency): where its value came from, or null',
-                additionalProperties: {
-                  allOf: [ { '$ref' => '#/components/schemas/ReceiptFieldSource' } ],
-                  nullable: true
-                }
+                additionalProperties: receipt_field_source_schema.merge(nullable: true)
               },
-              transaction: {
-                allOf: [ { '$ref' => '#/components/schemas/ReceiptTransaction' } ],
+              transaction: receipt_transaction_schema.merge(
                 nullable: true,
                 description: 'Linked transaction, while the caller can see its account'
-              },
+              ),
               match_status: {
-                type: :string, enum: %w[pending confirmed], nullable: true,
+                type: :string, enum: [ 'pending', 'confirmed', nil ], nullable: true,
                 description: 'pending: Sure suggested the transaction and waits for confirm or reject; confirmed: linked for good'
               },
               bank_wait_until: {

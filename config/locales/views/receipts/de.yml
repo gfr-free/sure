@@ -9,7 +9,6 @@ de:
       open: Zu prüfen
       reading: Wird gelesen
     sources:
-      ai: KI
       pdf_text: PDF-Text
     table:
       amount: Betrag
@@ -22,7 +21,6 @@ de:
       preview: Vorschau
       upload_title: Belege hinzufügen
       upload_description: Fotos (JPEG, PNG, WebP, GIF) oder PDFs, je bis %{max_size} MB. Aus PDFs mit lesbarem Text liest Sure Händler, Datum und Betrag aus, bei Fotos trägst du sie selbst ein. Danach ordnest du jeden Beleg einer Buchung zu oder legst ihn als neue Buchung an.
-      ai_notice: Mit deinem KI-Modell liest Sure auch Fotos und PDFs ohne lesbaren Text. Dafür schickt Sure die Datei oder ihren Text an dieses Modell.
       files_label: Dateien
       camera_label: Foto aufnehmen
       upload: Hochladen

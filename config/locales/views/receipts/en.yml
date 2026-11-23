@@ -9,7 +9,6 @@ en:
       open: To review
       reading: Reading
     sources:
-      ai: AI
       pdf_text: PDF text
     table:
       amount: Amount
@@ -22,7 +21,6 @@ en:
       preview: Preview
       upload_title: Add receipts
       upload_description: Photos (JPEG, PNG, WebP, GIF) or PDFs, up to %{max_size} MB each. Sure reads the merchant, date and amount from PDFs with readable text; for photos you enter them yourself. Then you link each receipt to a transaction or record it as a new one.
-      ai_notice: With your AI model, Sure also reads photos and PDFs without readable text. It then sends the file or its text to that model.
       files_label: Files
       camera_label: Take a photo
       upload: Upload

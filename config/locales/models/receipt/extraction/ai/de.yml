@@ -1,0 +1,6 @@
+de:
+  receipts:
+    sources:
+      ai: KI
+    index:
+      ai_notice: Mit deinem KI-Modell liest Sure auch Fotos und PDFs ohne lesbaren Text. Dafür schickt Sure die Datei oder ihren Text an dieses Modell.

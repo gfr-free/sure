@@ -553,6 +553,20 @@ class ReceiptTest < ActiveSupport::TestCase
     assert_not receipt.read_any_field?
   end
 
+  test "an e-invoice without an XML declaration is accepted and read" do
+    xml = e_invoice_xml("ubl_invoice").sub(/\A<\?xml[^>]*\?>\s*/, "")
+    receipt = upload_xml(xml)
+
+    receipt.extract!
+
+    assert_equal "application/xml", receipt.content_type
+    assert receipt.read_any_field?
+  end
+
+  test "text that only starts like XML is rejected" do
+    assert_raises(Receipt::InvalidUploadError) { upload_xml("<b>not closed") }
+  end
+
   test "link_to! attaches an e-invoice XML to the transaction" do
     receipt = upload_xml(e_invoice_xml("ubl_invoice"))
     transaction = create_transaction(account: @account, amount: 49.98, date: Date.current)

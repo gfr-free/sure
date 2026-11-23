@@ -30,6 +30,8 @@ class Receipt < ApplicationRecord
   CANDIDATE_DATE_WINDOW = 30
   MAX_CANDIDATES = 20
   FIELDS = %w[merchant_name date amount currency].freeze
+  # An optional UTF-8 byte order mark and whitespace, then an element.
+  XML_START = /\A(?:\xEF\xBB\xBF)?\s*<[A-Za-z_]/n
   # Read from e-invoices only and shown as read; not edited by hand.
   DETAIL_FIELDS = %w[invoice_number due_date tax_amount].freeze
   # Fits numeric(19,4), the type of receipts.amount and entries.amount.
@@ -76,7 +78,7 @@ class Receipt < ApplicationRecord
       content = read_upload!(file)
       # Decided from the bytes alone: with a name hint, Marcel falls back to the
       # extension, so any file named ".pdf" would pass.
-      content_type = Marcel::MimeType.for(StringIO.new(content))
+      content_type = detect_content_type(content)
       raise InvalidUploadError unless ALLOWED_CONTENT_TYPES.include?(content_type)
 
       content_sha256 = Digest::SHA256.hexdigest(content)
@@ -130,6 +132,19 @@ class Receipt < ApplicationRecord
     end
 
     private
+      # Marcel knows XML only by its "<?xml" declaration, which the standard
+      # makes optional; an e-invoice may start with its root element. Such a
+      # file is XML only if it parses as one, and XML is never shown inline.
+      def detect_content_type(content)
+        content_type = Marcel::MimeType.for(StringIO.new(content))
+        return content_type unless content_type == "application/octet-stream" && content.b.match?(XML_START)
+
+        Nokogiri::XML(content) { |config| config.strict.nonet }
+        "application/xml"
+      rescue Nokogiri::XML::SyntaxError, ArgumentError, EncodingError
+        content_type
+      end
+
       # Fits the 255-character column, keeping the extension.
       def upload_filename(file)
         name = ActiveStorage::Filename.new(file.original_filename.to_s.presence || "receipt").sanitized

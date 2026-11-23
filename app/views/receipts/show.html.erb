@@ -43,25 +43,6 @@
         <%= render DS::Alert.new(message: receipt_nothing_read_message(@receipt), variant: :info) %>
       <% end %>
 
-      <%= render DS::Card.new(class: "gap-3") do %>
-        <h2 class="text-sm font-medium text-primary"><%= t(".fields_title") %></h2>
-        <%= styled_form_with model: @receipt, url: receipt_path(@receipt), method: :patch, class: "space-y-3" do |form| %>
-          <%= hidden_field_tag "rendered[merchant_name]", @receipt.merchant_name.to_s %>
-          <%= hidden_field_tag "rendered[date]", @receipt.date&.iso8601.to_s %>
-          <%= hidden_field_tag "rendered[amount]", receipt_amount_input_value(@receipt).to_s %>
-          <%= hidden_field_tag "rendered[currency]", @receipt.currency.to_s %>
-          <%= form.text_field :merchant_name, label: t(".merchant_name"), maxlength: 200 %>
-          <% if (hint = receipt_field_hint(@receipt, :merchant_name)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
-          <%= form.date_field :date, label: t(".date") %>
-          <% if (hint = receipt_field_hint(@receipt, :date)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
-          <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency %>
-          <% if (hint = receipt_field_hint(@receipt, :amount)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
-          <div class="flex justify-end">
-            <%= render DS::Button.new(text: t(".save"), type: :submit) %>
-          </div>
-        <% end %>
-      <% end %>
-
       <% if @receipt.invoice_details? %>
         <%= render DS::Card.new(class: "gap-3") do %>
           <h2 class="text-sm font-medium text-primary"><%= t(".invoice_title") %></h2>
@@ -80,6 +61,25 @@
             <% end %>
           </dl>
           <p class="text-xs text-secondary"><%= t(".invoice_hint") %></p>
+        <% end %>
+      <% end %>
+
+      <%= render DS::Card.new(class: "gap-3") do %>
+        <h2 class="text-sm font-medium text-primary"><%= t(".fields_title") %></h2>
+        <%= styled_form_with model: @receipt, url: receipt_path(@receipt), method: :patch, class: "space-y-3" do |form| %>
+          <%= hidden_field_tag "rendered[merchant_name]", @receipt.merchant_name.to_s %>
+          <%= hidden_field_tag "rendered[date]", @receipt.date&.iso8601.to_s %>
+          <%= hidden_field_tag "rendered[amount]", receipt_amount_input_value(@receipt).to_s %>
+          <%= hidden_field_tag "rendered[currency]", @receipt.currency.to_s %>
+          <%= form.text_field :merchant_name, label: t(".merchant_name"), maxlength: 200 %>
+          <% if (hint = receipt_field_hint(@receipt, :merchant_name)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <%= form.date_field :date, label: t(".date") %>
+          <% if (hint = receipt_field_hint(@receipt, :date)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <%= render "receipts/amount_fields", form: form, receipt: @receipt, currency: @receipt.currency %>
+          <% if (hint = receipt_field_hint(@receipt, :amount)) %><p class="text-xs text-secondary -mt-2"><%= hint %></p><% end %>
+          <div class="flex justify-end">
+            <%= render DS::Button.new(text: t(".save"), type: :submit) %>
+          </div>
         <% end %>
       <% end %>
 

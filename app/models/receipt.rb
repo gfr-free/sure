@@ -30,12 +30,12 @@ class Receipt < ApplicationRecord
   CANDIDATE_DATE_WINDOW = 30
   MAX_CANDIDATES = 20
   FIELDS = %w[merchant_name date amount currency].freeze
+  # Fits numeric(19,4), the type of receipts.amount and entries.amount.
+  MAX_AMOUNT = 10**15
   # An optional UTF-8 byte order mark and whitespace, then an element.
   XML_START = /\A(?:\xEF\xBB\xBF)?\s*<[A-Za-z_]/n
   # Read from e-invoices only and shown as read; not edited by hand.
   DETAIL_FIELDS = %w[invoice_number due_date tax_amount].freeze
-  # Fits numeric(19,4), the type of receipts.amount and entries.amount.
-  MAX_AMOUNT = 10**15
 
   if encryption_ready?
     encrypts :raw_text

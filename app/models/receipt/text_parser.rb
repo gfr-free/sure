@@ -40,7 +40,7 @@ class Receipt::TextParser
   EXCLUDED_LABELS = [
     "zwischensumme", "subtotal", "sub-total", "sous-total", "netto", "net", "mwst", "ust", "steuer", "tax", "vat",
     "tva", "iva", "btw", "rückgeld", "rueckgeld", "wechselgeld", "gegeben", "change", "rendu", "resto", "trinkgeld",
-    "tip", "rabatt", "discount", "pfand"
+    "tip", "pfand"
   ].freeze
 
   # A discount line can carry a strong label ("Rabatt auf Gesamtbetrag"), so it
@@ -159,9 +159,9 @@ class Receipt::TextParser
     end
 
     # A subtotal, tax, change or discount line, unless the word only says what
-    # the total includes ("Gesamt inkl. MwSt").
+    # the total includes ("Gesamt inkl. MwSt") or comes after ("Total after discount").
     def excluded_line?(line)
-      EXCLUDED_LABELS.any? do |label|
+      discount_line?(line) || EXCLUDED_LABELS.any? do |label|
         line.to_enum(:scan, label_regexp(label)).any? do
           !line[0...Regexp.last_match.begin(0)].match?(INCLUDING)
         end

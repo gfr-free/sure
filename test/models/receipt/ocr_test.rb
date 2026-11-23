@@ -156,7 +156,7 @@ class Receipt::OcrTest < ActiveSupport::TestCase
   end
 
   test "reads a photo of a receipt with the installed tesseract" do
-    skip "tesseract with German and English is not installed" unless (%w[deu eng] - Receipt::Ocr.installed_languages).empty?
+    require_ocr!
 
     date = Date.current - 3
     photo = receipt_photo([ "MUSTERMARKT GMBH", "Hauptstrasse 1", "Brot 3,50", "Milch 1,20", "SUMME EUR 4,70",
@@ -171,8 +171,7 @@ class Receipt::OcrTest < ActiveSupport::TestCase
   end
 
   test "reads a scanned PDF with the installed tesseract" do
-    skip "tesseract with German and English is not installed" unless (%w[deu eng] - Receipt::Ocr.installed_languages).empty?
-    skip "pdftoppm is not installed" unless Receipt::Ocr.pdf_renderer_installed?
+    require_ocr!(pdf: true)
 
     date = Date.current - 5
     pdf = Vips::Image.new_from_buffer(receipt_photo([ "Rechnung", "Gesamtbetrag 19,99 EUR", "Rechnungsdatum #{date.strftime('%d.%m.%Y')}" ]), "")
@@ -189,6 +188,18 @@ class Receipt::OcrTest < ActiveSupport::TestCase
   end
 
   private
+    # Skips without Tesseract or pdftoppm locally; fails in CI, which installs
+    # them, so a broken probe cannot silently skip these tests there.
+    def require_ocr!(pdf: false)
+      missing = []
+      missing << "tesseract with German and English" unless (%w[deu eng] - Receipt::Ocr.installed_languages).empty?
+      missing << "pdftoppm" if pdf && !Receipt::Ocr.pdf_renderer_installed?
+      return if missing.empty?
+
+      message = "#{missing.to_sentence} not installed"
+      ENV["RECEIPT_OCR_REQUIRED"].present? ? flunk(message) : skip(message)
+    end
+
     # A grey photo-like PNG of the lines, rendered with libvips.
     def receipt_photo(lines)
       text = Vips::Image.text(lines.join("\n"), font: "DejaVu Sans Mono 24", dpi: 150)

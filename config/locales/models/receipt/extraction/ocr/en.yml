@@ -1,0 +1,6 @@
+en:
+  receipts:
+    sources:
+      ocr: Text recognition
+    notices:
+      ocr_unavailable: Sure found no text in this file. Text recognition for photos and scans is not installed on this server, so enter the details below.

@@ -10,7 +10,6 @@ en:
       reading: Reading
     sources:
       pdf_text: PDF text
-      ocr: Text recognition
     table:
       amount: Amount
       date: Date
@@ -40,7 +39,6 @@ en:
       reading: Sure is reading this receipt. Refresh the page in a moment.
       extraction_failed: Sure could not read this file. Enter the details below.
       nothing_read: Sure found no readable text in this file. Enter the details below.
-      ocr_unavailable: Sure found no text in this file. Text recognition for photos and scans is not installed on this server, so enter the details below.
       fields_title: Details
       field_hint: "Read from %{source}, %{confidence} sure"
       merchant_name: Merchant

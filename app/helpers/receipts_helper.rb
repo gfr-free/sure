@@ -38,6 +38,14 @@ module ReceiptsHelper
     t("receipts.show.field_hint", source: t("receipts.sources.#{source}"), confidence: number_to_percentage(confidence * 100, precision: 0))
   end
 
+  # A reading stage may leave a notice saying why nothing was read, such as a
+  # tool that is not installed on this server.
+  def receipt_nothing_read_message(receipt)
+    notice = receipt.extraction_error.presence if receipt.extraction_completed?
+    default = t("receipts.show.nothing_read")
+    notice ? t("receipts.notices.#{notice}", default: default) : default
+  end
+
   private
     def receipt_currency_precision(receipt)
       Money::Currency.new(receipt.currency.presence || receipt.family.currency).default_precision.to_i

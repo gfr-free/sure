@@ -10,7 +10,6 @@ de:
       reading: Wird gelesen
     sources:
       pdf_text: PDF-Text
-      ocr: Texterkennung
     table:
       amount: Betrag
       date: Datum
@@ -40,7 +39,6 @@ de:
       reading: Sure liest diesen Beleg gerade. Lade die Seite gleich neu.
       extraction_failed: Sure konnte diese Datei nicht lesen. Trag die Angaben unten ein.
       nothing_read: Sure hat in dieser Datei keinen lesbaren Text gefunden. Trag die Angaben unten ein.
-      ocr_unavailable: Sure hat in dieser Datei keinen Text gefunden. Die Texterkennung für Fotos und Scans ist auf diesem Server nicht installiert. Trag die Angaben unten ein.
       fields_title: Angaben
       field_hint: "Aus %{source} gelesen, zu %{confidence} sicher"
       merchant_name: Händler

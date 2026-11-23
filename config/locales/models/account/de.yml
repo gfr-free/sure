@@ -1,5 +1,9 @@
 ---
 de:
+  account_forecast:
+    restricted_transfer:
+      transfer_in: Umbuchung von einem anderen Konto
+      transfer_out: Umbuchung auf ein anderes Konto
   activerecord:
     attributes:
       account:

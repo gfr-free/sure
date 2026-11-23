@@ -68,6 +68,8 @@ en:
         new_account: New account
         no_account_subtitle: Since no accounts have been added, there's no data to display. Add your first accounts to start viewing dashboard data.
         no_account_title: No accounts yet
+      group_weight:
+        not_counted: "Not counted in totals"
       balance_sheet:
         title: "Balance Sheet"
         no_items: "No %{name} yet"

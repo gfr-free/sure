@@ -74,6 +74,21 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{chats_path}']", count: 0
   end
 
+  test "balance sheet shows no weight for accounts excluded from reports" do
+    account = @family.accounts.create!(
+      name: "Unreported savings", balance: 5000, currency: @family.currency,
+      accountable: Depository.new, exclude_from_reports: true
+    )
+
+    get root_path
+
+    assert_response :ok
+    row = css_select("#balance-sheet a[href='#{account_path(account)}']").first
+      .ancestors("div.justify-between").first
+    assert_includes row.text, "–"
+    assert_no_match(/%/, row.text)
+  end
+
   test "inactive user's existing session is revoked" do
     session_record = @user.sessions.order(:created_at).last
     @user.update_column(:active, false)

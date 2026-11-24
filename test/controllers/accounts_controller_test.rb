@@ -2326,14 +2326,24 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
   # The sidebar fragment is cached once for every page; which account is open
   # travels outside it, and the browser highlights that account.
   test "one cached sidebar serves every account page" do
+    sidebar_writes = []
+    record_write = ->(*, payload) { sidebar_writes << payload[:key] if payload[:key].to_s.include?("account_sidebar_tabs") }
+
     with_fragment_caching do
-      get account_url(@account)
+      ActiveSupport::Notifications.subscribed(record_write, "write_fragment.action_controller") do
+        get account_url(@account)
+      end
+      assert_not_empty sidebar_writes, "the first account page builds the sidebar"
       first_sidebar = css_select("#sidebar-scroll #account-sidebar-tabs").first.to_html
       assert_select "[data-sidebar-active-account-id=?]", @account.id
 
       other = accounts(:credit_card)
-      get account_url(other)
+      sidebar_writes.clear
+      ActiveSupport::Notifications.subscribed(record_write, "write_fragment.action_controller") do
+        get account_url(other)
+      end
 
+      assert_empty sidebar_writes, "the second account page reuses the cached sidebar instead of building it again"
       assert_select "[data-sidebar-active-account-id=?]", other.id
       assert_equal first_sidebar, css_select("#sidebar-scroll #account-sidebar-tabs").first.to_html
       assert_select "#sidebar-scroll a[data-sidebar-account-id=?]", other.id

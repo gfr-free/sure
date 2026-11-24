@@ -161,6 +161,41 @@ de:
     dismiss_duplicate:
       success: Als getrennte Transaktionen beibehalten
       failure: Duplikatshinweis konnte nicht verworfen werden
+    review_state:
+      marker: Zur Prüfung vorgemerkt
+      failure: Der Prüfstatus konnte nicht geändert werden
+      split_parent: Eine aufgeteilte Buchung wird über ihre Teile geprüft
+      filter:
+        open: Offen
+        flagged: Zur Prüfung vorgemerkt
+        reviewed: Geprüft
+      actions:
+        open: Prüfstatus zurücksetzen
+        flagged: Zur Prüfung vormerken
+        reviewed: Als geprüft markieren
+      updated:
+        open: Prüfstatus zurückgesetzt
+        flagged: Zur Prüfung vorgemerkt
+        reviewed: Als geprüft markiert
+      bulk_updated:
+        open:
+          one: Prüfstatus bei 1 Buchung zurückgesetzt
+          other: Prüfstatus bei %{count} Buchungen zurückgesetzt
+        flagged:
+          one: 1 Buchung zur Prüfung vorgemerkt
+          other: "%{count} Buchungen zur Prüfung vorgemerkt"
+        reviewed:
+          one: 1 Buchung als geprüft markiert
+          other: "%{count} Buchungen als geprüft markiert"
+      drawer:
+        title: Prüfung
+        changed_by: "%{name}, %{date}"
+        changed_on: "%{date}"
+        open_hint: Vormerken, um sie auf der Seite „Prüfen“ wiederzufinden, oder als geprüft markieren, um sie dort aus den Listen zu nehmen.
+        states:
+          open: Nicht geprüft
+          flagged: Zur Prüfung vorgemerkt
+          reviewed: Geprüft
     reconcile:
       success: Als %{status} markiert
       failure: Abgleichsstatus konnte nicht aktualisiert werden
@@ -216,6 +251,7 @@ de:
         merchant: Händler
         ai: KI
         attachment: Anhang
+        review_state: Prüfstatus
     convert_to_trade:
       title: In Wertpapier-Trade umwandeln
       description: Diese Transaktion in einen Trade mit Wertpapierdetails umwandeln
@@ -410,6 +446,7 @@ de:
       duplicate: Duplizieren
       edit: Bearbeiten
       reconcile: Abgleichen
+      review: Prüfstatus
       selected: ausgewählt
     split_parent_row:
       split_label: Teilen

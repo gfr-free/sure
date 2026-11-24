@@ -6,8 +6,10 @@ de:
         label: Ohne Kategorie
       no_merchant:
         label: Ohne Händler
+      flagged:
+        label: Zur Prüfung vorgemerkt
       long_pending:
-        label: Länger als %{days} Tage vorgemerkt
+        label: Länger als %{days} Tage ausstehend
       possible_duplicate:
         label: Mögliche Duplikate
       transfer_suggestion:

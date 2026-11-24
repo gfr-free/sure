@@ -12,6 +12,7 @@ export default class extends Controller {
     "editLink",
     "deleteButton",
     "reconcileMenu",
+    "reviewMenu",
   ];
   static values = {
     singularLabel: String,
@@ -195,7 +196,18 @@ export default class extends Controller {
 
     if (this.hasReconcileMenuTarget) {
       this.reconcileMenuTarget.classList.toggle("hidden", !hasTransaction);
-      this._updateReconcileForms();
+      this._appendSelectedIdsToForms(
+        this.reconcileMenuTarget,
+        "bulk_update[entry_ids][]",
+      );
+    }
+
+    if (this.hasReviewMenuTarget) {
+      this.reviewMenuTarget.classList.toggle("hidden", !hasTransaction);
+      this._appendSelectedIdsToForms(
+        this.reviewMenuTarget,
+        "bulk_review_state[entry_ids][]",
+      );
     }
 
     if (this.hasDuplicateLinkTarget) {
@@ -240,16 +252,16 @@ export default class extends Controller {
     );
   }
 
-  // The Reconcile menu items are plain form submissions. Put the selected
-  // ids in each form action so the native submit carries them, without
-  // relying on a click handler to add hidden inputs to a button_to form.
-  _updateReconcileForms() {
-    this.reconcileMenuTarget.querySelectorAll("form").forEach((form) => {
+  // The Reconcile and Review menu items are plain form submissions. Put the
+  // selected ids in each form action so the native submit carries them,
+  // without relying on a click handler to add hidden inputs to a button_to form.
+  _appendSelectedIdsToForms(container, paramName) {
+    container.querySelectorAll("form").forEach((form) => {
       const url = new URL(form.action, window.location.origin);
-      url.searchParams.delete("bulk_update[entry_ids][]");
+      url.searchParams.delete(paramName);
 
       this.selectedIdsValue.forEach((id) => {
-        url.searchParams.append("bulk_update[entry_ids][]", id);
+        url.searchParams.append(paramName, id);
       });
 
       form.action = url.toString();

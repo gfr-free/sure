@@ -1,5 +1,5 @@
 class Transaction < ApplicationRecord
-  include Entryable, Transferable, Ruleable, Splittable
+  include Entryable, Transferable, Ruleable, Splittable, Reviewable
 
   belongs_to :category, optional: true
   belongs_to :merchant, optional: true
@@ -629,6 +629,11 @@ class Transaction < ApplicationRecord
             tx_attrs[:category_id] = pending_transaction.category_id
           end
         end
+
+        # The review mark is the user's own, like notes, so it survives on a
+        # protected entry too: the pending one's mark is kept when the posted
+        # one has none, and flagged wins over reviewed.
+        tx_attrs.merge!(posted_tx.review_attributes_taken_from(pending_entry.entryable))
 
         posted_tx.update!(tx_attrs) if tx_attrs.any?
 

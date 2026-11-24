@@ -3,21 +3,35 @@
 # narrows the counts and lists too. Read-only: the page links each row to the
 # drawer and bulk tools that already fix it.
 class Transaction::ReviewQueue
-  KINDS = %w[uncategorized no_merchant long_pending possible_duplicate transfer_suggestion].freeze
+  KINDS = %w[uncategorized no_merchant flagged long_pending possible_duplicate transfer_suggestion].freeze
 
   # A pending transaction older than this counts as "pending for a long time".
   LONG_PENDING_AFTER = 5.days
 
-  # Badge count for the Review nav entry: the uncategorized transactions the
-  # viewer can still categorize, counted like the "Without category" tile.
+  # Badge count for the Review nav entry: the transactions the viewer can
+  # still work on that are flagged or uncategorized (and not marked reviewed),
+  # each counted once, like the "Flagged" and "Without category" tiles.
   # One COUNT per request (memoized), not cached: a cache key that stays
   # correct here (entries, categories, account status and shares) costs more
   # queries on every page than the count itself.
   def self.badge_count
     Current.review_badge_count ||= Current.annotatable_entries
-      .uncategorized_transactions
-      .where.not(entryable_id: Transfer.select(:inflow_transaction_id))
+      .joins("INNER JOIN transactions ON transactions.id = entries.entryable_id AND entries.entryable_type = 'Transaction'")
+      .where(accounts: { status: %w[draft active] }, entries: { excluded: false })
+      .where(<<~SQL.squish, excluded_kinds: Transaction::UNCATEGORIZED_EXCLUDED_KINDS)
+        transactions.review_state = 'flagged' OR (
+          transactions.review_state IS NULL
+          AND transactions.category_id IS NULL
+          AND transactions.kind NOT IN (:excluded_kinds)
+          AND transactions.id NOT IN (SELECT inflow_transaction_id FROM transfers)
+        )
+      SQL
       .count
+  end
+
+  # Whether Quick Categorize has anything the viewer can categorize.
+  def self.quick_categorize_available?
+    Current.annotatable_entries.uncategorized_transactions.exists?
   end
 
   def initialize(family, user:, filters: {})
@@ -38,15 +52,19 @@ class Transaction::ReviewQueue
       # Entry.uncategorized_transactions, minus the inflow leg of a transfer:
       # its category lives on the outflow leg, and the list shows a transfer
       # once, on that leg.
+      # A transaction marked reviewed is done here, as below.
       base_scope
+        .not_reviewed
         .where(category_id: nil)
         .where.not(kind: Transaction::UNCATEGORIZED_EXCLUDED_KINDS)
         .where.not(id: Transfer.select(:inflow_transaction_id))
     when "no_merchant"
       # Transfers and loan or investment payments have no merchant by design.
-      base_scope.where(merchant_id: nil, kind: "standard")
+      base_scope.not_reviewed.where(merchant_id: nil, kind: "standard")
+    when "flagged"
+      base_scope.review_flagged
     when "long_pending"
-      base_scope.merge(Transaction.pending).where(entries: { date: ...(Date.current - LONG_PENDING_AFTER) })
+      base_scope.not_reviewed.merge(Transaction.pending).where(entries: { date: ...(Date.current - LONG_PENDING_AFTER) })
     when "possible_duplicate"
       base_scope
         # Mirrors Transaction#has_potential_duplicate?: a non-empty object

@@ -1,0 +1,17 @@
+<%# locals: (form:) %>
+
+<div class="p-2 space-y-3">
+  <% Transaction::REVIEW_STATE_FILTER_VALUES.each do |state| %>
+    <div class="flex items-center gap-3" data-filter-name="<%= state %>">
+      <%= form.check_box :review_state,
+                             {
+                               multiple: true,
+                               checked: @q[:review_state]&.include?(state),
+                               class: "checkbox checkbox--light"
+                             },
+                             state,
+                             nil %>
+      <%= form.label :review_state, t("transactions.review_state.filter.#{state}"), value: state, class: "text-sm text-primary" %>
+    </div>
+  <% end %>
+</div>

@@ -78,7 +78,7 @@
             ) %>
 
             <% popover.with_custom_content do %>
-              <% excluded_filters = [ "account_filter", "ai_filter" ] %>
+              <% excluded_filters = [ "account_filter", "ai_filter", "review_state_filter" ] %>
               <% excluded_filters << "reconcile_status_filter" unless account.manual? %>
               <%= render "transactions/searches/menu",
                     form: form,

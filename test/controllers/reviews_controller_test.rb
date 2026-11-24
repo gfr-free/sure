@@ -82,6 +82,45 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to review_path(q: { types: [ "expense" ] }, kind: "no_merchant")
   end
 
+  test "the flagged tile lists transactions flagged by hand" do
+    flagged = create_transaction(name: "#{MARKER} flagged", category: categories(:food_and_drink), merchant: merchants(:netflix))
+    Transaction.set_review_state!(Transaction.where(id: flagged.entryable_id), "flagged", user: @user)
+
+    get review_path(kind: "flagged", q: { search: MARKER })
+
+    assert_response :success
+    assert_select "#review-kind-flagged", text: /1/
+    assert_select "##{ActionView::RecordIdentifier.dom_id(flagged)}"
+  end
+
+  test "a reviewed transaction leaves the uncategorized tile" do
+    entry = create_transaction(name: "#{MARKER} reviewed", category: nil, merchant: merchants(:netflix))
+    Transaction.set_review_state!(Transaction.where(id: entry.entryable_id), "reviewed", user: @user)
+
+    get review_path(kind: "uncategorized", q: { search: MARKER })
+
+    assert_select "#review-kind-uncategorized", text: /0/
+    assert_select "##{ActionView::RecordIdentifier.dom_id(entry)}", count: 0
+  end
+
+  test "quick categorize is offered only while the uncategorized tile has work" do
+    entry = create_transaction(name: "#{MARKER} quick", category: nil, merchant: merchants(:netflix))
+
+    get review_path(kind: "uncategorized", q: { search: MARKER })
+    assert_select "a[href='#{transactions_categorize_path}']", minimum: 1
+
+    Transaction.set_review_state!(Transaction.where(id: entry.entryable_id), "reviewed", user: @user)
+    get review_path(kind: "uncategorized", q: { search: MARKER })
+    assert_select "a[href='#{transactions_categorize_path}']", count: 0
+  end
+
+  test "the review status filter shows as a badge" do
+    get review_path(q: { search: MARKER, review_state: [ "flagged" ] })
+
+    assert_response :success
+    assert_select "#review-filters li", text: /#{I18n.t("transactions.review_state.filter.flagged")}/
+  end
+
   test "the nav shows the review entry only with preview access" do
     get transactions_path
     assert_select "a[href='#{review_path}']", minimum: 1

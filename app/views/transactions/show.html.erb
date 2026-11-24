@@ -182,6 +182,12 @@
       </div>
     <% end %>
 
+    <% if preview_features_enabled? && !@entry.split_parent? %>
+      <% dialog.with_section(title: t("transactions.review_state.drawer.title"), open: @entry.transaction.review_state.present?) do %>
+        <%= render "transactions/review_state", entry: @entry, can_change: can_annotate_entry? && !Current.user.guest? %>
+      <% end %>
+    <% end %>
+
     <% dialog.with_section(title: t(".attachments")) do %>
       <%= render "transactions/attachments", transaction: @entry.transaction, can_upload: can_annotate_entry?, can_delete: can_edit_entry? %>
     <% end %>

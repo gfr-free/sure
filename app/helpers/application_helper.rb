@@ -171,8 +171,9 @@ module ApplicationHelper
   end
 
   # Transactions that still need attention. Preview-gated and desktop-only like
-  # Portfolio; on phones the Transactions menu links to it. The count is what
-  # the viewer can still categorize (see Transaction::ReviewQueue.badge_count).
+  # Portfolio; on phones the Transactions menu links to it. The count is the
+  # flagged or uncategorized work the viewer can still change (see
+  # Transaction::ReviewQueue.badge_count).
   def review_nav_item
     # Checked first so users without the flag never pay for the count query.
     return nil unless preview_features_enabled? && Current.family

@@ -1,0 +1,59 @@
+<%# locals: (entry:, can_change:) %>
+<% transaction = entry.transaction %>
+<% state = transaction.review_state %>
+<% changed_by = transaction.review_state_changed_by if state %>
+<%= tag.div id: dom_id(entry, :review_state), class: "space-y-3" do %>
+  <div class="flex items-start gap-3">
+    <%= icon(review_state_icon(state), color: state == "flagged" ? "warning" : (state ? "success" : "default")) %>
+    <div class="space-y-0.5">
+      <p class="text-sm font-medium text-primary"><%= t("transactions.review_state.drawer.states.#{state || Transaction::REVIEW_STATE_OPEN}") %></p>
+      <% if state && transaction.review_state_changed_at %>
+        <p class="text-xs text-secondary">
+          <%# A user who has left the family is not named. %>
+          <% if changed_by && changed_by.family_id == Current.family.id %>
+            <%= t("transactions.review_state.drawer.changed_by", name: changed_by.display_name, date: format_date(transaction.review_state_changed_at)) %>
+          <% else %>
+            <%= t("transactions.review_state.drawer.changed_on", date: format_date(transaction.review_state_changed_at)) %>
+          <% end %>
+        </p>
+      <% else %>
+        <p class="text-xs text-secondary"><%= t("transactions.review_state.drawer.open_hint") %></p>
+      <% end %>
+    </div>
+  </div>
+
+  <% if can_change %>
+    <div class="flex flex-wrap items-center gap-2">
+      <% unless state == "flagged" %>
+        <%= render DS::Button.new(
+          text: t("transactions.review_state.actions.flagged"),
+          icon: review_state_icon("flagged"),
+          variant: :outline,
+          size: :sm,
+          href: transaction_review_state_path(entry, state: "flagged", grouped: params[:grouped].presence),
+          method: :patch
+        ) %>
+      <% end %>
+      <% unless state == "reviewed" %>
+        <%= render DS::Button.new(
+          text: t("transactions.review_state.actions.reviewed"),
+          icon: review_state_icon("reviewed"),
+          variant: :outline,
+          size: :sm,
+          href: transaction_review_state_path(entry, state: "reviewed", grouped: params[:grouped].presence),
+          method: :patch
+        ) %>
+      <% end %>
+      <% if state %>
+        <%= render DS::Button.new(
+          text: t("transactions.review_state.actions.open"),
+          icon: "rotate-ccw",
+          variant: :ghost,
+          size: :sm,
+          href: transaction_review_state_path(entry, state: Transaction::REVIEW_STATE_OPEN, grouped: params[:grouped].presence),
+          method: :patch
+        ) %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

@@ -1,6 +1,6 @@
 # Einheitlicher Review-Prompt für Sure
 
-Stand: 17.11.2026, vom Owner freigegebene Fassung (Entscheidungen 15./16.10., Ergänzungen 06.11. und 17.11.). Gilt für alle Jobs und Threads, die PRs prüfen:
+Stand: 24.11.2026, vom Owner freigegebene Fassung (Entscheidungen 15./16.10., Ergänzungen 06.11., 17.11. und 24.11.). Gilt für alle Jobs und Threads, die PRs prüfen:
 PR-Check vor jedem PR (Fork und Upstream), Fork-PR-Job (04:20), 05:27-Upstream-Review-Job,
 Review-Lern-Job (Di 07:10, nur Teil D) und einzelne PR-Threads.
 Aufbau: Teil A ist der eigentliche Prompt (Platzhalter in `{{…}}`), Teil B bis D sind Bausteine,
@@ -132,6 +132,9 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
 - Partials/Komponenten mit Rechte-Filter als Local: kein fail-open-Default.
 - Turbo-Broadcasts: Wer abonniert den Stream, was steht im Partial (Current.user ist dort nil)?
 - Löschen: Wer verweist auf das Objekt (dependent, Leser, Importer)?
+- Merge, Löschen, Familienwechsel (Owner-Ok 24.11., Fork 56, 191, 302, 306): Wandern alle
+  Verknüpfungen mit (Beleg-Herkunft, Paperless-Links, Import-Zuordnungen, Anhänge)? Werden private
+  Originale mit dem Hochladenden gelöscht?
 - Globale Objekte (Security, ProviderMerchant, ExchangeRate) nie durch eine Familien-Aktion ändern.
 
 3.3 Security (L3, OWASP Top 10, Rails Security Guide)
@@ -227,6 +230,10 @@ Für jede Dimension: zutreffend ja/nein; wenn ja, gezielt prüfen. Lektionsnumme
   wiederholt)? Wird ein Zeitplan/Cursor erst nach erfolgreichem Einreihen weitergeschoben? Rollt ein
   Neben-Write (Audit) die Transaktion zurück, sieht der Nutzer eine Meldung? Bricht ein unlesbares
   Credential nur den einen Provider, nicht die ganze Seite? (upstream PR 4889, 4873, 4894; Fork 263)
+- Reparatur-, Backfill- und Migrationsläufe (Owner-Ok 24.11., upstream PR 5380, 5477): Wird
+  „erledigt“ nur nach vollständigem Erfolg gesetzt, sodass ein abgebrochener Lauf wiederholt wird?
+  Setzt der Lauf voraus, dass der Datenabruf davor wirklich erfolgreich war (nicht nur fehlerfrei
+  verarbeitet)? Stimmt die angenommene Bedeutung der Altspalte?
 
 3.8 Performance, Caching und Code-Effizienz (L14, L9, L21; Owner-Vorgabe 16.10.)
 - N+1: Schleifen in Views/Serializern/Jobs über Associations ohne includes/preload;

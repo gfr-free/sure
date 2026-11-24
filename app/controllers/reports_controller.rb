@@ -322,7 +322,7 @@ class ReportsController < ApplicationController
     # collapse state are left out: they are applied when the page is served.
     def report_member_version
       user = Current.user
-      [ user.reports_biggest_expenses_limit, user.preview_features_enabled?, user.role ].join(",")
+      [ user.reports_biggest_expenses_limit, user.preview_features_enabled?, user.role, net_worth_grouping ].join(",")
     end
 
     # Everything the body is drawn from: the family's data (a completed sync,

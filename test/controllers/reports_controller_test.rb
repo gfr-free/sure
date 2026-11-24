@@ -348,6 +348,22 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "account_type", @user.reload.reports_net_worth_grouping
   end
 
+  test "a report kept under another net worth grouping is not served" do
+    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => true))
+    accounts(:depository).update!(custom_group: "Reserve")
+
+    with_memory_cache do
+      get reports_path
+      assert_select "section[data-section-key='net_worth'] td", text: "Reserve", count: 0
+
+      patch update_net_worth_grouping_reports_path, params: { net_worth_grouping: "custom_group" }
+      follow_redirect!
+
+      assert_response :ok
+      assert_select "section[data-section-key='net_worth'] td", text: "Reserve"
+    end
+  end
+
   test "does not save the net worth grouping without preview access" do
     @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => false))
 

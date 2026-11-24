@@ -656,6 +656,16 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#transaction-filters-menu button[data-id=?]", "type_filter", count: 1
   end
 
+  test "show filter menu leaves out the review status, which the activity search does not apply" do
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+
+    get account_url(@account)
+
+    assert_response :success
+    assert_select "#transaction-filters-menu button[data-id=?]", "category_filter", count: 1
+    assert_select "#transaction-filters-menu button[data-id=?]", "review_state_filter", count: 0
+  end
+
   test "show filters activity by category and excludes non-Transaction entries" do
     categorized = create_transaction(name: "Categorized", amount: 50, account: @account, category: categories(:food_and_drink))
     uncategorized = create_transaction(name: "Uncategorized", amount: 60, account: @account)

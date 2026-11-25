@@ -42,8 +42,9 @@ export default class extends Controller {
   updateRemaining() {
     const total = this.totalValue
     // A saved row can carry more decimals than the currency, so each row is
-    // read with its own precision and the balance uses the finest of them.
-    let precision = 0
+    // read with its own precision and the balance uses the finest of them and
+    // of the total, which Entry#split! must match exactly.
+    let precision = Math.min((String(total).split(".")[1] || "").length, 4)
     const sum = this.amountInputTargets.reduce((acc, input) => {
       const rowPrecision = precisionFromStep(input.step) ?? 2
       precision = Math.max(precision, rowPrecision)

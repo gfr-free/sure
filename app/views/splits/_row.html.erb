@@ -1,4 +1,4 @@
-<%# locals: (index:, currency:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], removable: true) %>
+<%# locals: (index:, currency:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], removable: true, min_precision: nil) %>
 
 <%# Styled builder fields and DS pickers, the same controls as the transaction form. %>
 <div class="p-3 rounded-lg border border-secondary bg-container space-y-2" data-split-transaction-target="row">
@@ -15,7 +15,7 @@
 
       <%# A saved amount keeps its decimals (an old JPY 40.4 is not shown as 40),
           capped at the 4 the entries table stores so the rows still add up. %>
-      <% amount_value, amount_precision = money_field_value(amount, currency: currency) %>
+      <% amount_value, amount_precision = money_field_value(amount, currency: currency, min_precision: min_precision) %>
       <% amount_precision = [ amount_precision, 4 ].min %>
       <%= row.money_field :amount,
             value: amount_value,

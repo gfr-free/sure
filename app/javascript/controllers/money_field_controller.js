@@ -166,13 +166,20 @@ export default class extends Controller {
 
   updateAmount(currency) {
     const requestId = ++this.requestSequence;
+    const textAtSwitch = this.amountTarget.value;
     this.#markCurrencyPending();
     new CurrenciesService().get(currency).then((currencyData) => {
       if (requestId !== this.requestSequence) return;
 
-      // The text was typed for the previous currency, so read it with that
-      // currency's precision before the step below switches it.
-      const typedPrecision = this.#fieldPrecision();
+      // Text already there was typed for the previous currency, so it is read
+      // with that currency's rules. Text edited while the lookup was pending
+      // was typed for the new currency and is read with the new rules, so
+      // "1.234" typed after switching JPY to USD is not taken as 1234.
+      const typedForNewCurrency = this.amountTarget.value !== textAtSwitch;
+      const previousPrecision = this.#fieldPrecision();
+      const typedDelimiter = typedForNewCurrency
+        ? (currencyData.delimiter ?? "")
+        : this.delimiterValue;
 
       this.amountTarget.step =
         this.hasStepValue &&
@@ -181,6 +188,9 @@ export default class extends Controller {
           ? this.stepValue
           : currencyData.step;
 
+      const typedPrecision = typedForNewCurrency
+        ? this.#fieldPrecision()
+        : previousPrecision;
       const rawValue = this.amountTarget.value.trim();
       if (rawValue !== "") {
         const wasUnread = this.#isUnreadAfterCurrencySwitch();
@@ -188,7 +198,7 @@ export default class extends Controller {
           ? null
           : evaluateAmountExpression(rawValue, {
               precision: typedPrecision,
-              delimiter: this.delimiterValue,
+              delimiter: typedDelimiter,
             });
         // Text a whole-number currency rejected but read as grouping stays
         // flagged until it is edited. Read with the new currency's rules it

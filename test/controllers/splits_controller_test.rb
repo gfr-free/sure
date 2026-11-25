@@ -239,6 +239,16 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name$='[amount]'][value='-39.875']"
   end
 
+  test "new gives every row at least the total's decimals" do
+    jpy_entry = create_transaction(amount: 80.4, currency: "JPY", name: "Imported", account: accounts(:depository))
+
+    get new_transaction_split_path(jpy_entry)
+
+    # The first row and the template for added rows, so 40 + 40.4 can be typed.
+    assert_select "input[name$='[amount]'][step='0.1']", count: 2
+    assert_select "[data-split-transaction-total-value='-80.4']"
+  end
+
   test "edit lists split rows in the order they were entered" do
     @entry.split!([
       { name: "Part 1", amount: 60, category_id: nil },

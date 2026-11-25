@@ -6129,7 +6129,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '403':
-          description: insufficient scope
+          description: insufficient scope, or budgets disabled for the family
           content:
             application/json:
               schema:
@@ -6169,7 +6169,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '403':
-          description: insufficient scope
+          description: insufficient scope, or budgets disabled for the family
           content:
             application/json:
               schema:
@@ -6228,7 +6228,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '403':
-          description: insufficient scope
+          description: insufficient scope, or budgets disabled for the family
           content:
             application/json:
               schema:
@@ -6268,7 +6268,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
         '403':
-          description: insufficient scope
+          description: insufficient scope, or budgets disabled for the family
           content:
             application/json:
               schema:

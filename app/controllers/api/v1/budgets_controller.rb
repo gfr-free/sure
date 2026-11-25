@@ -4,6 +4,7 @@ class Api::V1::BudgetsController < Api::V1::BaseController
   include Pagy::Backend
 
   before_action :ensure_read_scope
+  before_action :require_budgets_enabled
   before_action :set_budget, only: :show
 
   def index

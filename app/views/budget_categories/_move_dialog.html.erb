@@ -40,8 +40,9 @@
               required: true,
               min: Money::Currency.new(budget.currency).step,
               hide_currency: true,
+              autocomplete: "off",
               currency_value_override: budget.currency,
-              input_class: "text-right tabular-nums privacy-sensitive",
+              input_class: "privacy-sensitive",
               amount_data: { budget_move_target: "amount" } %>
       <% end %>
 

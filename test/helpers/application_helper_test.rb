@@ -241,6 +241,12 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal [ BigDecimal("1500"), 0 ], money_field_value("1500", currency: "JPY")
   end
 
+  test "#money_field_value treats min_precision as a floor and caps long decimals" do
+    assert_equal 2, money_field_value("5", currency: "JPY", min_precision: 2).last
+    assert_equal 3, money_field_value("1.234", currency: "KWD", min_precision: 2).last
+    assert_equal 10, money_field_value("1e-150", currency: "USD").last
+  end
+
   test "#money_field_value is nil for blank or non-numeric text" do
     assert_equal [ nil, 2 ], money_field_value(nil, currency: "USD")
     assert_equal [ nil, 2 ], money_field_value("", currency: "USD")

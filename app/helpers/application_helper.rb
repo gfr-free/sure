@@ -225,11 +225,12 @@ module ApplicationHelper
   # is blank or not a number, and the decimals to show it with: at least the
   # currency's, more when the value has them, so saving unchanged keeps it.
   def money_field_value(raw, currency: Current.family.currency, min_precision: nil)
-    min_precision ||= Money::Currency.new(currency).default_precision
+    min_precision = [ Money::Currency.new(currency).default_precision, min_precision.to_i ].max
     amount = BigDecimal(raw.to_s)
     return [ nil, min_precision ] unless amount.finite?
 
-    decimals = amount.to_s("F").split(".").last.sub(/0+\z/, "").length
+    # Capped, so a stray "1e-150" cannot ask the field for 150 decimals.
+    decimals = [ amount.to_s("F").split(".").last.sub(/0+\z/, "").length, 10 ].min
     [ amount, [ decimals, min_precision ].max ]
   rescue ArgumentError, TypeError
     [ nil, min_precision ]

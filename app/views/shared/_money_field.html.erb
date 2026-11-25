@@ -84,7 +84,7 @@
           }.compact),
           required: options[:required],
           aria: options[:aria],
-          **options.slice(:name, :title, :id) %>
+          **options.slice(:name, :title, :id, :autocomplete) %>
       </div>
 
       <% unless options[:hide_currency] %>

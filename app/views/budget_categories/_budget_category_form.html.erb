@@ -55,7 +55,8 @@
               min: 0,
               hide_currency: true,
               currency_value_override: currency.iso_code,
-              auto_submit: true %>
+              auto_submit: true,
+              amount_data: { autosubmit_trigger_event: "change" } %>
       </div>
     <% end %>
   </div>

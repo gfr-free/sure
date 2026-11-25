@@ -271,8 +271,12 @@ export default class extends Controller {
     const result = evaluateAmountExpression(raw, this.#readOptions());
     if (result === null) return;
 
-    this.amountTarget.value = formatAmountForDisplay(result, precision, raw);
+    const formatted = formatAmountForDisplay(result, precision, raw);
+    // Leaving a field without editing it is not a change: an auto-submitting
+    // field listening for "change" must not save on a plain blur.
+    if (formatted === raw) return;
 
+    this.amountTarget.value = formatted;
     this.amountTarget.dispatchEvent(new Event("input", { bubbles: true }));
     this.amountTarget.dispatchEvent(new Event("change", { bubbles: true }));
   }

@@ -5,6 +5,7 @@ require "application_system_test_case"
 # a plain number.
 class MoneyFieldsTest < ApplicationSystemTestCase
   include EntriesTestHelper
+  include ActionView::RecordIdentifier
 
   setup do
     sign_in @user = users(:family_admin)
@@ -80,5 +81,20 @@ class MoneyFieldsTest < ApplicationSystemTestCase
         assert_equal "", find("input[name$='[value]']")[:validationMessage].to_s
       end
     end
+  end
+
+  test "a budget allocation saves a typed comma expression when the field is left" do
+    budget = budgets(:one)
+    category = Category.create!(name: "Money field dining", family: @user.family, color: "#4da568", lucide_icon: "utensils")
+    budget_category = BudgetCategory.create!(budget: budget, category: category, budgeted_spending: 50, currency: "USD")
+
+    visit budget_budget_categories_path(budget)
+
+    field = find_field(id: dom_id(budget_category, :budgeted_spending))
+    field.fill_in(with: "60+15,5")
+    field.send_keys(:tab)
+
+    wait_until { budget_category.reload.budgeted_spending == 75.5.to_d }
+    assert_equal 75.5.to_d, budget_category.budgeted_spending
   end
 end

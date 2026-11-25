@@ -196,6 +196,45 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "a rejected transfer keeps the destination, fees and rate it was given" do
+    assert_no_difference "Transfer.count" do
+      post transfers_url, params: {
+        transfer: {
+          from_account_id: accounts(:depository).id,
+          to_account_id: accounts(:credit_card).id,
+          date: "not-a-date",
+          amount: "100",
+          source_fee_amount: "1.25",
+          destination_fee_amount: "2",
+          exchange_rate: "1.0857",
+          idempotency_key: SecureRandom.uuid
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "input[type=hidden][name='transfer[to_account_id]'][value=?]", accounts(:credit_card).id
+    assert_select "input[name='transfer[source_fee_amount]'][value='1.25']"
+    assert_select "input[name='transfer[destination_fee_amount]'][value='2.00']"
+    assert_select "input[name='transfer[exchange_rate]'][value='1.0857']"
+  end
+
+  test "a rejected transfer drops a fee that is not a number" do
+    post transfers_url, params: {
+      transfer: {
+        from_account_id: accounts(:depository).id,
+        to_account_id: accounts(:credit_card).id,
+        date: "not-a-date",
+        amount: "100",
+        source_fee_amount: "1,25",
+        idempotency_key: SecureRandom.uuid
+      }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "input[name='transfer[source_fee_amount]']:not([value])"
+  end
+
   test "reusing a key for a genuinely different request does not silently return the old transfer" do
     idempotency_key = SecureRandom.uuid
     from_account = accounts(:depository)

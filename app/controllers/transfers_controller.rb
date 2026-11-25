@@ -65,34 +65,20 @@ class TransfersController < ApplicationController
         format.turbo_stream { stream_redirect_back_or_to transactions_path, notice: success_message }
       end
     else
-      @from_account_id = transfer_params[:from_account_id]
-      @tags = Current.family.tags.alphabetically
-      render :new, status: :unprocessable_entity
+      render_new_with_submitted_input
     end
   rescue Money::ConversionError
     @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
-    @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:base, t(".exchange_rate_unavailable"))
-    @from_account_id = transfer_params[:from_account_id]
-    set_accounts
-    @tags = Current.family.tags.alphabetically
-    render :new, status: :unprocessable_entity
+    render_new_with_submitted_input
   rescue ArgumentError
     @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
-    @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:date, t(".date_invalid"))
-    @from_account_id = transfer_params[:from_account_id]
-    set_accounts
-    @tags = Current.family.tags.alphabetically
-    render :new, status: :unprocessable_entity
+    render_new_with_submitted_input
   rescue Transfer::Creator::StaleIdempotencyKeyError
     @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
-    @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:base, t(".stale_form"))
-    @from_account_id = transfer_params[:from_account_id]
-    set_accounts
-    @tags = Current.family.tags.alphabetically
-    render :new, status: :unprocessable_entity
+    render_new_with_submitted_input
   end
 
   def update
@@ -214,6 +200,29 @@ class TransfersController < ApplicationController
   end
 
   private
+    # Redraws the form after a rejected submit with what was entered, so the
+    # destination account, fees and rate do not have to be picked again.
+    def render_new_with_submitted_input
+      @transfer.tag_ids = transfer_params[:tag_ids]
+      @transfer.source_fee_amount = submitted_decimal(:source_fee_amount)
+      @transfer.destination_fee_amount = submitted_decimal(:destination_fee_amount)
+      @from_account_id = transfer_params[:from_account_id]
+      @to_account_id = transfer_params[:to_account_id]
+      @exchange_rate = submitted_decimal(:exchange_rate)&.to_s("F")
+      set_accounts
+      @tags = Current.family.tags.alphabetically
+      render :new, status: :unprocessable_entity
+    end
+
+    # The money fields submit a plain number; anything else (a submit without
+    # JavaScript) is dropped rather than shown as a different number.
+    def submitted_decimal(key)
+      value = BigDecimal(transfer_params[key].to_s.strip)
+      value if value.finite?
+    rescue ArgumentError
+      nil
+    end
+
     def set_transfer
       # Finds the transfer and ensures the user has access to it. Unlinking
       # (reject/destroy) only needs access to one side, so a user can undo a

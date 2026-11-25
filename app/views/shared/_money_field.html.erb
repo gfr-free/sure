@@ -11,6 +11,8 @@
    # money_field_controller, which checks the evaluated amount against them.
    amount_min = options[:min] || -99999999999999
    amount_max = options[:max] || 99999999999999
+   # raw_value: text shown as given, for a value that is not a currency
+   # amount (an exchange rate) and must not be rounded to its precision.
    label_options = { class: class_names("form-field__label", options[:label_class]) }
    label_options[:for] = options[:id] if options[:id] %>
 
@@ -68,7 +70,9 @@
           inline: true,
           placeholder: options[:placeholder] || "100",
           inputmode: "decimal",
-          value: if options[:value]
+          value: if options.key?(:raw_value)
+            options[:raw_value]
+          elsif options[:value]
             sprintf("%.#{options[:precision].presence || currency.default_precision}f", options[:value])
           elsif form.object && form.object.respond_to?(amount_method)
             val = form.object.public_send(amount_method)

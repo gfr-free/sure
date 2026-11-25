@@ -82,6 +82,22 @@ class MoneyFieldsTest < ApplicationSystemTestCase
     assert_equal "1.23", page.evaluate_script(submitted)
   end
 
+  test "a transfer's exchange rate reads a comma decimal" do
+    eur_account = @user.family.accounts.create!(name: "EUR Savings", balance: 1000, currency: "EUR", accountable: Depository.new)
+
+    visit new_transfer_url
+    select_ds("From", accounts(:depository))
+    select_ds("To", eur_account)
+    fill_in "transfer[amount]", with: "100"
+
+    rate_field = find_field("transfer[exchange_rate]", visible: true)
+    rate_field.fill_in(with: "1,1")
+
+    assert_selector "[data-transfer-form-target='convertDestinationDisplay']", text: "110.00 EUR"
+    submitted = 'new FormData(document.querySelector("input[name=\'transfer[exchange_rate]\']").form).get("transfer[exchange_rate]")'
+    assert_equal "1.1", page.evaluate_script(submitted)
+  end
+
   test "split rows add up typed comma amounts" do
     entry = create_transaction(amount: 100, name: "Split me", account: accounts(:depository))
 

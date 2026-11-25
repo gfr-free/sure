@@ -1,7 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
-import evaluateAmountExpression, {
-  precisionFromStep,
-} from "utils/evaluate_amount_expression";
+import submittedAmount from "utils/submitted_amount";
 
 export default class extends Controller {
   static targets = [
@@ -147,8 +145,8 @@ export default class extends Controller {
     // Both are money fields, so they can hold a comma decimal or an
     // expression ("12,50+4,30", "1/0,92"); Number.parseFloat would stop at
     // the first comma and silently truncate it.
-    const amount = this.#submittedAmount(this.amountTarget);
-    const rate = this.#submittedAmount(this.exchangeRateFieldTarget);
+    const amount = submittedAmount(this.application, this.amountTarget);
+    const rate = submittedAmount(this.application, this.exchangeRateFieldTarget);
 
     if (amount && rate && rate !== 0) {
       const destAmount = (amount * rate).toFixed(2);
@@ -171,9 +169,9 @@ export default class extends Controller {
       return;
     }
 
-    // Money fields (see calculateConvertDestination above).
-    const amount = this.#submittedAmount(this.amountTarget);
-    const destAmount = this.#submittedAmount(this.destinationAmountTarget);
+    // Both amounts are money fields (see calculateConvertDestination above).
+    const amount = submittedAmount(this.application, this.amountTarget);
+    const destAmount = submittedAmount(this.application, this.destinationAmountTarget);
 
     if (amount && destAmount && amount !== 0) {
       const rate = destAmount / amount;
@@ -380,20 +378,5 @@ export default class extends Controller {
 
   isCurrentExchangeRateState(_fromCurrency, _toCurrency, _date) {
     throw new Error("Subclasses must implement isCurrentExchangeRateState()");
-  }
-
-  // The amount as the money field submits it, read from the field's own
-  // controller so the rate matches what the server saves, including while
-  // the field's currency lookup is pending and before blur has rounded it.
-  #submittedAmount(input) {
-    const field = input.closest("[data-controller~='money-field']");
-    const controller =
-      field &&
-      this.application.getControllerForElementAndIdentifier(field, "money-field");
-    if (controller) return controller.submittedAmount();
-
-    return evaluateAmountExpression(input.value, {
-      precision: precisionFromStep(input.step),
-    });
   }
 }

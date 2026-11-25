@@ -21,6 +21,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=checkbox][name='q[merchants][]']", count: 0
   end
 
+  test "index counts its pages without joining entries twice" do
+    queries = []
+    ActiveSupport::Notifications.subscribed(->(*, payload) { queries << payload[:sql] }, "sql.active_record") do
+      get transactions_url
+    end
+
+    assert_response :success
+    page_count = queries.find { |sql| sql.start_with?('SELECT COUNT(*) FROM "transactions"') }
+    assert page_count, "expected the page count query"
+    assert_equal 1, page_count.scan('JOIN "entries"').size, page_count
+  end
+
   test "show lists split rows in the order they were entered" do
     entry = create_transaction(amount: 100, name: "Split parent", account: accounts(:depository))
     entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])

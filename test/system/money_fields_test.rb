@@ -12,7 +12,10 @@ class MoneyFieldsTest < ApplicationSystemTestCase
   end
 
   test "a transfer reads a comma decimal expression and comma fees" do
-    visit new_transfer_url
+    visit transactions_url
+    click_on "New transaction"
+    click_on "Transfer"
+    assert_text "New transfer"
 
     select_ds("From", accounts(:depository))
     select_ds("To", accounts(:credit_card))
@@ -24,7 +27,9 @@ class MoneyFieldsTest < ApplicationSystemTestCase
 
     click_button "Create transfer"
 
-    assert_current_path transactions_url
+    within "#entry-group-#{Date.current}" do
+      assert_text "Payment to"
+    end
     transfer = Transfer.joins(outflow_transaction: :entry).where(entries: { account_id: accounts(:depository).id }).order(created_at: :desc).first
     assert_equal 16.80.to_d, transfer.outflow_transaction.entry.amount
     assert_equal 1.25.to_d, transfer.derived_source_fee_amount

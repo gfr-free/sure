@@ -45,6 +45,16 @@ class BalanceSheet::AccountGroup
     total / classification_group.total.to_d * 100
   end
 
+  # Share of the classification total for one of this group's account rows.
+  # Accounts the totals do not count have no share, so the row weights add up
+  # to the group weight.
+  def account_weight(account)
+    return nil if BalanceSheet::ClassificationGroup.counted_accounts([ account ]).empty?
+    return 0 if classification_group.total.zero?
+
+    account.converted_balance / classification_group.total.to_d * 100
+  end
+
   def syncing?
     accounts.any?(&:syncing?)
   end

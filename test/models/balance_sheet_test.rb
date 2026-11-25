@@ -195,6 +195,28 @@ class BalanceSheetTest < ActiveSupport::TestCase
     assert_equal assets.total, assets.account_groups.sum(&:total)
   end
 
+  test "account weights leave out accounts the totals do not count" do
+    member = users(:new_email)
+    included_account = create_account(balance: 1000, accountable: Depository.new)
+    excluded_account = create_account(balance: 2000, accountable: Depository.new)
+    unreported_account = create_account(balance: 4000, accountable: Depository.new)
+    included_account.share_with!(member, include_in_finances: true)
+    excluded_account.share_with!(member, include_in_finances: false)
+    unreported_account.share_with!(member, include_in_finances: true)
+    unreported_account.update!(exclude_from_reports: true)
+
+    assets = BalanceSheet.new(@family, user: member).assets
+    depository_group = assets.account_groups.find { |ag| ag.name == Depository.display_name }
+    rows = depository_group.accounts.index_by(&:id)
+
+    assert_nil depository_group.account_weight(rows[excluded_account.id])
+    assert_nil depository_group.account_weight(rows[unreported_account.id])
+    assert_equal included_account.balance / assets.total.to_d * 100,
+      depository_group.account_weight(rows[included_account.id])
+    assert_equal depository_group.weight,
+      depository_group.accounts.sum { |row| depository_group.account_weight(row) || 0 }
+  end
+
   test "calculates asset group totals" do
     create_account(balance: 1000, accountable: Depository.new)
     create_account(balance: 2000, accountable: Depository.new)

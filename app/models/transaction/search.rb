@@ -236,7 +236,7 @@ class Transaction::Search
       # deploy, disagreeing with the (uncached) transactions_scope list
       # until entries_cache_version next changes for that family.
       # v4: Totals gained excluded_scheduled_count.
-      Rails.cache.fetch("transaction_search_totals/v4/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}") do
+      Rails.cache.fetch("transaction_search_totals/v5/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}") do
         scope = transactions_scope
         excluded_scheduled_count = 0
 
@@ -267,11 +267,19 @@ class Transaction::Search
           on: "entries.date"
         )
 
+        # Loan payments (and contributions, for a family that counts investing
+        # as spending) are expenses in the income statement and the cash flow
+        # Sankey, so they count as expenses here too rather than as transfers.
+        # A Transfer-only filter keeps them as transfers, so its summary still
+        # shows every listed row under Inflow/Outflow.
+        spending_kinds = Array(types).sort == [ "transfer" ] ? [] : Transaction::TRANSFER_KINDS - family.analytics_excluded_kinds
+        transfer_kinds = Transaction::TRANSFER_KINDS - spending_kinds
+
         result = scope
                   .select(
                     ActiveRecord::Base.sanitize_sql_array([
-                      "COALESCE(SUM(CASE WHEN entries.amount >= 0 AND transactions.kind NOT IN (?) THEN ABS(entries.amount * #{rate}) ELSE 0 END), 0) as expense_total",
-                      Transaction::TRANSFER_KINDS
+                      "COALESCE(SUM(CASE WHEN transactions.kind IN (:spending) OR (entries.amount >= 0 AND transactions.kind NOT IN (:transfer_kinds)) THEN ABS(entries.amount * #{rate}) ELSE 0 END), 0) as expense_total",
+                      { spending: spending_kinds, transfer_kinds: Transaction::TRANSFER_KINDS }
                     ]),
                     ActiveRecord::Base.sanitize_sql_array([
                       "COALESCE(SUM(CASE WHEN entries.amount < 0 AND transactions.kind NOT IN (?) THEN ABS(entries.amount * #{rate}) ELSE 0 END), 0) as income_total",
@@ -279,11 +287,11 @@ class Transaction::Search
                     ]),
                     ActiveRecord::Base.sanitize_sql_array([
                       "COALESCE(SUM(CASE WHEN entries.amount < 0 AND transactions.kind IN (?) THEN ABS(entries.amount * #{rate}) ELSE 0 END), 0) as transfer_inflow_total",
-                      Transaction::TRANSFER_KINDS
+                      transfer_kinds
                     ]),
                     ActiveRecord::Base.sanitize_sql_array([
                       "COALESCE(SUM(CASE WHEN entries.amount >= 0 AND transactions.kind IN (?) THEN ABS(entries.amount * #{rate}) ELSE 0 END), 0) as transfer_outflow_total",
-                      Transaction::TRANSFER_KINDS
+                      transfer_kinds
                     ]),
                     "COUNT(entries.id) as transactions_count"
                   )
@@ -306,6 +314,7 @@ class Transaction::Search
     [
       family.id,
       family.currency,
+      family.investment_contributions_as_spending?, # decides whether contributions are expenses
       Digest::SHA256.hexdigest(attributes.sort.to_h.to_json), # cached by filters
       family.entries_cache_version,
       ExchangeRate.updated_at_version, # a rate stored later can complete the totals

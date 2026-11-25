@@ -352,16 +352,18 @@ export default class extends Controller {
     throw new Error("Subclasses must implement isCurrentExchangeRateState()");
   }
 
-  // The amount as the money field submits it: rounded to the field's
-  // precision, so a rate worked out from it matches what the server saves
-  // even when Enter submits before blur has rounded the text. While the
-  // field's currency lookup is pending it submits unrounded, so this does too.
+  // The amount as the money field submits it, read from the field's own
+  // controller so the rate matches what the server saves, including while
+  // the field's currency lookup is pending and before blur has rounded it.
   #submittedAmount(input) {
-    const precision = input.hasAttribute("data-currency-pending")
-      ? null
-      : precisionFromStep(input.step);
-    const amount = evaluateAmountExpression(input.value, { precision });
-    if (amount === null || precision === null) return amount;
-    return Number(amount.toFixed(precision));
+    const field = input.closest("[data-controller~='money-field']");
+    const controller =
+      field &&
+      this.application.getControllerForElementAndIdentifier(field, "money-field");
+    if (controller) return controller.submittedAmount();
+
+    return evaluateAmountExpression(input.value, {
+      precision: precisionFromStep(input.step),
+    });
   }
 }

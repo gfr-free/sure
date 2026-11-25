@@ -166,8 +166,7 @@ export default class extends Controller {
 
   updateAmount(currency) {
     const requestId = ++this.requestSequence;
-    const textAtSwitch = this.amountTarget.value;
-    this.#markCurrencyPending();
+    this.textAtSwitch = this.amountTarget.value;
     new CurrenciesService().get(currency).then((currencyData) => {
       if (requestId !== this.requestSequence) return;
 
@@ -175,7 +174,7 @@ export default class extends Controller {
       // with that currency's rules. Text edited while the lookup was pending
       // was typed for the new currency and is read with the new rules, so
       // "1.234" typed after switching JPY to USD is not taken as 1234.
-      const typedForNewCurrency = this.amountTarget.value !== textAtSwitch;
+      const typedForNewCurrency = this.#editedSinceSwitch();
       const previousPrecision = this.#fieldPrecision();
       const typedDelimiter = typedForNewCurrency
         ? (currencyData.delimiter ?? "")
@@ -231,7 +230,6 @@ export default class extends Controller {
       // The new currency's step can change the rounding the bounds are
       // checked against, and assigning .value above fires no "input".
       this.updateValidity();
-      this.#markCurrencyPending();
       // Assigning .value fires no "input" either, so controllers that derive
       // numbers from this amount hear about the new text and step here.
       this.dispatch("reformatted");
@@ -341,20 +339,33 @@ export default class extends Controller {
     // destination amount) isn't part of the submitted data.
     if (!this.amountTarget.name) return;
 
-    const raw = this.amountTarget.value;
-    if (typeof raw !== "string" || raw.trim() === "") return;
+    const canonical = this.#submittedText();
+    if (canonical === null) return;
 
-    if (this.#isUnreadAfterCurrencySwitch()) return;
+    event.formData.set(this.amountTarget.name, canonical);
+  }
+
+  // The amount this field submits as a number, or null when the text is
+  // blank or not an amount. Controllers that derive numbers from the field
+  // (the exchange-rate tabs) read it here, so they match what is sent.
+  submittedAmount() {
+    const canonical = this.#submittedText();
+    return canonical === null ? null : Number(canonical);
+  }
+
+  #submittedText() {
+    const raw = this.amountTarget.value;
+    if (typeof raw !== "string" || raw.trim() === "") return null;
+
+    if (this.#isUnreadAfterCurrencySwitch()) return null;
 
     // While a currency switch is still loading, the installed precision is
     // the previous currency's; submit unrounded rather than round to it.
     const precision = this.#currencyPending() ? null : this.#fieldPrecision();
     const result = evaluateAmountExpression(raw, this.#readOptions());
-    if (result === null) return;
+    if (result === null) return null;
 
-    const canonical =
-      precision === null ? formatUnroundedAmount(result) : result.toFixed(precision);
-    event.formData.set(this.amountTarget.name, canonical);
+    return precision === null ? formatUnroundedAmount(result) : result.toFixed(precision);
   }
 
   // The separator belongs to the currency it was rendered or last fetched for.
@@ -369,9 +380,20 @@ export default class extends Controller {
 
   // How typed text is read: the field's precision and its currency's
   // thousands delimiter, which a decimal factor in a whole-number field
-  // cannot use (see evaluateAmountExpression).
+  // cannot use (see evaluateAmountExpression). Text edited while a currency
+  // switch is loading was typed for the new currency, whose rules are not
+  // known yet, so it is read as a plain decimal rather than by the previous
+  // currency's grouping rules ("1,234" after JPY to USD is not 1234).
   #readOptions() {
+    if (this.#currencyPending() && this.#editedSinceSwitch()) {
+      return { precision: null, delimiter: "" };
+    }
     return { precision: this.#fieldPrecision(), delimiter: this.delimiterValue };
+  }
+
+  // True when the text changed after the last currency switch started.
+  #editedSinceSwitch() {
+    return this.textAtSwitch !== undefined && this.amountTarget.value !== this.textAtSwitch;
   }
 
   // The text a currency switch could not read (see updateAmount), kept on the
@@ -412,15 +434,6 @@ export default class extends Controller {
       ? this.currencyTarget
       : this.#currencySourceElement();
     return Boolean(picker && picker.value !== this.separatorCurrencyValue);
-  }
-
-  // Lets other controllers that read this input (the exchange-rate tabs) skip
-  // rounding with a step that belongs to the previous currency.
-  #markCurrencyPending() {
-    this.amountTarget.toggleAttribute(
-      "data-currency-pending",
-      this.#currencyPending(),
-    );
   }
 
   // The amount input's step already carries the selected currency's precision,

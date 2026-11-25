@@ -49,6 +49,38 @@ class MoneyFieldsTest < ApplicationSystemTestCase
     within(amount_field) { assert_selector "[data-money-field-target='symbol']", text: "€" }
   end
 
+  test "text typed while a currency switch loads is read for the new currency" do
+    jpy_account = @user.family.accounts.create!(name: "JPY Savings", balance: 100_000, currency: "JPY", accountable: Depository.new)
+
+    visit new_transfer_url
+    amount_field = find_field("transfer[amount]").ancestor("[data-controller='money-field']")
+    select_ds("From", jpy_account)
+    within(amount_field) { assert_selector "[data-money-field-target='symbol']", text: "¥" }
+
+    # Hold the next currency lookup until the test releases it.
+    page.execute_script(<<~JS)
+      const originalFetch = window.fetch;
+      window.heldCurrencyLookups = [];
+      window.fetch = (url, ...rest) => {
+        if (!String(url).includes("/currencies/")) return originalFetch(url, ...rest);
+        return new Promise((resolve) => window.heldCurrencyLookups.push(() => resolve(originalFetch(url, ...rest))));
+      };
+    JS
+
+    select_ds("From", accounts(:depository))
+    fill_in "transfer[amount]", with: "1.234"
+    assert_equal 1, page.evaluate_script("window.heldCurrencyLookups.length")
+
+    submitted = 'new FormData(document.querySelector("input[name=\'transfer[amount]\']").form).get("transfer[amount]")'
+    # Not JPY's grouping reading (1234): the text was typed for USD.
+    assert_equal "1.234", page.evaluate_script(submitted)
+
+    page.execute_script("window.heldCurrencyLookups.forEach((release) => release())")
+    within(amount_field) { assert_selector "[data-money-field-target='symbol']", text: "$" }
+    assert_equal "1.23", find_field("transfer[amount]").value
+    assert_equal "1.23", page.evaluate_script(submitted)
+  end
+
   test "split rows add up typed comma amounts" do
     entry = create_transaction(amount: 100, name: "Split me", account: accounts(:depository))
 

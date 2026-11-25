@@ -364,6 +364,20 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a report kept under another custom group name is not served" do
+    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => true))
+
+    with_memory_cache do
+      get reports_path
+      assert_select "select[name='net_worth_grouping'] option", text: "Purpose", count: 0
+
+      patch settings_appearance_path, params: { user: { custom_account_group_label: "Purpose" } }
+      get reports_path
+
+      assert_select "select[name='net_worth_grouping'] option[value='custom_group']", text: "Purpose"
+    end
+  end
+
   test "does not save the net worth grouping without preview access" do
     @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => false))
 

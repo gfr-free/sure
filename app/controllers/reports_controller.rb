@@ -318,11 +318,16 @@ class ReportsController < ApplicationController
       ].join("|"))
     end
 
-    # The member's settings that change a report's figures. Section order and
-    # collapse state are left out: they are applied when the page is served.
+    # The member's settings that change a report's figures or labels (the
+    # custom group's name appears in the net worth grouping select). Section
+    # order and collapse state are left out: they are applied when the page is
+    # served.
     def report_member_version
       user = Current.user
-      [ user.reports_biggest_expenses_limit, user.preview_features_enabled?, user.role, net_worth_grouping ].join(",")
+      [
+        user.reports_biggest_expenses_limit, user.preview_features_enabled?, user.role, net_worth_grouping,
+        user.custom_account_group_label
+      ].join(",")
     end
 
     # Everything the body is drawn from: the family's data (a completed sync,

@@ -382,6 +382,37 @@ class Holding < ApplicationRecord
     provider_security_id.present? && security_id != provider_security_id && provider_security.present?
   end
 
+  # Cash holdings stand for the account's cash and cash securities are internal
+  # to one account, so neither side of a remap may be cash.
+  def remappable_to?(new_security)
+    new_security.present? && !new_security.cash? && !security.cash?
+  end
+
+  # Remaps like remap_security! and recalculates the account's holdings and
+  # balances for the new security, so the change shows up right away.
+  # Callers run inside the family timezone, so Date.current is correct.
+  def remap_security_and_materialize!(new_security)
+    raise ArgumentError, "cannot remap to or from a cash security" unless remappable_to?(new_security)
+
+    # The remap and the re-materialization with the new security's prices
+    # commit together under the account row lock, taken first as a sync and a
+    # lot edit take it. The materializer's own lock! reloads the account, so
+    # it reads no associations cached before the remap.
+    locked_account = Account.find(account_id)
+    locked_account.with_lock do
+      # A concurrent remap may have moved (or merged away) this row while we
+      # waited for the lock, so work from its current security. The no-op
+      # check lives here only: before the lock the security may be stale.
+      reload
+      return if new_security.id == security_id
+      raise ArgumentError, "cannot remap to or from a cash security" unless remappable_to?(new_security)
+
+      remap_security!(new_security)
+      strategy = locked_account.linked? ? :reverse : :forward
+      Balance::Materializer.new(locked_account, strategy: strategy, security_ids: [ new_security.id ]).materialize_balances
+    end
+  end
+
   # Remap this holding (and all other holdings for the same security) to a different security
   # Also moves all trades for the old security to the new security
   # If the target security already has holdings on some dates, merge by combining qty/amount

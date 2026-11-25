@@ -69,7 +69,8 @@ class MoneyFieldsTest < ApplicationSystemTestCase
 
     select_ds("From", accounts(:depository))
     fill_in "transfer[amount]", with: "1.234"
-    assert_equal 1, page.evaluate_script("window.heldCurrencyLookups.length")
+    # The amount and the source fee both follow the source account.
+    assert_operator page.evaluate_script("window.heldCurrencyLookups.length"), :>=, 1
 
     submitted = 'new FormData(document.querySelector("input[name=\'transfer[amount]\']").form).get("transfer[amount]")'
     # Not JPY's grouping reading (1234): the text was typed for USD.

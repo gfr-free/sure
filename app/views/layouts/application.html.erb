@@ -29,7 +29,8 @@ end %>
     data-controller="app-layout privacy-mode sidebar-resize"
     data-app-layout-expanded-sidebar-class="<%= expanded_sidebar_class %>"
     data-app-layout-collapsed-sidebar-class="<%= collapsed_sidebar_class %>"
-    data-app-layout-user-id-value="<%= Current.user.id %>">
+    data-app-layout-user-id-value="<%= Current.user.id %>"
+    data-sidebar-active-account-id="<%= sidebar_active_account_id %>">
     <%= link_to t("layouts.application.skip_to_main"), "#main",
         class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-container focus:text-primary focus:shadow-border-xs" %>
 
@@ -152,6 +153,32 @@ end %>
       </div>
     <% end %>
 
+    <%# The account sidebar is cached once for every page, so the open
+        account's link is highlighted and its group opened in the browser,
+        from the id this layout carries outside the cache. This runs before
+        the main content is parsed, so a full load paints the sidebar marked;
+        on a Turbo visit or morph refresh the script below marks the incoming
+        body before it is shown. %>
+    <script nonce="<%= content_security_policy_nonce %>">
+      window.markActiveSidebarAccount = function (root) {
+        var holder = root.querySelector("[data-sidebar-active-account-id]");
+        var activeId = holder ? holder.getAttribute("data-sidebar-active-account-id") : "";
+        Array.prototype.slice.call(root.querySelectorAll("a[data-sidebar-account-id]")).forEach(function (link) {
+          var active = !!activeId && link.getAttribute("data-sidebar-account-id") === activeId;
+          link.classList.toggle("bg-container", active);
+          link.classList.toggle("hover:bg-surface-hover", !active);
+          if (active) {
+            link.setAttribute("data-active-account", "true");
+            var group = link.closest("details");
+            if (group) group.open = true;
+          } else {
+            link.removeAttribute("data-active-account");
+          }
+        });
+      };
+      window.markActiveSidebarAccount(document);
+    </script>
+
     <%# SHARED - Main content %>
     <%# On phones the bottom padding keeps the page, full-height pages too,
         above the bottom nav. Safari can leave a scroll container's bottom
@@ -249,9 +276,9 @@ end %>
   // navigations so the sidebar height stays stable and the scroll position
   // (restored by the `preserve-scroll` controller) is not clamped to the top.
   //
-  // Each account group is a <details> whose open state is decided server-side:
-  // a group is open when it holds the active account or is in the user's
-  // "always expanded" preference. Navigating between accounts re-renders a
+  // Each account group is a <details>: open when it is in the user's "always
+  // expanded" preference (server-side) or holds the active account
+  // (markActiveSidebarAccount, above). Navigating between accounts re-renders a
   // different set of open groups, which changes the sidebar's scrollHeight.
   // If the new sidebar is shorter than the saved offset, the browser clamps
   // the restored scrollTop to the new maximum and the user sees the sidebar
@@ -338,7 +365,7 @@ end %>
     }
 
     // Key of the group holding the active account, or null. The active account
-    // link is marked data-active-account in the sidebar partial; every copy of
+    // link is marked data-active-account by markActiveSidebarAccount; every copy of
     // the account (per tab panel, desktop + mobile) shares the same group key,
     // so the first match resolves to the right group.
     function activeGroupKey() {
@@ -366,8 +393,8 @@ end %>
       if (!el || !state.groupStates) return;
       var activeKey = activeGroupKey();
       // Re-apply the user's pre-navigation open/closed state to every group we
-      // captured. A group the user collapsed stays closed even if the server
-      // re-opens it (active account or "always expanded" preference); the group
+      // captured. A group the user collapsed stays closed even if the new page
+      // opens it ("always expanded" preference); the group
       // holding the active account is forced open so it is never hidden.
       // Groups not in state.groupStates (new since capture) are left as the
       // server rendered them.
@@ -386,6 +413,9 @@ end %>
     if (!window.__sidebarScrollPreserveBound) {
       window.__sidebarScrollPreserveBound = true;
       window.addEventListener("turbo:before-cache", capture);
+      window.addEventListener("turbo:before-render", function (event) {
+        if (event.detail && event.detail.newBody) window.markActiveSidebarAccount(event.detail.newBody);
+      });
       window.addEventListener("turbo:render", restore);
     }
     restore();

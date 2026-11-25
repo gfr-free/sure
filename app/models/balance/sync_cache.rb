@@ -15,9 +15,9 @@ class Balance::SyncCache
     @unconvertible_entry_count
   end
 
-  # How many holdings were counted at a 1:1 rate for the same reason, overstating or
-  # understating the holdings total by the FX gap. Populated once `holdings_value_by_date`
-  # has run; zero on a healthy sync.
+  # How many holdings were counted at a 1:1 rate because no exchange rate was stored at
+  # all, overstating or understating the holdings total by the FX gap. Populated once
+  # `holdings_value_by_date` has run; zero on a healthy sync.
   def unconvertible_holding_count
     holdings_value_by_date
     @unconvertible_holding_count
@@ -63,18 +63,30 @@ class Balance::SyncCache
     def holdings_value_by_date
       @holdings_value_by_date ||= begin
         missing_rate_pairs = []
+        stored_rates = {}
 
         totals = account.holdings.each_with_object(Hash.new(0)) do |h, acc|
           begin
             converted = Money.new(h.amount, h.currency).exchange_to(account.currency, date: h.date).amount
           rescue Money::ConversionError => error
-            # Fall back to a 1:1 rate, which misstates the holding by the FX gap. Excluding it
-            # instead would be worse here: `BaseCalculator#derive_cash_balance_on_date_from_total`
-            # derives cash as `total_balance - holdings_value`, so a dropped holding reappears
-            # as phantom cash. Report it rather than silently accepting the wrong number.
-            converted = h.amount
-            @unconvertible_holding_count += 1
-            missing_rate_pairs |= [ [ error.from_currency, error.to_currency ] ]
+            # No rate close by: take the nearest stored one, however old, as
+            # ExchangeRate.rates_for does. Only with no stored rate at all fall back to 1:1,
+            # which misstates the holding by the FX gap. Excluding it instead would be worse
+            # here: `BaseCalculator#derive_cash_balance_on_date_from_total` derives cash as
+            # `total_balance - holdings_value`, so a dropped holding reappears as phantom cash.
+            # Report it rather than silently accepting the wrong number.
+            key = [ error.from_currency, error.to_currency, h.date ]
+            rate = stored_rates.fetch(key) do
+              stored_rates[key] = ExchangeRate.find_stored_rate(from: error.from_currency, to: error.to_currency, date: h.date)&.rate
+            end
+
+            if rate
+              converted = h.amount * rate
+            else
+              converted = h.amount
+              @unconvertible_holding_count += 1
+              missing_rate_pairs |= [ [ error.from_currency, error.to_currency ] ]
+            end
           end
           acc[h.date] += converted
         end

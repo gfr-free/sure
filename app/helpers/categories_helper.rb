@@ -37,6 +37,15 @@ module CategoriesHelper
     transaction.transfer.outflow_transaction.category || Category.uncategorized
   end
 
+  # The category a transaction row shows: its own, or the transfer's for legs that can't carry one.
+  def displayed_category(transaction)
+    if transaction.category_editable?
+      transaction.category || Category.uncategorized
+    else
+      read_only_category(transaction)
+    end
+  end
+
   # The badge a transaction shows when its category is not editable.
   def read_only_category(transaction)
     transfer_outflow_category(transaction) || (transaction.payment? ? payment_category : transfer_category)

@@ -308,6 +308,7 @@ class Transaction::Search
       family.currency,
       Digest::SHA256.hexdigest(attributes.sort.to_h.to_json), # cached by filters
       family.entries_cache_version,
+      family.accounts_status_version, # disabling or deleting an account changes which entries count
       ExchangeRate.updated_at_version, # a rate stored later can complete the totals
       Digest::SHA256.hexdigest(family.tax_advantaged_account_ids.sort.to_json), # stable across processes
       accessible_account_ids ? Digest::SHA256.hexdigest(accessible_account_ids.sort.to_json) : "all",
@@ -326,15 +327,12 @@ class Transaction::Search
       false
     end
 
-    # Filter query to include only active accounts if requested
+    # Accounts awaiting deletion stay hidden either way; turning the filter off
+    # only adds disabled accounts.
     def apply_active_accounts_filter(query, active_accounts_only_filter)
-      if active_accounts_only_filter
-        query.where(accounts: { status: [ "draft", "active" ] })
-      else
-        query
-      end
+      statuses = active_accounts_only_filter ? Account::VISIBLE_STATUSES : Account::HISTORICAL_STATUSES
+      query.where(accounts: { status: statuses })
     end
-
 
     # Filter by automatic-categorization provenance. Uses EXISTS so a
     # transaction with both an ai and a bayes enrichment row can't be

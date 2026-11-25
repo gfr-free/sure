@@ -234,7 +234,7 @@ export default class extends Controller {
   // that read both ways, so "1,234" in a euro field is 1.234, not 1234.
   pasteAmount(event) {
     const text = (event.clipboardData || window.clipboardData)?.getData("text") ?? "";
-    const precision = this.#fieldPrecision();
+    const precision = this.#currencyPending() ? null : this.#fieldPrecision();
     const parsed = parseAmountPaste(text, {
       separator: this.#pasteSeparator(),
       precision,
@@ -266,6 +266,9 @@ export default class extends Controller {
     if (typeof raw !== "string" || raw.trim() === "") return;
 
     if (this.#isUnreadAfterCurrencySwitch()) return;
+    // The new currency's lookup reformats the text when it lands; rounding
+    // it now would use the previous currency's precision.
+    if (this.#currencyPending()) return;
 
     const precision = this.#fieldPrecision();
     const result = evaluateAmountExpression(raw, this.#readOptions());

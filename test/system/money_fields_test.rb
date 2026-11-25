@@ -18,7 +18,7 @@ class MoneyFieldsTest < ApplicationSystemTestCase
     select_ds("To", accounts(:credit_card))
 
     fill_in "transfer[amount]", with: "12,50+4,30"
-    find("summary", text: "Bank Charges").click
+    find("summary", text: /bank charges/i).click
     fill_in "transfer[source_fee_amount]", with: "1,25"
     fill_in "Date", with: Date.current
 

@@ -233,11 +233,7 @@ module ApplicationHelper
     # writing it out in plain notation would take a string of that length.
     return [ nil, min_precision ] unless amount.finite? && amount.exponent.abs <= MONEY_FIELD_MAX_EXPONENT
 
-    # Counted from the significant digits and the exponent, capped, so a
-    # stray "1e-150" cannot ask the field for 150 decimals.
-    _sign, digits, _base, exponent = amount.split
-    decimals = (digits.sub(/0+\z/, "").length - exponent).clamp(0, 10)
-    [ amount, [ decimals, min_precision ].max ]
+    [ amount, [ amount_decimals(amount), min_precision ].max ]
   rescue ArgumentError, TypeError
     [ nil, min_precision ]
   end
@@ -251,6 +247,19 @@ module ApplicationHelper
     return "" unless value.to_f.finite?
 
     BigDecimal(value.to_s).to_s("F").delete_suffix(".0")
+  end
+
+  # The decimals a saved amount has (70.1234 has 4, 1500 has 0), counted from
+  # its significant digits and exponent and capped, so a stray "1e-15" cannot
+  # ask a field for 15 decimals. 0 for anything that is not a finite number.
+  def amount_decimals(value)
+    amount = value.is_a?(BigDecimal) ? value : BigDecimal(value.to_s)
+    return 0 unless amount.finite? && amount.exponent.abs <= MONEY_FIELD_MAX_EXPONENT
+
+    _sign, digits, _base, exponent = amount.split
+    (digits.sub(/0+\z/, "").length - exponent).clamp(0, 10)
+  rescue ArgumentError, TypeError
+    0
   end
 
   # The decimals a money field needs to show a saved amount unchanged, or nil

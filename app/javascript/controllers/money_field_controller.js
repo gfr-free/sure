@@ -15,6 +15,7 @@ export default class extends Controller {
   static targets = ["amount", "currency", "symbol"];
   static values = {
     precision: Number,
+    minPrecision: Number,
     step: String,
     min: Number,
     max: Number,
@@ -175,6 +176,7 @@ export default class extends Controller {
 
   updateAmount(currency) {
     const requestId = ++this.requestSequence;
+    this.lookupFailed = false;
     // A second switch before the first lookup lands keeps the first snapshot:
     // text typed since then was typed for a new currency all the same.
     if (!this.switchUnsettled) this.textAtSwitch = this.amountTarget.value;
@@ -235,7 +237,7 @@ export default class extends Controller {
           const precision =
             this.hasPrecisionValue && Number.isInteger(this.precisionValue)
               ? this.precisionValue
-              : currencyData.default_precision;
+              : this.#withMinPrecision(currencyData.default_precision);
           // A paste is written as a plain number, as pasteAmount does; typed
           // text keeps its comma or dot.
           this.amountTarget.value = formatAmountForDisplay(
@@ -261,9 +263,9 @@ export default class extends Controller {
       // Silently ignored as they are unactionable by the user.
       if (requestId !== this.requestSequence) return;
       this.switchUnsettled = false;
-      // Without the currency the paste is read like typed text.
-      this.pastedDuringSwitch = undefined;
-      this.updateValidity();
+      // A kept paste still has no reading, so it stays invalid until edited;
+      // a later paste is read at once with the unhinted rules (pasteAmount).
+      this.lookupFailed = true;
     });
   }
 
@@ -280,8 +282,9 @@ export default class extends Controller {
     // While a currency switch is loading, a paste that reads differently
     // with a dot or a comma decimal ("1,234") is kept as pasted text, so the
     // lookup reads it as a paste with the new currency's separator when it
-    // lands (see updateAmount).
-    if (pending && this.#pasteReadsBothWays(text)) {
+    // lands (see updateAmount). Until then, or until it is edited if that
+    // lookup fails, the field is invalid (see updateValidity).
+    if (pending && !this.lookupFailed && this.#pasteReadsBothWays(text)) {
       event.preventDefault();
       this.amountTarget.value = text.trim();
       this.amountTarget.dispatchEvent(new Event("input", { bubbles: true }));
@@ -405,7 +408,7 @@ export default class extends Controller {
     if (this.#isUnreadAfterCurrencySwitch()) return null;
 
     // A paste kept for the pending lookup has no reading yet (see
-    // updateValidity, which holds the submit until it lands).
+    // updateValidity, which holds the submit until it lands or is edited).
     if (this.#pasteAwaitingLookup()) return null;
 
     // While a currency switch is still loading, the installed precision is
@@ -444,6 +447,20 @@ export default class extends Controller {
     const withDot = parseAmountPaste(text, { separator: ".", precision: null });
     const withComma = parseAmountPaste(text, { separator: ",", precision: null });
     return withDot !== withComma;
+  }
+
+  // A paste kept for a pending lookup (see pasteAmount), stored on the
+  // amount input like unreadText, so a restored copy of the page keeps it.
+  get pastedDuringSwitch() {
+    return this.amountTarget.dataset.pastedDuringSwitch;
+  }
+
+  set pastedDuringSwitch(text) {
+    if (text === undefined) {
+      delete this.amountTarget.dataset.pastedDuringSwitch;
+    } else {
+      this.amountTarget.dataset.pastedDuringSwitch = text;
+    }
   }
 
   // True while the field holds a paste kept for the pending lookup.
@@ -516,6 +533,15 @@ export default class extends Controller {
       return this.precisionValue;
     }
 
-    return precisionFromStep(this.amountTarget.step);
+    return this.#withMinPrecision(precisionFromStep(this.amountTarget.step));
+  }
+
+  // A minimum precision (a saved amount's decimals) stays in force whatever
+  // currency the field follows, which still adds its own decimals on top.
+  #withMinPrecision(precision) {
+    if (precision === null || precision === undefined) return precision;
+    if (!this.hasMinPrecisionValue || !Number.isInteger(this.minPrecisionValue)) return precision;
+
+    return Math.max(precision, this.minPrecisionValue);
   }
 }

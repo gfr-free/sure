@@ -27,5 +27,5 @@ Before, the rate `1,1` was submitted as `11`. After, it is `1.1`, and a rejected
 - Controller tests check that a rejected transfer keeps the destination, the date, the fees and the rate, and that a non-numeric fee or an exponent rate is dropped. They also cover the same account on both sides, a zero rate reported on the amounts, a stale form getting a fresh key, and a rejected transaction showing an invalid rate as entered.
 - A system test checks that a transfer's exchange rate reads a comma decimal: the destination shows 110.00 EUR and `1.1` is submitted.
 - JavaScript unit tests cover tiny rates and large unrounded amounts.
-- Tested by hand in the transfer dialog. A rejected submit keeps every field, and a rate of `1,1` converts 100 USD to 110.00 EUR.
+- Checked in the transfer dialog of a local instance (screenshots above). A rejected submit keeps every field, and a rate of `1,1` converts 100 USD to 110.00 EUR.
 - No migrations.

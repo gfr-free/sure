@@ -1609,6 +1609,45 @@ class GoalTest < ActiveSupport::TestCase
     assert_equal 1000, Goal.find(goal.id).pace.to_d
   end
 
+  # Interest, dividends and fees on an investment account are booked as
+  # trades, and its market gain lives on the balance rows. A deposit in the
+  # window puts the account on the transaction path, which reads both too.
+  test "a transaction-measured investment account counts its interest and, on the balance basis, its gains" do
+    account = Account.create!(family: @family, accountable: Investment.new, name: "Pension", currency: "USD", balance: 10_000)
+    create_transaction(account: account, amount: -300, date: 10.days.ago.to_date)
+    record_investment_activity(account, "interest", amount: 60, date: 5.days.ago.to_date)
+    account.balances.create!(date: 20.days.ago.to_date, balance: 9_000, currency: "USD", net_market_flows: 240)
+    # Outside the window.
+    record_investment_activity(account, "interest", amount: 1_000, date: 120.days.ago.to_date)
+    account.balances.create!(date: 120.days.ago.to_date, balance: 8_000, currency: "USD", net_market_flows: 3_000)
+
+    balance_goal = goal_on(account, target_amount: 50_000, basis: "balance", name: "Balance basis", allocated: 1_000)
+    contributions_goal = goal_on(account, target_amount: 50_000, basis: "contributions",
+                                          name: "Contributions basis", allocated: 1_000)
+
+    # (300 deposit + 60 interest + 240 market gain) / 3.
+    assert_equal 200, balance_goal.pace.to_d
+    # Interest is a contribution there (net_contributed_for keeps it), the market gain is not.
+    assert_equal 120, contributions_goal.pace.to_d
+  end
+
+  test "a fee and a buy on a transaction-measured investment account" do
+    account = Account.create!(family: @family, accountable: Investment.new, name: "Broker", currency: "USD", balance: 10_000)
+    create_transaction(account: account, amount: -300, date: 10.days.ago.to_date)
+    record_investment_activity(account, "fee", amount: 30, date: 5.days.ago.to_date)
+    create_trade(securities(:aapl), account: account, qty: 2, price: 100, date: 3.days.ago.to_date)
+
+    # The fee comes off, the buy only swaps cash for shares: (300 − 30) / 3.
+    assert_equal 90, goal_on(account, target_amount: 50_000).pace.to_d
+  end
+
+  test "interest on a valuation-tracked account is not counted on top of its balance change" do
+    account = valuation_tracked_account(balance: 112_000, year_ago: 100_000)
+    record_investment_activity(account, "interest", amount: 600, date: 5.days.ago.to_date)
+
+    assert_equal 1000, goal_on(account, target_amount: 200_000).pace.to_d
+  end
+
   # The transaction path leaves excluded entries out of pace; the balance path
   # reads stored balances, which include them. Without taking them back out, an
   # excluded deposit that pushed the account off the transaction path would be
@@ -1818,6 +1857,13 @@ class GoalTest < ActiveSupport::TestCase
       account.balances.create!(date: history_from, balance: year_ago, start_cash_balance: year_ago, currency: currency)
       create_valuation(account: account, amount: balance, date: valuation_on, currency: currency)
       account
+    end
+
+    # Booked the way the "New transaction" dialog of an investment account does.
+    def record_investment_activity(account, type, amount:, date:)
+      Trade::CreateForm.new(account: account, type: type, amount: amount, date: date, currency: account.currency).create.tap do |entry|
+        assert entry.persisted?, entry.errors.full_messages.to_sentence
+      end
     end
 
     # Reloaded, so every figure is read fresh rather than from a memo.

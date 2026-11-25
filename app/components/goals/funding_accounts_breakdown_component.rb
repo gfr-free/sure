@@ -70,21 +70,26 @@ class Goals::FundingAccountsBreakdownComponent < ApplicationComponent
     end
 
     # Per-account net inflow for both windows in one pass over the 90-day
-    # entries set. Entry amount sign in Sure: inflow is negative; flip and
-    # clamp ≥ 0. Converted at today's rate, like Goal#pace.
+    # entries set: transactions plus interest and dividends booked as trades
+    # (Goal.income_trade_entries). Entry amount sign in Sure: inflow is
+    # negative; flip and clamp ≥ 0. On the balance basis each window also
+    # counts the account's market gain over it (a loss reads as 0, like an
+    # outflow). Converted at today's rate, like Goal#pace.
     def inflow_totals_map
       @inflow_totals_map ||= begin
         account_ids = goal.linked_accounts.map(&:id)
         return {} if account_ids.empty?
 
         cutoff_30 = COLUMN_WINDOW_DAYS.days.ago.to_date
+        dates = TREND_WINDOW_DAYS.days.ago.to_date..Date.current
 
         rows = Entry
           .joins("INNER JOIN transactions ON transactions.id = entries.entryable_id AND entries.entryable_type = 'Transaction'")
-          .where(account_id: account_ids, date: TREND_WINDOW_DAYS.days.ago.to_date..Date.current)
+          .where(account_id: account_ids, date: dates)
           .where(excluded: false)
           .merge(Transaction.excluding_pending)
           .pluck(:account_id, :date, :amount, :currency)
+        rows += Goal.income_trade_entries(account_ids, dates).pluck(:account_id, :date, :amount, :currency)
 
         result = Hash.new { |h, k| h[k] = { last_30: 0.to_d, last_90: 0.to_d } }
         accounts_by_id = goal.linked_accounts.index_by(&:id)
@@ -93,6 +98,20 @@ class Goals::FundingAccountsBreakdownComponent < ApplicationComponent
           result[aid][:last_90] += inflow
           result[aid][:last_30] += inflow if date >= cutoff_30
         end
+
+        unless goal.contributions_basis?
+          gains = Hash.new { |h, k| h[k] = { last_30: 0.to_d, last_90: 0.to_d } }
+          Goal.market_flow_balances(account_ids, dates).pluck(:account_id, :date, :net_market_flows).each do |aid, date, flow|
+            gains[aid][:last_90] += flow.to_d
+            gains[aid][:last_30] += flow.to_d if date >= cutoff_30
+          end
+          gains.each do |aid, windows|
+            windows.each do |window, gain|
+              result[aid][window] += goal.convert_money(Money.new(gain.clamp(0..), accounts_by_id.fetch(aid).currency)).amount
+            end
+          end
+        end
+
         result
       end
     rescue StandardError => e

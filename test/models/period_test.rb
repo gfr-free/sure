@@ -184,4 +184,12 @@ class PeriodTest < ActiveSupport::TestCase
     assert_equal valuation_date, period.start_date
     assert_equal Date.current, period.end_date
   end
+
+  test "key options list every preset without evaluating its date range" do
+    Current.stubs(:family).returns(families(:dylan_family))
+    Family.any_instance.expects(:earliest_activity_date).never
+
+    assert_equal Period::PERIODS.keys, Period.key_options.map(&:first)
+    assert_equal "All", Period.key_options.to_h.fetch("all_time")
+  end
 end

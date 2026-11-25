@@ -108,8 +108,8 @@ class UI::Account::Chart < ApplicationComponent
   def period
     @effective_period ||= begin
       p = @period || Period.last_30_days
-      acc_start = account.history_start_date
-      if p.key == "all_time" && acc_start.present? && acc_start > p.start_date
+      acc_start = account.history_start_date if p.key == "all_time"
+      if acc_start.present? && acc_start > p.start_date
         Period.new(key: "all_time", start_date: acc_start, end_date: p.end_date)
       else
         p

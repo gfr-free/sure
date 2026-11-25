@@ -247,7 +247,12 @@ export default class extends Controller {
   // that read both ways, so "1,234" in a euro field is 1.234, not 1234.
   pasteAmount(event) {
     const text = (event.clipboardData || window.clipboardData)?.getData("text") ?? "";
-    const precision = this.#currencyPending() ? null : this.#fieldPrecision();
+    const pending = this.#currencyPending();
+    const precision = pending ? null : this.#fieldPrecision();
+    // While a currency switch is loading, a paste that reads differently
+    // with a dot or a comma decimal ("1,234") is left as pasted text, so the
+    // lookup reads it with the new currency's separator when it lands.
+    if (pending && this.#pasteReadsBothWays(text)) return;
     const parsed = parseAmountPaste(text, {
       separator: this.#pasteSeparator(),
       precision,
@@ -389,6 +394,12 @@ export default class extends Controller {
       return { precision: null, delimiter: "" };
     }
     return { precision: this.#fieldPrecision(), delimiter: this.delimiterValue };
+  }
+
+  #pasteReadsBothWays(text) {
+    const withDot = parseAmountPaste(text, { separator: ".", precision: null });
+    const withComma = parseAmountPaste(text, { separator: ",", precision: null });
+    return withDot !== withComma;
   }
 
   // True when the text changed after the last currency switch started.

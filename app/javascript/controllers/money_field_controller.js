@@ -166,6 +166,7 @@ export default class extends Controller {
 
   updateAmount(currency) {
     const requestId = ++this.requestSequence;
+    this.#markCurrencyPending();
     new CurrenciesService().get(currency).then((currencyData) => {
       if (requestId !== this.requestSequence) return;
 
@@ -220,6 +221,10 @@ export default class extends Controller {
       // The new currency's step can change the rounding the bounds are
       // checked against, and assigning .value above fires no "input".
       this.updateValidity();
+      this.#markCurrencyPending();
+      // Assigning .value fires no "input" either, so controllers that derive
+      // numbers from this amount hear about the new text and step here.
+      this.dispatch("reformatted");
     }).catch(() => {
       // Catch prevents Unhandled Promise Rejection for network failures.
       // Silently ignored as they are unactionable by the user.
@@ -390,6 +395,24 @@ export default class extends Controller {
     return this.form?.querySelector(this.currencySourceValue) ?? null;
   }
 
+  // True while the picked currency's lookup has not landed, so the step and
+  // separator still belong to the previous currency.
+  #currencyPending() {
+    const picker = this.hasCurrencyTarget
+      ? this.currencyTarget
+      : this.#currencySourceElement();
+    return Boolean(picker && picker.value !== this.separatorCurrencyValue);
+  }
+
+  // Lets other controllers that read this input (the exchange-rate tabs) skip
+  // rounding with a step that belongs to the previous currency.
+  #markCurrencyPending() {
+    this.amountTarget.toggleAttribute(
+      "data-currency-pending",
+      this.#currencyPending(),
+    );
+  }
+
   // The amount input's step already carries the selected currency's precision,
   // rendered server-side and refreshed by updateAmount, so it tracks the live
   // currency selection without a second lookup. BTC's step arrives as
@@ -400,13 +423,6 @@ export default class extends Controller {
   // being truncated to a default or display precision that would drop a
   // sub-cent price to "0.00". step="any" wins over the precision value for that
   // reason.
-  #currencyPending() {
-    const picker = this.hasCurrencyTarget
-      ? this.currencyTarget
-      : this.#currencySourceElement();
-    return Boolean(picker && picker.value !== this.separatorCurrencyValue);
-  }
-
   #fieldPrecision() {
     if (this.amountTarget.step === "any") return null;
 

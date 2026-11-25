@@ -26,11 +26,26 @@ export default class extends Controller {
     this.destinationCurrency = null;
     this.activeTab = "convert";
 
+    // A money field reformats its text when its currency lookup lands, which
+    // fires no "input", so the derived rate or destination is worked out again.
+    this.recalculateAmounts = () => this.onAmountInputChange();
+    this.element.addEventListener(
+      "money-field:reformatted",
+      this.recalculateAmounts,
+    );
+
     if (!this.hasRequiredExchangeRateTargets()) {
       return;
     }
 
     this.checkCurrencyDifference();
+  }
+
+  disconnect() {
+    this.element.removeEventListener(
+      "money-field:reformatted",
+      this.recalculateAmounts,
+    );
   }
 
   hasRequiredExchangeRateTargets() {
@@ -339,9 +354,12 @@ export default class extends Controller {
 
   // The amount as the money field submits it: rounded to the field's
   // precision, so a rate worked out from it matches what the server saves
-  // even when Enter submits before blur has rounded the text.
+  // even when Enter submits before blur has rounded the text. While the
+  // field's currency lookup is pending it submits unrounded, so this does too.
   #submittedAmount(input) {
-    const precision = precisionFromStep(input.step);
+    const precision = input.hasAttribute("data-currency-pending")
+      ? null
+      : precisionFromStep(input.step);
     const amount = evaluateAmountExpression(input.value, { precision });
     if (amount === null || precision === null) return amount;
     return Number(amount.toFixed(precision));

@@ -47,7 +47,7 @@
         <%= f.money_field :budgeted_spending,
               label: t("budgets.edit.budgeted_spending"),
               label_class: "sr-only",
-              container_class: "w-[140px] privacy-sensitive privacy-sensitive-interactive",
+              container_class: "w-36 privacy-sensitive privacy-sensitive-interactive",
               input_class: "text-right",
               placeholder: budget_category.subcategory? ? t("budget_categories.budget_category_form.shared_placeholder") : "0",
               title: budget_category.subcategory? ? t("budget_categories.budget_category_form.shared_title") : nil,

@@ -64,6 +64,13 @@ export default class extends Controller {
     this.updateValidity = this.updateValidity.bind(this);
     this.amountTarget.addEventListener("input", this.updateValidity);
     this.updateValidity();
+
+    // A currency source can change before this controller connects (a parent
+    // controller syncing it in its own connect), and that "change" is missed.
+    const source = this.#currencySourceElement();
+    if (source?.value && source.value !== this.separatorCurrencyValue) {
+      this.updateAmount(source.value);
+    }
   }
 
   disconnect() {

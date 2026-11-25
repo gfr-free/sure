@@ -105,6 +105,7 @@
               value: mapping.current_balance_amount || @import.suggested_current_balance(mapping),
               label: t(".balance_label", name: mapping.key),
               label_class: "sr-only",
+              precision: 2,
               container_class: "w-36 ml-auto",
               input_class: "text-right tabular-nums",
               hide_currency: true,

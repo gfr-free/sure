@@ -86,14 +86,15 @@
     <% destination_input = capture do %>
       <%# The destination amount is in the account's currency, which
           transaction_form_controller keeps in this unnamed input. %>
-      <%= tag.input type: "hidden", id: "transaction_destination_currency", value: f.object.account&.currency || Current.family.currency, data: { transaction_form_target: "destinationCurrency" } %>
+      <% destination_currency = (f.object.account || Current.user.default_account_for_transactions)&.currency || Current.family.currency %>
+      <%= tag.input type: "hidden", id: "transaction_destination_currency", value: destination_currency, data: { transaction_form_target: "destinationCurrency" } %>
       <%= f.money_field :destination_amount,
             name: nil,
             label: t("shared.exchange_rate_tabs.destination_amount"),
             min: 0,
             placeholder: "92",
             hide_currency: true,
-            currency_value_override: f.object.account&.currency || Current.family.currency,
+            currency_value_override: destination_currency,
             currency_source: "#transaction_destination_currency",
             amount_data: {
               transaction_form_target: "destinationAmount",

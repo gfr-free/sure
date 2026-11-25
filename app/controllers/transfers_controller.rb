@@ -70,7 +70,7 @@ class TransfersController < ApplicationController
       render :new, status: :unprocessable_entity
     end
   rescue Money::ConversionError
-    @transfer ||= Transfer.new
+    @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
     @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:base, t(".exchange_rate_unavailable"))
     @from_account_id = transfer_params[:from_account_id]
@@ -78,7 +78,7 @@ class TransfersController < ApplicationController
     @tags = Current.family.tags.alphabetically
     render :new, status: :unprocessable_entity
   rescue ArgumentError
-    @transfer ||= Transfer.new
+    @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
     @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:date, t(".date_invalid"))
     @from_account_id = transfer_params[:from_account_id]
@@ -86,7 +86,7 @@ class TransfersController < ApplicationController
     @tags = Current.family.tags.alphabetically
     render :new, status: :unprocessable_entity
   rescue Transfer::Creator::StaleIdempotencyKeyError
-    @transfer ||= Transfer.new
+    @transfer ||= Transfer.new(amount: transfer_params[:amount].presence)
     @transfer.tag_ids = transfer_params[:tag_ids]
     @transfer.errors.add(:base, t(".stale_form"))
     @from_account_id = transfer_params[:from_account_id]

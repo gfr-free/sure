@@ -110,6 +110,9 @@ export default class extends Controller {
     const textInput = this.#convertFormFieldTo("input", this.valueInputEl);
     textInput.placeholder = "Enter a value";
     textInput.type = conditionFilter.type;
+    if (conditionFilter.type === "number") {
+      textInput.step = conditionFilter.number_step;
+    }
 
     this.#replaceValueField(textInput);
   }

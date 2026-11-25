@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
-import evaluateAmountExpression from "utils/evaluate_amount_expression";
+import evaluateAmountExpression, { precisionFromStep } from "utils/evaluate_amount_expression";
 
 // Connects to data-controller="rule--split-action"
 // Split rows use real, individually-named form fields (rendered server-side), so this
@@ -176,7 +176,14 @@ export default class extends Controller {
   // Shares and the amount condition are money fields, so their text can hold
   // a comma decimal or an expression.
   #readAmount(input) {
-    return evaluateAmountExpression(input?.value ?? "");
+    if (!input) return null;
+
+    const declared = Number.parseInt(
+      input.closest("[data-controller~='money-field']")?.dataset.moneyFieldPrecisionValue ?? "",
+      10,
+    );
+    const precision = Number.isInteger(declared) ? declared : precisionFromStep(input.step);
+    return evaluateAmountExpression(input.value, { precision });
   }
 
   #isWithinAndOnlyAncestry(row) {

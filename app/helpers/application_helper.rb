@@ -224,8 +224,8 @@ module ApplicationHelper
   # condition, a search filter) as a number for a money field, or nil when it
   # is blank or not a number, and the decimals to show it with: at least the
   # currency's, more when the value has them, so saving unchanged keeps it.
-  def money_field_value(raw, currency: Current.family.currency)
-    min_precision = Money::Currency.new(currency).default_precision
+  def money_field_value(raw, currency: Current.family.currency, min_precision: nil)
+    min_precision ||= Money::Currency.new(currency).default_precision
     amount = BigDecimal(raw.to_s)
     return [ nil, min_precision ] unless amount.finite?
 

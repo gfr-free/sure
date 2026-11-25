@@ -6,7 +6,7 @@
 <%= fields form.object_name, builder: StyledFormBuilder do |value_form| %>
   <%= value_form.money_field :value,
         value: amount,
-        label: t("rules.conditions.amount_value.label"),
+        label: t("rule.conditions.amount_value.label"),
         label_class: "sr-only",
         precision: precision,
         placeholder: "10",

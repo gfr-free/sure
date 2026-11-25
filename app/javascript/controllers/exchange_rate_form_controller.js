@@ -193,7 +193,7 @@ export default class extends Controller {
 
   clearCalculateRateFields() {
     if (this.hasDestinationAmountTarget) {
-      this.destinationAmountTarget.value = "";
+      this.#clearDestinationAmount();
     }
     if (this.hasCalculateRateDisplayTarget) {
       this.calculateRateDisplayTarget.textContent = "-";
@@ -300,11 +300,18 @@ export default class extends Controller {
       this.calculateRateDisplayTarget.textContent = "-";
     }
     if (this.hasDestinationAmountTarget) {
-      this.destinationAmountTarget.value = "";
+      this.#clearDestinationAmount();
     }
 
     this.sourceCurrency = null;
     this.destinationCurrency = null;
+  }
+
+  // The destination amount is a money field, which tracks its validity on
+  // "input"; a stale invalid text would otherwise block submit while hidden.
+  #clearDestinationAmount() {
+    this.destinationAmountTarget.value = "";
+    this.destinationAmountTarget.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   // Money fields whose currency follows an account picker read it from these

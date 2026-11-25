@@ -67,6 +67,33 @@ class MoneyFieldsTest < ApplicationSystemTestCase
     end
   end
 
+  test "split rows balance a fractional total in a whole-number currency" do
+    entry = create_transaction(amount: 80.4, currency: "JPY", name: "Imported", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      find("[data-split-transaction-target='amountInput']").fill_in(with: "-40")
+      click_on I18n.t("splits.new.add_row")
+      rows = all("[data-split-transaction-target='row']", count: 2)
+      within(rows.last) do
+        find("[data-split-transaction-target='nameInput']").fill_in(with: "Rest")
+        find("[data-split-transaction-target='amountInput']").fill_in(with: "-40")
+      end
+
+      # 0.4 short: Entry#split! would reject it, so it must not read as balanced.
+      assert_selector "[data-split-transaction-target='remaining']", exact_text: "-0.4"
+      assert_selector "[data-split-transaction-target='submitButton']:disabled"
+
+      within(rows.last) do
+        find("[data-split-transaction-target='amountInput']").fill_in(with: "-40,4")
+      end
+
+      assert_selector "[data-split-transaction-target='remaining']", exact_text: "0.0"
+      assert_selector "[data-split-transaction-target='submitButton']:not(:disabled)"
+    end
+  end
+
   test "a rule condition switched to amount gets the money field" do
     visit new_rule_url(resource_type: "transaction")
 

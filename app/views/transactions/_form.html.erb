@@ -76,10 +76,11 @@
           label: t("shared.exchange_rate_tabs.exchange_rate"),
           min: "0.00000000000001",
           step: "any",
-          raw_value: ef.object.exchange_rate.to_s,
+          raw_value: plain_decimal_text(ef.object.exchange_rate),
           placeholder: "1.0",
           hide_currency: true,
           hide_symbol: true,
+          paste_hint: false,
           autocomplete: "off",
           amount_data: {
             transaction_form_target: "exchangeRateField",

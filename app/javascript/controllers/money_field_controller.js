@@ -25,6 +25,9 @@ export default class extends Controller {
     delimiter: String,
     separatorCurrency: String,
     currencySource: String,
+    // False for a value with no currency (an exchange rate): its paste is not
+    // settled by a currency's separator, so "0,925" is read as typed.
+    pasteHint: { type: Boolean, default: true },
   };
 
   requestSequence = 0;
@@ -252,7 +255,7 @@ export default class extends Controller {
     // While a currency switch is loading, a paste that reads differently
     // with a dot or a comma decimal ("1,234") is left as pasted text, so the
     // lookup reads it with the new currency's separator when it lands.
-    if (pending && this.#pasteReadsBothWays(text)) return;
+    if ((pending || !this.pasteHintValue) && this.#pasteReadsBothWays(text)) return;
     const parsed = parseAmountPaste(text, {
       separator: this.#pasteSeparator(),
       precision,

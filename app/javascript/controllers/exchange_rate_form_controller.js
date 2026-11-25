@@ -27,6 +27,7 @@ export default class extends Controller {
     this.activeTab = "convert";
     // A form redrawn after a rejected submit carries the rate that was
     // entered; the first lookup must not replace it with the market rate.
+    this.currencyCheckStarted = false;
     this.keepRenderedRate =
       this.hasExchangeRateFieldTarget &&
       this.exchangeRateFieldTarget.value.trim() !== "";
@@ -58,6 +59,10 @@ export default class extends Controller {
   }
 
   checkCurrencyDifference() {
+    // Only the lookup started on connect may keep a redrawn rate: once the
+    // accounts or date change, the rate belongs to another pair or day.
+    if (this.currencyCheckStarted) this.keepRenderedRate = false;
+    this.currencyCheckStarted = true;
     this.syncCurrencySources();
 
     const context = this.getExchangeRateContext();
@@ -266,7 +271,13 @@ export default class extends Controller {
 
   showExchangeRateField(rate) {
     if (this.hasExchangeRateFieldTarget && !this.#takeRenderedRate()) {
-      this.#setExchangeRate(this.formatExchangeRate(rate));
+      // On the calculate tab the rate follows the typed destination amount,
+      // not the market rate.
+      if (this.activeTab === "calculateRate") {
+        this.calculateRateFromAmounts();
+      } else {
+        this.#setExchangeRate(this.formatExchangeRate(rate));
+      }
     }
     if (this.hasExchangeRateContainerTarget) {
       this.exchangeRateContainerTarget.classList.remove("hidden");

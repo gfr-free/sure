@@ -1,0 +1,234 @@
+{
+  "since": "2026-11-25T23:24:00Z",
+  "head": "8eb99062b",
+  "reviews": [
+    {
+      "body": "",
+      "commit_id": "8eb99062b564ddfc64442326e627495d10717189",
+      "id": 6066409133,
+      "state": "COMMENTED",
+      "submitted_at": "2026-11-25T23:27:45Z",
+      "user": "coderabbitai[bot]"
+    }
+  ],
+  "inline_comments": [
+    {
+      "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<details>\n<summary>Analysis chain</summary>\n<dl>\n<dd>\n<br>\n\nScript executed:\n\n```shell\n#!/bin/bash\nset -u\nprintf '%s\\n' '--- revision ---'\ngit rev-parse HEAD\ngit log -1 --format='%h %s'\nprintf '%s\\n' '--- guidance files and thread policy ---'\nfd -H -t f '(^AGENTS\\.md$|^\\.coderabbit\\.yaml$|^\\.coderabbit\\.yml$)' . -E .git | while IFS= read -r f; do\n  printf '\\n%s\\n' \"$f\"\n  rg -n -i -C 2 'resolv(e|ing|ed).*thread|thread.*resolv|review.*thread' \"$f\" || true\ndone\nprintf '%s\\n' '--- money field controller outline ---'\nast-grep outline app/javascript/controllers/money_field_controller.js --items all || true\nprintf '%s\\n' '--- precision implementation and integration ---'\nrg -n -C 5 'min_precision|minPrecision|precisionValue|precision_value|currency_source|currencySource' app/javascript/controllers/money_field_controller.js app/views/shared/_money_field.html.erb app/views/import/configurations/monarch.html.erb\nprintf '%s\\n' '--- builder, template, and precision references across source ---'\nrg -n -C 4 'def money_field\\b|min_precision|money_field_min_precision|amount_decimals' app\nprintf '%s\\n' '--- relevant regression tests ---'\nrg -n -i -C 6 '123\\.4|12\\.34|whole.number.currency|min.precision|precision.*destination|destination.*precision|JPY.*balance|balance.*JPY' test/controllers/import/monarch_import_flow_test.rb test/system/imports_test.rb test/system/money_fields_test.rb\n```\n\nLength of output: 39640\n\n---\n\nScript executed:\n\n```shell\n#!/bin/bash\nset -u\nprintf '%s\\n' '--- currency switch ---'\ncat -n app/javascript/controllers/money_field_controller.js | sed -n '160,305p'\nprintf '%s\\n' '--- serialization and precision ---'\ncat -n app/javascript/controllers/money_field_controller.js | sed -n '340,445p'\ncat -n app/javascript/controllers/money_field_controller.js | sed -n '505,540p'\nprintf '%s\\n' '--- rendered amount and step ---'\ncat -n app/views/shared/_money_field.html.erb | sed -n '1,105p'\nprintf '%s\\n' '--- Monarch currency-switch system test ---'\ncat -n test/system/imports_test.rb | sed -n '300,340p'\nprintf '%s\\n' '--- targeted Monarch tests and assertions ---'\nrg -n -i -C 3 'monarch|123\\.4|12\\.34|min.precision' test/system/imports_test.rb test/system/money_fields_test.rb test/controllers/import/monarch_import_flow_test.rb\n```\n\nLength of output: 35973\n\n---\n\n</dd>\n</dl>\n</details>\n\n`@gfr-free` The `min_precision` change addresses the precision calculation in the code. The controller tests check the rendered settings, but they do not test submission after a currency switch.\n\nPlease add the requested system test: start with a JPY balance of `123.4`, switch to USD, enter `12.34`, and verify the submitted amount. I did not run the tests, so I’m not marking the finding as addressed yet.\n\n---\n\n<details>\n<summary>Learnings used</summary>\n<dl>\n<dd>\n<br>\n\n```\nLearnt from: gfr-free\nRepo: we-promise/sure\n\nTimestamp: 2026-11-25T22:56:42.221Z\nLearning: Within repository \"we-promise/sure\", only for files matching one of [\"app/views/import/configurations/monarch.html.erb\"]: In app/views/import/configurations/monarch.html.erb, a Monarch balance for an existing destination is interpreted in the target account's currency; the import does not convert it. Review the balance field's displayed currency against the selected target, and use the family currency for a new account.\n```\n\n</dd>\n</dl>\n</details>\n\n\n\n---\n\n<!-- This is an auto-generated comment: tweet message by coderabbit.ai -->\n\nIf you found this review helpful, would you consider giving us a shout-out on [X](https://twitter.com/intent/tweet?related=CodeRabbitAI&text=Saved%20precision%20shouldn%E2%80%99t%20cap%20amounts%20after%20a%20currency%20switch.%20%60money_field%60%20now%20preserves%20saved%20decimals%20while%20honoring%20the%20active%20currency%2C%20with%20regression%20tests%20for%20JPY%20and%20USD.%20Try%20%40coderabbitai%20%F0%9F%90%87&url=https%3A%2F%2Fgithub.com%2Fwe-promise%2Fsure%2Fpull%2F5833%23discussion_r4701982234)?\n\nThank you for using CodeRabbit!\n\n<!-- end of auto-generated comment: tweet message by coderabbit.ai -->\n\n<sub><i>You are interacting with an AI system.</i></sub>\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
+      "created_at": "2026-11-25T23:27:45Z",
+      "id": 4702080821,
+      "in_reply_to_id": 4701982234,
+      "line": null,
+      "path": "app/views/import/configurations/monarch.html.erb",
+      "user": "coderabbitai[bot]"
+    }
+  ],
+  "issue_comments": [],
+  "review_threads": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "reviewThreads": {
+            "nodes": [
+              {
+                "id": "PRRT_kwDOPRMXr868IDVk",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701350476,
+                      "author": {
+                        "login": "chatgpt-codex-connector"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IDVt",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701350487,
+                      "author": {
+                        "login": "chatgpt-codex-connector"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IDVw",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701350494,
+                      "author": {
+                        "login": "chatgpt-codex-connector"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKc8",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397735,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKc_",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397740,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdE",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397747,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdP",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397760,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdT",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397766,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdV",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397777,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdc",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397788,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868IKdh",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701397794,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868JJVH",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701828188,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868Jf1j",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701982221,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOPRMXr868Jf1o",
+                "isResolved": true,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4701982234,
+                      "author": {
+                        "login": "coderabbitai"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

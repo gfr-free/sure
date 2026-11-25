@@ -308,6 +308,9 @@ export default class extends Controller {
   // here, without touching what's still on screen.
   canonicalizeForSubmit(event) {
     if (!this.hasAmountTarget || this.amountTarget.disabled) return;
+    // An unnamed field (a helper input such as the exchange-rate tab's
+    // destination amount) isn't part of the submitted data.
+    if (!this.amountTarget.name) return;
 
     const raw = this.amountTarget.value;
     if (typeof raw !== "string" || raw.trim() === "") return;

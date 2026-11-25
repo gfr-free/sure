@@ -36,6 +36,7 @@
       <div data-split-transaction-target="rowsContainer" class="space-y-3">
         <%= render "splits/row",
                    index: 0,
+                   currency: @entry.currency,
                    name: @entry.name,
                    categories: @categories,
                    merchants: @merchants,
@@ -46,6 +47,7 @@
       <template data-split-transaction-target="rowTemplate">
         <%= render "splits/row",
                    index: "ROW_IDX_PLACEHOLDER",
+                   currency: @entry.currency,
                    categories: @categories,
                    merchants: @merchants,
                    tags: @tags %>

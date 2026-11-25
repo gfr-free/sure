@@ -11,7 +11,9 @@ class TransfersController < ApplicationController
   helper_method :new_transfer_idempotency_key
 
   def new
-    @transfer = Transfer.new
+    # Blank rather than the column's 0 default, so the amount field starts
+    # empty and typing does not append to "0.00".
+    @transfer = Transfer.new(amount: nil)
     @from_account_id = params[:from_account_id]
     @tags = Current.family.tags.alphabetically
   end

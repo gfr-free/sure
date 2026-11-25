@@ -234,4 +234,17 @@ class ApplicationHelperTest < ActionView::TestCase
   ensure
     singleton_class.send(:remove_method, :lucide_icon) if singleton_class.method_defined?(:lucide_icon)
   end
+
+  test "#money_field_value reads a numeric text and keeps its decimals" do
+    assert_equal [ BigDecimal("12.5"), 2 ], money_field_value("12.5", currency: "USD")
+    assert_equal [ BigDecimal("70.1234"), 4 ], money_field_value("70.1234", currency: "USD")
+    assert_equal [ BigDecimal("1500"), 0 ], money_field_value("1500", currency: "JPY")
+  end
+
+  test "#money_field_value is nil for blank or non-numeric text" do
+    assert_equal [ nil, 2 ], money_field_value(nil, currency: "USD")
+    assert_equal [ nil, 2 ], money_field_value("", currency: "USD")
+    assert_equal [ nil, 2 ], money_field_value("starbucks", currency: "USD")
+    assert_equal [ nil, 2 ], money_field_value("12,50", currency: "USD")
+  end
 end

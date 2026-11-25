@@ -11,7 +11,9 @@ export default class extends Controller {
     "exchangeRateContainer",
     "exchangeRateField",
     "convertDestinationDisplay",
-    "calculateRateDisplay"
+    "calculateRateDisplay",
+    "sourceCurrency",
+    "destinationCurrency"
   ];
 
   static values = {
@@ -36,6 +38,8 @@ export default class extends Controller {
   }
 
   checkCurrencyDifference() {
+    this.syncCurrencySources();
+
     const context = this.getExchangeRateContext();
 
     if (!context) {
@@ -146,12 +150,13 @@ export default class extends Controller {
       return;
     }
 
-    // Same reasoning as calculateConvertDestination above: amountTarget
-    // needs expression-aware parsing, destinationAmountTarget doesn't.
+    // Both amounts are money fields (see calculateConvertDestination above).
     const amount = evaluateAmountExpression(this.amountTarget.value, {
       precision: precisionFromStep(this.amountTarget.step),
     });
-    const destAmount = Number.parseFloat(this.destinationAmountTarget.value);
+    const destAmount = evaluateAmountExpression(this.destinationAmountTarget.value, {
+      precision: precisionFromStep(this.destinationAmountTarget.step),
+    });
 
     if (amount && destAmount && amount !== 0) {
       const rate = destAmount / amount;
@@ -300,6 +305,27 @@ export default class extends Controller {
 
     this.sourceCurrency = null;
     this.destinationCurrency = null;
+  }
+
+  // Money fields whose currency follows an account picker read it from these
+  // hidden inputs (money_field's currency_source), so a change is announced
+  // with a "change" event. Subclasses return the currencies they know.
+  syncCurrencySources() {
+    const { source, destination } = this.currencySources();
+
+    this.#setCurrencySource(this.hasSourceCurrencyTarget ? this.sourceCurrencyTarget : null, source);
+    this.#setCurrencySource(this.hasDestinationCurrencyTarget ? this.destinationCurrencyTarget : null, destination);
+  }
+
+  currencySources() {
+    return {};
+  }
+
+  #setCurrencySource(input, currency) {
+    if (!input || !currency || input.value === currency) return;
+
+    input.value = currency;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   getExchangeRateContext() {

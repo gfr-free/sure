@@ -220,6 +220,21 @@ module ApplicationHelper
               .join(separator)
   end
 
+  # A saved or typed amount kept as text (a rule's split share or amount
+  # condition, a search filter) as a number for a money field, or nil when it
+  # is blank or not a number, and the decimals to show it with: at least the
+  # currency's, more when the value has them, so saving unchanged keeps it.
+  def money_field_value(raw, currency: Current.family.currency)
+    min_precision = Money::Currency.new(currency).default_precision
+    amount = BigDecimal(raw.to_s)
+    return [ nil, min_precision ] unless amount.finite?
+
+    decimals = amount.to_s("F").split(".").last.sub(/0+\z/, "").length
+    [ amount, [ decimals, min_precision ].max ]
+  rescue ArgumentError, TypeError
+    [ nil, min_precision ]
+  end
+
   def currency_picker_options_for_family(family = Current.family, extra: [])
     return Money::Currency.as_options.map(&:iso_code) unless family
 

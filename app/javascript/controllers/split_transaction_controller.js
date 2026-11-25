@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import evaluateAmountExpression, { precisionFromStep } from "utils/evaluate_amount_expression"
 
 // Split rows are real, individually-named form fields rendered server-side (via the
 // "splits/row" partial) and cloned from a <template> for new rows — mirrors
@@ -41,7 +42,8 @@ export default class extends Controller {
   updateRemaining() {
     const total = this.totalValue
     const sum = this.amountInputTargets.reduce((acc, input) => {
-      return acc + (Number.parseFloat(input.value) || 0)
+      // Money fields: the text may hold a comma decimal or an expression.
+      return acc + (evaluateAmountExpression(input.value, { precision: precisionFromStep(input.step) }) || 0)
     }, 0)
 
     const remaining = total - sum

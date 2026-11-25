@@ -1125,6 +1125,61 @@ end
     assert_equal 20, css_select("turbo-frame[id^='entry_']").count
   end
 
+  test "drill-down links do not replace the filters remembered for the sidebar link" do
+    get transactions_url(q: { types: [ "expense" ] }, remember_filters: "1")
+    assert_response :success
+
+    get transactions_url(q: { types: [ "income" ], status: [ "confirmed" ] })
+    assert_response :success
+    assert_select "#transaction-search-filters li", minimum: 1
+
+    get transactions_url
+    assert_redirected_to transactions_url(q: { types: [ "expense" ] }, page: 1, per_page: 50, remember_filters: "1")
+  end
+
+  test "a drill-down link is not restored when no filters were remembered" do
+    get transactions_url(q: { types: [ "income" ], status: [ "confirmed" ] })
+    assert_response :success
+
+    get transactions_url
+    assert_response :success
+  end
+
+  test "a drill-down link still remembers a chosen page size" do
+    get transactions_url(q: { types: [ "income" ] }, per_page: 20)
+    assert_response :success
+
+    get transactions_url
+    assert_redirected_to transactions_url(q: {}, page: 1, per_page: 20, remember_filters: "1")
+  end
+
+  test "paging through restored filters keeps remembering them" do
+    get transactions_url(q: { types: [ "expense" ] }, remember_filters: "1")
+    get transactions_url
+    follow_redirect!
+    assert_response :success
+
+    get transactions_url(q: { types: [ "expense" ] }, page: 2, remember_filters: "1")
+
+    get transactions_url
+    assert_redirected_to transactions_url(q: { types: [ "expense" ] }, page: 2, per_page: 50, remember_filters: "1")
+  end
+
+  test "clearing all filters forgets the remembered ones" do
+    get transactions_url(q: { types: [ "expense" ] }, remember_filters: "1")
+    get transactions_url(clear_filters: true)
+    assert_response :success
+
+    get transactions_url
+    assert_response :success
+  end
+
+  test "search form marks its filters as set on the transactions page" do
+    get transactions_url(q: { types: [ "income" ] })
+
+    assert_select "#transactions-search input[type=hidden][name=remember_filters][value='1']"
+  end
+
   test "pagination does not duplicate or skip transactions with same date and timestamp" do
     family = families(:empty)
     user = users(:empty)

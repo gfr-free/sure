@@ -507,6 +507,11 @@ Rails.application.routes.draw do
     get :picker, on: :collection
   end
 
+  # Transactions that still need attention (preview-gated).
+  resource :review, only: :show do
+    delete :clear_filter, on: :collection
+  end
+
   # Hub page fronting budgets + goals under a single "Plan" nav entry.
   resource :plan, only: :show
 

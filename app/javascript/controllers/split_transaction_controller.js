@@ -41,16 +41,17 @@ export default class extends Controller {
 
   updateRemaining() {
     const total = this.totalValue
+    // Rows share the entry's currency, so they share a precision.
+    const precision = precisionFromStep(this.amountInputTargets[0]?.step) ?? 2
     const sum = this.amountInputTargets.reduce((acc, input) => {
       // Money fields: the text may hold a comma decimal or an expression.
-      return acc + (evaluateAmountExpression(input.value, { precision: precisionFromStep(input.step) }) || 0)
+      return acc + (evaluateAmountExpression(input.value, { precision }) || 0)
     }, 0)
 
     const remaining = total - sum
-    const absRemaining = Math.abs(remaining)
-    const balanced = absRemaining < 0.005
+    const balanced = Math.abs(remaining) < 0.5 * 10 ** -precision
 
-    this.remainingTarget.textContent = balanced ? "0.00" : remaining.toFixed(2)
+    this.remainingTarget.textContent = (balanced ? 0 : remaining).toFixed(precision)
 
     // Visual feedback on remaining balance
     const container = this.remainingContainerTarget

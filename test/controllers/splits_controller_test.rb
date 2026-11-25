@@ -227,6 +227,18 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "edit keeps a saved split amount's decimals, capped at four" do
+    @entry.split!([
+      { name: "Part 1", amount: 60.125, category_id: nil },
+      { name: "Part 2", amount: 39.875, category_id: nil }
+    ])
+
+    get edit_transaction_split_path(@entry)
+
+    assert_select "input[name$='[amount]'][value='-60.125'][step='0.001']"
+    assert_select "input[name$='[amount]'][value='-39.875']"
+  end
+
   test "edit lists split rows in the order they were entered" do
     @entry.split!([
       { name: "Part 1", amount: 60, category_id: nil },

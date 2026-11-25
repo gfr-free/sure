@@ -124,9 +124,7 @@ export default class extends Controller {
     // comma and silently truncates it. exchangeRateFieldTarget is a plain
     // type="number" input, which the browser already normalizes to a dot
     // decimal or empty string, so parseFloat is safe there.
-    const amount = evaluateAmountExpression(this.amountTarget.value, {
-      precision: precisionFromStep(this.amountTarget.step),
-    });
+    const amount = this.#submittedAmount(this.amountTarget);
     const rate = Number.parseFloat(this.exchangeRateFieldTarget.value);
 
     if (amount && rate && rate !== 0) {
@@ -151,12 +149,8 @@ export default class extends Controller {
     }
 
     // Both amounts are money fields (see calculateConvertDestination above).
-    const amount = evaluateAmountExpression(this.amountTarget.value, {
-      precision: precisionFromStep(this.amountTarget.step),
-    });
-    const destAmount = evaluateAmountExpression(this.destinationAmountTarget.value, {
-      precision: precisionFromStep(this.destinationAmountTarget.step),
-    });
+    const amount = this.#submittedAmount(this.amountTarget);
+    const destAmount = this.#submittedAmount(this.destinationAmountTarget);
 
     if (amount && destAmount && amount !== 0) {
       const rate = destAmount / amount;
@@ -341,5 +335,15 @@ export default class extends Controller {
 
   isCurrentExchangeRateState(_fromCurrency, _toCurrency, _date) {
     throw new Error("Subclasses must implement isCurrentExchangeRateState()");
+  }
+
+  // The amount as the money field submits it: rounded to the field's
+  // precision, so a rate worked out from it matches what the server saves
+  // even when Enter submits before blur has rounded the text.
+  #submittedAmount(input) {
+    const precision = precisionFromStep(input.step);
+    const amount = evaluateAmountExpression(input.value, { precision });
+    if (amount === null || precision === null) return amount;
+    return Number(amount.toFixed(precision));
   }
 }

@@ -63,7 +63,7 @@ class MoneyFieldsTest < ApplicationSystemTestCase
         find("[data-split-transaction-target='amountInput']").fill_in(with: "-39,50")
       end
 
-      assert_selector "[data-split-transaction-target='remaining']", text: "0.00"
+      assert_selector "[data-split-transaction-target='remaining']", exact_text: "0.00"
     end
   end
 

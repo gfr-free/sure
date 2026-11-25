@@ -328,7 +328,9 @@ export default class extends Controller {
 
     if (this.#isUnreadAfterCurrencySwitch()) return;
 
-    const precision = this.#fieldPrecision();
+    // While a currency switch is still loading, the installed precision is
+    // the previous currency's; submit unrounded rather than round to it.
+    const precision = this.#currencyPending() ? null : this.#fieldPrecision();
     const result = evaluateAmountExpression(raw, this.#readOptions());
     if (result === null) return;
 
@@ -342,12 +344,7 @@ export default class extends Controller {
   // is not the selected currency, so the paste falls back to the unhinted
   // heuristic instead of settling it with another currency's separator.
   #pasteSeparator() {
-    const picker = this.hasCurrencyTarget
-      ? this.currencyTarget
-      : this.#currencySourceElement();
-    if (picker && picker.value !== this.separatorCurrencyValue) {
-      return undefined;
-    }
+    if (this.#currencyPending()) return undefined;
 
     return this.separatorValue;
   }
@@ -400,6 +397,13 @@ export default class extends Controller {
   // being truncated to a default or display precision that would drop a
   // sub-cent price to "0.00". step="any" wins over the precision value for that
   // reason.
+  #currencyPending() {
+    const picker = this.hasCurrencyTarget
+      ? this.currencyTarget
+      : this.#currencySourceElement();
+    return Boolean(picker && picker.value !== this.separatorCurrencyValue);
+  }
+
   #fieldPrecision() {
     if (this.amountTarget.step === "any") return null;
 

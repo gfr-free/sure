@@ -41,11 +41,14 @@ export default class extends Controller {
 
   updateRemaining() {
     const total = this.totalValue
-    // Rows share the entry's currency, so they share a precision.
-    const precision = precisionFromStep(this.amountInputTargets[0]?.step) ?? 2
+    // A saved row can carry more decimals than the currency, so each row is
+    // read with its own precision and the balance uses the finest of them.
+    let precision = 0
     const sum = this.amountInputTargets.reduce((acc, input) => {
+      const rowPrecision = precisionFromStep(input.step) ?? 2
+      precision = Math.max(precision, rowPrecision)
       // Money fields: the text may hold a comma decimal or an expression.
-      return acc + (evaluateAmountExpression(input.value, { precision }) || 0)
+      return acc + (evaluateAmountExpression(input.value, { precision: rowPrecision }) || 0)
     }, 0)
 
     const remaining = total - sum

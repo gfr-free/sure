@@ -22,7 +22,7 @@ class Rule::ActionExecutor::SplitTransaction < Rule::ActionExecutor
   end
 
   def category_options
-    family.categories.alphabetically.pluck(:name, :id)
+    Category::Group.select_options(family.categories)
   end
 
   def merchant_options

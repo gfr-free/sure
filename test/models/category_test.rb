@@ -296,4 +296,20 @@ class CategoryTest < ActiveSupport::TestCase
 
     assert_equal [ c ], result.to_a
   end
+
+  test "select options use translated names and sort by them" do
+    I18n.with_locale(:de) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_equal [ "Einkommen", "Restaurants & Bars", "↳ Restaurants", "Test" ], labels
+    end
+  end
+
+  test "rule split category options match the other category selects" do
+    executor = Rule::ActionExecutor::SplitTransaction.new(rules(:one))
+
+    I18n.with_locale(:de) do
+      assert_equal Category::Group.select_options(@family.categories), executor.category_options
+    end
+  end
 end

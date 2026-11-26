@@ -153,16 +153,17 @@ class Category < ApplicationRecord
     def self.for(categories)
       categories_by_parent_id = categories.to_a.group_by(&:parent_id)
 
-      roots = categories_by_parent_id[nil].to_a.sort_by { |category| category.name.downcase }
+      roots = categories_by_parent_id[nil].to_a.sort_by { |category| category.display_name.downcase }
 
       roots.map do |category|
-        subcategories = categories_by_parent_id[category.id].to_a.sort_by { |sub| sub.name.downcase }
+        subcategories = categories_by_parent_id[category.id].to_a.sort_by { |sub| sub.display_name.downcase }
         new(category, subcategories)
       end
     end
 
     # Builds [label, id] pairs for plain HTML <select> elements, ordered
-    # parent-then-children with children visually indented. Native <select>
+    # parent-then-children with children visually indented. Labels are the
+    # display names, so a default category reads as it does everywhere else. Native <select>
     # options can't render icons, so we use a unicode arrow prefix (regular
     # leading spaces collapse in <option> text).
     #
@@ -172,8 +173,8 @@ class Category < ApplicationRecord
     # plain-text summaries.
     def self.select_options(categories, indent: true)
       self.for(categories).flat_map do |group|
-        [ [ group.category.name, group.category.id ] ] +
-          group.subcategories.map { |sub| [ indent ? "↳ #{sub.name}" : sub.name, sub.id ] }
+        [ [ group.category.display_name, group.category.id ] ] +
+          group.subcategories.map { |sub| [ indent ? "↳ #{sub.display_name}" : sub.display_name, sub.id ] }
       end
     end
 

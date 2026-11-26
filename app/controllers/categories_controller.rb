@@ -170,7 +170,7 @@ class CategoriesController < ApplicationController
 
     def set_categories
       @categories = unless @category.parent?
-        Current.family.categories.alphabetically.roots.where.not(id: @category.id)
+        Current.family.categories.roots.where.not(id: @category.id).sort_by { |category| category.display_name.downcase }
       else
         []
       end

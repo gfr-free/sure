@@ -20,6 +20,6 @@ Only the cash flow warning changes. It fires less often (no monthly false alarms
 
 ## Validation
 
-- `test/models/insight/generators/cash_flow_warning_generator_test.rb`: 8 new behaviour tests (income into a shared account, income into a private account, scheduled transfer, snoozed past the horizon, overdue snoozed into the horizon, overdue not snoozed, bill due today, income due today). They fail on main and pass here; the existing tests are adapted to the signed flows.
+- `test/models/insight/generators/cash_flow_warning_generator_test.rb`: 9 new behaviour tests (income into a shared cash account, income into a private account, income into a shared non-cash account, scheduled transfer, snoozed past the horizon, overdue snoozed into the horizon, overdue not snoozed, bill due today, income due today). They fail on main and pass here; the existing tests are adapted to the signed flows.
 - `bin/rails test test/models/insight` on current main: 189 runs, 0 failures. Full CI green on the branch.
 - Rubocop clean, Brakeman 0 warnings. No view or JS changes, so no screenshots.

@@ -6,6 +6,7 @@ id:
         cancel: Batal
         category_label: Kategori
         category_prompt: Pilih kategori
+        clear_tags: Hapus semua tag
         date_label: Tanggal
         header_title: Edit transaksi
         merchant_label: Merchant

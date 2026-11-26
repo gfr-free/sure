@@ -41,15 +41,17 @@
             { selected: split["category_id"], include_blank: t("splits.new.uncategorized"), container_class: "min-w-0" },
             aria: { label: t("rules.actions.split.category_label") } %>
 
+      <%# A searchable DS::Select, not DS::MerchantSelect: every action carries
+          blank split rows, so the list renders many times per rule form, and a
+          merchant created in one row would be missing from the others. A
+          merchant deleted since the rule was saved falls back to the blank. %>
       <div class="min-w-0">
-        <%= render DS::MerchantSelect.new(
-              form: row,
-              method: :merchant_id,
-              merchants: merchants,
-              selected_id: split["merchant_id"],
-              include_blank: t("splits.new.no_merchant"),
-              aria_label: t("rules.actions.split.merchant_label")
-            ) %>
+        <%= row.collection_select :merchant_id,
+              merchants,
+              :id, :name,
+              { selected: Rule::ActionExecutor::SplitTransaction.known_merchant_id(split["merchant_id"], merchants),
+                include_blank: t("splits.new.no_merchant"), searchable: true, scoped_ids: true },
+              aria: { label: t("rules.actions.split.merchant_label") } %>
       </div>
     </div>
 

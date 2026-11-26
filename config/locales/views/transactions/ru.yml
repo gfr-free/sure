@@ -44,6 +44,7 @@ ru:
         cancel: Отмена
         category_label: Категория
         category_prompt: Выберите категорию
+        clear_tags: Удалить все теги
         date_label: Дата
         header_title: Редактировать операции
         merchant_label: Продавец

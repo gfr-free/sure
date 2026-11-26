@@ -44,6 +44,7 @@ pl:
         cancel: Anuluj
         category_label: Kategoria
         category_prompt: Wybierz kategorię
+        clear_tags: Usuń wszystkie tagi
         date_label: Data
         header_title: Edytuj transakcje
         merchant_label: Kontrahent

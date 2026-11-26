@@ -7,6 +7,8 @@ class Transactions::BulkUpdatesController < ApplicationController
     @has_transfer_entry = params[:has_transfer_entry] == "true"
     @has_category_editable_entry = params[:has_category_editable_entry] != "false"
     @has_normal_transaction_entry = params[:has_normal_transaction_entry] != "false"
+    @categories = Category::Group.ordered(Current.family.categories)
+    @category_labels = Category.option_labels(@categories)
   end
 
   def create

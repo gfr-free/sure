@@ -88,7 +88,9 @@ export function matchesSearch(element, rawQuery) {
 // form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
 // still counts as the existing one. This decides whether "create" is offered.
 export function exactName(value) {
-  return String(value ?? "").trim().normalize("NFC").toLocaleLowerCase();
+  // toLowerCase, not toLocaleLowerCase: in a Turkish browser the latter
+  // turns "I" into a dotless "ı", so "Income" would not equal "income".
+  return String(value ?? "").trim().normalize("NFC").toLowerCase();
 }
 
 export function namesExactly(element, rawQuery) {

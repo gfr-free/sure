@@ -6,6 +6,7 @@ es:
         cancel: Cancelar
         category_label: Categoría
         category_prompt: Selecciona una categoría
+        clear_tags: Quitar todas las etiquetas
         date_label: Fecha
         header_title: Editar transacciones
         merchant_label: Comercio

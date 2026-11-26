@@ -339,4 +339,12 @@ class Rule::ActionExecutor::SplitTransactionTest < ActiveSupport::TestCase
     assert_equal 0, modified
     refute entry.reload.split_parent?
   end
+
+  test "a saved split merchant that no longer exists reads as blank" do
+    merchants = [ merchants(:amazon) ]
+
+    assert_equal merchants(:amazon).id.to_s, Rule::ActionExecutor::SplitTransaction.known_merchant_id(merchants(:amazon).id, merchants)
+    assert_nil Rule::ActionExecutor::SplitTransaction.known_merchant_id(SecureRandom.uuid, merchants)
+    assert_nil Rule::ActionExecutor::SplitTransaction.known_merchant_id(nil, merchants)
+  end
 end

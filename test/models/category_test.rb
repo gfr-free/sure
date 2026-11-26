@@ -305,6 +305,49 @@ class CategoryTest < ActiveSupport::TestCase
     end
   end
 
+  test "translated names starting with an accent sort among the other letters" do
+    groceries = @family.categories.create!(name: "Groceries", color: "#407706")
+    zebra = @family.categories.create!(name: "Zoo", color: "#407706")
+
+    I18n.with_locale(:fr) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_operator labels.index(groceries.display_name), :<, labels.index(zebra.display_name)
+      assert_equal "Épicerie", groceries.display_name
+    end
+  end
+
+  test "a default name translated into a custom name keeps both options apart" do
+    custom = @family.categories.create!(name: "Einkommen", color: "#407706")
+
+    I18n.with_locale(:de) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_includes labels, "Einkommen"
+      assert_includes labels, "Einkommen (Income)"
+      assert_equal "Einkommen", Category.option_labels(@family.categories)[custom.id]
+    end
+  end
+
+  test "labels with parent read Parent > Child and other scripts sort as they are" do
+    labels = Category.option_labels(@family.categories, with_parent: true)
+    assert_equal "#{categories(:food_and_drink).display_name} > Restaurants", labels[categories(:subcategory).id]
+
+    alpha = @family.categories.create!(name: "Банк", color: "#407706")
+    beta = @family.categories.create!(name: "Аренда", color: "#407706")
+    assert_equal [ beta, alpha ], [ alpha, beta ].sort_by(&:display_sort_key)
+  end
+
+  test "ordered keeps the children of a category left out of the list" do
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+
+    ordered = Category::Group.ordered(@family.categories).without(parent)
+
+    assert_includes ordered, child
+    assert_not_includes ordered, parent
+  end
+
   test "rule split category options match the other category selects" do
     executor = Rule::ActionExecutor::SplitTransaction.new(rules(:one))
 

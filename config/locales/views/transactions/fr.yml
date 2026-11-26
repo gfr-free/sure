@@ -38,6 +38,7 @@ fr:
         cancel: Annuler
         category_label: Catégorie
         category_prompt: Sélectionnez une catégorie
+        clear_tags: Retirer toutes les étiquettes
         date_label: Date
         header_title: Modifier les transactions
         merchant_label: Marchand

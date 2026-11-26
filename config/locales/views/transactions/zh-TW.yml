@@ -6,6 +6,7 @@ zh-TW:
         cancel: 取消
         category_label: 分類
         category_prompt: 選擇一個分類
+        clear_tags: 移除所有標籤
         date_label: 日期
         header_title: 編輯交易
         merchant_label: 商家

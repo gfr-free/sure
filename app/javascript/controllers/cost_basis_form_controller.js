@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import parseLocaleFloat from "utils/parse_locale_float"
+import submittedAmount from "utils/submitted_amount"
 
 // cost_basis stores the per-share cost with four decimals.
 const PER_SHARE_DECIMALS = 4
@@ -20,7 +20,10 @@ export default class extends Controller {
       return
     }
 
-    const total = parseLocaleFloat(this.totalTarget.value)
+    // Both fields are money fields, read the way they submit ("12,345" in a
+    // euro field is 12.345, not a grouped 12345).
+    const total = submittedAmount(this.application, this.totalTarget)
+    if (total === null) return
     const qty = this.qtyValue || 1
     this.perShareTarget.value = qty > 0 ? this.#formatPerShare(total / qty) : "0.00"
   }
@@ -33,7 +36,8 @@ export default class extends Controller {
       return
     }
 
-    const perShare = parseLocaleFloat(this.perShareTarget.value)
+    const perShare = submittedAmount(this.application, this.perShareTarget)
+    if (perShare === null) return
     const qty = this.qtyValue || 1
     this.totalTarget.value = (perShare * qty).toFixed(2)
   }

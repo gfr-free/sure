@@ -259,6 +259,20 @@ export default function evaluateAmountExpression(value, options = {}) {
   return result
 }
 
+// A single plain number ("0.123456789012345678", "12,5") as dot text, or null
+// for anything else (an expression, grouping). An unrounded field submits
+// such text as typed rather than through a JS number, which keeps only about
+// 16 significant digits, so a share quantity with 18 decimals is not shortened.
+const PLAIN_NUMBER = /^([+-]?)(\d+)(?:[.,](\d+))?$/
+
+export function plainNumberText(text) {
+  const match = typeof text === "string" ? text.trim().match(PLAIN_NUMBER) : null
+  if (!match) return null
+
+  const sign = match[1] === "-" ? "-" : ""
+  return match[3] === undefined ? `${sign}${match[2]}` : `${sign}${match[2]}.${match[3]}`
+}
+
 // toFixed rounds away IEEE-754 float drift (e.g. "0.1+0.2" evaluates to
 // 0.30000000000000004) but, unlike Number/String round-tripping, never
 // switches to exponential notation for very small magnitudes — that only

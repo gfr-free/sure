@@ -59,6 +59,19 @@ class StyledFormBuilderTest < ActionView::TestCase
     assert_equal "any", field.at("input[name='trade[qty]']")["step"]
   end
 
+  # Saving the form unedited must not round a saved value to the step.
+  test "a decimal field keeps a saved value's decimals beyond its step" do
+    builder = StyledFormBuilder.new(:loan, nil, self, {})
+    field = Nokogiri::HTML.fragment(builder.decimal_field(:insurance_rate, label: "Insurance", value: BigDecimal("0.1234"), step: 0.005))
+
+    assert_equal "0.1234", field.at("input[name='loan[insurance_rate]']")["value"]
+    assert_equal "4", field.at("[data-controller='money-field']")["data-money-field-min-precision-value"]
+
+    rate = Nokogiri::HTML.fragment(builder.decimal_field(:rate, label: "Rate", value: "7.2525", step: 0.005))
+    assert_equal "7.2525", rate.at("input[name='loan[rate]']")["value"]
+    assert_equal "4", rate.at("[data-controller='money-field']")["data-money-field-min-precision-value"]
+  end
+
   test "a decimal field is written with the language's decimal separator" do
     I18n.with_locale(:de) do
       builder = StyledFormBuilder.new(:loan, nil, self, {})

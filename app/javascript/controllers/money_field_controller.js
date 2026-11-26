@@ -6,6 +6,7 @@ import evaluateAmountExpression, {
   formatAmountForDisplay,
   formatUnroundedAmount,
   hasWholeNumberGrouping,
+  plainNumberText,
   precisionFromStep,
 } from "utils/evaluate_amount_expression";
 
@@ -335,7 +336,11 @@ export default class extends Controller {
     const result = evaluateAmountExpression(raw, this.#readOptions());
     if (result === null) return;
 
-    const formatted = formatAmountForDisplay(result, precision, raw);
+    // An unrounded field keeps a plain number as typed (see #submittedText).
+    const formatted =
+      precision === null && plainNumberText(raw) !== null
+        ? raw
+        : formatAmountForDisplay(result, precision, raw);
     // Leaving a field without editing it is not a change: an auto-submitting
     // field listening for "change" must not save on a plain blur.
     if (formatted === raw) return;
@@ -390,7 +395,26 @@ export default class extends Controller {
     const canonical = this.#submittedText();
     if (canonical === null) return;
 
-    event.formData.set(this.amountTarget.name, canonical);
+    const name = this.amountTarget.name;
+    if (!name.includes("[]")) {
+      event.formData.set(name, canonical);
+      return;
+    }
+
+    // A row field named as an array ("rate_changes[][rate]") shares its name
+    // with every other row, and set() would collapse them all into one entry.
+    // Only this field's own entry is replaced, in place, because the server
+    // groups the rows by the order of their entries.
+    const position = [...this.form.elements]
+      .filter((element) => element.name === name && !element.matches(":disabled"))
+      .indexOf(this.amountTarget);
+    const entries = [...event.formData.entries()];
+    for (const key of new Set(entries.map(([key]) => key))) event.formData.delete(key);
+    let seen = 0;
+    for (const [key, value] of entries) {
+      const own = key === name && seen++ === position;
+      event.formData.append(key, own ? canonical : value);
+    }
   }
 
   // The amount this field submits as a number, or null when the text is
@@ -416,8 +440,14 @@ export default class extends Controller {
     const precision = this.#currencyPending() ? null : this.#fieldPrecision();
     const result = evaluateAmountExpression(raw, this.#readOptions());
     if (result === null) return null;
+    if (precision !== null) return result.toFixed(precision);
 
-    return precision === null ? formatUnroundedAmount(result) : result.toFixed(precision);
+    // A plain number is sent as typed: a JS number would shorten it to about
+    // 16 significant digits (a quantity has up to 18 decimals). Text read
+    // another way (grouping while a whole-number currency switch loads) is
+    // sent as read.
+    const plain = plainNumberText(raw);
+    return plain !== null && Number(plain) === result ? plain : formatUnroundedAmount(result);
   }
 
   // The separator belongs to the currency it was rendered or last fetched for.

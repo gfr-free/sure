@@ -27,6 +27,7 @@
           class: "space-y-3",
           data: {
             controller: "split-transaction",
+            action: "input->split-transaction#followRemaining",
             split_transaction_total_value: (-@entry.amount).to_f,
             split_transaction_currency_value: @entry.currency,
             turbo_frame: :_top

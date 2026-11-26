@@ -133,6 +133,23 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "a following split row stops following once its text is changed without an input event" do
+    entry = create_transaction(amount: 100, name: "Prefill replaced", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      amount_fields.call.first.fill_in with: "-30"
+      click_button I18n.t("splits.new.add_row")
+      execute_script("arguments[0].value = '-55'", amount_fields.call.last)
+
+      amount_fields.call.first.fill_in with: "-20"
+      assert_equal "-55", amount_fields.call.last.value
+    end
+  end
+
   private
     # Heights of the category, merchant and tag fields in the current split row.
     def picker_heights

@@ -11,14 +11,7 @@ export default class extends Controller {
   static values = { total: Number, currency: String }
 
   connect() {
-    // Listens on the form rather than on each amount field, so rows keep the partial's markup.
-    this.followRemaining = this.followRemaining.bind(this)
-    this.element.addEventListener("input", this.followRemaining)
     this.updateRemaining()
-  }
-
-  disconnect() {
-    this.element.removeEventListener("input", this.followRemaining)
   }
 
   get rowCount() {
@@ -38,7 +31,7 @@ export default class extends Controller {
     // amounts change, until the user edits it. An earlier row keeps what it shows.
     for (const input of this.amountInputTargets) delete input.dataset.followsRemaining
     const newRow = this.rowTargets[this.rowTargets.length - 1]
-    newRow.querySelector("[data-split-transaction-target='amountInput']").dataset.followsRemaining = "true"
+    newRow.querySelector("[data-split-transaction-target='amountInput']").dataset.followsRemaining = ""
 
     this.updateRemaining()
     this.fillFollowingRow()
@@ -54,30 +47,41 @@ export default class extends Controller {
     }
   }
 
+  // Runs from the form's input action, after the row's own updateRemaining.
   followRemaining(event) {
     const input = event.target
     if (!this.amountInputTargets.includes(input)) return
 
-    if (input.dataset.followsRemaining) {
+    if (input === this.followingInput()) {
       delete input.dataset.followsRemaining
     } else {
       this.fillFollowingRow()
     }
   }
 
+  // The following row carries the amount this controller last wrote into it, so its own share
+  // is never parsed back from typed text. A field whose text no longer matches was changed by
+  // something else and stops following.
+  followingInput() {
+    return this.amountInputTargets.find(
+      (input) => input.dataset.followsRemaining !== undefined && input.value === input.dataset.followsRemaining
+    )
+  }
+
   // Sets the following row to the open balance as the indicator shows it (which already
   // counts that row). Nothing left, or more assigned than the total, leaves the row empty,
   // so the indicator shows the overshoot instead of the row taking the opposite sign.
   fillFollowingRow() {
-    const input = this.amountInputTargets.find((amountInput) => amountInput.dataset.followsRemaining)
+    const input = this.followingInput()
     if (!input) return
 
     const remaining = this.remainingTarget.textContent.trim()
     const decimals = (remaining.split(".")[1] || "").length
-    const amount = Number(((Number.parseFloat(input.value) || 0) + Number(remaining)).toFixed(decimals))
+    const amount = Number((Number(input.dataset.followsRemaining) + Number(remaining)).toFixed(decimals))
     const fits = amount !== 0 && Math.sign(amount) === Math.sign(this.totalValue)
 
     input.value = fits ? amount.toFixed(decimals) : ""
+    input.dataset.followsRemaining = input.value
     this.updateRemaining()
   }
 

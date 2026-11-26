@@ -1,6 +1,7 @@
 require "test_helper"
 
 class StyledFormBuilderTest < ActionView::TestCase
+  include ApplicationHelper
   setup do
     @builder = StyledFormBuilder.new(:account_statement, nil, self, {})
   end
@@ -30,5 +31,31 @@ class StyledFormBuilderTest < ActionView::TestCase
 
     assert_nil fragment.at(".form-field")
     assert_includes fragment.at("input[type=file]")["class"].split, "hidden"
+  end
+
+  # Shown with the step's decimals, as blur would normalize it, so leaving
+  # an auto-submitting field unedited does not save it.
+  test "a decimal field is a money field without symbol or currency, shown with its step's decimals" do
+    builder = StyledFormBuilder.new(:family, nil, self, {})
+    field = Nokogiri::HTML.fragment(builder.decimal_field(:threshold, label: "Threshold", value: 0.8, in: 0..1, step: 0.05, auto_submit: true))
+    container = field.at("[data-controller='money-field']")
+    input = field.at("input[name='family[threshold]']")
+
+    assert_equal "text", input["type"]
+    assert_equal "decimal", input["inputmode"]
+    assert_equal "0.80", input["value"]
+    assert_equal "0", container["data-money-field-min-value"]
+    assert_equal "1", container["data-money-field-max-value"]
+    assert_equal "change", input["data-autosubmit-trigger-event"]
+    assert_nil field.at("select")
+    assert_includes field.at("[data-money-field-target='symbol']")["class"].split, "hidden"
+  end
+
+  test "a decimal field without a step keeps every decimal of the value" do
+    builder = StyledFormBuilder.new(:trade, nil, self, {})
+    field = Nokogiri::HTML.fragment(builder.decimal_field(:qty, label: "Quantity", value: 0.000063))
+
+    assert_equal "0.000063", field.at("input[name='trade[qty]']")["value"]
+    assert_equal "any", field.at("input[name='trade[qty]']")["step"]
   end
 end

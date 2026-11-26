@@ -16,7 +16,9 @@
    # raw_value: text shown as given, for a value that is not a currency
    # amount (an exchange rate) and must not be rounded to its precision.
    label_options = { class: class_names("form-field__label", options[:label_class]) }
-   label_options[:for] = options[:id] if options[:id] %>
+   # id: nil renders no id, for a field repeated on the page (a cloned row),
+   # so the label points at none either; such a caller passes an aria label.
+   label_options[:for] = options[:id] if options.key?(:id) %>
 
 <div class="form-field group/money-field <%= options[:container_class] %>"
      data-controller="money-field"
@@ -150,18 +152,18 @@
         edge (full width, no top border, matching background/border/radius)
         rather than as a separate floating card with its own border and
         gap, so out-of-flow positioning doesn't read as visually detached
-        from the field it belongs to. %>
+        from the field it belongs to. A disabled field disables them too. %>
     <div class="hidden group-focus-within/money-field:flex items-center gap-1 absolute left-0 right-0 top-full -mt-px z-10 bg-container border border-t-0 border-secondary rounded-b-md p-1">
-      <%= render DS::Button.new(text: "+", variant: :outline, size: :sm,
+      <%= render DS::Button.new(disabled: options[:disabled], text: "+", variant: :outline, size: :sm,
             data: { action: "mousedown->money-field#insertOperator touchstart->money-field#insertOperator keydown.enter->money-field#insertOperator keydown.space->money-field#insertOperator", "money-field-operator-param": "+" },
             aria: { label: t(".operator_add") }) %>
-      <%= render DS::Button.new(text: "−", variant: :outline, size: :sm,
+      <%= render DS::Button.new(disabled: options[:disabled], text: "−", variant: :outline, size: :sm,
             data: { action: "mousedown->money-field#insertOperator touchstart->money-field#insertOperator keydown.enter->money-field#insertOperator keydown.space->money-field#insertOperator", "money-field-operator-param": "-" },
             aria: { label: t(".operator_subtract") }) %>
-      <%= render DS::Button.new(text: "×", variant: :outline, size: :sm,
+      <%= render DS::Button.new(disabled: options[:disabled], text: "×", variant: :outline, size: :sm,
             data: { action: "mousedown->money-field#insertOperator touchstart->money-field#insertOperator keydown.enter->money-field#insertOperator keydown.space->money-field#insertOperator", "money-field-operator-param": "*" },
             aria: { label: t(".operator_multiply") }) %>
-      <%= render DS::Button.new(text: "÷", variant: :outline, size: :sm,
+      <%= render DS::Button.new(disabled: options[:disabled], text: "÷", variant: :outline, size: :sm,
             data: { action: "mousedown->money-field#insertOperator touchstart->money-field#insertOperator keydown.enter->money-field#insertOperator keydown.space->money-field#insertOperator", "money-field-operator-param": "/" },
             aria: { label: t(".operator_divide") }) %>
     </div>

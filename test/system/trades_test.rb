@@ -17,6 +17,20 @@ class TradesTest < ApplicationSystemTestCase
     visit_account_portfolio
   end
 
+  test "a quantity with a comma decimal is read as a fraction" do
+    open_new_trade_modal
+
+    fill_in "Ticker symbol", with: "AAPL"
+    fill_in "Date", with: Date.current
+    fill_in "Quantity", with: "2,5"
+    fill_in "model[price]", with: 100
+
+    click_button "Add transaction"
+
+    assert_text "Entry created"
+    assert_equal 2.5.to_d, Trade.order(:created_at).last.qty
+  end
+
   test "can create buy transaction" do
     shares_qty = 25
 

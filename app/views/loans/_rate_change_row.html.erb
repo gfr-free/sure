@@ -8,11 +8,21 @@
              name: "account[accountable_attributes][rate_changes][][effective_date]",
              value: effective_date, disabled: disabled %>
 
-  <%= render "loans/rate_change_field",
-             label: t("loans.form.rate_change_rate"), type: "number",
-             name: "account[accountable_attributes][rate_changes][][rate]",
-             value: rate, disabled: disabled,
-             attributes: { step: "0.005", min: "0", max: "100" } %>
+  <%# A decimal field, so "3,5" is read as 3.5; it has no id because the row
+      is also the template every added row is cloned from. %>
+  <%= fields :rate_change, builder: StyledFormBuilder do |rate_form| %>
+    <%= rate_form.decimal_field :rate,
+          label: t("loans.form.rate_change_rate"),
+          aria: { label: t("loans.form.rate_change_rate") },
+          name: "account[accountable_attributes][rate_changes][][rate]",
+          id: nil,
+          autocomplete: "off",
+          value: rate,
+          disabled: disabled,
+          step: "0.005",
+          min: 0,
+          max: 100 %>
+  <% end %>
 
   <%= render DS::Button.new(text: t("loans.form.rate_change_remove"), variant: "ghost", type: "button", class: "shrink-0",
                             disabled: disabled, data: { action: "loan-rate-changes#remove" }) %>

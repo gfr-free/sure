@@ -396,4 +396,52 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_not Entry.exists?(@entry.id)
     assert_not Entry.exists?(part.id)
   end
+
+  test "split parts keep the parent's own exchange rate, so the balance counts them the same" do
+    ExchangeRate.where(from_currency: "EUR", to_currency: "USD").delete_all
+    parent = create_transaction(amount: 100, currency: "EUR", name: "Hotel")
+    parent.entryable.update!(exchange_rate: 2)
+    other_ids = parent.account.entries.where.not(id: parent.id).ids
+
+    synced_total = -> {
+      Balance::SyncCache.new(parent.account.reload).entries.reject { |e| other_ids.include?(e.id) }.sum(&:amount)
+    }
+    assert_equal 200, synced_total.call
+
+    parts = parent.split!([ { name: "Room", amount: 70 }, { name: "Breakfast", amount: 30 } ])
+
+    assert_equal [ 2.0, 2.0 ], parts.map { |part| part.transaction.reload.exchange_rate }
+    assert_equal 200, synced_total.call
+  end
+
+  test "split parts keep the parent's activity label and security" do
+    security = securities(:aapl)
+    parent = create_transaction(amount: -50, name: "Dividend")
+    parent.entryable.update!(investment_activity_label: "Dividend", extra: { "security_id" => security.id })
+
+    parts = parent.split!([ { name: "Gross", amount: -60 }, { name: "Withholding tax", amount: 10 } ]).map(&:transaction)
+
+    assert_equal %w[Dividend Dividend], parts.map(&:investment_activity_label)
+    assert_equal [ security.id ] * 2, parts.map(&:activity_security_id)
+  end
+
+  test "split parts don't take the parent's provider data, references or edit state" do
+    parent = create_transaction(amount: 100, name: "Bank row", external_id: "bank-1", source: "simplefin")
+    parent.entryable.update!(
+      external_id: "txn-1",
+      provider_entry_reference: "ref-1",
+      extra: { "simplefin" => { "pending" => false, "type" => "card" } }
+    )
+    parent.update!(user_modified: true, reconciled_status: "cleared")
+
+    part = parent.split!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ]).first
+
+    assert_nil part.external_id
+    assert_nil part.source
+    assert_not part.user_modified?
+    assert_equal "unreconciled", part.reconciled_status
+    assert_nil part.transaction.external_id
+    assert_nil part.transaction.provider_entry_reference
+    assert_not part.transaction.extra.key?("simplefin")
+  end
 end

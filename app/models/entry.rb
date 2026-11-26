@@ -757,7 +757,8 @@ class Entry < ApplicationRecord
     self.class.where(id: parent_entry_id).or(self.class.where(parent_entry_id: id))
   end
 
-  # Splits this entry into child entries. Marks parent as excluded.
+  # Splits this entry into child entries. Marks parent as excluded. What each child takes
+  # from this entry is decided in Entry::SplitInheritance.
   #
   # @param splits [Array<Hash>] array of { name:, amount:, category_id:, merchant_id:, tag_ids:, excluded: } hashes.
   #   merchant_id and tag_ids are optional per split and fall back to the parent's merchant / no tags.
@@ -770,13 +771,15 @@ class Entry < ApplicationRecord
       raise ActiveRecord::RecordInvalid.new(self), "Split amounts must sum to parent amount (expected #{amount}, got #{total})"
     end
 
+    inheritance = Entry::SplitInheritance.new(self)
+
     self.class.transaction do
       children = splits.map do |split_attrs|
         child_transaction = Transaction.new(
+          **inheritance.transaction_attributes,
           category_id: split_attrs[:category_id],
           merchant_id: split_attrs[:merchant_id].presence || entryable.try(:merchant_id),
-          tag_ids: split_attrs[:tag_ids] || [],
-          kind: entryable.try(:kind)
+          tag_ids: split_attrs[:tag_ids] || []
         )
         if lock_attributes
           locked_at = Time.current
@@ -784,14 +787,10 @@ class Entry < ApplicationRecord
         end
 
         child_entries.create!(
-          account: account,
-          date: date,
+          **inheritance.entry_attributes,
           name: split_attrs[:name],
           amount: split_attrs[:amount],
-          currency: currency,
           notes: split_attrs[:notes],
-          import: import,
-          import_locked: import_locked,
           excluded: TRUTHY_VALUES.include?(split_attrs[:excluded]),
           entryable: child_transaction
         )

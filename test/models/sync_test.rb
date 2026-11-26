@@ -516,6 +516,20 @@ class SyncTest < ActiveSupport::TestCase
     assert running.reload.full_resync_requested?
   end
 
+  # A running sync past the visible window is neither joined nor marked: the
+  # request gets its own sync with the window it asked for.
+  test "a request beyond a long-running sync's window gets its own sync" do
+    account = accounts(:depository)
+    running = Sync.create!(syncable: account, status: "syncing", window_start_date: 3.days.ago.to_date,
+                           created_at: Sync::VISIBLE_FOR.ago - 1.minute)
+
+    sync = account.sync_later(window_start_date: 60.days.ago.to_date)
+
+    assert_not_equal running, sync
+    assert_equal 60.days.ago.to_date, sync.window_start_date
+    assert_not running.reload.full_resync_requested?
+  end
+
   test "a completed sync queues a full follow-up when requested" do
     account = accounts(:loan)
     sync = Sync.create!(syncable: account, full_resync_requested: true)

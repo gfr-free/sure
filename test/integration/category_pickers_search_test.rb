@@ -16,10 +16,21 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
     @entry = create_transaction(account: accounts(:depository), name: "Picker coverage", amount: 20)
   end
 
-  test "transaction list category menu" do
+  test "transaction list category menu, including its recent section" do
+    categories(:food_and_drink).update!(last_used_at: 1.hour.ago)
     get category_dropdown_url(transaction_id: @entry.entryable.id)
 
     assert_category_rows "[data-list-filter-target='list'] .filterable-item"
+    assert_category_rows "[data-list-filter-target='recentSection'] .filterable-item", context: "recent"
+  end
+
+  # A category created inline is added to the open picker from this HTML.
+  test "category select row returned after creating a category" do
+    post categories_url(format: :json), params: { category: { name: "Picker Created", color: "#123456" } }
+    assert_response :created
+
+    rows = Nokogiri::HTML5.fragment(JSON.parse(response.body)["html"]).css("[data-category-select-target='option']")
+    assert_category_rows rows, context: "create json", response_status: :created
   end
 
   test "transaction filter menu" do
@@ -135,6 +146,35 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
     assert_empty offenders, "use category_search_data for category picker rows"
   end
 
+  # A view that renders searchable rows and mentions categories must build
+  # them with category_search_data, unless it is listed here with a reason.
+  # A new category picker fails here until it uses the helper or is
+  # consciously listed. It checks whole files: a second, hand-built category
+  # list in a file that already uses the helper is caught only by the
+  # rendering tests above and the line scan.
+  NOT_CATEGORY_ROWS = {
+    "app/views/transactions/searches/filters/_tag_filter.html.erb" => "tag rows",
+    "app/views/reports/index.html.erb" => "tag popover",
+    "app/views/pages/dashboard/_cashflow_donut.html.erb" => "account popover",
+    "app/views/pages/dashboard/_filter_popover.html.erb" => "shared layout; its callers render the rows",
+    "app/components/DS/category_select.html.erb" => "rows come from DS/category_select/_option; only the blank row is here",
+    "app/components/DS/icon_picker.html.erb" => "icon rows"
+  }.freeze
+
+  test "every view with searchable rows that mentions categories uses the helper" do
+    row_markers = /filterable-item|filter_popover_option|data-filter-name|filter_name:|category-select-target="option"/
+    unchecked = Dir[Rails.root.join("app/{views,components}/**/*.{erb,rb}")].filter_map do |path|
+      source = File.read(path)
+      next unless source.match?(row_markers) && source.match?(/categor/i)
+      next if source.match?(/category_search_data|search_data\(item\)/)
+
+      Pathname(path).relative_path_from(Rails.root).to_s
+    end
+
+    assert_equal NOT_CATEGORY_ROWS.keys.sort, unchecked.sort,
+      "category picker rows must use category_search_data; list non-category views in NOT_CATEGORY_ROWS"
+  end
+
   private
 
     def category_ds_select_rows(field_name)
@@ -147,8 +187,8 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
 
     # Every row must carry the shared attributes; only a select's blank
     # choice (empty value or category id) has none. Rows of real categories must match them.
-    def assert_category_rows(rows_or_selector, context: nil)
-      assert_response :success, context
+    def assert_category_rows(rows_or_selector, context: nil, response_status: :success)
+      assert_response response_status, context
       rows = rows_or_selector.is_a?(String) ? css_select(rows_or_selector) : rows_or_selector
       rows = rows.reject do |row|
         %w[data-value data-category-id].any? { |attr| row.key?(attr) && row[attr].blank? }

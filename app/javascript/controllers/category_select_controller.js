@@ -1,12 +1,12 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
-  exactName,
+  enterMatch,
   expandTreeMatches,
-  firstSearchHit,
+  isComposing,
+  isSearchHit,
   matchesSearch,
   namesExactly,
-  primarySearchName,
   treeRow,
 } from "utils/search_match";
 
@@ -79,14 +79,14 @@ export default class extends Controller {
 
     const rawQuery = this.searchTarget.value.trim();
 
-    let exactMatch = false;
+    let nameExists = false;
     let anyVisible = false;
 
     const options = this.optionTargets;
     const rows = options.map((option) => {
       // Either the shown or the stored name typed exactly means the category
       // exists, so creating it again is not offered.
-      if (namesExactly(option, rawQuery)) exactMatch = true;
+      if (namesExactly(option, rawQuery)) nameExists = true;
       return treeRow(option, matchesSearch(option, rawQuery));
     });
 
@@ -101,7 +101,7 @@ export default class extends Controller {
       if (visible) anyVisible = true;
     });
 
-    const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
+    const canCreate = !this.lockedValue && rawQuery.length > 0 && !nameExists;
 
     this.createFormTarget.classList.toggle("hidden", !canCreate);
     this.createFormTarget.classList.toggle("flex", canCreate);
@@ -122,7 +122,7 @@ export default class extends Controller {
   }
 
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter" || isComposing(event)) return;
 
     // The search box sits inside the surrounding form, so Enter must never
     // fall through and submit it.
@@ -135,29 +135,25 @@ export default class extends Controller {
       return;
     }
 
-    // Enter does what the create row says: while it shows, it creates.
-    if (!this.createFormTarget.classList.contains("hidden")) {
-      if (!this.creating) this.createCategory();
-      return;
-    }
+    if (this.creating) return;
 
-    // Nothing to create (locked, or the name exists already): pick the match.
     const rawQuery = this.searchTarget.value.trim();
     if (!rawQuery) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const query = exactName(rawQuery);
-    const match =
-      visible.find(
-        (option) => exactName(primarySearchName(option)) === query,
-      ) ??
-      visible.find((option) => namesExactly(option, rawQuery)) ??
-      // Not a parent shown only as context above the subcategory found.
-      firstSearchHit(visible);
+    // A parent shown only as context above the subcategory found is never
+    // what Enter stands for.
+    const hits = visible.filter(isSearchHit);
+    const existing = enterMatch(hits, rawQuery);
+
+    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
+      this.createCategory();
+      return;
+    }
+
+    const match = existing ?? hits[0];
     if (!match) return;
 
     this.selectOption(match);
@@ -168,6 +164,7 @@ export default class extends Controller {
   // Escape from anywhere in the menu: leave the parent picker first, then
   // close the menu, keeping focus where the keyboard user can carry on.
   escape(event) {
+    if (isComposing(event)) return;
     event.preventDefault();
     if (this.#parentPickerOpen()) {
       this.hideParentPicker(event);
@@ -358,10 +355,10 @@ export default class extends Controller {
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    const name = category.name.toLocaleLowerCase();
+    const name = category.name.toLowerCase();
     const before = this.parentOptionTargets.find(
       (existing) =>
-        (existing.dataset.parentName || "").toLocaleLowerCase() > name,
+        (existing.dataset.parentName || "").toLowerCase() > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

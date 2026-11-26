@@ -318,12 +318,6 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
 
       assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Épicerie fine"
 
-      # Finding ignores accents, but a name that differs only in them can
-      # still be created.
-      fill_in "Search categories", with: "Epicerie fine"
-
-      assert_selector "[data-category-select-target='createForm']", text: 'Create "Epicerie fine"'
-
       # The same name in decomposed form (as pasted from some systems) is
       # the existing one.
       fill_in "Search categories", with: "E\u0301picerie fine"
@@ -333,6 +327,68 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     end
 
     assert_selector "[data-category-select-target='hiddenInput'][value='#{category.id}']", visible: :all
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      # A name that differs only in accents is offered for creation, but
+      # Enter picks the existing category.
+      fill_in "Search categories", with: "epicerie fine"
+
+      assert_selector "[data-category-select-target='createForm']", text: 'Create "epicerie fine"'
+      assert_no_difference -> { Category.count } do
+        find_field("Search categories").send_keys(:enter)
+        assert_selector "[data-category-select-target='hiddenInput'][value='#{category.id}']", visible: :all
+      end
+    end
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "epicerie fine"
+
+      assert_difference -> { Category.count }, 1 do
+        click_button 'Create "epicerie fine"'
+        assert_selector "[data-category-select-target='option']", text: "epicerie fine", visible: :all
+      end
+    end
+  end
+
+  test "Enter creates a new category when several differ only in accents" do
+    @user.family.categories.create!(name: "Résumé", color: "#e99537", lucide_icon: "shopping-basket")
+    @user.family.categories.create!(name: "Resumé", color: "#e99537", lucide_icon: "shopping-basket")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "resume"
+
+      assert_difference -> { Category.count }, 1 do
+        find_field("Search categories").send_keys(:enter)
+        assert_selector "[data-category-select-target='option']", text: "resume", visible: :all
+      end
+    end
+  end
+
+  test "Enter does not fold accents outside Latin script" do
+    @user.family.categories.create!(name: "ハンバーガー", color: "#e99537", lucide_icon: "shopping-basket")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      # Without the dakuten marks this is a different word, so Enter
+      # creates it instead of picking the existing category.
+      fill_in "Search categories", with: "ハンハーカー"
+
+      assert_selector "[data-category-select-target='createForm']", text: 'Create "ハンハーカー"'
+      assert_difference -> { Category.count }, 1 do
+        find_field("Search categories").send_keys(:enter)
+        assert_selector "[data-category-select-target='option']", text: "ハンハーカー", visible: :all
+      end
+    end
   end
 
   test "searching a category also lists its subcategories" do

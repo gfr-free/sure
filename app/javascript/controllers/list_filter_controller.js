@@ -3,6 +3,7 @@ import {
   expandTreeMatches,
   firstSearchHit,
   hasSearchQuery,
+  isComposing,
   matchesSearch,
   treeRow,
 } from "utils/search_match";
@@ -56,11 +57,9 @@ export default class extends Controller {
       ? new Set(this.recentSectionTarget.querySelectorAll(".filterable-item"))
       : new Set();
 
+    const searching = hasSearchQuery(rawFilterValue);
     if (this.hasRecentSectionTarget) {
-      this.recentSectionTarget.classList.toggle(
-        "hidden",
-        hasSearchQuery(rawFilterValue),
-      );
+      this.recentSectionTarget.classList.toggle("hidden", searching);
     }
 
     if (this.hasEmptyMessageTarget) {
@@ -85,11 +84,7 @@ export default class extends Controller {
       if (recentItems.has(item)) {
         // The section itself is hidden while searching; hide its rows too, so
         // arrow keys don't land on a row nobody can see.
-        show(
-          item,
-          !hasSearchQuery(rawFilterValue) &&
-            matchesSearch(item, rawFilterValue),
-        );
+        show(item, !searching && matchesSearch(item, rawFilterValue));
       } else {
         treeItems.push(item);
         treeRows.push(treeRow(item, matchesSearch(item, rawFilterValue)));
@@ -112,6 +107,8 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    if (isComposing(event)) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       this.highlightNext();

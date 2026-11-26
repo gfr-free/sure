@@ -414,6 +414,15 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_equal 200, synced_total.call
   end
 
+  test "a parent rate that failed validation is not copied and doesn't block the split" do
+    parent = create_transaction(amount: 100, currency: "EUR", name: "Hotel")
+    parent.entryable.update_column(:extra, { "exchange_rate" => "abc", "exchange_rate_invalid" => true })
+
+    parts = parent.reload.split!([ { name: "Room", amount: 70 }, { name: "Breakfast", amount: 30 } ])
+
+    assert parts.all? { |part| part.transaction.extra.slice("exchange_rate", "exchange_rate_invalid").empty? }
+  end
+
   test "split parts keep the parent's activity label and security" do
     security = securities(:aapl)
     parent = create_transaction(amount: -50, name: "Dividend")

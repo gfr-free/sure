@@ -11,11 +11,20 @@ class Entry::SplitInheritanceTest < ActiveSupport::TestCase
     assert_grouped Transaction.column_names, Entry::SplitInheritance::TRANSACTION_COLUMNS
   end
 
+  # Keys are found in the source: literal reads such as extra["key"] or
+  # extra.dig("key"), *_KEY constants used on the same line as extra, and the
+  # providers that keep a pending flag under their own key.
   test "every key the app reads from an extra hash is in exactly one group" do
-    pattern = /\bextra(?:&?\.(?:dig|fetch|key\?|has_key\?)\(|\[)\s*["':]([A-Za-z_]+)/
-    keys = Dir[Rails.root.join("{app,lib}/**/*.rb")].flat_map { |path| File.read(path).scan(pattern).flatten }.uniq
+    literal = /\bextra(?:&?\.(?:dig|fetch|key\?|has_key\?)\(|\[)\s*["':]([A-Za-z_]+)/
 
-    assert_grouped keys, Entry::SplitInheritance::EXTRA_KEYS, stale_check: false
+    keys = Dir[Rails.root.join("{app,lib}/**/*.{rb,erb}")].flat_map do |path|
+      source = File.read(path)
+      constants = source.scan(/\bextra\b.*\b([A-Z_]+_KEY)\b/).flatten.uniq
+      source.scan(literal).flatten + constants.flat_map { |name| source.scan(/\b#{name}\s*=\s*"([a-z_]+)"/).flatten }
+    end
+    keys = (keys + Transaction::PENDING_PROVIDERS).uniq
+
+    assert_grouped keys, Entry::SplitInheritance::EXTRA_KEYS
   end
 
   private

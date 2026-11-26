@@ -7,7 +7,7 @@
 # - NOT_INHERITED: left at the default on purpose, such as ids, timestamps,
 #   provider references that must stay unique, and how the parent was edited.
 #
-# EntrySplitInheritanceTest fails when a column or extra key is in no group, so
+# Entry::SplitInheritanceTest fails when a column or extra key is in no group, so
 # a new field needs a decision about split parts before it ships.
 class Entry::SplitInheritance
   ENTRY_COLUMNS = {
@@ -31,14 +31,18 @@ class Entry::SplitInheritance
   EXTRA_KEYS = {
     # The parent's own exchange rate converts the parts the same way, and the
     # activity's security belongs to every part of it.
-    inherited: %w[exchange_rate exchange_rate_invalid security security_id],
+    inherited: %w[exchange_rate security security_id],
     # Provider payloads describe the bank's row (a pending flag there would make
     # the part pending), goal pledges are unique per transaction, and the
     # matching and merge bookkeeping is about the parent.
+    # A rate the parent failed validation with is not copied: the part would
+    # fail it too and roll back the whole split.
     not_inherited: %w[
-      auto_claimed_pending_ids binance coinspot demo_financekit_activity_version
-      financekit goal kraken manual_merge monobank plaid potential_posted_match
-      provider_name redbark simplefin wise
+      akahu auto_claimed_pending_ids auto_excluded_stale_pending binance coinspot
+      demo_financekit_activity_version enable_banking exchange_rate_invalid
+      financekit goal kraken lunchflow manual_merge mercury monarch monobank plaid
+      potential_posted_match provider_name redbark simplefin superseded_external_ids
+      up wise
     ]
   }.freeze
 
@@ -47,16 +51,25 @@ class Entry::SplitInheritance
   end
 
   def entry_attributes
-    @parent.attributes.slice(*ENTRY_COLUMNS[:inherited])
+    @parent.attributes.slice(*ENTRY_COLUMNS[:inherited]).symbolize_keys
   end
 
   def transaction_attributes
     transaction = @parent.entryable
     return {} unless transaction.is_a?(Transaction)
 
-    attributes = transaction.attributes.slice(*TRANSACTION_COLUMNS[:inherited])
-    extra = transaction.extra.is_a?(Hash) ? transaction.extra.slice(*EXTRA_KEYS[:inherited]) : {}
-    attributes["extra"] = extra if extra.any?
+    attributes = transaction.attributes.slice(*TRANSACTION_COLUMNS[:inherited]).symbolize_keys
+    extra = inherited_extra(transaction.extra)
+    attributes[:extra] = extra if extra.any?
     attributes
   end
+
+  private
+    def inherited_extra(extra)
+      return {} unless extra.is_a?(Hash)
+
+      inherited = extra.slice(*EXTRA_KEYS[:inherited])
+      inherited = inherited.except("exchange_rate") if extra["exchange_rate_invalid"]
+      inherited
+    end
 end

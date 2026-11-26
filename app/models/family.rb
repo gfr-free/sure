@@ -798,6 +798,15 @@ class Family < ApplicationRecord
     "#{scope.count}-#{scope.maximum(:updated_at)&.to_f}"
   end
 
+  # Merchant names are matched by the transaction search text and merchant
+  # filter. Renaming a merchant, or deleting one (which nullifies
+  # transactions.merchant_id with update_all), changes those results without
+  # touching any entry.
+  def transaction_merchants_version
+    scope = Merchant.where(id: transactions.where.not(merchant_id: nil).select(:merchant_id))
+    "#{scope.count}-#{scope.maximum(:updated_at)&.to_f || 0}"
+  end
+
   def self_hoster?
     Rails.application.config.app_mode.self_hosted?
   end

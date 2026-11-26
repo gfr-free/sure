@@ -228,4 +228,12 @@ class EntrySearchTest < ActiveSupport::TestCase
 
     assert_equal [ percent.id ], result_ids & [ percent.id, other.id ]
   end
+
+  test "search splits on any space and ignores repeated words" do
+    entry = create_transaction(account: @account, name: "AMZN Mktp", merchant: merchants(:amazon))
+
+    assert_includes @account.entries.search({ search: "amzn\u00A0mktp" }).pluck(:id), entry.id
+    assert_equal %w[AMZN mktp], EntrySearch.search_words("AMZN\u00A0mktp amzn\u3000")
+    assert_equal EntrySearch::MAX_SEARCH_WORDS, EntrySearch.search_words((1..20).map { |i| "w#{i}" }.join(" ")).size
+  end
 end

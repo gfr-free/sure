@@ -705,6 +705,17 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_not_includes result_ids, other.entryable.id
   end
 
+  test "cached totals for a text search follow a merchant rename" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    create_transaction(account: @checking_account, amount: 20, name: "AMZN Mktp DE", merchant: merchants(:amazon))
+
+    assert_equal 1, Transaction::Search.new(@family, filters: { search: "amazon" }).totals.count
+
+    merchants(:amazon).update!(name: "Online retailer")
+
+    assert_equal 0, Transaction::Search.new(@family.reload, filters: { search: "amazon" }).totals.count
+  end
+
   test "uncategorized filter works regardless of current locale since the filter value is a stable sentinel" do
     # The category filter now matches on the stable Category::UNCATEGORIZED_FILTER_VALUE sentinel
     # (not the translated display name), so the current locale can no longer affect matching.

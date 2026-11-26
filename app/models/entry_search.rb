@@ -16,6 +16,8 @@ class EntrySearch
   attribute :tags, array: true
   attribute :merchants, array: true
 
+  MAX_SEARCH_WORDS = 8
+
   SEARCH_WORD_CONDITION = <<~SQL.squish.freeze
     entries.name ILIKE :word
     OR entries.notes ILIKE :word
@@ -44,9 +46,16 @@ class EntrySearch
     # the name of its transaction's merchant. Merchant names count because a
     # bank's raw text ("AMZN Mktp") often differs from the merchant shown.
     def apply_search_filter(scope, search)
-      search.to_s.split.reduce(scope) do |query, word|
+      search_words(search).reduce(scope) do |query, word|
         query.where(SEARCH_WORD_CONDITION, word: "%#{ActiveRecord::Base.sanitize_sql_like(word)}%")
       end
+    end
+
+    # Split on any Unicode space (bank text often carries non-breaking ones),
+    # case-insensitively unique and capped, so a pasted paragraph cannot turn
+    # into hundreds of unindexed conditions.
+    def search_words(search)
+      search.to_s.split(/[[:space:]]+/).reject(&:empty?).uniq(&:downcase).first(MAX_SEARCH_WORDS)
     end
 
     def apply_date_filters(scope, start_date, end_date)

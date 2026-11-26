@@ -21,6 +21,15 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=checkbox][name='q[merchants][]']", count: 0
   end
 
+  test "the amount filter keeps two decimals in a whole-number family currency" do
+    @user.family.update!(currency: "JPY")
+
+    get filters_transactions_url
+
+    assert_response :success
+    assert_select "[data-money-field-precision-value='2'] input[name='q[amount]']"
+  end
+
   test "show lists split rows in the order they were entered" do
     entry = create_transaction(amount: 100, name: "Split parent", account: accounts(:depository))
     entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])

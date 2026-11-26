@@ -35,6 +35,20 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "an amount condition keeps two decimals in a whole-number family currency" do
+    @user.family.update!(currency: "JPY")
+    rule = @user.family.rules.create!(resource_type: "transaction", active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: "12.5") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:food_and_drink).id) ])
+    rule.conditions.first.update!(value: "12")
+
+    get edit_rule_url(rule)
+
+    assert_response :success
+    # A foreign-currency account's amounts have decimals, so "12.50" must stay typeable.
+    assert_select "[data-money-field-precision-value='2'] input[name$='[conditions_attributes][0][value]'][value='12.00']"
+  end
+
   # "Set all transactions with a name like 'starbucks' and an amount between 20 and 40 to the 'food and drink' category"
   test "creates rule with nested conditions" do
     post rules_url, params: {

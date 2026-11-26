@@ -1436,8 +1436,8 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       { name: "Dividend part", amount: -6 },
       { name: "Other part", amount: -4 }
     ]).first
-    # Split children start without these; a provider or a later edit can
-    # store them, as on any other row.
+    # Split children take the parent's label; a provider or a later edit can
+    # store the other fields, as on any other row.
     child.update_columns(source: "ibkr")
     child.entryable.update_columns(
       investment_activity_label: "Dividend",
@@ -1461,7 +1461,8 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       assert_equal security.id, child_line["security_id"]
       assert_equal 1.08, child_line["exchange_rate"]
       assert_equal "EUR", child_line["amount_currency"]
-      %w[investment_activity_label provider_type security_id exchange_rate].each do |field|
+      assert_equal "Dividend", other_line["investment_activity_label"]
+      %w[provider_type security_id exchange_rate].each do |field|
         assert other_line.key?(field), "expected #{field} on the split line"
         assert_nil other_line[field]
       end

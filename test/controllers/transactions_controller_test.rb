@@ -2741,6 +2741,20 @@ end
     assert_equal categories(:food_and_drink), @entry.transaction.reload.category
   end
 
+  # Rules started by the name save may still categorize; a suggestion is not
+  # the user's pick, so it neither locks the category nor prompts a rule.
+  test "a filled-in suggestion stays open to rules and prompts no rule" do
+    @entry.transaction.update!(category: nil)
+    @entry.transaction.unlock_attr!(:category_id)
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    transaction = @entry.transaction.reload
+    assert_equal categories(:food_and_drink), transaction.category
+    assert_not transaction.locked?(:category_id)
+    assert_nil flash[:cta]
+  end
+
   test "a suggested category keeps a category set in the meantime" do
     @entry.transaction.update!(category: categories(:income))
 
@@ -2748,6 +2762,7 @@ end
 
     assert_response :success
     assert_equal categories(:income), @entry.transaction.reload.category
+    assert_select "turbo-stream[action=replace][target=?]", ActionView::RecordIdentifier.dom_id(@entry, :category_field)
   end
 
   test "does not offer guests to create a rule through a transaction update" do

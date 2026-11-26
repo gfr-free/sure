@@ -33,7 +33,7 @@ class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
   end
 
   test "a second pick does not replace or clear the category the first pick filled" do
-    create_transaction(account: @account, name: "Bakery corner", amount: 3)
+    create_transaction(account: @account, name: "Bakery corner", amount: 3, category: categories(:income))
     entry = create_transaction(account: @account, name: "CARD 4714", amount: 7)
 
     visit transaction_path(entry)
@@ -56,8 +56,27 @@ class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
     pick_name_suggestion("Starb", "Starbucks")
 
     assert_equal "Starbucks", wait_for { entry.reload.name == "Starbucks" && entry.name }
-    sleep 1 # give a wrongly sent category save time to land
+    # The drawer filled Food & Drink in on the client; the server keeps Income
+    # and redraws the picker with it, which also means its request has landed.
+    assert_category categories(:income)
     assert_equal categories(:income), entry.reload.entryable.category
+  end
+
+  test "the picked name typed again after another name is saved again" do
+    entry = create_transaction(account: @account, name: "CARD 4716", amount: 7)
+
+    visit transaction_path(entry)
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_equal "Starbucks", wait_for { entry.reload.name == "Starbucks" && entry.name }
+
+    name_input = find("input[role='combobox'][id$='name']")
+    name_input.fill_in with: "Other shop"
+    name_input.send_keys(:escape, :tab)
+    assert_equal "Other shop", wait_for { entry.reload.name == "Other shop" && entry.name }
+
+    name_input.fill_in with: "Starbucks"
+    name_input.send_keys(:escape, :tab)
+    assert_equal "Starbucks", wait_for { entry.reload.name == "Starbucks" && entry.name }
   end
 
   test "a typed name without a pick is saved as typed" do

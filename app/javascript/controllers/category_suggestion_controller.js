@@ -37,6 +37,8 @@ export default class extends Controller {
     if (event.target !== this.#categoryHiddenInput()) return
 
     this.userPickedCategory = true
+    // A manual pick is the user's choice and is saved as such.
+    this.#setFillOnly(false)
   }
 
   onNameSuggestionSelected(event) {
@@ -66,26 +68,34 @@ export default class extends Controller {
     const categoryId = this.pendingCategoryId
     this.pendingCategoryId = null
     if (!categoryId || !event.detail?.success) return
+    // The user may have typed on before the debounced save went out.
+    if (this.nameTarget.value !== this.pendingName) return
     if (this.userPickedCategory || this.#hasCategorySelection()) return
 
-    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = "1"
-    this.#selectCategoryOption(categoryId)
-    this.userPickedCategory = true
-  }
-
-  categorySaved() {
-    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = ""
+    // The category form submits synchronously on the click, so the flag only
+    // rides along with this one request.
+    this.#setFillOnly(true)
+    const filled = this.#selectCategoryOption(categoryId)
+    this.#setFillOnly(false)
+    if (filled) this.userPickedCategory = true
   }
 
   // Drawer: after a pick the browser still fires its own "change" when the field
-  // is left; the pick already saved that value, so it is not sent twice.
+  // is left; the pick already saved that value, so that one change is not sent
+  // twice. Any later change is the user's and is saved.
   skipRepeatedNameChange(event) {
-    if (!this.hasNameTarget || event.target !== this.nameTarget) return
-    if (event.isTrusted && this.nameTarget.value === this.savedPickName) event.stopPropagation()
+    if (!this.hasNameTarget || event.target !== this.nameTarget || !event.isTrusted) return
+    if (this.nameTarget.value === this.savedPickName) event.stopPropagation()
+    this.savedPickName = null
+  }
+
+  #setFillOnly(on) {
+    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = on ? "1" : ""
   }
 
   #saveNameThenFill(value, categoryId) {
     this.pendingCategoryId = categoryId || null
+    this.pendingName = value
     this.savedPickName = value
     // A pick sets the value without a native "change"; the drawer saves on change.
     this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
@@ -101,14 +111,15 @@ export default class extends Controller {
       : null
   }
 
+  // Returns whether a suggested option was clicked.
   #selectCategoryOption(categoryId) {
-    if (this.userPickedCategory || !this.hasCategoryFieldTarget) return
+    if (this.userPickedCategory || !this.hasCategoryFieldTarget) return false
 
     const id = CSS.escape(String(categoryId))
     const option = this.categoryFieldTarget.querySelector(
       `[data-category-select-target="option"][data-category-id="${id}"], [data-select-target="option"][data-value="${id}"]`
     )
-    if (!option) return
+    if (!option) return false
 
     // DS::Select moves focus to its trigger on a pick; keep it where the user is typing.
     const focused = document.activeElement
@@ -116,5 +127,6 @@ export default class extends Controller {
     option.click()
     this.applyingSuggestion = false
     if (focused instanceof HTMLElement && document.activeElement !== focused) focused.focus()
+    return true
   }
 }

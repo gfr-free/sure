@@ -1,0 +1,20 @@
+<%# locals: (entry:, annotate_locked:) %>
+<%# The drawer's category picker. #update renders it again when a suggested
+    category was not filled in, so the drawer shows the category that was kept. %>
+<%= tag.div id: dom_id(entry, :category_field),
+            data: { category_suggestion_target: "categoryField",
+                    action: "change->category-suggestion#onCategorySelected" } do %>
+  <%= fields_for :entry, entry, builder: StyledFormBuilder do |f| %>
+    <%= f.fields_for :entryable do |ef| %>
+      <%= render DS::CategorySelect.new(
+            form: ef,
+            categories: Current.family.categories.alphabetically_by_hierarchy,
+            selected_id: ef.object.category_id,
+            disabled: annotate_locked,
+            auto_submit: true,
+            blank_label: t("transactions.show.uncategorized"),
+            locked: Current.family.categories_locked?
+          ) %>
+    <% end %>
+  <% end %>
+<% end %>

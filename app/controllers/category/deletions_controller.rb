@@ -4,6 +4,8 @@ class Category::DeletionsController < ApplicationController
   before_action :set_replacement_category, only: :create
 
   def new
+    @replacement_categories = Category::Group.ordered(Current.family.categories).without(@category)
+    @replacement_labels = Category.option_labels(Current.family.categories, with_parent: true)
   end
 
   def create

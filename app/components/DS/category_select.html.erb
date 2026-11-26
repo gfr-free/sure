@@ -153,7 +153,7 @@
           <% parent_options.each do |parent| %>
             <%= render DS::ActionRow.new(
                   tone: :secondary,
-                  data: { category_select_target: "parentOption", parent_id: parent.id, parent_name: parent.name, action: "click->category-select#createUnderParent" }
+                  data: { category_select_target: "parentOption", parent_id: parent.id, parent_name: parent.display_name, action: "click->category-select#createUnderParent" }
                 ) do %>
               <%= render partial: "categories/badge", locals: { category: parent } %>
             <% end %>

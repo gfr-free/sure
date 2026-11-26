@@ -14,7 +14,7 @@
           <div class="space-y-2">
             <%= form.text_field :name, label: t(".name_label"), placeholder: t(".name_placeholder") %>
             <% if @has_category_editable_entry %>
-              <%= form.collection_select :category_id, Current.family.categories.alphabetically_by_hierarchy, :id, :display_name, { prompt: t(".category_prompt"), label: t(".category_label"), class: "text-subdued", variant: :badge, searchable: true } %>
+              <%= form.collection_select :category_id, @categories, :id, ->(category) { @category_labels[category.id] }, { prompt: t(".category_prompt"), label: t(".category_label"), class: "text-subdued", variant: :badge, searchable: true } %>
             <% end %>
             <% if @has_normal_transaction_entry %>
               <%= render DS::MerchantSelect.new(

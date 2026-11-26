@@ -31,4 +31,31 @@ class StyledFormBuilderTest < ActionView::TestCase
     assert_nil fragment.at(".form-field")
     assert_includes fragment.at("input[type=file]")["class"].split, "hidden"
   end
+
+  test "an entry date field starts the day after the earliest date the model accepts" do
+    entry = Entry.new(date: Date.new(2026, 3, 4))
+    builder = StyledFormBuilder.new(:entry, entry, self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, label: "Date")).at("input[type=date]")
+
+    assert_equal (Entry.min_supported_date + 1.day).iso8601, input["min"]
+    assert_equal "2026-03-04", input["value"]
+    assert_nil input["max"]
+    assert_not Entry.new(date: Entry.min_supported_date).tap(&:validate).errors[:date].empty?
+    assert_empty Entry.new(date: Entry.min_supported_date + 1.day).tap(&:validate).errors[:date]
+  end
+
+  test "an entry date field defaults to today and can be capped at today" do
+    builder = StyledFormBuilder.new(:entry, Entry.new, self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, past_only: true)).at("input[type=date]")
+
+    assert_equal Date.current.iso8601, input["value"]
+    assert_equal Date.current.iso8601, input["max"]
+  end
+
+  test "an entry date field stays blank when blank means unchanged" do
+    builder = StyledFormBuilder.new(:bulk_update, nil, self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, value: nil)).at("input[type=date]")
+
+    assert_nil input["value"]
+  end
 end

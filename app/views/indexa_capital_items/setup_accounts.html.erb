@@ -69,6 +69,7 @@
                          id="sync_start_<%= indexa_capital_account.id %>"
                          name="sync_start_dates[<%= indexa_capital_account.id %>]"
                          value="<%= indexa_capital_account.sync_start_date %>"
+                         max="<%= Date.current.iso8601 %>"
                          data-action="click->stop-propagation#stop"
                          autocomplete="off"
                          class="bg-container border border-primary rounded px-2 py-1 text-sm text-primary">

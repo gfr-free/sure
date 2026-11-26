@@ -27,6 +27,21 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
   # Keep `form.text_area` styled after Rails 8 renamed the helper to `textarea`.
   alias_method :text_area, :textarea if method_defined?(:textarea)
 
+  # The date of an entry (transaction, trade, transfer, valuation). Entry
+  # rejects a date on or before Entry.min_supported_date, so the earliest
+  # selectable day is the one after it. Without a value the field starts at
+  # the record's date, or today; pass `value: nil` where blank means "leave
+  # unchanged" (bulk edit). `past_only: true` also caps it at today.
+  def entry_date_field(method = :date, options = {})
+    options = options.dup
+    past_only = options.delete(:past_only)
+    options[:min] ||= Entry.min_supported_date + 1.day
+    options[:max] ||= Date.current if past_only
+    options[:value] = object.try(method) || Date.current unless options.key?(:value)
+
+    date_field(method, options)
+  end
+
   def radio_button(method, tag_value, options = {})
     merged_options = { class: "form-field__radio" }.merge(options)
     super(method, tag_value, merged_options)

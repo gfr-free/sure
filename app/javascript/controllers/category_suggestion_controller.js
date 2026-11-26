@@ -16,6 +16,9 @@ export default class extends Controller {
     // as a manual pick so suggestions never clobber it.
     this.userPickedCategory = this.#hasCategorySelection()
     this.applyingSuggestion = false
+    // The combobox reports a "selection" every time its list closes. A prefilled name (split
+    // rows, duplicated transactions) only counts once the user picks a different one.
+    this.lastPickedName = this.hasNameTarget ? this.nameTarget.value : ""
   }
 
   syncName(event) {
@@ -36,6 +39,8 @@ export default class extends Controller {
     // highlighted option; only a name actually picked from the list carries a category.
     const { value, display } = event.detail
     if (!value || value !== display) return
+    if (value === this.lastPickedName) return
+    this.lastPickedName = value
 
     const option = event.target.querySelector(`[role="option"][data-value="${CSS.escape(value)}"]`)
     const categoryId = option?.querySelector("[data-category-id]")?.dataset.categoryId

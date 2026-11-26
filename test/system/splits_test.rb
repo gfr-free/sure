@@ -76,9 +76,9 @@ class SplitsTest < ApplicationSystemTestCase
         assert_selector ".hw-combobox [role='option']", text: "Starbucks"
         name_input.send_keys(:arrow_down, :enter)
 
-        assert_equal "Starbucks", name_input.value
+        assert_field with: "Starbucks"
         assert_category categories(:food_and_drink)
-        assert_equal name_input, page.active_element, "picking a name moved focus out of the name field"
+        assert_selector "input[role='combobox']:focus"
 
         find("input[name$='[amount]']").fill_in with: "-20"
       end
@@ -98,6 +98,45 @@ class SplitsTest < ApplicationSystemTestCase
     assert_nil children["Split suggestions"].entryable.category
   end
 
+  test "opening and leaving a prefilled split name does not apply a category" do
+    create_transaction(amount: 12, name: "Groceries", account: accounts(:depository), category: categories(:food_and_drink))
+
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      within all("[data-split-transaction-target='row']", minimum: 2).first do
+        # Typing and removing a character loads the list without changing the name.
+        find("input[role='combobox']").send_keys(:end, "x", :backspace)
+        assert_selector ".hw-combobox [role='option']", text: "Groceries"
+      end
+
+      find("h2", text: @entry.name).click
+      assert_no_selector ".hw-combobox [role='option']"
+
+      within all("[data-split-transaction-target='row']", minimum: 2).first do
+        assert_field with: "Groceries"
+        assert_category nil
+      end
+    end
+  end
+
+  test "split rows save the visible name even if a late suggestion changes the hidden field" do
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      within all("[data-split-transaction-target='row']", minimum: 2).first do
+        find("input[role='combobox']").fill_in with: "Typed name"
+        # Stands in for an async suggestion response that lands after the user typed.
+        execute_script("arguments[0].value = 'Late suggestion'", find("[data-hw-combobox-target='hiddenField']", visible: :all))
+      end
+
+      click_button I18n.t("splits.edit.submit")
+    end
+
+    assert_text I18n.t("splits.update.success")
+    assert_equal [ "Household", "Typed name" ], @entry.reload.child_entries.map(&:name).sort
+  end
+
   test "mobile name picker in a split row sets the usual category" do
     page.current_window.resize_to(390, 844)
     visit edit_transaction_split_path(@entry)
@@ -111,8 +150,10 @@ class SplitsTest < ApplicationSystemTestCase
       find("[role='option']", text: "Starbucks").click
     end
 
+    assert_no_selector "dialog.hw-combobox__dialog[open]"
+
     within all("[data-split-transaction-target='row']", minimum: 2).first do
-      assert_equal "Starbucks", find("input[role='combobox']").value
+      assert_field with: "Starbucks"
       assert_category categories(:food_and_drink)
     end
   end
@@ -130,7 +171,7 @@ class SplitsTest < ApplicationSystemTestCase
         assert_selector ".hw-combobox [role='option']", text: "Starbucks"
         name_input.send_keys(:arrow_down, :enter)
 
-        assert_equal "Starbucks", name_input.value
+        assert_field with: "Starbucks"
         assert_category categories(:income)
       end
     end

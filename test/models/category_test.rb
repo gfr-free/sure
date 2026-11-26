@@ -162,6 +162,7 @@ class CategoryTest < ActiveSupport::TestCase
 
     I18n.with_locale(:en) do
       assert_equal [ "Food & Drink" ], categories(:food_and_drink).search_names
+      assert_nil categories(:food_and_drink).stored_name_if_translated
     end
   end
 

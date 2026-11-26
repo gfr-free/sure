@@ -75,17 +75,23 @@ export default class extends Controller {
     let exactMatch = false;
     let anyVisible = false;
 
+    const exactQuery = rawQuery.toLowerCase();
+
     this.optionTargets.forEach((option) => {
       const names = this.#optionNames(option);
-      // A query that normalizes away (a lone combining mark) matches nothing.
+      // Finding ignores accents; a query that normalizes away (a lone
+      // combining mark) matches nothing.
       const matches =
         rawQuery.length === 0 ||
-        (query.length > 0 && names.some((name) => name.includes(query)));
+        (query.length > 0 &&
+          names.some((name) => normalizeSearchText(name).includes(query)));
 
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      if (names.includes(query)) exactMatch = true;
+      // "Exists" stays exact but for case: "Café" next to "Cafe" can be created.
+      if (names.some((name) => name.toLowerCase() === exactQuery))
+        exactMatch = true;
     });
 
     const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
@@ -128,21 +134,18 @@ export default class extends Controller {
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const query = normalizeSearchText(this.searchTarget.value.trim());
+    const query = this.searchTarget.value.trim().toLowerCase();
     if (!query) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
+    const isExact = (name) => (name || "").toLowerCase() === query;
     // Two categories can show the same name (a default one translated, a
     // custom one stored under that label), so the stored name wins.
     const match =
-      visible.find(
-        (option) =>
-          normalizeSearchText(option.dataset.categoryStoredName || "") ===
-          query,
-      ) ??
-      visible.find((option) => this.#optionNames(option).includes(query)) ??
+      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
+      visible.find((option) => this.#optionNames(option).some(isExact)) ??
       visible[0];
     if (!match) return;
 
@@ -321,9 +324,7 @@ export default class extends Controller {
   // the category exists, so creating it again is not offered.
   #optionNames(option) {
     const { categoryName, categoryStoredName } = option.dataset;
-    return [categoryName, categoryStoredName]
-      .filter(Boolean)
-      .map(normalizeSearchText);
+    return [categoryName, categoryStoredName].filter(Boolean);
   }
 
   #lastOptionInGroup(parentId) {

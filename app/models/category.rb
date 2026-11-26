@@ -411,7 +411,12 @@ class Category < ApplicationRecord
   # Every name a viewer may type for this category: the shown name and, for a
   # default category stored in another locale, the stored one.
   def search_names
-    [ display_name, name ].uniq
+    [ display_name, stored_name_if_translated ].compact
+  end
+
+  # The stored name when the category is shown under a translation of it.
+  def stored_name_if_translated
+    name unless name == display_name
   end
 
   def display_name_with_parent

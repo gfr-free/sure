@@ -317,6 +317,12 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
       fill_in "Search categories", with: "epicerie"
 
       assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Épicerie fine"
+
+      # Finding ignores accents, but a name that differs only in them can
+      # still be created.
+      fill_in "Search categories", with: "Epicerie fine"
+
+      assert_selector "[data-category-select-target='createForm']", text: 'Create "Epicerie fine"'
     end
   end
 

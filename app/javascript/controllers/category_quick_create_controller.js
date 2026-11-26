@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { exactName } from "utils/search_match";
+import { exactMatch, exactName, isComposing } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -87,17 +87,28 @@ export default class extends Controller {
     this.#clearError();
   }
 
-  // Enter creates only when the search matches no row at all; otherwise
-  // list-filter keeps handling Enter to pick the highlighted row.
+  // The same Enter rule as the category select: while the create row shows,
+  // Enter creates; otherwise it picks the row the search names exactly. A
+  // row picked with the arrow keys wins (list-filter submits that one).
   createOnEnter(event) {
-    if (!this.hasCreateButtonTarget) return;
-    if (this.createButtonTarget.classList.contains("hidden")) return;
-    // Enter does what the create row says, as in the category select; only
-    // a row picked with the arrow keys (list-filter handles that) wins.
+    if (isComposing(event)) return;
     if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
 
+    if (
+      this.hasCreateButtonTarget &&
+      !this.createButtonTarget.classList.contains("hidden")
+    ) {
+      event.preventDefault();
+      this.create();
+      return;
+    }
+
+    const match = exactMatch(this.#visibleRows, this.inputTarget.value);
+    const form = match?.querySelector("form");
+    if (!form) return;
+
     event.preventDefault();
-    this.create();
+    form.requestSubmit();
   }
 
   showParentPicker(event) {
@@ -217,6 +228,12 @@ export default class extends Controller {
     return (
       this.hasParentPickerTarget &&
       !this.parentPickerTarget.classList.contains("hidden")
+    );
+  }
+
+  get #visibleRows() {
+    return Array.from(this.element.querySelectorAll(".filterable-item")).filter(
+      (item) => item.style.display !== "none" && item.offsetParent !== null,
     );
   }
 

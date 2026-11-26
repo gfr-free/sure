@@ -1,10 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
-  exactName,
+  exactMatch,
+  isComposing,
   matchesSearch,
   namesExactly,
-  primarySearchName,
 } from "utils/search_match";
 
 export default class extends Controller {
@@ -76,7 +76,7 @@ export default class extends Controller {
 
     const rawQuery = this.searchTarget.value.trim();
 
-    let exactMatch = false;
+    let nameExists = false;
     let anyVisible = false;
 
     this.optionTargets.forEach((option) => {
@@ -87,10 +87,10 @@ export default class extends Controller {
 
       // Either the shown or the stored name typed exactly means the category
       // exists, so creating it again is not offered.
-      if (namesExactly(option, rawQuery)) exactMatch = true;
+      if (namesExactly(option, rawQuery)) nameExists = true;
     });
 
-    const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
+    const canCreate = !this.lockedValue && rawQuery.length > 0 && !nameExists;
 
     this.createFormTarget.classList.toggle("hidden", !canCreate);
     this.createFormTarget.classList.toggle("flex", canCreate);
@@ -111,7 +111,7 @@ export default class extends Controller {
   }
 
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter" || isComposing(event)) return;
 
     // The search box sits inside the surrounding form, so Enter must never
     // fall through and submit it.
@@ -137,15 +137,7 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const query = exactName(rawQuery);
-    const match =
-      visible.find(
-        (option) => exactName(primarySearchName(option)) === query,
-      ) ??
-      visible.find((option) => namesExactly(option, rawQuery)) ??
-      visible[0];
+    const match = exactMatch(visible, rawQuery) ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);

@@ -1,5 +1,9 @@
 import { Controller } from "@hotwired/stimulus";
-import { hasSearchQuery, matchesSearch } from "utils/search_match";
+import {
+  hasSearchQuery,
+  isComposing,
+  matchesSearch,
+} from "utils/search_match";
 
 // Filters a list by the shared search rule in utils/search_match: each
 // .filterable-item is found by its data-filter-name and data-filter-terms.
@@ -49,11 +53,9 @@ export default class extends Controller {
       ? new Set(this.recentSectionTarget.querySelectorAll(".filterable-item"))
       : new Set();
 
+    const searching = hasSearchQuery(rawFilterValue);
     if (this.hasRecentSectionTarget) {
-      this.recentSectionTarget.classList.toggle(
-        "hidden",
-        hasSearchQuery(rawFilterValue),
-      );
+      this.recentSectionTarget.classList.toggle("hidden", searching);
     }
 
     if (this.hasEmptyMessageTarget) {
@@ -61,7 +63,9 @@ export default class extends Controller {
     }
 
     items.forEach((item) => {
-      const shouldDisplay = matchesSearch(item, rawFilterValue);
+      const shouldDisplay =
+        !(searching && recentItems.has(item)) &&
+        matchesSearch(item, rawFilterValue);
       item.style.display = shouldDisplay ? "" : "none";
 
       if (shouldDisplay) {
@@ -79,6 +83,8 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    if (isComposing(event)) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       this.highlightNext();

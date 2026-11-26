@@ -2,7 +2,9 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  exactMatch,
   exactName,
+  isComposing,
   hasSearchQuery,
   matchesSearch,
   namesExactly,
@@ -73,9 +75,32 @@ describe("namesExactly", () => {
 })
 
 describe("exactName", () => {
+  it("folds runs of whitespace and ignores the browser locale", () => {
+    assert.equal(exactName(" Food &  Drink\u00a0"), "food & drink")
+    assert.equal(exactName("Income"), "income")
+  })
+
   it("treats composed and decomposed accents as the same name", () => {
     assert.equal(exactName("Cafe\u0301"), exactName("Café"))
     assert.notEqual(exactName("Cafe"), exactName("Café"))
+  })
+})
+
+describe("exactMatch", () => {
+  it("prefers the row whose stored name the query is", () => {
+    const custom = row("Restaurants & Bars", ["Restaurants & Bars"])
+    assert.equal(exactMatch([translated, custom], "restaurants & bars"), custom)
+    assert.equal(exactMatch([translated], "Restaurants & Bars"), translated)
+    assert.equal(exactMatch([translated], "Restaurants"), undefined)
+    assert.equal(exactMatch([translated], " "), undefined)
+  })
+})
+
+describe("isComposing", () => {
+  it("recognises an IME composition", () => {
+    assert.equal(isComposing({ isComposing: true, keyCode: 13 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 229 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 13 }), false)
   })
 })
 

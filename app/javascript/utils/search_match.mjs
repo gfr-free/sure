@@ -84,11 +84,35 @@ export function matchesSearch(element, rawQuery) {
   });
 }
 
-// Whether a typed name is an existing one: exact but for case and Unicode
-// form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
-// still counts as the existing one. This decides whether "create" is offered.
+// Whether a typed name is an existing one: exact but for case, Unicode form
+// and runs of whitespace, so "Café" can sit next to "Cafe" yet a pasted
+// decomposed "Café" or a doubled space still counts as the existing one.
+// This decides whether "create" is offered. Case folds without the browser
+// locale: in Turkish, toLocaleLowerCase turns "Income" into "ıncome".
 export function exactName(value) {
-  return String(value ?? "").trim().normalize("NFC").toLocaleLowerCase();
+  return String(value ?? "")
+    .normalize("NFC")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Enter and Escape finish an IME composition rather than act on the list.
+export function isComposing(event) {
+  return event.isComposing || event.keyCode === 229;
+}
+
+// The visible row the query names exactly, preferring a row whose stored
+// name it is: two categories can show the same name (a default one
+// translated, a custom one stored under that label).
+export function exactMatch(rows, rawQuery) {
+  const query = exactName(rawQuery);
+  if (query.length === 0) return undefined;
+
+  return (
+    rows.find((row) => exactName(primarySearchName(row)) === query) ??
+    rows.find((row) => namesExactly(row, rawQuery))
+  );
 }
 
 export function namesExactly(element, rawQuery) {

@@ -54,6 +54,62 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     end
   end
 
+  test "Enter after ArrowDown assigns the highlighted row instead of creating" do
+    target = @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+    visit transactions_url
+    open_quick_picker
+
+    assert_no_difference "Category.count" do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "pet supp"
+        assert_button 'Create "pet supp"'
+        find("input[type='search']").send_keys(:down, :enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "Pet Supplies"
+    end
+
+    assert_equal target.id, @entry.entryable.reload.category_id
+  end
+
+  test "Enter on an existing name typed in full assigns that category" do
+    target = @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+    visit transactions_url
+    open_quick_picker
+
+    assert_no_difference "Category.count" do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "pet  supplies"
+        assert_no_button 'Create "pet  supplies"'
+        find("input[type='search']").send_keys(:enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "Pet Supplies"
+    end
+
+    assert_equal target.id, @entry.entryable.reload.category_id
+  end
+
+  test "recent rows stay out of keyboard reach while searching" do
+    recent = @user.family.categories.create!(name: "Aardvark Recent", color: "#123456", lucide_icon: "dog", last_used_at: 1.hour.ago)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      find("input[type='search']").fill_in with: "aardvark"
+
+      hidden = page.evaluate_script(<<~JS)
+        Array.from(document.querySelectorAll("[data-list-filter-target='recentSection'] .filterable-item"))
+          .every((item) => item.style.display === "none")
+      JS
+      assert hidden, "recent rows must be hidden while searching"
+
+      find("input[type='search']").send_keys(:down, :enter)
+    end
+
+    assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: recent.name
+  end
+
   test "hides the create option when the search exactly matches an existing category" do
     existing = @user.family.categories.alphabetically.first
 

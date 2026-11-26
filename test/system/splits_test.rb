@@ -61,6 +61,37 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "a new split row starts with the remaining amount" do
+    entry = create_transaction(amount: 100, name: "Prefill remaining", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      assert_equal "", amount_fields.call.first.value
+      amount_fields.call.first.fill_in with: "-30"
+
+      click_button I18n.t("splits.new.add_row")
+
+      assert_equal 2, amount_fields.call.size
+      assert_equal "-70.00", amount_fields.call.last.value
+      assert_selector "[data-split-transaction-target='remaining']", text: "0.00"
+      assert_not find("button[type='submit']").disabled?
+    end
+  end
+
+  test "a new split row stays empty when nothing is left to assign" do
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      click_button I18n.t("splits.new.add_row")
+
+      amount_fields = all("[data-split-transaction-target='amountInput']", minimum: 3)
+      assert_equal "", amount_fields.last.value
+    end
+  end
+
   private
     # Heights of the category, merchant and tag fields in the current split row.
     def picker_heights

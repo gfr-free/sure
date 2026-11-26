@@ -25,7 +25,17 @@ export default class extends Controller {
     // index, producing duplicate field names that silently drop one row.
     this.nextRowIndex ??= Date.now()
     const html = this.rowTemplateTarget.innerHTML.replaceAll("ROW_IDX_PLACEHOLDER", this.nextRowIndex++)
+    // The open balance as the indicator shows it, read before the new, empty row joins the sum.
+    const remaining = this.remainingTarget.textContent.trim()
     this.rowsContainerTarget.insertAdjacentHTML("beforeend", html)
+
+    // A new row starts with what is still unassigned, so the last row usually balances
+    // the split without typing. A balanced split leaves the new row empty.
+    if (Number(remaining)) {
+      const newRow = this.rowTargets[this.rowTargets.length - 1]
+      newRow.querySelector("[data-split-transaction-target='amountInput']").value = remaining
+    }
+
     this.updateRemaining()
   }
 

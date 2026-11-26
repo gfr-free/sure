@@ -58,4 +58,22 @@ class StyledFormBuilderTest < ActionView::TestCase
     assert_equal "0.000063", field.at("input[name='trade[qty]']")["value"]
     assert_equal "any", field.at("input[name='trade[qty]']")["step"]
   end
+
+  test "a decimal field is written with the language's decimal separator" do
+    I18n.with_locale(:de) do
+      builder = StyledFormBuilder.new(:loan, nil, self, {})
+      field = Nokogiri::HTML.fragment(builder.decimal_field(:interest_rate, label: "Zins", value: 6, step: 0.005))
+
+      assert_equal "6,000", field.at("input[name='loan[interest_rate]']")["value"]
+      assert_equal ",", field.at("[data-controller='money-field']")["data-money-field-separator-value"]
+      assert_equal ".", field.at("[data-controller='money-field']")["data-money-field-delimiter-value"]
+    end
+  end
+
+  test "a saved amount is shown with its currency's decimal separator" do
+    builder = StyledFormBuilder.new(:entry, Entry.new(amount: 12.5, currency: "EUR"), self, {})
+    field = Nokogiri::HTML.fragment(builder.money_field(:amount, label: "Amount"))
+
+    assert_equal "12,50", field.at("input[name='entry[amount]']")["value"]
+  end
 end

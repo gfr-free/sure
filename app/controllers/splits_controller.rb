@@ -114,7 +114,7 @@ class SplitsController < ApplicationController
       raw_splits = split_params[:splits] || []
       raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
-      raw_splits.map do |s|
+      rows = raw_splits.map do |s|
         {
           name: s[:name],
           amount: s[:amount].to_d * -1,
@@ -122,6 +122,23 @@ class SplitsController < ApplicationController
           **references.scope(category_id: s[:category_id], merchant_id: s[:merchant_id], tag_ids: s[:tag_ids])
         }
       end
+
+      fill_blank_split_names(rows)
+    end
+
+    # A row left without a name is named like a new transaction: "Category - Merchant".
+    def fill_blank_split_names(rows)
+      blank_rows = rows.select { |row| row[:name].blank? }
+      return rows if blank_rows.empty?
+
+      categories = Current.family.categories.where(id: blank_rows.filter_map { |row| row[:category_id] }).index_by(&:id)
+      merchants = Merchant.where(id: blank_rows.filter_map { |row| row[:merchant_id] }).index_by(&:id)
+
+      blank_rows.each do |row|
+        row[:name] = @entry.default_split_name(category: categories[row[:category_id]], merchant: merchants[row[:merchant_id]])
+      end
+
+      rows
     end
 
     def grouped_categories

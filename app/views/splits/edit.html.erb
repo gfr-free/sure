@@ -29,6 +29,9 @@
             controller: "split-transaction",
             split_transaction_total_value: (-@entry.amount).to_f,
             split_transaction_currency_value: @entry.currency,
+            split_transaction_default_name_value: @entry.name,
+            split_transaction_default_merchant_value: @entry.entryable.try(:merchant)&.name,
+            action: "change->split-transaction#updateNamePlaceholders",
             turbo_frame: :_top
           }
         ) do %>

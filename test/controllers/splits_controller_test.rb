@@ -69,6 +69,78 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert @entry.split_parent?
   end
 
+  test "new leaves every split name blank so it can default to category and merchant" do
+    get new_transaction_split_path(@entry)
+    assert_response :success
+
+    doc = Nokogiri::HTML::Document.parse(response.body)
+    name_input = doc.at_css("input[name='split[splits][0][name]']")
+    assert_not_nil name_input
+    assert_nil name_input["value"]
+    assert_nil name_input["required"]
+
+    form = doc.at_css("form[data-controller='split-transaction']")
+    assert_equal "Grocery Store", form["data-split-transaction-default-name-value"]
+  end
+
+  test "create names a part left blank after its category and merchant" do
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "", amount: "-70", category_id: categories(:food_and_drink).id, merchant_id: merchants(:amazon).id },
+          { name: "", amount: "-20", category_id: categories(:food_and_drink).id },
+          { name: " ", amount: "-10", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+
+    assert_redirected_to transactions_url
+    assert_equal [ "Food & Drink - Amazon", "Food & Drink", "Netflix" ].sort, @entry.child_entries.pluck(:name).sort
+  end
+
+  test "create names a blank part with the parent's merchant, which the part takes" do
+    @entry.entryable.update!(merchant: merchants(:netflix))
+
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "", amount: "-60", category_id: categories(:food_and_drink).id },
+          { name: "Kept", amount: "-40" }
+        ]
+      }
+    }
+
+    assert_equal [ "Food & Drink - Netflix", "Kept" ], @entry.child_entries.in_split_order.pluck(:name)
+  end
+
+  test "create gives a blank part without category or merchant the parent's name" do
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "", amount: "-60" },
+          { name: "Other", amount: "-40" }
+        ]
+      }
+    }
+
+    assert_equal [ "Grocery Store", "Other" ], @entry.child_entries.in_split_order.pluck(:name)
+  end
+
+  test "create does not name a part after another family's category" do
+    foreign_category = families(:empty).categories.create!(name: "Foreign category")
+
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "", amount: "-60", category_id: foreign_category.id },
+          { name: "Other", amount: "-40" }
+        ]
+      }
+    }
+
+    assert_equal [ "Grocery Store", "Other" ], @entry.child_entries.in_split_order.pluck(:name)
+  end
+
   test "create with mismatched amounts rejects" do
     assert_no_difference "Entry.count" do
       post transaction_split_path(@entry), params: {
@@ -284,6 +356,21 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     @entry.reload
     assert @entry.split_parent?
     assert_equal 3, @entry.child_entries.count
+  end
+
+  test "update names a part whose name was cleared after its category" do
+    @entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "", amount: "-60", category_id: categories(:food_and_drink).id },
+          { name: "Part 2", amount: "-40" }
+        ]
+      }
+    }
+
+    assert_equal [ "Food & Drink", "Part 2" ], @entry.reload.child_entries.in_split_order.pluck(:name)
   end
 
   test "update with mismatched amounts rejects" do

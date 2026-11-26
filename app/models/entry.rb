@@ -694,6 +694,14 @@ class Entry < ApplicationRecord
     child_entries.exists?
   end
 
+  # Name for a split part submitted without one: "Category - Merchant", the pattern a new
+  # transaction gets when names are generated. A part without its own merchant gets the
+  # parent's in split!, so the name uses that one too. Falls back to the parent's name.
+  def default_split_name(category: nil, merchant: nil)
+    merchant ||= entryable.try(:merchant)
+    [ category&.display_name.presence, merchant&.name.presence ].compact.join(" - ").presence || name
+  end
+
   # Splits this entry unless it stopped being splittable. Two callers (the split dialog, two
   # split rules, a rule and an API request) can both pass a splittable? check before either
   # inserts children, and split! only validates its own amounts, so without the lock both sets

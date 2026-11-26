@@ -61,6 +61,38 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "split dialog shows the category and merchant name a blank row will get" do
+    entry = create_transaction(amount: 50, name: "Corner shop", account: accounts(:depository), merchant: merchants(:netflix))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      name_input = find("input[name='split[splits][0][name]']")
+      assert_equal "Netflix", name_input[:placeholder]
+
+      within find("[data-split-transaction-target='row']") do
+        find(".category-select-container button[data-select-target='button']").click
+        find(".category-select-container [role='option'][data-value='#{categories(:food_and_drink).id}']").click
+      end
+
+      assert_equal "Food & Drink - Netflix", name_input[:placeholder]
+
+      click_button I18n.t("splits.new.add_row")
+      added = all("input[data-split-transaction-target='nameInput']").last
+      assert_equal "Netflix", added[:placeholder]
+
+      name_input.fill_in with: ""
+      find("input[name='split[splits][0][amount]']").fill_in with: (-entry.amount).to_s
+      added_row = all("[data-split-transaction-target='row']").last
+      added_row.find("[aria-label='#{I18n.t("splits.new.remove_row")}']").click
+
+      click_button I18n.t("splits.new.submit")
+    end
+
+    assert_text I18n.t("splits.create.success")
+    assert_equal [ "Food & Drink - Netflix" ], entry.reload.child_entries.pluck(:name)
+  end
+
   private
     # Heights of the category, merchant and tag fields in the current split row.
     def picker_heights

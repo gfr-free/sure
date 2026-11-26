@@ -21,19 +21,28 @@ export function normalizeSearchText(value) {
     .toLowerCase();
 }
 
+// Parsed once per attribute value: filtering runs on every keystroke.
+const parsedTerms = new WeakMap();
+
 function filterTerms(element) {
   const { filterTerms } = element.dataset;
   if (!filterTerms) return [];
 
+  const cached = parsedTerms.get(element);
+  if (cached?.source === filterTerms) return cached.terms;
+
+  let terms = [];
   try {
-    const terms = JSON.parse(filterTerms);
-    return Array.isArray(terms)
-      ? terms.filter((term) => typeof term === "string" && term.length > 0)
-      : [];
+    const parsed = JSON.parse(filterTerms);
+    if (Array.isArray(parsed)) {
+      terms = parsed.filter((term) => typeof term === "string" && term.length > 0);
+    }
   } catch {
     // A malformed attribute leaves the label as the only name.
-    return [];
   }
+
+  parsedTerms.set(element, { source: filterTerms, terms });
+  return terms;
 }
 
 // Every name a row can be found by, as written (not normalized).

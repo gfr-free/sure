@@ -1,8 +1,9 @@
 module CategoriesHelper
   # Data attributes for one row of a category picker, so that every picker
-  # finds a category by the same rule (utils/search_match): the shown label,
-  # every name it may be typed as (stored name first, see
-  # Category#search_names) and its place in the tree. Merge them into the
+  # finds a category by the same rule (utils/search_match): the shown label
+  # and every name it may be typed as (stored name first, see
+  # Category#search_names). The id and parent id place the row in the tree
+  # for rules that show a match's parent or children. Merge them into the
   # row's data; test/integration/category_pickers_search_test.rb checks that
   # every picker does.
   def category_search_data(category, label: category.display_name)
@@ -12,6 +13,12 @@ module CategoriesHelper
       filter_id: category.id,
       filter_parent_id: category.parent_id
     }
+  end
+
+  # Every name a picker counts as an existing category when it decides
+  # whether to offer "create".
+  def category_existing_names(categories)
+    categories.flat_map(&:search_names).uniq
   end
 
   def transfer_category

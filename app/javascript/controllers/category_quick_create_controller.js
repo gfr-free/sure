@@ -92,7 +92,9 @@ export default class extends Controller {
   createOnEnter(event) {
     if (!this.hasCreateButtonTarget) return;
     if (this.createButtonTarget.classList.contains("hidden")) return;
-    if (this.#parentPickerOpen || this.#hasVisibleRows) return;
+    // Enter does what the create row says, as in the category select; only
+    // a row picked with the arrow keys (list-filter handles that) wins.
+    if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
 
     event.preventDefault();
     this.create();
@@ -195,7 +197,7 @@ export default class extends Controller {
   // parent for that name is a new create, which the server then validates.
   #createdCategory(name, parentId) {
     if (
-      this.created?.name.toLocaleLowerCase() !== name.toLocaleLowerCase() ||
+      exactName(this.created?.name) !== exactName(name) ||
       this.created.parentId !== parentId
     ) {
       return null;
@@ -218,10 +220,8 @@ export default class extends Controller {
     );
   }
 
-  get #hasVisibleRows() {
-    return Array.from(this.element.querySelectorAll(".filterable-item")).some(
-      (item) => item.style.display !== "none" && item.offsetParent !== null,
-    );
+  get #hasHighlightedRow() {
+    return this.inputTarget.hasAttribute("aria-activedescendant");
   }
 
   #toggle(element, visible) {

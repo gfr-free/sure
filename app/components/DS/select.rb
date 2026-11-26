@@ -107,12 +107,15 @@ module DS
     end
 
     # What the searchable list matches an item against. A category is found
-    # like in every other category picker (CategoriesHelper#category_search_data).
+    # like in every other category picker (CategoriesHelper#category_search_data);
+    # its id is only linked when the row's value really is that id.
     def search_data(item)
       obj = item[:object]
-      return { filter_name: item[:label] } unless obj.is_a?(Category)
+      if obj.is_a?(Category) && item[:value].to_s == obj.id.to_s
+        return helpers.category_search_data(obj, label: item[:label])
+      end
 
-      helpers.category_search_data(obj, label: item[:label])
+      { filter_name: item[:label] }
     end
 
     private

@@ -141,7 +141,9 @@ export default class extends Controller {
     // custom one stored under that label), so the stored name wins.
     const query = exactName(rawQuery);
     const match =
-      visible.find((option) => exactName(primarySearchName(option)) === query) ??
+      visible.find(
+        (option) => exactName(primarySearchName(option)) === query,
+      ) ??
       visible.find((option) => namesExactly(option, rawQuery)) ??
       visible[0];
     if (!match) return;

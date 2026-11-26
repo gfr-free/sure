@@ -80,12 +80,13 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
   end
 
   # A category row whose search name is written by hand drifts from the
-  # others; it must come from category_search_data instead.
+  # others; it must come from category_search_data instead. Any line that
+  # sets a filter name and mentions a category (in any spelling) counts.
   test "no view sets a category's search name by hand" do
     offenders = Dir[Rails.root.join("app/{views,components}/**/*.{erb,rb}")].flat_map do |path|
       File.readlines(path).each_with_index.filter_map do |line, index|
         next unless line.match?(/data-filter-name=|filter_name:/)
-        next unless line.match?(/categor/)
+        next unless line.match?(/categor|\bcat\b/i)
 
         "#{Pathname(path).relative_path_from(Rails.root)}:#{index + 1}: #{line.strip}"
       end
@@ -104,22 +105,31 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
       root.css(".filterable-item")
     end
 
+    # Every row must carry the shared attributes; only a select's blank
+    # choice (empty value or category id) has none. Rows of real categories must match them.
     def assert_category_rows(rows_or_selector, context: nil)
       assert_response :success, context
       rows = rows_or_selector.is_a?(String) ? css_select(rows_or_selector) : rows_or_selector
-      rows = rows.select { |row| row["data-filter-id"].present? }
+      rows = rows.reject do |row|
+        %w[data-value data-category-id].any? { |attr| row.key?(attr) && row[attr].blank? }
+      end
 
       assert_operator rows.size, :>, 0, "no category rows found (#{context})"
 
-      categories = @family.categories.where(id: rows.map { |row| row["data-filter-id"] }).index_by(&:id)
+      ids = rows.map { |row| row["data-filter-id"] }.compact
+      categories = @family.categories.where(id: ids).index_by(&:id)
 
       rows.each do |row|
-        category = categories.fetch(row["data-filter-id"])
-        terms = JSON.parse(row["data-filter-terms"].to_s)
+        assert row["data-filter-name"].present?, "row has a label (#{context}): #{row.to_html.truncate(200)}"
+        terms = JSON.parse(row["data-filter-terms"].to_s) rescue nil
+        assert_kind_of Array, terms, "row carries category_search_data (#{context}): #{row.to_html.truncate(200)}"
 
+        # The synthetic "Uncategorized" row has no id; it is still searchable.
+        next if row["data-filter-id"].blank?
+
+        category = categories.fetch(row["data-filter-id"])
         assert_equal category.name, terms.first, "stored name first (#{context})"
         assert_includes terms, category.display_name, "shown name searchable (#{context})"
-        assert row["data-filter-name"].present?, "row has a label (#{context})"
         assert_equal category.parent_id.to_s, row["data-filter-parent-id"].to_s, "parent id (#{context})"
       end
     end

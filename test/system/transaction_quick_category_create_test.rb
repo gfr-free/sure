@@ -31,6 +31,29 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     assert_equal category.id, @entry.entryable.reload.category_id
   end
 
+  # Same Enter rule as the category select: while the create row shows,
+  # Enter creates, even when the words also find an existing row.
+  test "Enter creates while the create row shows, even next to a found row" do
+    @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+
+    visit transactions_url
+
+    within "##{dom_id(@entry.entryable, 'category_menu_desktop')}" do
+      find("button", match: :first).click
+    end
+
+    assert_difference "Category.count", +1 do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "supplies pet"
+        assert_selector ".filterable-item", text: "Pet Supplies"
+        assert_button 'Create "supplies pet"'
+        find("input[type='search']").send_keys(:enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "supplies pet"
+    end
+  end
+
   test "hides the create option when the search exactly matches an existing category" do
     existing = @user.family.categories.alphabetically.first
 

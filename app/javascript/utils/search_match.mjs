@@ -115,13 +115,16 @@ export function isConfirmingEnter(event) {
 export function enterMatch(visibleRows, rawQuery) {
   if (!hasSearchQuery(rawQuery)) return null;
 
+  // A row marked data-filter-context is only shown around a hit (a parent
+  // category above its matching subcategory) and is never the Enter target.
+  const hits = visibleRows.filter((row) => !row.hasAttribute?.("data-filter-context"));
   const folded = normalizeSearchText(String(rawQuery).trim());
   return (
-    visibleRows.find((row) => namesExactly(row, rawQuery)) ??
-    visibleRows.find((row) =>
+    hits.find((row) => namesExactly(row, rawQuery)) ??
+    hits.find((row) =>
       searchNames(row).some((name) => normalizeSearchText(name).trim() === folded),
     ) ??
-    visibleRows[0] ??
+    hits[0] ??
     null
   );
 }

@@ -162,4 +162,10 @@ describe("enterMatch", () => {
   it("has nothing to pick in an empty list", () => {
     assert.equal(enterMatch([], "zed"), null)
   })
+
+  it("never picks a row shown only as context for a hit", () => {
+    const parent = { ...row("Food & Drink"), hasAttribute: (name) => name === "data-filter-context" }
+    const child = { ...row("Restaurants"), hasAttribute: () => false }
+    assert.equal(enterMatch([parent, child], "Restaur"), child)
+  })
 })

@@ -408,10 +408,11 @@ class Category < ApplicationRecord
     end
   end
 
-  # Every name a viewer may type for this category: the shown name and, for a
-  # default category stored in another locale, the stored one.
+  # Every name a viewer may type for this category: the stored name and, for
+  # a default category shown in another locale, the shown one. The stored
+  # name comes first because it is the one that is unique in the family.
   def search_names
-    [ display_name, name ].uniq
+    [ name, display_name ].uniq
   end
 
   def display_name_with_parent

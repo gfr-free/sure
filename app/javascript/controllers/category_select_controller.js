@@ -1,5 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
+import {
+  matchesSearch,
+  namesExactly,
+  primarySearchName,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -69,19 +74,19 @@ export default class extends Controller {
     this.hideParentPicker();
 
     const rawQuery = this.searchTarget.value.trim();
-    const query = rawQuery.toLowerCase();
 
     let exactMatch = false;
     let anyVisible = false;
 
     this.optionTargets.forEach((option) => {
-      const names = this.#optionNames(option);
-      const matches = names.some((name) => name.includes(query));
+      const matches = matchesSearch(option, rawQuery);
 
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      if (names.includes(query)) exactMatch = true;
+      // Either the shown or the stored name typed exactly means the category
+      // exists, so creating it again is not offered.
+      if (namesExactly(option, rawQuery)) exactMatch = true;
     });
 
     const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
@@ -124,7 +129,7 @@ export default class extends Controller {
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const query = this.searchTarget.value.trim().toLowerCase();
+    const query = this.searchTarget.value.trim();
     if (!query) return;
 
     const visible = this.optionTargets.filter(
@@ -134,9 +139,11 @@ export default class extends Controller {
     // custom one stored under that label), so the stored name wins.
     const match =
       visible.find(
-        (option) => option.dataset.categoryStoredName?.toLowerCase() === query,
+        (option) =>
+          primarySearchName(option).toLocaleLowerCase() ===
+          query.toLocaleLowerCase(),
       ) ??
-      visible.find((option) => this.#optionNames(option).includes(query)) ??
+      visible.find((option) => namesExactly(option, query)) ??
       visible[0];
     if (!match) return;
 
@@ -308,16 +315,6 @@ export default class extends Controller {
   #setCreating(creating) {
     this.createFormTarget.disabled = creating;
     for (const row of this.parentOptionTargets) row.disabled = creating;
-  }
-
-  // The shown name is in the viewer's locale; a default category's stored
-  // name can be in another one. Both find it, and either typed exactly means
-  // the category exists, so creating it again is not offered.
-  #optionNames(option) {
-    const { categoryName, categoryStoredName } = option.dataset;
-    return [categoryName, categoryStoredName]
-      .filter(Boolean)
-      .map((name) => name.toLowerCase());
   }
 
   #lastOptionInGroup(parentId) {

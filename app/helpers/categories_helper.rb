@@ -1,4 +1,19 @@
 module CategoriesHelper
+  # Data attributes for one row of a category picker, so that every picker
+  # finds a category by the same rule (utils/search_match): the shown label,
+  # every name it may be typed as (stored name first, see
+  # Category#search_names) and its place in the tree. Merge them into the
+  # row's data; test/integration/category_pickers_search_test.rb checks that
+  # every picker does.
+  def category_search_data(category, label: category.display_name)
+    {
+      filter_name: label,
+      filter_terms: category.search_names.to_json,
+      filter_id: category.id,
+      filter_parent_id: category.parent_id
+    }
+  end
+
   def transfer_category
     Category.new \
       name: I18n.t("categories.virtual.transfer"),

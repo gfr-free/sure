@@ -1,6 +1,8 @@
 import { Controller } from "@hotwired/stimulus";
+import { hasSearchQuery, matchesSearch } from "utils/search_match";
 
-// Basic functionality to filter a list based on a provided text attribute.
+// Filters a list by the shared search rule in utils/search_match: each
+// .filterable-item is found by its data-filter-name and data-filter-terms.
 export default class extends Controller {
   static targets = ["input", "list", "emptyMessage", "recentSection"];
 
@@ -34,12 +36,7 @@ export default class extends Controller {
   }
 
   filter() {
-    // Only a genuinely empty query means "show everything". A non-empty
-    // query that normalizes away to "" (e.g. a lone combining mark) must
-    // still match nothing — "".includes("") is true, so without this split
-    // it would show every row instead of filtering.
     const rawFilterValue = this.inputTarget.value;
-    const filterValue = this.normalize(rawFilterValue);
     const items = this.listTarget.querySelectorAll(".filterable-item");
     let noMatchFound = true;
 
@@ -53,7 +50,10 @@ export default class extends Controller {
       : new Set();
 
     if (this.hasRecentSectionTarget) {
-      this.recentSectionTarget.classList.toggle("hidden", filterValue.length > 0);
+      this.recentSectionTarget.classList.toggle(
+        "hidden",
+        hasSearchQuery(rawFilterValue),
+      );
     }
 
     if (this.hasEmptyMessageTarget) {
@@ -61,10 +61,7 @@ export default class extends Controller {
     }
 
     items.forEach((item) => {
-      const text = this.normalize(item.getAttribute("data-filter-name"));
-      const shouldDisplay =
-        rawFilterValue.length === 0 ||
-        (filterValue.length > 0 && text.includes(filterValue));
+      const shouldDisplay = matchesSearch(item, rawFilterValue);
       item.style.display = shouldDisplay ? "" : "none";
 
       if (shouldDisplay) {
@@ -79,24 +76,6 @@ export default class extends Controller {
     this.highlightedIndex = -1;
     this.clearHighlights();
     this.updateAriaActiveDescendant();
-  }
-
-  // Case- and diacritic-insensitive: "prestecs" should match "Prèstecs".
-  // NFD splits each accented char into base char + combining mark, then
-  // \p{Mark} strips the marks, so both sides compare on bare base characters.
-  // Not \p{Diacritic}: that property is broader than combining marks — it
-  // also covers standalone characters like "^", "`", the middot, and
-  // modifier letters (e.g. the Hawaiian ʻokina) — so a query of just one of
-  // those would normalize to "", and "".includes() matches everything,
-  // silently showing every row instead of filtering.
-  // Underscores read as spaces, so an identifier typed as "America/New_York"
-  // finds its label "America/New York".
-  normalize(value) {
-    return value
-      .normalize("NFD")
-      .replace(/\p{Mark}/gu, "")
-      .replaceAll("_", " ")
-      .toLowerCase();
   }
 
   handleKeydown(event) {

@@ -106,6 +106,15 @@ module DS
       obj&.respond_to?(:parent_id) && obj.parent_id.present?
     end
 
+    # What the searchable list matches an item against. A category is found
+    # like in every other category picker (CategoriesHelper#category_search_data).
+    def search_data(item)
+      obj = item[:object]
+      return { filter_name: item[:label] } unless obj.is_a?(Category)
+
+      helpers.category_search_data(obj, label: item[:label])
+    end
+
     private
 
       def normalize_menu_placement(value)

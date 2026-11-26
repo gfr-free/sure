@@ -81,7 +81,7 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     # The picker searches, so a category is found by name, not by scrolling.
     assert_select "input[type=search][data-category-select-target=?]", "search"
 
-    names = css_select("[data-category-select-target=option]").map { |option| option["data-category-name"] }
+    names = css_select("[data-category-select-target=option]").map { |option| option["data-filter-name"] }
     parent = categories(:food_and_drink).name
     child = categories(:subcategory).name
 
@@ -91,7 +91,7 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
 
     # The child row says so, so the order reads as a hierarchy and not as an
     # alphabetical accident.
-    assert_select "[data-category-name=?] [data-testid=?]", child, "category-select-subcategory-indicator"
+    assert_select "[data-filter-name=?] [data-testid=?]", child, "category-select-subcategory-indicator"
   end
 
   # A family that locked its categories cannot create one, whichever form it

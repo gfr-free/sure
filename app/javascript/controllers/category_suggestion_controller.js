@@ -7,8 +7,13 @@ import { Controller } from "@hotwired/stimulus"
 //
 // The category field can be a DS::CategorySelect (transaction form) or a searchable
 // DS::Select of categories (split rows); both are driven by clicking their option.
+//
+// With autoSaves (the transaction drawer, where every field saves on its own) a
+// suggestion only fills an empty category, once, after the picked name is saved,
+// and asks the server to keep a category that was set meanwhile (fillOnly target).
 export default class extends Controller {
-  static targets = ["categoryField", "name"]
+  static targets = ["categoryField", "name", "fillOnly"]
+  static values = { autoSaves: Boolean }
 
   connect() {
     // A category already present when the controller connects (e.g. prefilled from
@@ -41,17 +46,49 @@ export default class extends Controller {
     if (!value || value !== display) return
     if (value === this.lastPickedName) return
     this.lastPickedName = value
-    // A pick sets the value without a native "change"; announce it so a form that
-    // saves on change (the transaction drawer) saves the picked name.
-    if (this.hasNameTarget) this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
 
     const option = event.target.querySelector(`[role="option"][data-value="${CSS.escape(value)}"]`)
     const categoryId = option?.querySelector("[data-category-id]")?.dataset.categoryId
+
+    if (this.autoSavesValue) {
+      this.#saveNameThenFill(value, categoryId)
+      return
+    }
 
     // A name with no usual category (categoryId undefined) still needs to clear a category
     // that was auto-applied for a previously selected name — otherwise it stays attached to
     // the new, unrelated name. #selectCategoryOption already leaves a manual pick untouched.
     this.#selectCategoryOption(categoryId || "")
+  }
+
+  // Drawer: the picked name's form saved; fill the category it suggested.
+  nameSaved(event) {
+    const categoryId = this.pendingCategoryId
+    this.pendingCategoryId = null
+    if (!categoryId || !event.detail?.success) return
+    if (this.userPickedCategory || this.#hasCategorySelection()) return
+
+    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = "1"
+    this.#selectCategoryOption(categoryId)
+    this.userPickedCategory = true
+  }
+
+  categorySaved() {
+    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = ""
+  }
+
+  // Drawer: after a pick the browser still fires its own "change" when the field
+  // is left; the pick already saved that value, so it is not sent twice.
+  skipRepeatedNameChange(event) {
+    if (!this.hasNameTarget || event.target !== this.nameTarget) return
+    if (event.isTrusted && this.nameTarget.value === this.savedPickName) event.stopPropagation()
+  }
+
+  #saveNameThenFill(value, categoryId) {
+    this.pendingCategoryId = categoryId || null
+    this.savedPickName = value
+    // A pick sets the value without a native "change"; the drawer saves on change.
+    this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
   }
 
   #hasCategorySelection() {

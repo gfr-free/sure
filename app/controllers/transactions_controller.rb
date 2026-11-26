@@ -845,6 +845,12 @@ class TransactionsController < ApplicationController
         permitted[:entryable_attributes] = permitted[:entryable_attributes].except(:category_id)
       end
 
+      # A category suggested from a picked name only fills an empty one; a
+      # category a rule or the user set in the meantime is kept.
+      if permitted[:entryable_attributes]&.key?(:category_id) && params[:fill_empty_category] == "1" && @entry.transaction.category_id.present?
+        permitted[:entryable_attributes] = permitted[:entryable_attributes].except(:category_id)
+      end
+
       permitted
     end
 

@@ -51,10 +51,11 @@
     <%= render "entries/protection_indicator", entry: @entry, unlock_path: unlock_transaction_path(@entry.transaction) %>
     <% dialog.with_section(title: t(".overview"), open: true) do %>
       <%# Picking a past name suggests its usual category, as in the new
-          transaction form; a transaction that already has one keeps it. %>
+          transaction form, but only fills an empty one. %>
       <div class="space-y-2"
            data-controller="category-suggestion"
-           data-action="hw-combobox:selection->category-suggestion#onNameSuggestionSelected">
+           data-category-suggestion-auto-saves-value="true"
+           data-action="hw-combobox:selection->category-suggestion#onNameSuggestionSelected change->category-suggestion#skipRepeatedNameChange:capture">
         <% split_locked = @entry.split_child? || @entry.split_parent? %>
         <% edit_locked = !can_edit_entry? %>
         <% annotate_locked = !can_annotate_entry? %>
@@ -65,7 +66,7 @@
             result. %>
         <%= styled_form_with model: @entry,
               url: transaction_path(@entry),
-              data: { controller: "auto-submit-form", action: "formdata->category-suggestion#syncName" } do |f| %>
+              data: { controller: "auto-submit-form", action: "formdata->category-suggestion#syncName turbo:submit-end->category-suggestion#nameSaved" } do |f| %>
           <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
           <%# "change", not "blur": leaving the field untouched must not send its stale value. %>
           <% if @entry.split_child? || edit_locked %>
@@ -111,8 +112,9 @@
         <% if @entry.transaction.category_editable? || @entry.transaction.category_set_on_transfer_outflow? %>
           <%= styled_form_with model: @entry,
                 url: transaction_path(@entry),
-                data: { controller: "auto-submit-form" } do |f| %>
+                data: { controller: "auto-submit-form", action: "turbo:submit-end->category-suggestion#categorySaved" } do |f| %>
             <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
+            <%= hidden_field_tag :fill_empty_category, "", id: nil, data: { category_suggestion_target: "fillOnly" } %>
             <% if @entry.transaction.category_editable? %>
               <div data-category-suggestion-target="categoryField" data-action="change->category-suggestion#onCategorySelected">
                 <%= f.fields_for :entryable do |ef| %>

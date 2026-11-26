@@ -32,6 +32,34 @@ class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
     assert_equal categories(:income), entry.reload.entryable.category
   end
 
+  test "a second pick does not replace or clear the category the first pick filled" do
+    create_transaction(account: @account, name: "Bakery corner", amount: 3)
+    entry = create_transaction(account: @account, name: "CARD 4714", amount: 7)
+
+    visit transaction_path(entry)
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_equal categories(:food_and_drink), wait_for { entry.reload.entryable.category }
+
+    pick_name_suggestion("Baker", "Bakery corner")
+    assert_equal "Bakery corner", wait_for { entry.reload.name == "Bakery corner" && entry.name }
+    assert_category categories(:food_and_drink)
+    assert_equal categories(:food_and_drink), entry.reload.entryable.category
+  end
+
+  test "a category set elsewhere while the drawer is open is kept" do
+    entry = create_transaction(account: @account, name: "CARD 4715", amount: 7)
+
+    visit transaction_path(entry)
+    find("input[role='combobox'][id$='name']")
+    # Stands in for an immediate rule that categorizes after the drawer rendered.
+    entry.entryable.update!(category: categories(:income))
+    pick_name_suggestion("Starb", "Starbucks")
+
+    assert_equal "Starbucks", wait_for { entry.reload.name == "Starbucks" && entry.name }
+    sleep 1 # give a wrongly sent category save time to land
+    assert_equal categories(:income), entry.reload.entryable.category
+  end
+
   test "a typed name without a pick is saved as typed" do
     entry = create_transaction(account: @account, name: "CARD 4713", amount: 7)
 

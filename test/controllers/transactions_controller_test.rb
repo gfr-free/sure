@@ -2714,7 +2714,7 @@ end
   # save of that field, undoing the rule's result and locking it.
   test "the drawer sends each field that rules can set in a form of its own" do
     rule_fields = %w[entry[name] entry[excluded] entry[entryable_attributes][category_id] entry[entryable_attributes][merchant_id] entry[entryable_attributes][tag_ids][]]
-    form_meta = %w[authenticity_token _method grouped entry[entryable_attributes][id]]
+    form_meta = %w[authenticity_token _method grouped fill_empty_category entry[entryable_attributes][id]]
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
     assert_response :success
@@ -2731,6 +2731,23 @@ end
     # Leaving the name field untouched must not send its stale value either:
     # the name combobox saves on "change", which a pick also dispatches.
     assert_select "form:has(input[name='entry[name]']) input[role=combobox][data-auto-submit-form-target=auto][data-autosubmit-trigger-event=change]"
+  end
+
+  test "a suggested category fills an empty category" do
+    @entry.transaction.update!(category: nil)
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_equal categories(:food_and_drink), @entry.transaction.reload.category
+  end
+
+  test "a suggested category keeps a category set in the meantime" do
+    @entry.transaction.update!(category: categories(:income))
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_response :success
+    assert_equal categories(:income), @entry.transaction.reload.category
   end
 
   test "does not offer guests to create a rule through a transaction update" do

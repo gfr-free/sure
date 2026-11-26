@@ -45,11 +45,30 @@ class StyledFormBuilderTest < ActionView::TestCase
   end
 
   test "an entry date field defaults to today and can be capped at today" do
-    builder = StyledFormBuilder.new(:entry, Entry.new, self, {})
-    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, past_only: true)).at("input[type=date]")
+    travel_to Time.zone.local(2026, 5, 6, 12) do
+      builder = StyledFormBuilder.new(:entry, Entry.new, self, {})
+      input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, past_only: true)).at("input[type=date]")
 
-    assert_equal Date.current.iso8601, input["value"]
-    assert_equal Date.current.iso8601, input["max"]
+      assert_equal "2026-05-06", input["value"]
+      assert_equal "2026-05-06", input["max"]
+    end
+  end
+
+  # The drawer's date shares a form with the amount; a minimum above the
+  # saved date would block saving the amount.
+  test "an entry date older than the limit stays selectable" do
+    old_date = Entry.min_supported_date - 3.days
+    builder = StyledFormBuilder.new(:entry, Entry.new(date: old_date), self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date)).at("input[type=date]")
+
+    assert_equal old_date.iso8601, input["min"]
+  end
+
+  test "an entry date field keeps an explicit min, also as a string key" do
+    builder = StyledFormBuilder.new(:entry, Entry.new, self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, "min" => "2020-01-01")).at("input[type=date]")
+
+    assert_equal "2020-01-01", input["min"]
   end
 
   test "an entry date field stays blank when blank means unchanged" do

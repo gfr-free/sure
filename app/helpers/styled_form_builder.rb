@@ -29,15 +29,21 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
 
   # The date of an entry (transaction, trade, transfer, valuation). Entry
   # rejects a date on or before Entry.min_supported_date, so the earliest
-  # selectable day is the one after it. Without a value the field starts at
-  # the record's date, or today; pass `value: nil` where blank means "leave
-  # unchanged" (bulk edit). `past_only: true` also caps it at today.
+  # selectable day is the one after it. A saved date that has since aged past
+  # that limit stays the minimum, so the form it shares with other fields can
+  # still be submitted. Without a value the field starts at the record's
+  # date, or today; pass `value: nil` where blank means "leave unchanged"
+  # (bulk edit). `past_only: true` also caps it at today.
   def entry_date_field(method = :date, options = {})
-    options = options.dup
+    options = options.symbolize_keys
     past_only = options.delete(:past_only)
-    options[:min] ||= Entry.min_supported_date + 1.day
-    options[:max] ||= Date.current if past_only
-    options[:value] = object.try(method) || Date.current unless options.key?(:value)
+    saved_date = object.try(method)
+    options[:value] = saved_date || Date.current unless options.key?(:value)
+    unless options.key?(:min)
+      options[:min] = Entry.min_supported_date + 1.day
+      options[:min] = [ options[:min], saved_date.to_date ].min if saved_date.respond_to?(:to_date)
+    end
+    options[:max] = Date.current if past_only && !options.key?(:max)
 
     date_field(method, options)
   end

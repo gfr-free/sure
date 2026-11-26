@@ -8,25 +8,27 @@ require "test_helper"
 # and the same default. Sync start dates lie in the past by definition, so
 # each of those inputs carries a max.
 class DateFieldsTest < ActiveSupport::TestCase
-  ENTRY_DATE_FIELD = /\bdate_field\s*\(?\s*:date\b/
-  SYNC_START_DATE = /sync_start_date/
+  # Form attributes that become an Entry's date.
+  ENTRY_DATE_ATTRIBUTES = %w[date opening_balance_date paid_on].freeze
+
   DATE_INPUT = /\bdate_field(?:_tag)?\b|type=["']date["']/
+  ENTRY_DATE_FIELD = /\A\s*date_field\s*\(?\s*:(#{ENTRY_DATE_ATTRIBUTES.join("|")})\b/
 
   test "entry dates use entry_date_field" do
-    offenders = view_lines.filter_map do |path, number, line|
-      "#{path}:#{number}" if line.match?(ENTRY_DATE_FIELD)
+    offenders = date_input_statements.filter_map do |path, number, statement|
+      "#{path}:#{number}" if statement.match?(ENTRY_DATE_FIELD)
     end
 
     assert_empty offenders, <<~MESSAGE
-      Use form.entry_date_field :date for an entry's date. It sets the lowest
-      date the model accepts and the default; pass past_only: true where a
-      future date makes no sense, or value: nil where blank means "unchanged".
+      Use form.entry_date_field for an entry's date. It sets the lowest date
+      the model accepts and the default; pass past_only: true where a future
+      date makes no sense, or value: nil where blank means "unchanged".
     MESSAGE
   end
 
   test "sync start date inputs cannot pick a future day" do
     offenders = date_input_statements.filter_map do |path, number, statement|
-      next unless statement.match?(SYNC_START_DATE)
+      next unless statement.include?("sync_start_date")
       next if statement.match?(/\bmax[:=]/)
 
       "#{path}:#{number}"
@@ -36,31 +38,18 @@ class DateFieldsTest < ActiveSupport::TestCase
   end
 
   private
-    def view_files
-      Dir[Rails.root.join("app/{views,components}/**/*.erb")].sort
-    end
-
-    def view_lines
-      view_files.flat_map do |file|
-        path = Pathname(file).relative_path_from(Rails.root).to_s
-        File.readlines(file).each_with_index.filter_map do |line, index|
-          next if line.lstrip.start_with?("<%#")
-
-          [ path, index + 1, line ]
-        end
-      end
-    end
-
-    # A date input with the attributes up to the end of its tag or ERB call,
-    # so options on the following lines are seen as well.
+    # Each date input from its helper name or type attribute to the end of its
+    # ERB call or tag, so options on the following lines are seen as well.
     def date_input_statements
-      view_files.flat_map do |file|
+      Dir[Rails.root.join("app/{views,components}/**/*.erb")].sort.flat_map do |file|
         path = Pathname(file).relative_path_from(Rails.root).to_s
-        lines = File.readlines(file)
-        lines.each_with_index.filter_map do |line, index|
-          next unless line.match?(DATE_INPUT)
+        source = File.read(file).gsub(/<%#.*?%>/m) { |comment| "\n" * comment.count("\n") }
+        lines = source.lines
 
-          rest = lines[index..].join[line.index(DATE_INPUT)..]
+        lines.each_with_index.filter_map do |line, index|
+          next unless (start = line.index(DATE_INPUT))
+
+          rest = lines[index..].join[start..]
           statement =
             if rest.start_with?("type")
               # A raw <input>: drop ERB inside its attributes, then stop at ">".

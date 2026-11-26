@@ -150,6 +150,18 @@ class HoldingCostBasisTest < ApplicationSystemTestCase
     assert page.evaluate_script("document.activeElement.matches('[data-drawer-cost-basis-target=opener]')")
   end
 
+  # A euro per-share cost is shown with a comma ("12,345"); the total reads it
+  # as that decimal, not as a grouped 12345.
+  test "a comma-decimal per-share cost fills in the total as the decimal it shows" do
+    @holding.update!(qty: 10, currency: "EUR", cost_basis: BigDecimal("12.345"), cost_basis_source: "manual")
+
+    open_cost_basis_editor
+    assert_field per_share_field_id, with: "12,345"
+    find(per_share_field).fill_in(with: "12,346")
+
+    assert_field total_field_id, with: "123.46"
+  end
+
   private
     def active_element_id
       page.evaluate_script("document.activeElement.id")

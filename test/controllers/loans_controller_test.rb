@@ -1155,11 +1155,6 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-rate-change-row] button[data-action='loan-rate-changes#remove'] span", text: I18n.t("loans.form.rate_change_remove")
   end
 
-  # The design-system guide asks inputs to take the form's field shape. The rows
-  # were bare inputs outside any .form-field, so they rendered with no field
-  # border and no visible label. The partial is also the Stimulus clone
-  # template, so each label wraps its input rather than pointing at an id that
-  # every cloned row would repeat.
   test "the interest rate is a decimal field showing the saved rate unrounded" do
     @account.loan.update!(interest_rate: 4.125)
 
@@ -1170,6 +1165,10 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=number]", count: 1 # term in months, a whole number
   end
 
+  # The design-system guide asks inputs to take the form's field shape. The
+  # partial is also the Stimulus clone template, so no input has an id that
+  # every cloned row would repeat: the date's label wraps its input, and the
+  # rate (a decimal field) is named by its aria-label.
   test "each rate-change input is a labelled form field without an id" do
     @account.loan.update!(rate_type: "variable", start_date: Date.new(2026, 1, 1),
                           variable_rate_schedule: { "2026-04-01" => "7.25" })

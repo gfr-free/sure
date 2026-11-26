@@ -139,6 +139,24 @@ class TradesTest < ApplicationSystemTestCase
     assert_eventually { trade.reload.fee.to_d == 2.5.to_d }
   end
 
+  # trades.qty holds 18 decimals, more than a JS number keeps, so the drawer
+  # submits a plain quantity as shown when another field saves.
+  test "an existing trade keeps a quantity with 18 decimals when another field is saved" do
+    entry = entries(:trade)
+    qty = BigDecimal("0.123456789012345678")
+    entry.trade.update!(qty: qty)
+
+    visit trade_path(entry)
+
+    within "turbo-frame#drawer" do
+      fill_in "Transaction fee", with: "1"
+      find_field("Transaction fee").send_keys(:tab)
+    end
+
+    assert_eventually { entry.trade.reload.fee.to_d == 1.to_d }
+    assert_equal qty, entry.trade.reload.qty.abs
+  end
+
   private
     def assert_eventually(timeout: Capybara.default_max_wait_time)
       deadline = Time.current + timeout

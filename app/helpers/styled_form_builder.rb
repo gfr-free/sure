@@ -121,9 +121,14 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
       options[:amount_data] = { autosubmit_trigger_event: "change" }.merge(options[:amount_data] || {})
     end
 
+    # A saved value with more decimals than the step keeps them, shown and
+    # submitted, so an unedited save does not round it.
+    decimals = decimal_field_decimals(value, options[:step])
+    options[:min_precision] ||= decimals if decimals && decimals > step_decimals(options[:step]).to_i
+
     separator = I18n.t("number.format.separator", default: ".")
     money_field(method, {
-      raw_value: decimal_field_text(value, options[:step]).sub(".", separator),
+      raw_value: decimal_field_text(value, decimals).sub(".", separator),
       separator: separator,
       delimiter: I18n.t("number.format.delimiter", default: ","),
       placeholder: "",
@@ -238,11 +243,22 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
       end
     end
 
-    # A decimal field's text: with the step's decimals, as normalizing it on
-    # blur would write it, or as saved for a step of "any".
-    def decimal_field_text(value, step)
+    # The decimals a decimal field shows: the step's, or the saved value's
+    # own when it has more; nil for a step of "any" or a value that is not a
+    # finite number, which is shown as saved.
+    # A numeric string (a loan's rate-change rows) counts as its number.
+    def decimal_field_decimals(value, step)
       decimals = step_decimals(step)
-      return @template.plain_decimal_text(value) if decimals.nil? || !value.is_a?(Numeric) || !value.to_f.finite?
+      number = value.is_a?(String) ? BigDecimal(value, exception: false) : value
+      return if decimals.nil? || !number.is_a?(Numeric) || !number.to_f.finite?
+
+      [ decimals, @template.amount_decimals(number) ].max
+    end
+
+    # A decimal field's text, as normalizing it on blur would write it; text
+    # (a rate as entered) is shown as given.
+    def decimal_field_text(value, decimals)
+      return @template.plain_decimal_text(value) if decimals.nil? || value.is_a?(String)
 
       format("%.#{decimals}f", value)
     end

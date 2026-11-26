@@ -287,6 +287,13 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, I18n.t("transfers.create.date_invalid")
   end
 
+  test "the amounts error is translated wherever the other transfer errors are" do
+    locales = I18n.available_locales.select { |locale| I18n.exists?("transfers.create.date_invalid", locale, fallback: false) }
+    missing = locales.reject { |locale| I18n.exists?("transfers.create.amounts_invalid", locale, fallback: false) }
+
+    assert_empty missing
+  end
+
   test "reusing a key for a genuinely different request does not silently return the old transfer" do
     idempotency_key = SecureRandom.uuid
     from_account = accounts(:depository)

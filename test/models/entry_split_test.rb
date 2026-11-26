@@ -315,6 +315,19 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert part.locked?(:amount)
   end
 
+  test "a part whose row only sets name and amount locks nothing else, whatever the parent carries" do
+    merchant = @entry.account.family.merchants.create!(name: "Parent merchant", type: "FamilyMerchant")
+    @entry.update!(notes: "Parent note", reconciled_status: "cleared")
+    @entry.transaction.update!(merchant: merchant, kind: "one_time", extra: { "exchange_rate" => "2" }, tags: [ tags(:one) ])
+    parts = @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ]) { |created| Entry.finish_user_created!(created) }
+
+    # Where a part sits (its parent and its own entryable) is locked like on any create.
+    placement = %w[entryable_id entryable_type parent_entry_id]
+    part = parts.first.reload
+    assert_equal %w[amount name], (part.locked_attributes.keys - placement).sort
+    assert_empty part.transaction.locked_attributes.keys
+  end
+
   test "a block given to split_once! runs inside the split, so its failure undoes the split" do
     assert_raises(ActiveRecord::RecordInvalid) do
       @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ]) { raise ActiveRecord::RecordInvalid }

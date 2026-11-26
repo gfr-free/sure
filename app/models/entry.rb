@@ -723,10 +723,17 @@ class Entry < ApplicationRecord
     end
   end
 
-  # Values each split part copies from its parent. A part gets them whatever the
-  # person entered, so they aren't locked as the person's choice; the merchant
-  # joins them when a part falls back to the parent's.
-  SPLIT_INHERITED_ATTRIBUTES = %w[account_id date currency import_id import_locked kind].freeze
+  # Values a split part can take from its parent (entries and transactions
+  # columns). A part gets them whatever the person entered, so they aren't
+  # locked as the person's choice; the merchant joins them when a part falls
+  # back to the parent's. Kept in step with the "inherited" groups of
+  # Entry::SplitInheritance where that lands; listing a column split! doesn't
+  # copy yet is harmless, since only saved changes are locked.
+  SPLIT_INHERITED_ATTRIBUTES = %w[
+    account_id currency date import_id import_locked
+    reconciled_at reconciled_by_statement_id reconciled_status
+    extra investment_activity_label kind
+  ].freeze
 
   def split_parent?
     child_entries.exists?

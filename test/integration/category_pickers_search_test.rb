@@ -90,6 +90,46 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
     assert_category_rows "[data-controller~='category-filter'] .filterable-item", context: "classifier"
   end
 
+  # Checking a parent in a cascading list checks all its subcategories, so a
+  # search there must show whole groups (list-filter wholeGroups), never a
+  # parent without its hidden siblings.
+  test "every cascading category list searches whole groups" do
+    create_transaction(account: accounts(:depository), name: "Trend spend", amount: 30,
+                       category: categories(:food_and_drink), date: Date.current)
+
+    {
+      "transaction filter" => -> { get filters_transactions_url, headers: { "Turbo-Frame" => "transaction-filters" } },
+      "dashboard" => -> { get root_path },
+      "reports" => -> { get reports_path(period_type: :custom, start_date: 1.month.ago.beginning_of_month.to_date, end_date: Date.current.end_of_month) },
+      "classifier" => -> { get settings_classifier_path }
+    }.each do |context, request|
+      request.call
+      assert_response :success, context
+
+      lists = css_select("[data-controller~='category-filter']")
+      assert_operator lists.size, :>, 0, "no cascading list (#{context})"
+      lists.each do |list|
+        assert_equal "true", list["data-list-filter-whole-groups-value"], "whole groups (#{context})"
+      end
+    end
+  end
+
+  # The pages above are the ones rendered today; a new cascading list must
+  # set wholeGroups too. Every view that starts a category-filter controller
+  # must also set the value (directly or through _filter_popover, which
+  # derives it from its list_controllers).
+  test "no view starts a category-filter list without whole groups" do
+    offenders = Dir[Rails.root.join("app/{views,components}/**/*.erb")].filter_map do |path|
+      source = File.read(path)
+      next unless source.match?(/data-controller="[^"]*\bcategory-filter\b/)
+      next if source.include?("data-list-filter-whole-groups-value")
+
+      Pathname(path).relative_path_from(Rails.root).to_s
+    end
+
+    assert_empty offenders, "set data-list-filter-whole-groups-value on cascading category lists"
+  end
+
   # A category row whose search name is written by hand drifts from the
   # others; it must come from category_search_data instead. Any line that
   # sets a filter name and mentions a category (in any spelling) counts.
@@ -116,6 +156,7 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
     "app/views/transactions/searches/filters/_tag_filter.html.erb" => "tag rows",
     "app/views/reports/index.html.erb" => "tag popover",
     "app/views/pages/dashboard/_cashflow_donut.html.erb" => "account popover",
+    "app/views/pages/dashboard/_filter_popover.html.erb" => "shared layout; its callers render the rows",
     "app/components/DS/category_select.html.erb" => "rows come from DS/category_select/_option; only the blank row is here",
     "app/components/DS/icon_picker.html.erb" => "icon rows"
   }.freeze

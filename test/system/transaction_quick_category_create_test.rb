@@ -273,6 +273,70 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     page.driver.browser.execute_cdp("Network.setBlockedURLs", urls: [])
   end
 
+  test "searching a category in the quick picker also lists its subcategories" do
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      find("input[type='search']").fill_in with: "Food"
+
+      assert_selector "[role='option']", text: categories(:subcategory).name
+      assert_no_selector "[role='option']", text: categories(:income).name
+    end
+  end
+
+  test "arrow keys in the quick picker start at the subcategory found, not at its parent" do
+    subcategory = categories(:subcategory)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      search = find("input[type='search']")
+      search.fill_in with: "Restaur"
+      assert_selector "[role='option']", text: categories(:food_and_drink).name
+
+      search.send_keys(:down, :enter)
+    end
+
+    # Wait for the picker to close, so the badge checked is the row's, not one inside the open menu.
+    assert_no_selector "turbo-frame#category_dropdown [role='option']"
+    assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: subcategory.name
+    assert_equal subcategory.id, @entry.entryable.reload.category_id
+  end
+
+  test "ArrowUp from the quick picker search also starts at the subcategory found" do
+    subcategory = categories(:subcategory)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      search = find("input[type='search']")
+      search.fill_in with: "Restaur"
+      assert_selector "[data-filter-id='#{categories(:food_and_drink).id}'][data-filter-context]"
+
+      search.send_keys(:up)
+      assert_selector "input[type='search'][aria-activedescendant='#{dom_id(subcategory, 'category_option')}']"
+    end
+  end
+
+  test "arrow keys in the quick picker skip the Recent section hidden while searching" do
+    recent = categories(:subcategory)
+    recent.update!(last_used_at: 1.day.ago)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      assert_selector "##{dom_id(recent, 'recent_category_option')}"
+
+      search = find("input[type='search']")
+      search.fill_in with: "Restaur"
+      assert_no_selector "[data-list-filter-target='recentSection']"
+
+      search.send_keys(:down)
+      assert_selector "input[type='search'][aria-activedescendant='#{dom_id(recent, 'category_option')}']"
+    end
+  end
+
   private
     def open_quick_picker
       within "##{dom_id(@entry.entryable, 'category_menu_desktop')}" do

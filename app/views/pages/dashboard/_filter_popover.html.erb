@@ -29,7 +29,10 @@
         <% end %>
       <% end %>
 
-      <div data-controller="<%= list_controllers %>">
+      <%# A category-filter cascade checks a parent's subcategories with it, so
+          its search shows whole groups (list-filter wholeGroups). %>
+      <div data-controller="<%= list_controllers %>"
+           <%= "data-list-filter-whole-groups-value=true" if list_controllers.split.include?("category-filter") %>>
         <%= render DS::SearchInput.new(
               variant: :embedded,
               placeholder: search_label,

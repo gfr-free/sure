@@ -391,6 +391,36 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     end
   end
 
+  test "searching a category also lists its subcategories" do
+    visit new_transaction_url
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "Food"
+
+      assert_selector "[data-category-select-target='option']", text: categories(:food_and_drink).name
+      assert_selector "[data-category-select-target='option']", text: categories(:subcategory).name
+      assert_no_selector "[data-category-select-target='option']", text: categories(:income).name
+    end
+  end
+
+  test "searching a subcategory also lists its parent, and Enter picks the subcategory" do
+    @user.family.update!(categories_locked: true)
+    visit new_transaction_url(account_id: accounts(:depository).id)
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "Restaur"
+
+      assert_selector "[data-category-select-target='option']", text: categories(:food_and_drink).name
+      assert_selector "[data-category-select-target='option']", text: categories(:subcategory).name
+      assert_no_selector "[data-category-select-target='option']", text: categories(:income).name
+
+      find_field("Search categories").send_keys(:enter)
+      assert_selector "[data-category-select-target='selectionContainer']", text: categories(:subcategory).name
+    end
+  end
+
   private
     def active_element_attribute(name)
       page.evaluate_script("document.activeElement.getAttribute('#{name}')")

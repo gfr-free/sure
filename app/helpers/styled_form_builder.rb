@@ -63,6 +63,7 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
     end
   end
 
+  # text_method can also be a callable, as in Rails' own collection_select.
   def collection_select(method, collection, value_method, text_method, options = {}, html_options = {})
     selected_value =
       if options.key?(:selected)
@@ -76,7 +77,7 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
       DS::Select.new(
         form: self,
         method: method,
-        items: collection.map { |item| { value: item.public_send(value_method), label: item.public_send(text_method), object: item } },
+        items: collection.map { |item| { value: item.public_send(value_method), label: text_method.respond_to?(:call) ? text_method.call(item) : item.public_send(text_method), object: item } },
         selected: selected_value,
         placeholder: placeholder,
         searchable: options.fetch(:searchable, false),

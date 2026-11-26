@@ -62,7 +62,7 @@
       <div class="space-y-2">
         <%= f.text_field :name, placeholder: t(".placeholder"), required: true, autofocus: true, label: t(".name_label"), data: { color_avatar_target: "name" } %>
         <% unless category.parent? %>
-          <%= f.select :parent_id, categories.map { |parent| [ parent.display_name, parent.id ] }, { include_blank: t(".unassigned"), label: t(".parent_category_label") }, disabled: category.parent?, data: { action: "change->color-icon-picker#handleParentChange" } %>
+          <%= f.select :parent_id, Category.label_options(categories), { include_blank: t(".unassigned"), label: t(".parent_category_label") }, disabled: category.parent?, data: { action: "change->color-icon-picker#handleParentChange" } %>
         <% end %>
       </div>
     </section>

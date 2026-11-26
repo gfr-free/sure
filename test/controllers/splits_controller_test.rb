@@ -348,6 +348,103 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ tags(:three) ], part_one.entryable.tags
   end
 
+  test "new prefills every row with the parent's merchant" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+
+    get new_transaction_split_path(@entry)
+    assert_response :success
+
+    doc = Nokogiri::HTML::Document.parse(response.body)
+    first_row = doc.at_css("[data-split-transaction-target='rowsContainer'] input[type='hidden'][name='split[splits][0][merchant_id]']")
+    assert_equal merchants(:amazon).id, first_row["value"]
+    assert_includes doc.at_css("[data-split-transaction-target='rowsContainer'] #split_splits_0_merchant_id").text, merchants(:amazon).name
+
+    template = Nokogiri::HTML::DocumentFragment.parse(doc.at_css("template[data-split-transaction-target='rowTemplate']").inner_html)
+    assert_equal merchants(:amazon).id, template.at_css("input[type='hidden'][name='split[splits][ROW_IDX_PLACEHOLDER][merchant_id]']")["value"]
+  end
+
+  test "new leaves the merchant empty when the parent has none" do
+    get new_transaction_split_path(@entry)
+    assert_response :success
+
+    doc = Nokogiri::HTML::Document.parse(response.body)
+    assert_equal "", doc.at_css("input[type='hidden'][name='split[splits][0][merchant_id]']")["value"]
+  end
+
+  test "edit prefills added rows with the parent's merchant" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil, merchant_id: merchants(:netflix).id },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    get edit_transaction_split_path(@entry)
+    assert_response :success
+
+    doc = Nokogiri::HTML::Document.parse(response.body)
+    rows = doc.css("[data-split-transaction-target='rowsContainer'] input[type='hidden'][name$='[merchant_id]']").map { |input| input["value"] }
+    assert_equal [ merchants(:netflix).id, merchants(:amazon).id ], rows
+
+    template = Nokogiri::HTML::DocumentFragment.parse(doc.at_css("template[data-split-transaction-target='rowTemplate']").inner_html)
+    assert_equal merchants(:amazon).id, template.at_css("input[type='hidden'][name$='[merchant_id]']")["value"]
+  end
+
+  test "create sends an unchanged prefilled merchant to the split as blank" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+
+    Entry.any_instance.expects(:split_once!).with do |splits, **|
+      splits.map { |split| split[:merchant_id] } == [ nil, merchants(:netflix).id ]
+    end.returns(true)
+
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Groceries", amount: "-70", category_id: "", merchant_id: merchants(:amazon).id },
+          { name: "Household", amount: "-30", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+  end
+
+  test "create keeps the parent's merchant on a row that sent it back unchanged" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Groceries", amount: "-70", category_id: "", merchant_id: merchants(:amazon).id },
+          { name: "Household", amount: "-30", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+
+    children = @entry.reload.child_entries.index_by(&:name)
+    assert_equal merchants(:amazon).id, children["Groceries"].entryable.merchant_id
+    assert_equal merchants(:netflix).id, children["Household"].entryable.merchant_id
+    assert_empty children["Groceries"].entryable.locked_attributes
+  end
+
+  test "update sends an unchanged prefilled merchant to the split as blank" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    Entry.any_instance.expects(:resplit!).with do |splits, **|
+      splits.map { |split| split[:merchant_id] } == [ nil, merchants(:netflix).id ]
+    end.returns(true)
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: merchants(:amazon).id },
+          { name: "Part 2", amount: "-40", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+  end
+
   # Destroy from child tests
   test "destroy from child resolves to parent and unsplits" do
     @entry.split!([

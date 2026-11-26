@@ -52,6 +52,7 @@
       <template data-split-transaction-target="rowTemplate">
         <%= render "splits/row",
                    index: "ROW_IDX_PLACEHOLDER",
+                   merchant_id: @parent_merchant_id,
                    categories: @categories,
                    merchants: @merchants,
                    tags: @tags %>

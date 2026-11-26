@@ -275,9 +275,62 @@ class EntrySplitTest < ActiveSupport::TestCase
     refute_includes visible_entries.pluck(:id), excluded_child.id
   end
 
-  test "split_once! splits an entry that is not yet split" do
-    assert @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ])
+  test "split_once! splits an entry that is not yet split and returns the parts" do
+    parts = @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ])
     assert_equal 2, @entry.reload.child_entries.count
+    assert_equal %w[A B], parts.map(&:name)
+  end
+
+  test "finish_user_created! treats each split part like a transaction a person created" do
+    merchant = @entry.account.family.merchants.create!(name: "Finish merchant", type: "FamilyMerchant")
+    parts = @entry.split_once!([
+      { name: "A", amount: 60, category_id: categories(:food_and_drink).id, merchant_id: merchant.id, tag_ids: [ tags(:one).id ] },
+      { name: "B", amount: 40 }
+    ])
+    Rule.expects(:apply_immediately_later).with(@entry.account.family, parts.map(&:entryable_id)).once
+
+    Entry.finish_user_created!(parts)
+
+    tagged, plain = parts.map(&:reload)
+    assert_includes tagged.locked_attributes.keys, "name"
+    assert_equal %w[category_id merchant_id tag_ids], (tagged.transaction.locked_attributes.keys & %w[category_id kind merchant_id tag_ids]).sort
+    assert_not plain.transaction.locked?(:tag_ids)
+    assert parts.all?(&:user_modified?)
+  end
+
+  test "finish_user_created! doesn't lock what a part took from its parent" do
+    parent_merchant = @entry.account.family.merchants.create!(name: "Parent merchant", type: "FamilyMerchant")
+    @entry.transaction.update!(merchant: parent_merchant, kind: "one_time")
+    parts = @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ])
+
+    Entry.finish_user_created!(parts)
+
+    part = parts.first.reload
+    assert_equal parent_merchant, part.transaction.merchant
+    assert_equal "one_time", part.transaction.kind
+    assert_not part.transaction.locked?(:merchant_id)
+    assert_not part.transaction.locked?(:kind)
+    assert_not part.locked?(:date)
+    assert part.locked?(:name)
+    assert part.locked?(:amount)
+  end
+
+  test "a block given to split_once! runs inside the split, so its failure undoes the split" do
+    assert_raises(ActiveRecord::RecordInvalid) do
+      @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ]) { raise ActiveRecord::RecordInvalid }
+    end
+
+    assert_not @entry.reload.split_parent?
+    assert_not @entry.excluded?
+  end
+
+  test "finish_user_created! leaves user_modified alone when asked to" do
+    parts = @entry.split_once!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ])
+
+    Entry.finish_user_created!(parts, user_modified: false)
+
+    assert parts.map(&:reload).none?(&:user_modified?)
+    assert parts.all? { |part| part.locked?(:name) }
   end
 
   test "split_once! skips an entry another caller split in the meantime" do

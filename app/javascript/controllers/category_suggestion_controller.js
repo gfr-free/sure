@@ -41,6 +41,9 @@ export default class extends Controller {
     if (!value || value !== display) return
     if (value === this.lastPickedName) return
     this.lastPickedName = value
+    // A pick sets the value without a native "change"; announce it so a form that
+    // saves on change (the transaction drawer) saves the picked name.
+    if (this.hasNameTarget) this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
 
     const option = event.target.querySelector(`[role="option"][data-value="${CSS.escape(value)}"]`)
     const categoryId = option?.querySelector("[data-category-id]")?.dataset.categoryId

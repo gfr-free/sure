@@ -2728,8 +2728,9 @@ end
     end
 
     assert_equal rule_fields.sort, seen.sort
-    # Leaving the name field untouched must not send its stale value either.
-    assert_select "input[name='entry[name]'][data-autosubmit-trigger-event=change]"
+    # Leaving the name field untouched must not send its stale value either:
+    # the name combobox saves on "change", which a pick also dispatches.
+    assert_select "form:has(input[name='entry[name]']) input[role=combobox][data-auto-submit-form-target=auto][data-autosubmit-trigger-event=change]"
   end
 
   test "does not offer guests to create a rule through a transaction update" do

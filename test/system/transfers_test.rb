@@ -27,6 +27,54 @@ class TransfersTest < ApplicationSystemTestCase
     end
   end
 
+  test "enter in an account search picks the match instead of submitting the form" do
+    click_on "New transaction"
+    click_on "Transfer"
+    assert_text "New transfer"
+
+    select_ds("From", accounts(:depository))
+    fill_in "transfer[amount]", with: 500
+    fill_in "Date", with: Date.current
+
+    to_container = find("label", exact_text: "To").ancestor("div.relative")
+    to_container.find("button").click
+    search = to_container.find("input[type='search']", visible: true)
+    search.set(accounts(:credit_card).name)
+
+    assert_no_difference "Transfer.count" do
+      search.send_keys(:enter)
+
+      assert_selector "[role='option'][data-value='#{accounts(:credit_card).id}'][aria-selected='true']", visible: :all
+      assert_text "New transfer"
+    end
+
+    assert_equal accounts(:credit_card).id, find("input[name='transfer[to_account_id]']", visible: :all).value
+  end
+
+  test "enter in an account search prefers the exact name over the first visible match" do
+    exact = @user.family.accounts.create!(name: "Zéd", balance: 0, currency: "USD", accountable: Depository.new)
+    @user.family.accounts.create!(name: "Zed Extra", balance: 0, currency: "USD", accountable: Depository.new)
+
+    click_on "New transaction"
+    click_on "Transfer"
+    assert_text "New transfer"
+
+    to_container = find("label", exact_text: "To").ancestor("div.relative")
+    to_container.find("button").click
+
+    # Put the exact match last so "first visible option" cannot pass by luck.
+    page.execute_script(<<~JS, exact.id)
+      const option = document.querySelector(`[role='option'][data-value='${arguments[0]}']`)
+      option.parentElement.append(option)
+    JS
+
+    search = to_container.find("input[type='search']", visible: true)
+    search.set("zed")
+    search.send_keys(:enter)
+
+    assert_selector "[role='option'][data-value='#{exact.id}'][aria-selected='true']", visible: :all
+  end
+
   test "shows exchange rate field for different currencies" do
     # Create an account with a different currency
     eur_account = @user.family.accounts.create!(

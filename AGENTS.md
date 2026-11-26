@@ -27,6 +27,7 @@ When touching ERB, view components or CSS, follow the [design system guide](docs
 - Use functional tokens from `app/assets/tailwind/sure-design-system.css`, such as `bg-container`, `text-primary`, `border-primary`, `bg-warning/10` and `text-destructive`. No raw Tailwind palette classes or hex literals.
 - Check `app/components/DS/` first for alerts, badges, buttons, disclosures, dialogs and inputs. Use existing `DS::*` primitives.
 - If the same hand-built shape appears at least twice in a diff with no DS equivalent, propose a new `DS::*` primitive before the second copy lands.
+- Amounts use `form.money_field` and other decimals `form.decimal_field`, never `number_field`, which drops a comma decimal; only whole numbers may be number inputs (`test/architecture/no_number_inputs_test.rb`).
 - Use the `icon` helper, never `lucide_icon` directly; no raw SVG outside DS primitives. Use `t()` for user-facing strings and scale tokens instead of arbitrary pixel values when a scale token fits.
 - Adding styles to `app/assets/tailwind/sure-design-system.css` or `app/assets/tailwind/application.css` requires explicit permission.
 - Reviewers escalate DS reuse and repeated-shape violations to close/rewrite; token and icon/SVG/localization/scale violations are request-changes.

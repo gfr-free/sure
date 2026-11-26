@@ -271,8 +271,10 @@ export default class extends Controller {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
       if (visibleOptions.length === 0) return
       event.preventDefault()
-      const targetIndex = event.key === "ArrowDown" ? 0 : visibleOptions.length - 1
-      this.focusOption(visibleOptions[targetIndex])
+      // ArrowDown starts at the first row the search found, not at a parent
+      // that list-filter shows only for context.
+      const firstFound = visibleOptions.find(opt => !opt.hasAttribute("data-filter-context")) ?? visibleOptions[0]
+      this.focusOption(event.key === "ArrowDown" ? firstFound : visibleOptions[visibleOptions.length - 1])
       return
     }
 

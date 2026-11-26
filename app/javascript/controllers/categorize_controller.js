@@ -36,13 +36,14 @@ export default class extends Controller {
 
     event.preventDefault();
 
-    const visible = Array.from(
+    // A parent shown only as context for the subcategory found doesn't count.
+    const found = Array.from(
       this.listTarget.querySelectorAll(".filterable-item")
-    ).filter((el) => el.style.display !== "none");
+    ).filter((el) => el.style.display !== "none" && !el.hasAttribute("data-filter-context"));
 
-    if (visible.length !== 1) return;
+    if (found.length !== 1) return;
 
-    visible[0].click();
+    found[0].click();
   }
 
   clearFilter(event) {

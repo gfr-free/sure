@@ -2,9 +2,11 @@ import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
   exactName,
+  expandTreeMatches,
   matchesSearch,
   namesExactly,
   primarySearchName,
+  treeRow,
 } from "utils/search_match";
 
 export default class extends Controller {
@@ -79,15 +81,23 @@ export default class extends Controller {
     let exactMatch = false;
     let anyVisible = false;
 
-    this.optionTargets.forEach((option) => {
-      const matches = matchesSearch(option, rawQuery);
-
-      option.classList.toggle("hidden", !matches);
-      if (matches) anyVisible = true;
-
+    const options = this.optionTargets;
+    const rows = options.map((option) => {
       // Either the shown or the stored name typed exactly means the category
       // exists, so creating it again is not offered.
       if (namesExactly(option, rawQuery)) exactMatch = true;
+      return treeRow(option, matchesSearch(option, rawQuery));
+    });
+
+    // A match on a category also shows its subcategories, and a match on a
+    // subcategory also shows its parent (expandTreeMatches).
+    expandTreeMatches(rows).forEach((visible, index) => {
+      options[index].classList.toggle("hidden", !visible);
+      options[index].toggleAttribute(
+        "data-filter-context",
+        visible && !rows[index].direct,
+      );
+      if (visible) anyVisible = true;
     });
 
     const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
@@ -145,7 +155,8 @@ export default class extends Controller {
         (option) => exactName(primarySearchName(option)) === query,
       ) ??
       visible.find((option) => namesExactly(option, rawQuery)) ??
-      visible[0];
+      // Not a parent shown only as context above the subcategory found.
+      visible.find((option) => !option.hasAttribute("data-filter-context"));
     if (!match) return;
 
     this.selectOption(match);

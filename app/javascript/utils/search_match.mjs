@@ -97,3 +97,44 @@ export function namesExactly(element, rawQuery) {
 
   return searchNames(element).some((name) => exactName(name) === query);
 }
+
+// Widens matches to a two-level tree (categories and their subcategories).
+// Each row is { id, parentId, direct }, where `direct` says whether the row
+// matched by its own names (matchesSearch). A row stays visible when it
+// matched itself, when its parent matched (searching "Car" keeps "Fuel"
+// under "Car"), or when one of its children matched (searching "Fuel" keeps
+// "Car" above it for context). Rows without an id or parentId only ever
+// match directly.
+//
+// With wholeGroups, a matching subcategory shows its whole group (parent and
+// siblings). Checkbox lists need that: checking a parent there checks all of
+// its subcategories, so none of them may be hidden while the parent shows.
+export function expandTreeMatches(rows, { wholeGroups = false } = {}) {
+  const matchedIds = new Set();
+  const parentsOfMatches = new Set();
+
+  for (const row of rows) {
+    if (!row.direct) continue;
+    if (row.id) matchedIds.add(row.id);
+    if (row.parentId) {
+      parentsOfMatches.add(row.parentId);
+      if (wholeGroups) matchedIds.add(row.parentId);
+    }
+  }
+
+  return rows.map(
+    (row) =>
+      row.direct ||
+      Boolean(row.parentId && matchedIds.has(row.parentId)) ||
+      Boolean(row.id && parentsOfMatches.has(row.id)),
+  );
+}
+
+// The tree position of a row rendered with CategoriesHelper#category_search_data.
+export function treeRow(element, direct) {
+  return {
+    id: element.dataset.filterId,
+    parentId: element.dataset.filterParentId,
+    direct,
+  };
+}

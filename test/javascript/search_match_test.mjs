@@ -1,14 +1,16 @@
-import { describe, it } from "node:test"
+import test, { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
   exactName,
+  expandTreeMatches,
   hasSearchQuery,
   matchesSearch,
   namesExactly,
   normalizeSearchText,
   primarySearchName,
   searchNames,
+  treeRow,
 } from "../../app/javascript/utils/search_match.mjs"
 
 // A picker row as CategoriesHelper#category_search_data renders it: the
@@ -100,3 +102,53 @@ describe("hasSearchQuery", () => {
     assert.equal(hasSearchQuery("a"), true)
   })
 })
+
+
+const rows = (directIds) => [
+  { id: "car", parentId: undefined, direct: directIds.includes("car") },
+  { id: "fuel", parentId: "car", direct: directIds.includes("fuel") },
+  { id: "repairs", parentId: "car", direct: directIds.includes("repairs") },
+  { id: "food", parentId: undefined, direct: directIds.includes("food") },
+  { id: "groceries", parentId: "food", direct: directIds.includes("groceries") },
+];
+
+test("a matching parent keeps all of its subcategories visible", () => {
+  assert.deepEqual(expandTreeMatches(rows(["car"])), [true, true, true, false, false]);
+});
+
+test("a matching subcategory keeps its parent visible but not its siblings", () => {
+  assert.deepEqual(expandTreeMatches(rows(["fuel"])), [true, true, false, false, false]);
+});
+
+test("matches in different groups expand independently", () => {
+  assert.deepEqual(expandTreeMatches(rows(["car", "groceries"])), [true, true, true, true, true]);
+});
+
+test("no match hides everything", () => {
+  assert.deepEqual(expandTreeMatches(rows([])), [false, false, false, false, false]);
+});
+
+test("rows without ids only match on their own text", () => {
+  const flat = [
+    { id: undefined, parentId: undefined, direct: true },
+    { id: "", parentId: "", direct: false },
+  ];
+  assert.deepEqual(expandTreeMatches(flat), [true, false]);
+});
+
+test("a subcategory whose parent is not in the list still matches on its own", () => {
+  const orphan = [{ id: "fuel", parentId: "car", direct: true }];
+  assert.deepEqual(expandTreeMatches(orphan), [true]);
+});
+
+test("wholeGroups shows a matching subcategory's parent and siblings", () => {
+  assert.deepEqual(
+    expandTreeMatches(rows(["fuel"]), { wholeGroups: true }),
+    [true, true, true, false, false],
+  );
+});
+
+test("treeRow reads the id and parent id category_search_data renders", () => {
+  const element = { dataset: { filterId: "fuel", filterParentId: "car" } };
+  assert.deepEqual(treeRow(element, true), { id: "fuel", parentId: "car", direct: true });
+});

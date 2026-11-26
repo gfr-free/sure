@@ -139,12 +139,8 @@ describe("enterMatch", () => {
     assert.equal(enterMatch([zedExtra, zed], "zed"), zed)
   })
 
-  it("then the only visible row", () => {
-    assert.equal(enterMatch([zedExtra], "ze"), zedExtra)
-  })
-
-  it("picks nothing among several rows without the typed name", () => {
-    assert.equal(enterMatch([zedExtra, zed], "ze"), null)
+  it("then the first visible row", () => {
+    assert.equal(enterMatch([zedExtra, zed], "ze"), zedExtra)
   })
 
   it("matches a stored name too", () => {

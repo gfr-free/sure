@@ -102,9 +102,7 @@ export function namesExactly(element, rawQuery) {
 // 1. Enter never submits the surrounding form (callers preventDefault).
 // 2. While a "create" row shows, Enter creates (callers check that first).
 // 3. Otherwise it picks enterMatch: the exact name, else the name that is
-//    equal once accents and case are folded, else the only visible row.
-//    With several rows and none of them the typed name, Enter picks nothing:
-//    a silent wrong pick costs more than a second key press.
+//    equal once accents and case are folded, else the first visible row.
 // 4. An empty search picks nothing.
 // The Enter that ends an IME composition only commits the characters;
 // Safari reports it with keyCode 229 and isComposing already false.
@@ -121,6 +119,7 @@ export function enterMatch(visibleRows, rawQuery) {
     visibleRows.find((row) =>
       searchNames(row).some((name) => normalizeSearchText(name).trim() === folded),
     ) ??
-    (visibleRows.length === 1 ? visibleRows[0] : null)
+    visibleRows[0] ??
+    null
   );
 }

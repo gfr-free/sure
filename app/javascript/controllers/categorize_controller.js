@@ -30,9 +30,9 @@ export default class extends Controller {
     clearTimeout(this._previewTimer);
   }
 
-  // The shared Enter rule (utils/search_match): the typed name or the only
-  // visible category. With nothing typed, a single category is still picked,
-  // so a family with one category can confirm it with Enter.
+  // The shared Enter rule (utils/search_match): the typed name, else the
+  // first visible category. With nothing typed, only a single category is
+  // picked, so a family with one category can confirm it with Enter.
   selectFirst(event) {
     if (!isConfirmingEnter(event)) return;
 

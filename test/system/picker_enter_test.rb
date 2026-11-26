@@ -1,8 +1,8 @@
 require "application_system_test_case"
 
 # The shared Enter rule (utils/search_match) for every picker: Enter in the
-# search box never submits the form, picks the exact name, else the only
-# visible row, and otherwise picks nothing.
+# search box never submits the form, picks the exact name, else the first
+# visible row.
 class PickerEnterTest < ApplicationSystemTestCase
   include EntriesTestHelper
 
@@ -36,7 +36,7 @@ class PickerEnterTest < ApplicationSystemTestCase
     assert_empty @entry.entryable.reload.tags
   end
 
-  test "Enter in a searchable select picks the only match" do
+  test "Enter in a searchable select picks the typed category" do
     open_bulk_edit
     within "#bulk_transaction_edit_drawer" do
       find("[data-select-target='button']", match: :first).click
@@ -47,16 +47,20 @@ class PickerEnterTest < ApplicationSystemTestCase
     assert_nil @entry.entryable.reload.category
   end
 
-  test "Enter in a search with several matches picks nothing and submits nothing" do
+  test "Enter in a search with several matches picks the first and submits nothing" do
     open_bulk_edit
     within "#bulk_transaction_edit_drawer" do
       find("[data-select-target='button']", match: :first).click
+      search = find("input[data-list-filter-target='input']")
       # "Food & Drink" and "Income" both match.
-      find("input[data-list-filter-target='input']").fill_in(with: "o").send_keys(:enter)
+      search.fill_in(with: "o")
+      first_value = first("[data-select-target='content'] [role='option']")["data-value"]
+      search.send_keys(:enter)
 
-      assert_equal "", find("input[name='bulk_update[category_id]']", visible: :all).value
+      assert_equal first_value, find("input[name='bulk_update[category_id]']", visible: :all).value
       assert_selector "input[name='bulk_update[name]']"
     end
+    assert_nil @entry.entryable.reload.category
   end
 
   test "Enter in the merchant merge search checks the match instead of merging" do

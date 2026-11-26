@@ -799,12 +799,18 @@ class Family < ApplicationRecord
   end
 
   # Merchant names are matched by the transaction search text and merchant
-  # filter. Renaming a merchant, or deleting one (which nullifies
-  # transactions.merchant_id with update_all), changes those results without
-  # touching any entry.
+  # filter. Renaming a merchant changes those results without touching any
+  # entry, and merging, deduplicating or deleting one moves
+  # transactions.merchant_id with update_all. The hash over every
+  # (transaction, merchant) pair catches a move between merchants that are
+  # both still in use; the latest merchant update catches a rename.
   def transaction_merchants_version
-    scope = Merchant.where(id: transactions.where.not(merchant_id: nil).select(:merchant_id))
-    "#{scope.count}-#{scope.maximum(:updated_at)&.to_f || 0}"
+    count, pairs_hash, merchants_max_at = transactions.joins(:merchant).pick(
+      Arel.sql("count(*)"),
+      Arel.sql("sum(hashtext(transactions.id::text || ':' || transactions.merchant_id::text)::bigint)"),
+      Arel.sql('max("merchants"."updated_at")')
+    )
+    "#{count}-#{pairs_hash || 0}-#{merchants_max_at&.to_f || 0}"
   end
 
   def self_hoster?

@@ -716,6 +716,35 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal 0, Transaction::Search.new(@family.reload, filters: { search: "amazon" }).totals.count
   end
 
+  # Merging or deduplicating merchants moves transactions with update_all,
+  # touching no entry; the set of merchants in use can stay the same.
+  test "cached totals for a text search follow a transaction moved between merchants" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    source = @family.merchants.create!(name: "Amazon Marketplace", type: "FamilyMerchant")
+    target = @family.merchants.create!(name: "Online shop", type: "FamilyMerchant")
+    moved = create_transaction(account: @checking_account, amount: 20, name: "Order 1", merchant: source)
+    create_transaction(account: @checking_account, amount: 20, name: "Order 2", merchant: source)
+    create_transaction(account: @checking_account, amount: 20, name: "Order 3", merchant: target)
+
+    assert_equal 2, Transaction::Search.new(@family, filters: { search: "marketplace" }).totals.count
+
+    Transaction.where(id: moved.entryable_id).update_all(merchant_id: target.id)
+
+    assert_equal 1, Transaction::Search.new(@family.reload, filters: { search: "marketplace" }).totals.count
+  end
+
+  # Tagging writes no entry, so the tag filter needs its own cache version.
+  test "cached totals for a tag filter follow a tag removed from a transaction" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    tagged = create_transaction(account: @checking_account, amount: 20, name: "Trip", tags: [ tags(:one) ])
+
+    assert_equal 1, Transaction::Search.new(@family, filters: { tags: [ tags(:one).name ] }).totals.count
+
+    Tagging.where(taggable: tagged.entryable).delete_all
+
+    assert_equal 0, Transaction::Search.new(@family.reload, filters: { tags: [ tags(:one).name ] }).totals.count
+  end
+
   test "uncategorized filter works regardless of current locale since the filter value is a stable sentinel" do
     # The category filter now matches on the stable Category::UNCATEGORIZED_FILTER_VALUE sentinel
     # (not the translated display name), so the current locale can no longer affect matching.

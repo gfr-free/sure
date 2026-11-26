@@ -214,6 +214,26 @@ class Api::V1::TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil found_transaction, "Should find the coffee transaction"
   end
 
+  test "search matches every word against name, notes and merchant like the web list" do
+    entry = @account.entries.create!(
+      name: "Book order",
+      amount: 12,
+      currency: "USD",
+      date: Date.current,
+      entryable: Transaction.new(merchant: merchants(:amazon))
+    )
+
+    get api_v1_transactions_url, params: { search: "amazon book" }, headers: api_headers(@api_key)
+    assert_response :success
+    ids = JSON.parse(response.body)["transactions"].map { |t| t["id"] }
+    assert_includes ids, entry.transaction.id
+
+    get api_v1_transactions_url, params: { search: "amazon flight" }, headers: api_headers(@api_key)
+    assert_response :success
+    ids = JSON.parse(response.body)["transactions"].map { |t| t["id"] }
+    assert_not_includes ids, entry.transaction.id
+  end
+
   # The search term is interpolated into an ILIKE pattern, so "%" and "_" from
   # the caller act as wildcards instead of literals. Unescaped, a search for
   # "%" matches every transaction in the family rather than the ones that

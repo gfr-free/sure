@@ -75,14 +75,28 @@ export function matchesSearch(element, rawQuery) {
   });
 }
 
-// Whether the query names the row exactly, which decides whether "create"
-// is offered. Only case is ignored, so "Cafe" can still be created next to
-// "Café" even though the search shows both.
+// Whether a typed name is an existing one: exact but for case and Unicode
+// form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
+// still counts as the existing one. This decides whether "create" is offered.
+export function exactName(value) {
+  return String(value ?? "").trim().normalize("NFC").toLocaleLowerCase();
+}
+
 export function namesExactly(element, rawQuery) {
-  const query = String(rawQuery ?? "").trim().toLocaleLowerCase();
+  const query = exactName(rawQuery);
+  if (query.length === 0) return false;
+
+  return searchNames(element).some((name) => exactName(name) === query);
+}
+
+// Whether the query is one of the row's names typed without its accents
+// (or case), e.g. "cafe" for "Café". Enter picks such a row instead of
+// creating a near-duplicate.
+export function namesFolded(element, rawQuery) {
+  const query = normalizeSearchText(String(rawQuery ?? "").trim());
   if (query.length === 0) return false;
 
   return searchNames(element).some(
-    (name) => name.toLocaleLowerCase() === query,
+    (name) => normalizeSearchText(name) === query,
   );
 }

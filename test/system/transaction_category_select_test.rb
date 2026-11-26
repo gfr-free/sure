@@ -306,6 +306,34 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     assert_selector "[data-category-select-target='hiddenInput'][value='#{custom.id}']", visible: :all
   end
 
+  test "the category search ignores accents and case" do
+    @user.family.categories.create!(name: "Épicerie fine", color: "#e99537", lucide_icon: "shopping-basket")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "epicerie"
+
+      assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Épicerie fine"
+
+      # Finding ignores accents, but a name that differs only in them can
+      # still be created.
+      fill_in "Search categories", with: "Epicerie fine"
+
+      assert_selector "[data-category-select-target='createForm']", text: 'Create "Epicerie fine"'
+
+      # Enter on that name still picks the existing category; creating the
+      # near-duplicate takes a click.
+      assert_no_difference "Category.count" do
+        find_field("Search categories").send_keys(:enter)
+
+        assert_selector "[data-category-select-target='selectionContainer']", text: "Épicerie fine"
+      end
+    end
+  end
+
   private
     def active_element_attribute(name)
       page.evaluate_script("document.activeElement.getAttribute('#{name}')")

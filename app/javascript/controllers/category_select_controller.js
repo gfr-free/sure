@@ -1,8 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
+  exactName,
   matchesSearch,
   namesExactly,
+  namesFolded,
   primarySearchName,
 } from "utils/search_match";
 
@@ -123,28 +125,28 @@ export default class extends Controller {
       return;
     }
 
-    if (!this.createFormTarget.classList.contains("hidden")) {
+    const rawQuery = this.searchTarget.value.trim();
+    const visible = this.optionTargets.filter(
+      (option) => !option.classList.contains("hidden"),
+    );
+    // Two categories can show the same name (a default one translated, a
+    // custom one stored under that label), so the stored name wins; a name
+    // typed without its accents still picks that category.
+    const exact =
+      visible.find(
+        (option) => exactName(primarySearchName(option)) === exactName(rawQuery),
+      ) ?? visible.find((option) => namesExactly(option, rawQuery));
+    const folded = visible.find((option) => namesFolded(option, rawQuery));
+
+    if (!this.createFormTarget.classList.contains("hidden") && !folded) {
       if (!this.creating) this.createCategory();
       return;
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const query = this.searchTarget.value.trim();
-    if (!query) return;
+    if (!rawQuery) return;
 
-    const visible = this.optionTargets.filter(
-      (option) => !option.classList.contains("hidden"),
-    );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const match =
-      visible.find(
-        (option) =>
-          primarySearchName(option).toLocaleLowerCase() ===
-          query.toLocaleLowerCase(),
-      ) ??
-      visible.find((option) => namesExactly(option, query)) ??
-      visible[0];
+    const match = exact ?? folded ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);

@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import replaceUrl from "utils/replace_url";
+import { normalizeSearchText } from "utils/search_match";
 
 // Searches and filters the rules list in the browser, and folds rule groups.
 // Each rule row carries its search text and filter values as data-rule-*
@@ -239,12 +240,9 @@ export default class extends Controller {
     }
   }
 
-  // Case- and diacritic-insensitive, as in list_filter_controller.
+  // Case- and diacritic-insensitive, like every picker search.
   #normalize(value) {
-    return value
-      .normalize("NFD")
-      .replace(/\p{Mark}/gu, "")
-      .toLowerCase();
+    return normalizeSearchText(value);
   }
 
   // Debounced so a typing burst updates the URL once.

@@ -324,13 +324,15 @@ export default class extends Controller {
     }
   }
 
-  // Exact label match first, otherwise the first visible option. An empty
-  // query picks nothing, so Enter on an untouched search is a no-op.
+  // Exact label match first, otherwise the first row the search found. A row
+  // marked data-filter-context is only shown around a hit (e.g. a parent
+  // category) and is never the Enter target. An empty query picks nothing.
   selectSearchMatch(rawQuery, visibleOptions) {
     const query = this.#normalizeForSearch(rawQuery).trim()
     if (!query) return
 
-    const match = visibleOptions.find(opt => this.#normalizeForSearch(opt.dataset.filterName || "").trim() === query) ?? visibleOptions[0]
+    const hits = visibleOptions.filter(opt => !opt.hasAttribute("data-filter-context"))
+    const match = hits.find(opt => this.#normalizeForSearch(opt.dataset.filterName || "").trim() === query) ?? hits[0]
     match?.click()
   }
 

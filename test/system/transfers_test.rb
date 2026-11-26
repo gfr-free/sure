@@ -63,16 +63,36 @@ class TransfersTest < ApplicationSystemTestCase
     to_container.find("button").click
 
     # Put the exact match last so "first visible option" cannot pass by luck.
-    page.execute_script(<<~JS, exact.id)
-      const option = document.querySelector(`[role='option'][data-value='${arguments[0]}']`)
-      option.parentElement.append(option)
-    JS
+    exact_option = to_container.find("[role='option'][data-value='#{exact.id}']", visible: :all)
+    page.execute_script("arguments[0].parentElement.append(arguments[0])", exact_option)
 
     search = to_container.find("input[type='search']", visible: true)
     search.set("zed")
     search.send_keys(:enter)
 
-    assert_selector "[role='option'][data-value='#{exact.id}'][aria-selected='true']", visible: :all
+    assert_equal exact.id, find("input[name='transfer[to_account_id]']", visible: :all).value
+  end
+
+  test "enter in an account search skips rows shown only for context" do
+    click_on "New transaction"
+    click_on "Transfer"
+    assert_text "New transfer"
+
+    to_container = find("label", exact_text: "To").ancestor("div.relative")
+    to_container.find("button").click
+    search = to_container.find("input[type='search']", visible: true)
+    search.set(accounts(:credit_card).name)
+
+    # Mark the only hit as a context row (as a category search does for a
+    # parent shown above its matching subcategory): Enter must not pick it.
+    option = to_container.find("[role='option'][data-value='#{accounts(:credit_card).id}']", visible: true)
+    page.execute_script("arguments[0].setAttribute('data-filter-context', '')", option)
+
+    assert_no_difference "Transfer.count" do
+      search.send_keys(:enter)
+      assert_text "New transfer"
+    end
+    assert_equal "", find("input[name='transfer[to_account_id]']", visible: :all).value
   end
 
   test "shows exchange rate field for different currencies" do

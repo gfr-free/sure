@@ -187,9 +187,7 @@ class Assistant::Function::CreateTransaction < Assistant::Function
       return error("validation_failed", entry.errors.full_messages.join("; "))
     end
 
-    entry.lock_saved_attributes!
-    entry.transaction.lock_attr!(:tag_ids) if entry.transaction.tags.any?
-    entry.mark_user_modified! if user_modified?(params)
+    entry.finish_user_created!(user_modified: user_modified?(params))
 
     # Post-commit account sync is best-effort. entry.save has ALREADY committed
     # the transaction, so a failure to enqueue the balance-sync job (e.g. an
@@ -202,8 +200,6 @@ class Assistant::Function::CreateTransaction < Assistant::Function
     rescue StandardError => e
       sync_warning = "Transaction created, but the post-create account sync could not be enqueued (#{e.class}). The balance will recalculate on the next sync."
     end
-
-    entry.apply_immediate_rules_later
 
     transaction = entry.transaction
     response = {

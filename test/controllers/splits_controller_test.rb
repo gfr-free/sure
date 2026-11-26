@@ -286,6 +286,58 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 3, @entry.child_entries.count
   end
 
+  test "rules keep the names and categories the person gave split parts" do
+    post transaction_split_path(@entry), params: { split: { splits: [
+      { name: "Groceries", amount: "-70", category_id: categories(:food_and_drink).id },
+      { name: "Household", amount: "-30", category_id: "" }
+    ] } }
+    assert_split_parts_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Groceries Household])
+
+    patch transaction_split_path(@entry), params: { split: { splits: [
+      { name: "Food", amount: "-60", category_id: categories(:food_and_drink).id },
+      { name: "Other", amount: "-40", category_id: "" }
+    ] } }
+    assert_split_parts_survive_rules(@entry, expected_categories: [ categories(:food_and_drink), categories(:income) ],
+                                             expected_names: %w[Food Other])
+  end
+
+  test "a split part ends up like the same input in the new transaction form" do
+    create_split_contract_rule(@user.family)
+    merchant = @user.family.merchants.create!(name: "Contract merchant", type: "FamilyMerchant")
+    row = { category_id: categories(:food_and_drink).id, merchant_id: merchant.id, tag_ids: [ tags(:one).id ] }
+
+    post transactions_url, params: { entry: {
+      account_id: @entry.account_id, name: "Contract row", date: @entry.date, currency: @entry.currency,
+      amount: 70, nature: "outflow", entryable_type: "Transaction", entryable_attributes: row
+    } }
+    created = @entry.account.entries.find_by!(name: "Contract row", parent_entry_id: nil)
+
+    post transaction_split_path(@entry), params: { split: { splits: [
+      { name: "Contract row", amount: "-70", **row },
+      { name: "Rest", amount: "-30" }
+    ] } }
+    part = @entry.child_entries.find_by!(name: "Contract row")
+
+    assert_finished_like created, part
+    assert part.user_modified?
+  end
+
+  test "editing a split finishes the new parts like new transactions" do
+    create_split_contract_rule(@user.family)
+    @entry.split!([ { name: "Old A", amount: 50 }, { name: "Old B", amount: 50 } ])
+
+    patch transaction_split_path(@entry), params: { split: { splits: [
+      { name: "Contract row", amount: "-70", category_id: categories(:food_and_drink).id, tag_ids: [ tags(:one).id ] },
+      { name: "Rest", amount: "-30" }
+    ] } }
+    part = @entry.child_entries.find_by!(name: "Contract row")
+
+    assert_equal({ entry: %w[amount name], transaction: %w[category_id tag_ids] }, split_contract_locks(part))
+    assert part.user_modified?
+    assert_immediate_rules_enqueued_for part
+  end
+
   test "update with mismatched amounts rejects" do
     @entry.split!([
       { name: "Part 1", amount: 60, category_id: nil },

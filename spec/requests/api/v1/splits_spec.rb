@@ -103,7 +103,10 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
       security [ { apiKeyAuth: [] } ]
       description 'Splits a transaction into child transactions. The child amounts must sum ' \
                   'exactly to the parent amount, using the same sign convention the ' \
-                  'transaction endpoints return. The parent becomes excluded from totals.'
+                  'transaction endpoints return. The parent becomes excluded from totals. ' \
+                  'Each child is finished like a transaction created with POST /transactions: ' \
+                  'the values it was given are locked against rules and syncs, and rules set ' \
+                  'to apply immediately run for it.'
       consumes 'application/json'
       produces 'application/json'
       parameter name: :split, in: :body, schema: { '$ref' => '#/components/schemas/SplitRequest' }
@@ -144,7 +147,8 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
       description 'Replaces the children of an existing split. The previous children are ' \
                   'destroyed, so anything set on them afterwards is not carried over. Send ' \
                   'each child in full, including its merchant_id and tag_ids. A child without a ' \
-                  'merchant_id takes the parent\'s merchant.'
+                  'merchant_id takes the parent\'s merchant. The new children are locked and ' \
+                  'run immediate rules as on create.'
       consumes 'application/json'
       produces 'application/json'
       parameter name: :split, in: :body, schema: { '$ref' => '#/components/schemas/SplitRequest' }

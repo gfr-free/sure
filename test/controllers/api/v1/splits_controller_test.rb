@@ -143,6 +143,47 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @entry.amount, @entry.child_entries.sum(:amount)
   end
 
+  test "rules keep the names and categories the person gave split parts" do
+    category = categories(:food_and_drink)
+    body = ->(chosen, open) do
+      { split: { splits: [
+        { name: "Categorised", amount: chosen.to_s, category_id: category.id },
+        { name: "Plain", amount: open.to_s }
+      ] } }
+    end
+
+    post api_v1_transaction_split_url(@transaction), params: body.call(70, 30), headers: api_headers(@api_key), as: :json
+    assert_response :created
+    assert_split_parts_survive_rules(@entry, expected_categories: [ category, categories(:income) ], expected_names: %w[Categorised Plain])
+
+    patch api_v1_transaction_split_url(@transaction), params: body.call(60, 40), headers: api_headers(@api_key), as: :json
+    assert_response :success
+    assert_split_parts_survive_rules(@entry, expected_categories: [ category, categories(:income) ], expected_names: %w[Categorised Plain])
+  end
+
+  test "a split part ends up like the same input in POST /transactions" do
+    create_split_contract_rule(@family)
+    merchant = @family.merchants.create!(name: "Contract merchant", type: "FamilyMerchant")
+    row = { category_id: categories(:food_and_drink).id, merchant_id: merchant.id, tag_ids: [ tags(:one).id ] }
+
+    post api_v1_transactions_url, params: { transaction: {
+      account_id: @account.id, name: "Contract row", date: @entry.date, currency: @entry.currency,
+      amount: 70, nature: "expense", **row
+    } }, headers: api_headers(@api_key)
+    assert_response :created
+    created = Entry.find_by!(entryable_id: JSON.parse(response.body)["id"])
+
+    post api_v1_transaction_split_url(@transaction), params: { split: { splits: [
+      { name: "Contract row", amount: "70", **row },
+      { name: "Rest", amount: "30" }
+    ] } }, headers: api_headers(@api_key), as: :json
+    assert_response :created
+    part = @entry.child_entries.find_by!(name: "Contract row")
+
+    assert_finished_like created, part
+    assert_not part.user_modified?, "the API leaves user_modified to the request, for creates and splits alike"
+  end
+
   test "returns 404 updating a transaction that is not split" do
     patch api_v1_transaction_split_url(@transaction), params: halves, headers: api_headers(@api_key), as: :json
     assert_response :not_found

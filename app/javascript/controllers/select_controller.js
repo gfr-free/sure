@@ -272,7 +272,7 @@ export default class extends Controller {
       // with isComposing === false.
       if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) {
         // The search box sits inside the surrounding form, so Enter must never
-        // fall through and submit it. Pick the match like DS::CategorySelect.
+        // fall through and submit it.
         event.preventDefault()
         this.selectSearchMatch(event.target.value, visibleOptions)
         return
@@ -324,20 +324,33 @@ export default class extends Controller {
     }
   }
 
-  // Exact label match first, otherwise the first row the search found. A row
-  // marked data-filter-context is only shown around a hit (e.g. a parent
-  // category) and is never the Enter target. An empty query picks nothing.
+  // Enter picks, in order: the exact label (case and Unicode form only), the
+  // label that is equal once accents are folded, else the first row the
+  // search found. Folding only breaks ties after the exact check, so "cafe"
+  // picks "Cafe" even when "Café" is listed first. A row marked
+  // data-filter-context is only shown around a hit (e.g. a parent category)
+  // and is never the target. An empty query picks nothing.
   selectSearchMatch(rawQuery, visibleOptions) {
-    const query = this.#normalizeForSearch(rawQuery).trim()
-    if (!query) return
+    const query = rawQuery.trim()
+    if (!this.#normalizeForSearch(query)) return
 
     const hits = visibleOptions.filter(opt => !opt.hasAttribute("data-filter-context"))
-    const match = hits.find(opt => this.#normalizeForSearch(opt.dataset.filterName || "").trim() === query) ?? hits[0]
+    const label = opt => (opt.dataset.filterName || "").trim()
+    const exact = this.#exactName(query)
+    const folded = this.#normalizeForSearch(query)
+
+    const match = hits.find(opt => this.#exactName(label(opt)) === exact) ??
+      hits.find(opt => this.#normalizeForSearch(label(opt)) === folded) ??
+      hits[0]
     match?.click()
   }
 
+  #exactName(value) {
+    return value.normalize("NFC").toLocaleLowerCase()
+  }
+
   // Same folding as list-filter#normalize, so an option the search shows
-  // also counts as its exact match (accents, "_" as space, case).
+  // can count as its folded match (accents, "_" as space, case).
   #normalizeForSearch(value) {
     return value.normalize("NFD").replace(/\p{Mark}/gu, "").replaceAll("_", " ").toLowerCase()
   }

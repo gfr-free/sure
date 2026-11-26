@@ -17,8 +17,8 @@ class TransactionsCategorizeSearchTest < ApplicationSystemTestCase
     filter.fill_in with: "Restaur"
 
     within "[data-categorize-target='list']" do
-      assert_selector ".filterable-item", text: categories(:food_and_drink).name
-      assert_selector ".filterable-item", text: subcategory.name
+      assert_selector ".filterable-item[data-filter-id='#{categories(:food_and_drink).id}'][data-filter-context]"
+      assert_selector ".filterable-item[data-filter-id='#{subcategory.id}']:not([data-filter-context])"
     end
 
     filter.send_keys(:enter)

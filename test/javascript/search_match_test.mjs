@@ -4,7 +4,9 @@ import assert from "node:assert/strict"
 import {
   exactName,
   expandTreeMatches,
+  firstSearchHit,
   hasSearchQuery,
+  isSearchHit,
   matchesSearch,
   namesExactly,
   normalizeSearchText,
@@ -151,4 +153,14 @@ test("wholeGroups shows a matching subcategory's parent and siblings", () => {
 test("treeRow reads the id and parent id category_search_data renders", () => {
   const element = { dataset: { filterId: "fuel", filterParentId: "car" } };
   assert.deepEqual(treeRow(element, true), { id: "fuel", parentId: "car", direct: true });
+});
+
+test("rows marked data-filter-context are not search hits", () => {
+  const el = (context) => ({ hasAttribute: (name) => context && name === "data-filter-context" });
+  const parent = el(true);
+  const child = el(false);
+  assert.equal(isSearchHit(parent), false);
+  assert.equal(isSearchHit(child), true);
+  assert.equal(firstSearchHit([parent, child]), child);
+  assert.equal(firstSearchHit([parent]), undefined);
 });

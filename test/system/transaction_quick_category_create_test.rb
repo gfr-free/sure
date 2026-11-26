@@ -242,6 +242,21 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     assert_equal subcategory.id, @entry.entryable.reload.category_id
   end
 
+  test "ArrowUp from the quick picker search also starts at the subcategory found" do
+    subcategory = categories(:subcategory)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      search = find("input[type='search']")
+      search.fill_in with: "Restaur"
+      assert_selector "[role='option']", text: categories(:food_and_drink).name
+
+      search.send_keys(:up)
+      assert_selector "input[type='search'][aria-activedescendant='#{dom_id(subcategory, 'category_option')}']"
+    end
+  end
+
   test "arrow keys in the quick picker skip the Recent section hidden while searching" do
     recent = categories(:subcategory)
     recent.update!(last_used_at: 1.day.ago)

@@ -32,7 +32,7 @@ class TransactionsBulkCategorySearchTest < ApplicationSystemTestCase
         search.send_keys(:down, :enter)
       end
 
-      assert_equal subcategory.id, find("input[name='bulk_update[category_id]']", visible: :all).value
+      assert_selector "input[name='bulk_update[category_id]'][value='#{subcategory.id}']", visible: :all
     end
   end
 end

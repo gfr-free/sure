@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
+import { isSearchHit } from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -39,7 +40,7 @@ export default class extends Controller {
     // A parent shown only as context for the subcategory found doesn't count.
     const found = Array.from(
       this.listTarget.querySelectorAll(".filterable-item")
-    ).filter((el) => el.style.display !== "none" && !el.hasAttribute("data-filter-context"));
+    ).filter((el) => el.style.display !== "none" && isSearchHit(el));
 
     if (found.length !== 1) return;
 

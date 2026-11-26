@@ -138,3 +138,14 @@ export function treeRow(element, direct) {
     direct,
   };
 }
+
+// Rows a search actually found, as opposed to a parent the tree rule shows
+// only for context (list-filter and category-select mark those with
+// data-filter-context). Keyboard selection and Enter start at a found row.
+export function isSearchHit(element) {
+  return !element.hasAttribute("data-filter-context");
+}
+
+export function firstSearchHit(elements) {
+  return Array.from(elements).find(isSearchHit);
+}

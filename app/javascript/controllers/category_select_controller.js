@@ -3,6 +3,7 @@ import { createCategory } from "utils/category_create";
 import {
   exactName,
   expandTreeMatches,
+  firstSearchHit,
   matchesSearch,
   namesExactly,
   primarySearchName,
@@ -156,7 +157,7 @@ export default class extends Controller {
       ) ??
       visible.find((option) => namesExactly(option, rawQuery)) ??
       // Not a parent shown only as context above the subcategory found.
-      visible.find((option) => !option.hasAttribute("data-filter-context"));
+      firstSearchHit(visible);
     if (!match) return;
 
     this.selectOption(match);

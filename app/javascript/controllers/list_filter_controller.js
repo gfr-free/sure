@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import {
   expandTreeMatches,
+  firstSearchHit,
   hasSearchQuery,
   matchesSearch,
   treeRow,
@@ -130,12 +131,7 @@ export default class extends Controller {
     this.clearHighlights();
     this.highlightedIndex =
       this.highlightedIndex < 0
-        ? Math.max(
-            items.findIndex(
-              (item) => !item.hasAttribute("data-filter-context"),
-            ),
-            0,
-          )
+        ? this.firstHitIndex(items)
         : Math.min(this.highlightedIndex + 1, items.length - 1);
     this.highlightItem(items[this.highlightedIndex]);
     this.updateAriaActiveDescendant();
@@ -146,9 +142,18 @@ export default class extends Controller {
     if (items.length === 0) return;
 
     this.clearHighlights();
-    this.highlightedIndex = Math.max(this.highlightedIndex - 1, 0);
+    this.highlightedIndex =
+      this.highlightedIndex < 0
+        ? this.firstHitIndex(items)
+        : Math.max(this.highlightedIndex - 1, 0);
     this.highlightItem(items[this.highlightedIndex]);
     this.updateAriaActiveDescendant();
+  }
+
+  // From the search box the arrow keys start at the first row the search
+  // found, not at a parent shown above it only for context.
+  firstHitIndex(items) {
+    return Math.max(items.indexOf(firstSearchHit(items)), 0);
   }
 
   highlightItem(item) {

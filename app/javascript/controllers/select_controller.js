@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { firstSearchHit } from "utils/search_match"
 import { autoUpdate } from "@floating-ui/dom"
 
 const FOCUSABLE_SELECTOR = [
@@ -273,7 +274,7 @@ export default class extends Controller {
       event.preventDefault()
       // ArrowDown starts at the first row the search found, not at a parent
       // that list-filter shows only for context.
-      const firstFound = visibleOptions.find(opt => !opt.hasAttribute("data-filter-context")) ?? visibleOptions[0]
+      const firstFound = firstSearchHit(visibleOptions) ?? visibleOptions[0]
       this.focusOption(event.key === "ArrowDown" ? firstFound : visibleOptions[visibleOptions.length - 1])
       return
     }

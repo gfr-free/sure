@@ -39,8 +39,10 @@ class NoNumberInputsTest < ActiveSupport::TestCase
     }
   }.freeze
 
-  NUMBER_FIELD_CALL = /\bnumber_field(?:_tag)?[\s(]+["':]?([\w\[\]#{}]+)/
-  NUMBER_TYPE = /type(?::\s*|\s*=\s*)["':]?number\b/
+  # Whole statements are scanned, so a call whose arguments start on the next
+  # line or a type given with a hash rocket is found too.
+  NUMBER_FIELD_CALL = /\bnumber_field(?:_tag)?[\s(]+["':]?([\w\[\]\#{}]+)/
+  NUMBER_TYPE = /(?<![\w-])["']?type["']?\s*(?::|=>|=)\s*["':]?number\b/
   DECIMAL_INPUTMODE = /inputmode(?::\s*|\s*=\s*|"\s*=>\s*)["':]?decimal\b/
   MONEY_FIELD = "app/views/shared/_money_field.html.erb"
 
@@ -63,6 +65,14 @@ class NoNumberInputsTest < ActiveSupport::TestCase
                                .reject { |entry| found.include?(entry) }
 
     assert_empty stale.map { |path, field| "#{path}: #{field}" }, "remove these from WHOLE_NUMBER_FIELDS"
+  end
+
+  test "the scan finds number inputs written over several lines or with a hash rocket" do
+    assert_equal [ "apr" ], number_inputs_in("<%= form.number_field(\n  :apr, step: 0.01) %>")
+    assert_equal [ 'bayes_settings[#{key}]' ], number_inputs_in('<%= number_field_tag "bayes_settings[#{key}]", 1 %>')
+    assert_equal [ "type number" ], number_inputs_in('<%= tag.input("type" => "number") %>')
+    assert_equal [ "type number" ], number_inputs_in('<input type="number">')
+    assert_empty number_inputs_in('<p data-requirement-type="number"></p>')
   end
 
   # A hand-built decimal text input skips the money field's reading of a
@@ -92,15 +102,11 @@ class NoNumberInputsTest < ActiveSupport::TestCase
 
     def number_inputs
       view_files.flat_map do |path, lines|
-        lines.filter_map do |line|
-          next if comment?(line)
-
-          if (match = line.match(NUMBER_FIELD_CALL))
-            [ path, match[1] ]
-          elsif line.match?(NUMBER_TYPE) && !line.include?("data-requirement-type")
-            [ path, "type number" ]
-          end
-        end
+        number_inputs_in(lines.reject { |line| comment?(line) }.join).map { |field| [ path, field ] }
       end
+    end
+
+    def number_inputs_in(code)
+      code.scan(NUMBER_FIELD_CALL).map(&:first) + code.scan(NUMBER_TYPE).map { "type number" }
     end
 end

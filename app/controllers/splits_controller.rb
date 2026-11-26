@@ -132,7 +132,7 @@ class SplitsController < ApplicationController
       return rows if blank_rows.empty?
 
       categories = Current.family.categories.where(id: blank_rows.filter_map { |row| row[:category_id] }).index_by(&:id)
-      merchants = Merchant.where(id: blank_rows.filter_map { |row| row[:merchant_id] }).index_by(&:id)
+      merchants = Current.family.available_merchants_for(Current.user).where(id: blank_rows.filter_map { |row| row[:merchant_id] }).index_by(&:id)
 
       blank_rows.each do |row|
         row[:name] = @entry.default_split_name(category: categories[row[:category_id]], merchant: merchants[row[:merchant_id]])

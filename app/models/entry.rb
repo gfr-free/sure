@@ -698,8 +698,7 @@ class Entry < ApplicationRecord
   # transaction gets when names are generated. A part without its own merchant gets the
   # parent's in split!, so the name uses that one too. Falls back to the parent's name.
   def default_split_name(category: nil, merchant: nil)
-    merchant ||= entryable.try(:merchant)
-    [ category&.display_name.presence, merchant&.name.presence ].compact.join(" - ").presence || name
+    self.class.generated_name(category: category, merchant: merchant || entryable.try(:merchant)) || name
   end
 
   # Splits this entry unless it stopped being splittable. Two callers (the split dialog, two
@@ -845,6 +844,15 @@ class Entry < ApplicationRecord
   end
 
   class << self
+    # "Category - Merchant", or whichever of the two is present; nil without either.
+    # Category#display_name, not #name -- default categories store the
+    # translated label in the `name` column itself (see Category#display_name),
+    # so using the raw column would save whatever locale the category happened
+    # to be created under instead of the one the user just picked it in.
+    def generated_name(category:, merchant:)
+      [ category&.display_name.presence, merchant&.name.presence ].compact.join(" - ").presence
+    end
+
     # `family` is positional (not a keyword) on purpose: several callers pass
     # the filters as a bare keyword-style hash (`search(status: [...])`), and
     # a keyword parameter here would capture those as kwargs instead.
@@ -1148,15 +1156,10 @@ class Entry < ApplicationRecord
     # validation below, so a transaction can never end up with no
     # information distinguishing it from any other.
     def set_default_name
-      # Category#display_name, not #name -- default categories store the
-      # translated label in the `name` column itself (see Category#display_name),
-      # so using the raw column here would save whatever locale the category
-      # happened to be created under instead of the one the user just picked
-      # it in.
       # entryable can be unset if entryable_type was assigned without the
       # nested entryable_attributes that would normally build it (e.g. a
       # malformed API request) -- guard the dereference instead of raising.
-      parts = [ entryable&.category&.display_name.presence, entryable&.merchant&.name.presence ].compact
-      self.name = parts.join(" - ") if parts.any?
+      generated = self.class.generated_name(category: entryable&.category, merchant: entryable&.merchant)
+      self.name = generated if generated
     end
 end

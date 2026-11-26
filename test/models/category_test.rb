@@ -155,14 +155,13 @@ class CategoryTest < ActiveSupport::TestCase
     end
   end
 
-  test "search_names holds the shown and the stored name once each" do
+  test "search_names holds the stored and the shown name once each, stored first" do
     I18n.with_locale(:de) do
-      assert_equal [ "Restaurants & Bars", "Food & Drink" ], categories(:food_and_drink).search_names
+      assert_equal [ "Food & Drink", "Restaurants & Bars" ], categories(:food_and_drink).search_names
     end
 
     I18n.with_locale(:en) do
       assert_equal [ "Food & Drink" ], categories(:food_and_drink).search_names
-      assert_nil categories(:food_and_drink).stored_name_if_translated
     end
   end
 

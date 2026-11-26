@@ -10,7 +10,7 @@
        data-category-quick-create-error-message-value="<%= t(".create_error") %>"
        data-category-quick-create-assign-error-message-value="<%= t(".assign_error") %>"
        data-category-quick-create-parent-picker-label-value="<%= t(".choose_parent", name: "__NAME__") %>"
-       data-category-quick-create-existing-names-value="<%= @categories.flat_map(&:search_names).uniq.to_json %>">
+       data-category-quick-create-existing-names-value="<%= category_existing_names(@categories).to_json %>">
     <div class="grow p-1.5">
       <div class="relative flex items-center bg-container border border-secondary rounded-lg">
         <input

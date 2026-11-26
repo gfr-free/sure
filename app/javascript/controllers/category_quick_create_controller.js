@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
+import { enterMatch, exactName, isComposing } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -86,15 +87,35 @@ export default class extends Controller {
     this.#clearError();
   }
 
-  // Enter creates only when the search matches no row at all; otherwise
-  // list-filter keeps handling Enter to pick the highlighted row.
+  // The same Enter rule as the category select (utils/search_match
+  // enterMatch): an existing row the search names wins, else Enter creates
+  // while the create row shows, else it picks the first visible row. A row
+  // picked with the arrow keys wins over all of it (list-filter submits it).
   createOnEnter(event) {
-    if (!this.hasCreateButtonTarget) return;
-    if (this.createButtonTarget.classList.contains("hidden")) return;
-    if (this.#parentPickerOpen || this.#hasVisibleRows) return;
+    if (isComposing(event)) return;
+    if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
+
+    const query = this.inputTarget.value.trim();
+    if (!query) return;
+
+    const rows = this.#visibleRows;
+    const existing = enterMatch(rows, query);
+
+    if (
+      !existing &&
+      this.hasCreateButtonTarget &&
+      !this.createButtonTarget.classList.contains("hidden")
+    ) {
+      event.preventDefault();
+      this.create();
+      return;
+    }
+
+    const form = (existing ?? rows[0])?.querySelector("form");
+    if (!form) return;
 
     event.preventDefault();
-    this.create();
+    form.requestSubmit();
   }
 
   showParentPicker(event) {
@@ -194,7 +215,7 @@ export default class extends Controller {
   // parent for that name is a new create, which the server then validates.
   #createdCategory(name, parentId) {
     if (
-      this.created?.name.toLocaleLowerCase() !== name.toLocaleLowerCase() ||
+      exactName(this.created?.name) !== exactName(name) ||
       this.created.parentId !== parentId
     ) {
       return null;
@@ -202,10 +223,11 @@ export default class extends Controller {
     return { id: this.created.id };
   }
 
+  // Same "exists" rule as the category select (utils/search_match).
   #nameExists(name) {
-    const wanted = name.toLocaleLowerCase();
+    const wanted = exactName(name);
     return this.existingNamesValue.some(
-      (existing) => existing.toLocaleLowerCase() === wanted,
+      (existing) => exactName(existing) === wanted,
     );
   }
 
@@ -216,10 +238,14 @@ export default class extends Controller {
     );
   }
 
-  get #hasVisibleRows() {
-    return Array.from(this.element.querySelectorAll(".filterable-item")).some(
+  get #visibleRows() {
+    return Array.from(this.element.querySelectorAll(".filterable-item")).filter(
       (item) => item.style.display !== "none" && item.offsetParent !== null,
     );
+  }
+
+  get #hasHighlightedRow() {
+    return this.inputTarget.hasAttribute("aria-activedescendant");
   }
 
   #toggle(element, visible) {

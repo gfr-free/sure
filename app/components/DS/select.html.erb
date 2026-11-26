@@ -71,7 +71,7 @@
               data-select-target="option"
               data-action="click->select#select"
               data-value="<%= item[:value] %>"
-              data-filter-name="<%= item[:label] %>">
+              <%= tag.attributes(data: search_data(item)) %>>
 
           <span class="check-icon <%= "hidden" unless is_selected %>">
             <%= helpers.icon("check") %>

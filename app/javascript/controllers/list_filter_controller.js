@@ -1,7 +1,12 @@
 import { Controller } from "@hotwired/stimulus";
-import { normalizeSearchText } from "utils/normalize_search_text";
+import {
+  hasSearchQuery,
+  isComposing,
+  matchesSearch,
+} from "utils/search_match";
 
-// Basic functionality to filter a list based on a provided text attribute.
+// Filters a list by the shared search rule in utils/search_match: each
+// .filterable-item is found by its data-filter-name and data-filter-terms.
 export default class extends Controller {
   static targets = ["input", "list", "emptyMessage", "recentSection"];
 
@@ -35,12 +40,7 @@ export default class extends Controller {
   }
 
   filter() {
-    // Only a genuinely empty query means "show everything". A non-empty
-    // query that normalizes away to "" (e.g. a lone combining mark) must
-    // still match nothing — "".includes("") is true, so without this split
-    // it would show every row instead of filtering.
     const rawFilterValue = this.inputTarget.value;
-    const filterValue = this.normalize(rawFilterValue);
     const items = this.listTarget.querySelectorAll(".filterable-item");
     let noMatchFound = true;
 
@@ -53,8 +53,9 @@ export default class extends Controller {
       ? new Set(this.recentSectionTarget.querySelectorAll(".filterable-item"))
       : new Set();
 
+    const searching = hasSearchQuery(rawFilterValue);
     if (this.hasRecentSectionTarget) {
-      this.recentSectionTarget.classList.toggle("hidden", filterValue.length > 0);
+      this.recentSectionTarget.classList.toggle("hidden", searching);
     }
 
     if (this.hasEmptyMessageTarget) {
@@ -62,18 +63,9 @@ export default class extends Controller {
     }
 
     items.forEach((item) => {
-      // data-filter-terms holds other names a row answers to (e.g. a
-      // category's stored name when it shows a translated one).
-      const texts = [
-        item.getAttribute("data-filter-name"),
-        item.getAttribute("data-filter-terms"),
-      ]
-        .filter(Boolean)
-        .map((text) => this.normalize(text));
       const shouldDisplay =
-        rawFilterValue.length === 0 ||
-        (filterValue.length > 0 &&
-          texts.some((text) => text.includes(filterValue)));
+        !(searching && recentItems.has(item)) &&
+        matchesSearch(item, rawFilterValue);
       item.style.display = shouldDisplay ? "" : "none";
 
       if (shouldDisplay) {
@@ -90,11 +82,9 @@ export default class extends Controller {
     this.updateAriaActiveDescendant();
   }
 
-  normalize(value) {
-    return normalizeSearchText(value);
-  }
-
   handleKeydown(event) {
+    if (isComposing(event)) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       this.highlightNext();

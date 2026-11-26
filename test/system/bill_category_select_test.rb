@@ -24,7 +24,7 @@ class BillCategorySelectTest < ApplicationSystemTestCase
       # A subcategory sits under its parent, not among unrelated neighbours.
       names = page.evaluate_script(<<~JS)
         Array.from(document.querySelectorAll("[data-category-select-target='option']"))
-          .map((option) => option.dataset.categoryName)
+          .map((option) => option.dataset.filterName)
       JS
 
       assert_operator names.index("Food & Drink"), :<, names.index("Restaurants")

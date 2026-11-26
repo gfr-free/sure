@@ -47,7 +47,7 @@ export default class extends Controller {
     }
   }
 
-  // Runs from the form's input action, after the row's own updateRemaining.
+  // Runs from the rows container's input action, after the row's own updateRemaining.
   followRemaining(event) {
     const input = event.target
     if (!this.amountInputTargets.includes(input)) return

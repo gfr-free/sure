@@ -27,7 +27,6 @@
           class: "space-y-3",
           data: {
             controller: "split-transaction",
-            action: "input->split-transaction#followRemaining",
             split_transaction_total_value: (-@entry.amount).to_f,
             split_transaction_currency_value: @entry.currency,
             turbo_frame: :_top
@@ -35,7 +34,7 @@
         ) do %>
 
       <%# Split rows pre-filled from existing children %>
-      <div data-split-transaction-target="rowsContainer" class="space-y-3">
+      <div data-split-transaction-target="rowsContainer" data-action="input->split-transaction#followRemaining" class="space-y-3">
         <% @children.each_with_index do |child, index| %>
           <%= render "splits/row",
                      index: index,

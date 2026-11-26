@@ -475,6 +475,26 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ tags(:three) ], part_one.entryable.tags
   end
 
+  test "update keeps a cleared merchant empty instead of taking the parent's" do
+    @entry.entryable.update!(merchant: merchants(:netflix))
+    @entry.split!([
+      { name: "Part 1", amount: 60 },
+      { name: "Part 2", amount: 40 }
+    ])
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: "" },
+          { name: "Part 2", amount: "-40", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+
+    children = @entry.reload.child_entries.order(:amount)
+    assert_equal({ "Part 1" => nil, "Part 2" => merchants(:netflix).id }, children.to_h { |c| [ c.name, c.entryable.merchant_id ] })
+  end
+
   # Destroy from child tests
   test "destroy from child resolves to parent and unsplits" do
     @entry.split!([

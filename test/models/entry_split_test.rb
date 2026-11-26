@@ -406,4 +406,29 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_not Entry.exists?(@entry.id)
     assert_not Entry.exists?(part.id)
   end
+
+  test "name_blank_splits names blank rows from the family's own category and merchant only" do
+    family = @entry.account.family
+    family.update!(auto_generate_transaction_names: true)
+    other_family = families(:empty)
+    foreign_category = other_family.categories.create!(name: "Foreign", color: "#000000")
+    foreign_merchant = other_family.merchants.create!(name: "Foreign shop", type: "FamilyMerchant")
+    user = users(:family_admin)
+
+    named = @entry.name_blank_splits([
+      { name: "", category_id: categories(:food_and_drink).id, merchant_id: merchants(:netflix).id },
+      { name: nil, category_id: foreign_category.id, merchant_id: foreign_merchant.id },
+      { name: "Kept", category_id: categories(:food_and_drink).id }
+    ], user: user)
+
+    assert_equal [ "Food & Drink - Netflix", "Grocery Store", "Kept" ], named.map { |split| split[:name] }
+  end
+
+  test "name_blank_splits leaves blank rows blank when the family does not generate names" do
+    @entry.account.family.update!(auto_generate_transaction_names: false)
+
+    named = @entry.name_blank_splits([ { name: "", category_id: categories(:food_and_drink).id } ], user: users(:family_admin))
+
+    assert_equal [ "" ], named.map { |split| split[:name] }
+  end
 end

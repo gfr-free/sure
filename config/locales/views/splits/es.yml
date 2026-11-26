@@ -17,6 +17,7 @@ es:
       uncategorized: "(sin categoría)"
       merchant_label: Comercio
       no_merchant: "(ninguno)"
+      parent_merchant: "(comercio de la transacción)"
       tags_label: Etiquetas
       original_name: "Nombre:"
       original_date: "Fecha:"

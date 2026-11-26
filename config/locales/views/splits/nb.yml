@@ -21,6 +21,7 @@ nb:
       split_number: Del %{number}
       merchant_label: "Forhandler"
       no_merchant: "(ingen)"
+      parent_merchant: "(transaksjonens forhandler)"
       tags_label: "Tagger"
     create:
       success: Transaksjonen ble delt opp

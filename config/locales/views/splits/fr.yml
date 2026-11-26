@@ -29,6 +29,7 @@ fr:
       name_label: Nom
       name_placeholder: Nom de la division
       no_merchant: "(aucun)"
+      parent_merchant: "(marchand de la transaction)"
       original_amount: Montant
       original_date: 'Date :'
       original_name: 'Nom :'

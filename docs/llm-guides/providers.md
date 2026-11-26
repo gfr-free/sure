@@ -179,7 +179,8 @@ change: the combined name contains the merchant as well as the description, so a
 before. That wider reach is the purpose of combining.
 
 One known gap: `Entry#split!` gives each child no `source` and no `extra`, while the
-split form prefills each child's name from the parent. A child of a combined Plaid
+split form prefills the first child's name from the parent (unless the family
+generates transaction names, in which case blank rows become "Category - Merchant"). A child of a combined Plaid
 transaction therefore keeps the combined name but not the provenance, so `=` and
 `!=` rules on the merchant do not reach it. Renaming the child, or using `like`,
 does.

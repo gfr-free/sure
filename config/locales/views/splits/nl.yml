@@ -17,6 +17,7 @@ nl:
       uncategorized: "(geen categorie)"
       merchant_label: "Handelaar"
       no_merchant: "(geen)"
+      parent_merchant: "(handelaar van de transactie)"
       tags_label: "Tags"
       original_name: "Naam:"
       original_date: "Datum:"

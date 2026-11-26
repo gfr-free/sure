@@ -110,6 +110,21 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Netflix", "Splittable" ], children.map(&:name)
   end
 
+  test "update keeps the parent's merchant for an omitted merchant_id and none for a null one" do
+    @transaction.update!(merchant: merchants(:netflix))
+    @entry.split!([ { name: "A", amount: 50 }, { name: "B", amount: 50 } ])
+    params = { split: { splits: [
+      { name: "A", amount: "60" },
+      { name: "B", amount: "40", merchant_id: nil }
+    ] } }
+
+    patch api_v1_transaction_split_url(@transaction), params: params, headers: api_headers(@api_key), as: :json
+    assert_response :ok
+
+    children = @entry.reload.child_entries.in_split_order
+    assert_equal [ merchants(:netflix).id, nil ], children.map { |child| child.entryable.merchant_id }
+  end
+
   test "returns 422 when the children do not sum to the parent" do
     params = { split: { splits: [ { name: "Too small", amount: "1.00" } ] } }
 

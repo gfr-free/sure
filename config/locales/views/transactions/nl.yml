@@ -11,6 +11,7 @@ nl:
         cancel: "Annuleren"
         category_label: "Categorie"
         category_prompt: "Selecteer een categorie"
+        clear_tags: Alle tags verwijderen
         date_label: "Datum"
         header_title: "Transacties bewerken"
         merchant_label: "Handelaar"

@@ -37,14 +37,17 @@ class SearchMatchUsageTest < ActiveSupport::TestCase
       "const query = this.searchTarget.value.trim().toLowerCase();",
       'const name = (option.dataset.filterName || "").toLowerCase();',
       "const name = option.dataset.tagName.toLowerCase();",
-      "const query = this.searchTarget.value\n      .trim()\n      .toLowerCase();"
+      "const query = this.searchTarget.value\n      .trim()\n      .toLowerCase();",
+      "const name = (\n  option.dataset.filterName || \"\"\n).toLowerCase();",
+      "const name = (\n  option.dataset.filterName ||\n  \"\"\n).toLowerCase();"
     ].each { |sample| assert_match OWN_COMPARISON, joined_chains(sample) }
   end
 
   private
-    # Biome wraps long method chains; put each chain back on one line.
+    # Biome wraps long method chains and parenthesized operands; put each
+    # back on one line.
     def joined_chains(source)
-      source.gsub(/\n\s*(?=\.)/, "")
+      source.gsub(/\n\s*(?=[.)])/, "").gsub(/(\(|\|\||&&|\?\?)\s*\n\s*/, '\\1 ')
     end
 
     def controller_files

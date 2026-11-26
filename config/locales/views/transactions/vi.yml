@@ -6,6 +6,7 @@ vi:
         cancel: Hủy
         category_label: Danh mục
         category_prompt: Chọn danh mục
+        clear_tags: Xóa tất cả nhãn
         date_label: Ngày
         header_title: Chỉnh sửa giao dịch
         merchant_label: Nhà cung cấp

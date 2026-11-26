@@ -6,6 +6,7 @@ it:
         cancel: Annulla
         category_label: Categoria
         category_prompt: Seleziona una categoria
+        clear_tags: Rimuovi tutte le etichette
         date_label: Data
         header_title: Modifica transazioni
         merchant_label: Esercente

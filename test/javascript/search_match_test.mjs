@@ -77,6 +77,18 @@ describe("exactName", () => {
     assert.equal(exactName("Cafe\u0301"), exactName("Café"))
     assert.notEqual(exactName("Cafe"), exactName("Café"))
   })
+
+  it("compares the same way whatever the browser's locale", () => {
+    const original = String.prototype.toLocaleLowerCase
+    String.prototype.toLocaleLowerCase = function () {
+      return original.call(this, "tr")
+    }
+    try {
+      assert.equal(exactName("Income"), exactName("income"))
+    } finally {
+      String.prototype.toLocaleLowerCase = original
+    }
+  })
 })
 
 describe("primarySearchName", () => {

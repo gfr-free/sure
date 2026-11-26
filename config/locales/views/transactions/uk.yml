@@ -5,6 +5,7 @@ uk:
         cancel: Скасувати
         category_label: Категорія
         category_prompt: Вибрати категорію
+        clear_tags: Видалити всі теги
         date_label: Дата
         header_title: Редагувати транзакції
         merchant_label: Продавець

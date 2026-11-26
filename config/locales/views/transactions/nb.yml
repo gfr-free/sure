@@ -232,6 +232,7 @@ nb:
         cancel: Avbryt
         category_label: Kategori
         category_prompt: Velg en kategori
+        clear_tags: Fjern alle tagger
         date_label: Dato
         header_title: Rediger transaksjoner
         merchant_label: Forhandler

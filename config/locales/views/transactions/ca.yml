@@ -42,6 +42,7 @@ ca:
         cancel: Cancel·la
         category_label: Categoria
         category_prompt: Selecciona una categoria
+        clear_tags: Elimina totes les etiquetes
         date_label: Data
         header_title: Edita transaccions
         merchant_label: Comerç

@@ -6,6 +6,7 @@ hu:
         cancel: Mégse
         category_label: Kategória
         category_prompt: Válassz kategóriát
+        clear_tags: Összes címke eltávolítása
         date_label: Dátum
         header_title: Tranzakciók szerkesztése
         merchant_label: Kereskedő

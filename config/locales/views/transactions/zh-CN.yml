@@ -6,6 +6,7 @@ zh-CN:
         cancel: 取消
         category_label: 分类
         category_prompt: 选择分类
+        clear_tags: 移除所有标签
         date_label: 日期
         header_title: 编辑交易
         merchant_label: 商户

@@ -43,6 +43,11 @@ module DS
       @scoped_ids ? form.field_id(method, :trigger) : "#{method}_trigger"
     end
 
+    # An html aria label, for a select shown without a visible label.
+    def hidden_label
+      options.dig(:html_options, :aria, :label)
+    end
+
     def selected_item
       items.find { |item| !item[:value].nil? && item[:value] == selected_value }
     end

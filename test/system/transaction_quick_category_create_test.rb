@@ -62,6 +62,10 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
       find("input[type='search']").fill_in with: "Restaurants & Bars"
       assert_selector ".filterable-item", text: "Restaurants & Bars"
       assert_no_selector "[data-category-quick-create-target='createButton']"
+
+      # The stored name finds it too, instead of "no categories found".
+      find("input[type='search']").fill_in with: "Food & Drink"
+      assert_selector ".filterable-item", text: "Restaurants & Bars"
     end
   end
 

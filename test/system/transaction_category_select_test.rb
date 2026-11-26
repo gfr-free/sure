@@ -306,6 +306,20 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     assert_selector "[data-category-select-target='hiddenInput'][value='#{custom.id}']", visible: :all
   end
 
+  test "the category search ignores accents and case" do
+    @user.family.categories.create!(name: "Épicerie fine", color: "#e99537", lucide_icon: "shopping-basket")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "epicerie"
+
+      assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Épicerie fine"
+    end
+  end
+
   private
     def active_element_attribute(name)
       page.evaluate_script("document.activeElement.getAttribute('#{name}')")

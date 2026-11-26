@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
+import { normalizeSearchText } from "utils/normalize_search_text";
 
 export default class extends Controller {
   static targets = [
@@ -69,14 +70,17 @@ export default class extends Controller {
     this.hideParentPicker();
 
     const rawQuery = this.searchTarget.value.trim();
-    const query = rawQuery.toLowerCase();
+    const query = normalizeSearchText(rawQuery);
 
     let exactMatch = false;
     let anyVisible = false;
 
     this.optionTargets.forEach((option) => {
       const names = this.#optionNames(option);
-      const matches = names.some((name) => name.includes(query));
+      // A query that normalizes away (a lone combining mark) matches nothing.
+      const matches =
+        rawQuery.length === 0 ||
+        (query.length > 0 && names.some((name) => name.includes(query)));
 
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
@@ -124,7 +128,7 @@ export default class extends Controller {
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const query = this.searchTarget.value.trim().toLowerCase();
+    const query = normalizeSearchText(this.searchTarget.value.trim());
     if (!query) return;
 
     const visible = this.optionTargets.filter(
@@ -134,7 +138,9 @@ export default class extends Controller {
     // custom one stored under that label), so the stored name wins.
     const match =
       visible.find(
-        (option) => option.dataset.categoryStoredName?.toLowerCase() === query,
+        (option) =>
+          normalizeSearchText(option.dataset.categoryStoredName || "") ===
+          query,
       ) ??
       visible.find((option) => this.#optionNames(option).includes(query)) ??
       visible[0];
@@ -317,7 +323,7 @@ export default class extends Controller {
     const { categoryName, categoryStoredName } = option.dataset;
     return [categoryName, categoryStoredName]
       .filter(Boolean)
-      .map((name) => name.toLowerCase());
+      .map(normalizeSearchText);
   }
 
   #lastOptionInGroup(parentId) {

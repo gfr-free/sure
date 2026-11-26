@@ -236,7 +236,8 @@ class Transaction::Search
       # deploy, disagreeing with the (uncached) transactions_scope list
       # until entries_cache_version next changes for that family.
       # v4: Totals gained excluded_scheduled_count.
-      Rails.cache.fetch("transaction_search_totals/v4/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}") do
+      # v5: The search text also matches merchant names, word by word.
+      Rails.cache.fetch("transaction_search_totals/v5/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}") do
         scope = transactions_scope
         excluded_scheduled_count = 0
 

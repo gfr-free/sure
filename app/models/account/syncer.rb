@@ -11,7 +11,7 @@ class Account::Syncer
     if account.accountable_type.in?(%w[Investment Crypto])
       sync.update!(data: (sync.data || {}).merge("cost_basis_method" => account.cost_basis_method))
     end
-    Rails.logger.info("Processing balances (#{account.linked? ? 'reverse' : 'forward'})")
+    Rails.logger.info("Processing balances (#{account.balance_strategy})")
     import_market_data
     materialize_balances(window_start_date: sync.window_start_date)
     apply_provider_balance_overrides
@@ -40,8 +40,7 @@ class Account::Syncer
     end
 
     def materialize_balances(window_start_date: nil)
-      strategy = account.linked? ? :reverse : :forward
-      Balance::Materializer.new(account, strategy: strategy, window_start_date: window_start_date).materialize_balances
+      Balance::Materializer.new(account, strategy: account.balance_strategy, window_start_date: window_start_date).materialize_balances
     end
 
     # Syncs all the exchange rates + security prices this account needs to display historical chart data

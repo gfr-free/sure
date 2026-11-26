@@ -137,6 +137,35 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert linked_account.reload.enable_category_matcher?
   end
 
+  test "switching a linked account to its own balance records the day and syncs it" do
+    linked_account = accounts(:connected)
+
+    Account.any_instance.expects(:sync_later).twice
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "1" } }
+
+    assert_equal Date.current, linked_account.reload.balance_from_transactions_since
+
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "0" } }
+
+    assert_nil linked_account.reload.balance_from_transactions_since
+  end
+
+  test "saving the form without changing the balance switch does not sync" do
+    linked_account = accounts(:connected)
+
+    Account.any_instance.expects(:sync_later).never
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "0", name: "Renamed" } }
+    assert_equal "Renamed", linked_account.reload.name
+  end
+
+  test "edit form renders the balance switch only for linked accounts" do
+    get edit_account_url(accounts(:connected))
+    assert_select "input[type=checkbox][name='account[balance_from_transactions]']", 1
+
+    get edit_account_url(accounts(:depository))
+    assert_select "input[type=checkbox][name='account[balance_from_transactions]']", 0
+  end
+
   test "edit form renders category matcher toggle only for accounts that support it" do
     get edit_account_url(accounts(:connected))
     assert_response :success

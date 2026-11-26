@@ -2,7 +2,7 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
-  enterTarget,
+  enterMatch,
   exactMatch,
   exactName,
   isComposing,
@@ -105,12 +105,21 @@ describe("exactMatch", () => {
   })
 })
 
-describe("enterTarget", () => {
-  it("falls back to the first row when nothing is named exactly", () => {
-    const other = row("Pet Supplies")
-    assert.equal(enterTarget([other, translated], "pet"), other)
-    assert.equal(enterTarget([other, translated], "food & drink"), translated)
-    assert.equal(enterTarget([], "pet"), undefined)
+describe("enterMatch", () => {
+  it("takes the exact name, else the only Latin-accent match", () => {
+    const epicerie = row("Épicerie fine")
+    const pet = row("Pet Supplies")
+    assert.equal(enterMatch([pet, translated], "food & drink"), translated)
+    assert.equal(enterMatch([pet, epicerie], "epicerie fine"), epicerie)
+    assert.equal(enterMatch([pet, epicerie], "pet"), undefined)
+  })
+
+  it("gives no answer when several rows differ only in accents", () => {
+    assert.equal(enterMatch([row("Résumé"), row("Resumé")], "resume"), undefined)
+  })
+
+  it("keeps marks outside Latin script", () => {
+    assert.equal(enterMatch([row("ハンバーガー")], "ハンハーカー"), undefined)
   })
 })
 

@@ -98,10 +98,39 @@ export function isComposing(event) {
   return event.isComposing || event.keyCode === 229;
 }
 
-// The row Enter picks when nothing is created: the one the query names
-// exactly, else the first visible row.
-export function enterTarget(rows, rawQuery) {
-  return exactMatch(rows, rawQuery) ?? rows[0];
+// The existing row Enter stands for: the one the query names exactly, else
+// the only one it names once accents on Latin letters are ignored, so Enter
+// on "epicerie fine" picks "Épicerie fine" (creating the near-duplicate takes
+// a click on the create row). Several such rows ("Résumé", "Resumé") give no
+// single answer. With no row, Enter creates while the create row shows and
+// otherwise picks the first visible row.
+export function enterMatch(rows, rawQuery) {
+  const exact = exactMatch(rows, rawQuery);
+  if (exact) return exact;
+
+  const query = String(rawQuery ?? "").trim();
+  if (query.length === 0) return undefined;
+
+  const folded = rows.filter((row) =>
+    searchNames(row).some((name) => sameNameIgnoringLatinAccents(name, query)),
+  );
+  return folded.length === 1 ? folded[0] : undefined;
+}
+
+// Whether two names are the same once accents on Latin letters are
+// ignored. Marks on other scripts stay: without them Japanese dakuten, Indic
+// vowel signs or the Cyrillic "й" spell a different word. Letters without a
+// decomposition ("ł", "ø", "ß") are not folded.
+export function sameNameIgnoringLatinAccents(a, b) {
+  return foldLatinAccents(a) === foldLatinAccents(b);
+}
+
+function foldLatinAccents(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1")
+    .normalize("NFC")
+    .toLowerCase();
 }
 
 // The visible row the query names exactly, preferring a row whose stored

@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
-  enterTarget,
+  enterMatch,
   isComposing,
   matchesSearch,
   namesExactly,
@@ -124,20 +124,22 @@ export default class extends Controller {
       return;
     }
 
-    // Enter does what the create row says: while it shows, it creates.
-    if (!this.createFormTarget.classList.contains("hidden")) {
-      if (!this.creating) this.createCategory();
-      return;
-    }
+    if (this.creating) return;
 
-    // Nothing to create (locked, or the name exists already): pick the match.
     const rawQuery = this.searchTarget.value.trim();
     if (!rawQuery) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const match = enterTarget(visible, rawQuery);
+    const existing = enterMatch(visible, rawQuery);
+
+    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
+      this.createCategory();
+      return;
+    }
+
+    const match = existing ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);

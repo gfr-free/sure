@@ -41,10 +41,16 @@
             { selected: split["category_id"], include_blank: t("splits.new.uncategorized"), container_class: "min-w-0" },
             aria: { label: t("rules.actions.split.category_label") } %>
 
-      <%= row.select :merchant_id,
-            merchants,
-            { selected: split["merchant_id"], include_blank: t("splits.new.no_merchant"), container_class: "min-w-0" },
-            aria: { label: t("rules.actions.split.merchant_label") } %>
+      <div class="min-w-0">
+        <%= render DS::MerchantSelect.new(
+              form: row,
+              method: :merchant_id,
+              merchants: merchants,
+              selected_id: split["merchant_id"],
+              include_blank: t("splits.new.no_merchant"),
+              aria_label: t("rules.actions.split.merchant_label")
+            ) %>
+      </div>
     </div>
 
     <%= render DS::TagSelect.new(

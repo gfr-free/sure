@@ -4,6 +4,7 @@
      data-tag-select-default-color-value="<%= Tag::COLORS.first %>"
      data-tag-select-disabled-value="<%= disabled %>"
      data-tag-select-auto-submit-value="<%= auto_submit %>"
+     data-tag-select-keep-until-edited-value="<%= keep_until_edited %>"
      data-tag-select-update-url-value="<%= update_url %>"
      data-tag-select-menu-placement-value="<%= menu_placement %>"
      data-tag-select-offset-value="<%= offset %>"
@@ -36,7 +37,9 @@
     </div>
 
     <div data-tag-select-hidden-inputs>
-      <input type="hidden" name="<%= field_name %>" value="" <%= "disabled" if disabled %>>
+      <% unless keep_until_edited %>
+        <input type="hidden" name="<%= field_name %>" value="" <%= "disabled" if disabled %>>
+      <% end %>
     </div>
 
     <% unless disabled %>

@@ -25,11 +25,12 @@ class Rule::ActionExecutor::SplitTransaction < Rule::ActionExecutor
     Category::Group.select_options(family.categories)
   end
 
-  def merchant_options
-    family.merchants.alphabetically.pluck(:name, :id)
+  # Records, not [name, id] pairs: DS::MerchantSelect shows each merchant's
+  # logo and DS::TagSelect each tag's color.
+  def merchant_records
+    family.merchants.alphabetically
   end
 
-  # Records, not [name, id] pairs: DS::TagSelect renders each tag's color.
   def tag_records
     family.tags.alphabetically
   end

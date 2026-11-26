@@ -142,7 +142,10 @@ class RulesTest < ApplicationSystemTestCase
 
       within first_row do
         find("select[aria-label='Split category']").select(categories(:food_and_drink).name)
-        find("select[aria-label='Split merchant']").select(merchant.name)
+        find("button[aria-label='Split merchant']").click
+        find("[data-merchant-select-target='search']").fill_in(with: "landlord split")
+        find("[role='option'][data-merchant-id='#{merchant.id}']").click
+        find("[data-merchant-select-target='selectionContainer']", text: merchant.name)
         find("button[aria-label='Split tags']").click
         find("[role='option'][data-tag-name='#{tags(:one).name}']").click
         # Wait for the picked tag to land in the trigger, then close the menu so it can't sit

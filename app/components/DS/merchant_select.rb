@@ -1,11 +1,11 @@
 class DS::MerchantSelect < DesignSystemComponent
   attr_reader :form, :method, :merchants, :selected_id, :disabled, :auto_submit,
-              :menu_placement, :label, :include_blank
+              :menu_placement, :label, :include_blank, :aria_label
 
   MENU_PLACEMENTS = %w[auto down up].freeze
 
   def initialize(form:, method:, merchants:, selected_id:, disabled: false, auto_submit: false,
-                 menu_placement: :auto, label: nil, include_blank: nil)
+                 menu_placement: :auto, label: nil, include_blank: nil, aria_label: nil)
     @form = form
     @method = method
     @merchants = merchants
@@ -15,6 +15,8 @@ class DS::MerchantSelect < DesignSystemComponent
     @menu_placement = normalize_menu_placement(menu_placement)
     @label = label
     @include_blank = include_blank
+    # Names the trigger where no visible label is shown (dense rows).
+    @aria_label = aria_label
   end
 
   def field_name

@@ -408,6 +408,12 @@ class Category < ApplicationRecord
     end
   end
 
+  # Every name a viewer may type for this category: the shown name and, for a
+  # default category stored in another locale, the stored one.
+  def search_names
+    [ display_name, name ].uniq
+  end
+
   def display_name_with_parent
     subcategory? ? "#{parent.display_name} > #{display_name}" : display_name
   end

@@ -61,7 +61,7 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     within "turbo-frame#category_dropdown" do
       find("input[type='search']").fill_in with: "Restaurants & Bars"
       assert_selector ".filterable-item", text: "Restaurants & Bars"
-      assert_no_button 'Create "Restaurants & Bars"'
+      assert_no_selector "[data-category-quick-create-target='createButton']"
     end
   end
 

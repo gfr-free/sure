@@ -278,14 +278,14 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
       fill_in "Kategorien suchen", with: "Restaurants & Bars"
 
       assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Restaurants & Bars"
-      assert_no_text "„Restaurants & Bars“ erstellen"
+      assert_no_selector "[data-category-select-target='createForm']"
 
       # The stored name still finds it, so creating it again isn't offered
       # (that create would fail on the unique name).
       fill_in "Kategorien suchen", with: "Food & Drink"
 
       assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Restaurants & Bars"
-      assert_no_text "„Food & Drink“ erstellen"
+      assert_no_selector "[data-category-select-target='createForm']"
     end
   end
 

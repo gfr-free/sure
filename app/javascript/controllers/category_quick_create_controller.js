@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { exactMatch, exactName, isComposing } from "utils/search_match";
+import { enterTarget, exactName, isComposing } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -88,8 +88,9 @@ export default class extends Controller {
   }
 
   // The same Enter rule as the category select: while the create row shows,
-  // Enter creates; otherwise it picks the row the search names exactly. A
-  // row picked with the arrow keys wins (list-filter submits that one).
+  // Enter creates; otherwise it picks the row the search names exactly, else
+  // the first visible row. A row picked with the arrow keys wins (list-filter
+  // submits that one).
   createOnEnter(event) {
     if (isComposing(event)) return;
     if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
@@ -103,7 +104,9 @@ export default class extends Controller {
       return;
     }
 
-    const match = exactMatch(this.#visibleRows, this.inputTarget.value);
+    if (!this.inputTarget.value.trim()) return;
+
+    const match = enterTarget(this.#visibleRows, this.inputTarget.value);
     const form = match?.querySelector("form");
     if (!form) return;
 

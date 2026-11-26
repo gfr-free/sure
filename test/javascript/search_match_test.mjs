@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  enterTarget,
   exactMatch,
   exactName,
   isComposing,
@@ -75,9 +76,17 @@ describe("namesExactly", () => {
 })
 
 describe("exactName", () => {
-  it("folds runs of whitespace and ignores the browser locale", () => {
-    assert.equal(exactName(" Food &  Drink\u00a0"), "food & drink")
-    assert.equal(exactName("Income"), "income")
+  it("ignores the browser locale", () => {
+    // Simulate a Turkish browser, where "I" lowercases to a dotless "ı".
+    const original = String.prototype.toLocaleLowerCase
+    String.prototype.toLocaleLowerCase = function () {
+      return original.call(this, "tr")
+    }
+    try {
+      assert.equal(exactName("Income"), exactName("income"))
+    } finally {
+      String.prototype.toLocaleLowerCase = original
+    }
   })
 
   it("treats composed and decomposed accents as the same name", () => {
@@ -93,6 +102,15 @@ describe("exactMatch", () => {
     assert.equal(exactMatch([translated], "Restaurants & Bars"), translated)
     assert.equal(exactMatch([translated], "Restaurants"), undefined)
     assert.equal(exactMatch([translated], " "), undefined)
+  })
+})
+
+describe("enterTarget", () => {
+  it("falls back to the first row when nothing is named exactly", () => {
+    const other = row("Pet Supplies")
+    assert.equal(enterTarget([other, translated], "pet"), other)
+    assert.equal(enterTarget([other, translated], "food & drink"), translated)
+    assert.equal(enterTarget([], "pet"), undefined)
   })
 })
 

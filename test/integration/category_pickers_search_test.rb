@@ -108,8 +108,10 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
 
   # A view that renders searchable rows and mentions categories must build
   # them with category_search_data, unless it is listed here with a reason.
-  # A new category picker (or a category list added to one of these views)
-  # fails here until it uses the helper or is consciously listed.
+  # A new category picker fails here until it uses the helper or is
+  # consciously listed. It checks whole files: a second, hand-built category
+  # list in a file that already uses the helper is caught only by the
+  # rendering tests above and the line scan.
   NOT_CATEGORY_ROWS = {
     "app/views/transactions/searches/filters/_tag_filter.html.erb" => "tag rows",
     "app/views/reports/index.html.erb" => "tag popover",

@@ -79,8 +79,8 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
 
     assert_no_difference "Category.count" do
       within "turbo-frame#category_dropdown" do
-        find("input[type='search']").fill_in with: "pet  supplies"
-        assert_no_button 'Create "pet  supplies"'
+        find("input[type='search']").fill_in with: "pet supplies"
+        assert_selector "[data-category-quick-create-target='createButton'].hidden", visible: :all
         find("input[type='search']").send_keys(:enter)
       end
 
@@ -98,13 +98,19 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     within "turbo-frame#category_dropdown" do
       find("input[type='search']").fill_in with: "aardvark"
 
-      hidden = page.evaluate_script(<<~JS)
+      recent_rows = page.evaluate_script(<<~JS)
         Array.from(document.querySelectorAll("[data-list-filter-target='recentSection'] .filterable-item"))
-          .every((item) => item.style.display === "none")
+          .map((item) => item.style.display)
       JS
-      assert hidden, "recent rows must be hidden while searching"
+      assert_not_empty recent_rows, "the recent section is rendered"
+      assert recent_rows.all?("none"), "recent rows must be hidden while searching"
 
-      find("input[type='search']").send_keys(:down, :enter)
+      find("input[type='search']").send_keys(:down)
+      highlighted = find("input[type='search']")["aria-activedescendant"]
+      assert highlighted.present?, "a row is highlighted"
+      assert_not highlighted.start_with?("recent_category_option"), "the highlight skips the hidden recent row"
+
+      find("input[type='search']").send_keys(:enter)
     end
 
     assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: recent.name

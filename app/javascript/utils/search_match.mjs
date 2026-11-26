@@ -84,22 +84,24 @@ export function matchesSearch(element, rawQuery) {
   });
 }
 
-// Whether a typed name is an existing one: exact but for case, Unicode form
-// and runs of whitespace, so "Café" can sit next to "Cafe" yet a pasted
-// decomposed "Café" or a doubled space still counts as the existing one.
-// This decides whether "create" is offered. Case folds without the browser
-// locale: in Turkish, toLocaleLowerCase turns "Income" into "ıncome".
+// Whether a typed name is an existing one: exact but for case and Unicode
+// form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
+// still counts as the existing one. This decides whether "create" is
+// offered. Case folds without the browser locale: in Turkish,
+// toLocaleLowerCase turns "Income" into "ıncome".
 export function exactName(value) {
-  return String(value ?? "")
-    .normalize("NFC")
-    .replace(/\s+/gu, " ")
-    .trim()
-    .toLowerCase();
+  return String(value ?? "").normalize("NFC").trim().toLowerCase();
 }
 
-// Enter and Escape finish an IME composition rather than act on the list.
+// Enter and Escape that finish an IME composition must not act on the list.
 export function isComposing(event) {
   return event.isComposing || event.keyCode === 229;
+}
+
+// The row Enter picks when nothing is created: the one the query names
+// exactly, else the first visible row.
+export function enterTarget(rows, rawQuery) {
+  return exactMatch(rows, rawQuery) ?? rows[0];
 }
 
 // The visible row the query names exactly, preferring a row whose stored

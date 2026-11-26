@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
-  exactMatch,
+  enterTarget,
   isComposing,
   matchesSearch,
   namesExactly,
@@ -137,7 +137,7 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const match = exactMatch(visible, rawQuery) ?? visible[0];
+    const match = enterTarget(visible, rawQuery);
     if (!match) return;
 
     this.selectOption(match);
@@ -148,6 +148,7 @@ export default class extends Controller {
   // Escape from anywhere in the menu: leave the parent picker first, then
   // close the menu, keeping focus where the keyboard user can carry on.
   escape(event) {
+    if (isComposing(event)) return;
     event.preventDefault();
     if (this.#parentPickerOpen()) {
       this.hideParentPicker(event);
@@ -338,10 +339,10 @@ export default class extends Controller {
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    const name = category.name.toLocaleLowerCase();
+    const name = category.name.toLowerCase();
     const before = this.parentOptionTargets.find(
       (existing) =>
-        (existing.dataset.parentName || "").toLocaleLowerCase() > name,
+        (existing.dataset.parentName || "").toLowerCase() > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

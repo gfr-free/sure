@@ -94,7 +94,8 @@ export default class extends Controller {
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      // "Exists" stays exact but for case: "Café" next to "Cafe" can be created.
+      // "Exists" ignores case and Unicode form but not accents, so "Cafe"
+      // can still be created next to "Café".
       if (names.some((name) => exactName(name) === exactQuery))
         exactMatch = true;
     });
@@ -133,32 +134,25 @@ export default class extends Controller {
       return;
     }
 
-    const rawQuery = this.searchTarget.value.trim();
-    const visible = this.optionTargets.filter(
-      (option) => !option.classList.contains("hidden"),
-    );
-    const isExact = (name) => exactName(name || "") === exactName(rawQuery);
-    const isFolded = (name) =>
-      normalizeSearchText(name || "") === normalizeSearchText(rawQuery);
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins; a name
-    // typed without its accents still picks that category.
-    const exact =
-      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
-      visible.find((option) => this.#optionNames(option).some(isExact));
-    const folded = visible.find((option) =>
-      this.#optionNames(option).some(isFolded),
-    );
-
-    if (!this.createFormTarget.classList.contains("hidden") && !folded) {
+    if (!this.createFormTarget.classList.contains("hidden")) {
       if (!this.creating) this.createCategory();
       return;
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
+    const rawQuery = this.searchTarget.value.trim();
     if (!rawQuery) return;
 
-    const match = exact ?? folded ?? visible[0];
+    const visible = this.optionTargets.filter(
+      (option) => !option.classList.contains("hidden"),
+    );
+    const isExact = (name) => exactName(name || "") === exactName(rawQuery);
+    // Two categories can show the same name (a default one translated, a
+    // custom one stored under that label), so the stored name wins.
+    const match =
+      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
+      visible.find((option) => this.#optionNames(option).some(isExact)) ??
+      visible[0];
     if (!match) return;
 
     this.selectOption(match);

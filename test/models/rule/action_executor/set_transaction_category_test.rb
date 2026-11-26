@@ -17,7 +17,15 @@ class Rule::ActionExecutor::SetTransactionCategoryTest < ActiveSupport::TestCase
     assert_equal parent_index + 1, child_index
   end
 
-  test "options does not indent subcategory labels, so value_display doesn't show the arrow" do
+  test "options indent subcategories below their parent" do
+    child_label, = @executor.options.find { |_label, id| id == categories(:subcategory).id }
+    parent_label, = @executor.options.find { |_label, id| id == categories(:food_and_drink).id }
+
+    assert_equal "↳ #{categories(:subcategory).name}", child_label
+    assert_equal categories(:food_and_drink).name, parent_label
+  end
+
+  test "value_display shows the subcategory name without the indent arrow" do
     action = Rule::Action.new(
       rule: @rule,
       action_type: "set_transaction_category",

@@ -11,7 +11,14 @@ export default class extends Controller {
   static values = { total: Number, currency: String }
 
   connect() {
+    // Listens on the form rather than on each amount field, so rows keep the partial's markup.
+    this.followRemaining = this.followRemaining.bind(this)
+    this.element.addEventListener("input", this.followRemaining)
     this.updateRemaining()
+  }
+
+  disconnect() {
+    this.element.removeEventListener("input", this.followRemaining)
   }
 
   get rowCount() {
@@ -25,18 +32,16 @@ export default class extends Controller {
     // index, producing duplicate field names that silently drop one row.
     this.nextRowIndex ??= Date.now()
     const html = this.rowTemplateTarget.innerHTML.replaceAll("ROW_IDX_PLACEHOLDER", this.nextRowIndex++)
-    // The open balance as the indicator shows it, read before the new, empty row joins the sum.
-    const remaining = this.remainingTarget.textContent.trim()
     this.rowsContainerTarget.insertAdjacentHTML("beforeend", html)
 
-    // A new row starts with what is still unassigned, so the last row usually balances
-    // the split without typing. A balanced split leaves the new row empty.
-    if (Number(remaining)) {
-      const newRow = this.rowTargets[this.rowTargets.length - 1]
-      newRow.querySelector("[data-split-transaction-target='amountInput']").value = remaining
-    }
+    // The newest row takes what is still unassigned and keeps following it while other
+    // amounts change, until the user edits it. An earlier row keeps what it shows.
+    for (const input of this.amountInputTargets) delete input.dataset.followsRemaining
+    const newRow = this.rowTargets[this.rowTargets.length - 1]
+    newRow.querySelector("[data-split-transaction-target='amountInput']").dataset.followsRemaining = "true"
 
     this.updateRemaining()
+    this.fillFollowingRow()
   }
 
   removeRow(event) {
@@ -45,7 +50,35 @@ export default class extends Controller {
     if (row && this.rowCount > 1) {
       row.remove()
       this.updateRemaining()
+      this.fillFollowingRow()
     }
+  }
+
+  followRemaining(event) {
+    const input = event.target
+    if (!this.amountInputTargets.includes(input)) return
+
+    if (input.dataset.followsRemaining) {
+      delete input.dataset.followsRemaining
+    } else {
+      this.fillFollowingRow()
+    }
+  }
+
+  // Sets the following row to the open balance as the indicator shows it (which already
+  // counts that row). Nothing left, or more assigned than the total, leaves the row empty,
+  // so the indicator shows the overshoot instead of the row taking the opposite sign.
+  fillFollowingRow() {
+    const input = this.amountInputTargets.find((amountInput) => amountInput.dataset.followsRemaining)
+    if (!input) return
+
+    const remaining = this.remainingTarget.textContent.trim()
+    const decimals = (remaining.split(".")[1] || "").length
+    const amount = Number(((Number.parseFloat(input.value) || 0) + Number(remaining)).toFixed(decimals))
+    const fits = amount !== 0 && Math.sign(amount) === Math.sign(this.totalValue)
+
+    input.value = fits ? amount.toFixed(decimals) : ""
+    this.updateRemaining()
   }
 
   updateRemaining() {

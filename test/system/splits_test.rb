@@ -92,6 +92,47 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "the newest split row follows changes to the other amounts until it is edited" do
+    entry = create_transaction(amount: 100, name: "Prefill follows", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      click_button I18n.t("splits.new.add_row")
+      assert_equal "-100.00", amount_fields.call.last.value
+
+      amount_fields.call.first.fill_in with: "-30"
+      assert_equal "-70.00", amount_fields.call.last.value
+
+      amount_fields.call.last.fill_in with: "-60"
+      amount_fields.call.first.fill_in with: "-20"
+      assert_equal "-60", amount_fields.call.last.value
+      assert_selector "[data-split-transaction-target='remaining']", text: "-20.00"
+    end
+  end
+
+  test "the following split row empties instead of taking the opposite sign" do
+    entry = create_transaction(amount: 100, name: "Prefill overshoot", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      amount_fields.call.first.fill_in with: "-30"
+      click_button I18n.t("splits.new.add_row")
+
+      amount_fields.call.first.fill_in with: "-120"
+      assert_equal "", amount_fields.call.last.value
+      assert_selector "[data-split-transaction-target='remaining']", text: "20.00"
+
+      amount_fields.call.first.fill_in with: "-90"
+      assert_equal "-10.00", amount_fields.call.last.value
+    end
+  end
+
   private
     # Heights of the category, merchant and tag fields in the current split row.
     def picker_heights

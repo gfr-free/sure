@@ -535,17 +535,36 @@ class GenerateInsightsJobTest < ActiveJob::TestCase
     assert other.reload.active?, "a type that did not run is left alone"
   end
 
-  test "a typed refresh that finds a run in progress tries again once" do
+  test "a typed refresh that finds a run in progress tries again with backoff, a few times" do
     GenerateInsightsJob.any_instance.stubs(:with_advisory_lock).returns(nil)
+    types = [ "connection_needs_attention" ]
 
-    assert_enqueued_with(job: GenerateInsightsJob, args: [ { family_id: @family.id, types: [ "connection_needs_attention" ], retried: true } ]) do
-      GenerateInsightsJob.perform_now(family_id: @family.id, types: [ "connection_needs_attention" ])
+    assert_enqueued_with(job: GenerateInsightsJob, args: [ { family_id: @family.id, types: types, attempt: 2 } ]) do
+      GenerateInsightsJob.perform_now(family_id: @family.id, types: types)
     end
 
     assert_no_enqueued_jobs(only: GenerateInsightsJob) do
-      GenerateInsightsJob.perform_now(family_id: @family.id, types: [ "connection_needs_attention" ], retried: true)
+      GenerateInsightsJob.perform_now(family_id: @family.id, types: types, attempt: GenerateInsightsJob::RETRIES_WHEN_LOCKED)
       GenerateInsightsJob.perform_now(family_id: @family.id)
     end
+  end
+
+  test "a cleared connection problem expires even when it was acknowledged" do
+    connection = @family.insights.create!(
+      insight_type: "connection_needs_attention", priority: "high", status: "dismissed", title: "t", body: "b",
+      metadata: { "reason" => "reconnect", "account_ids" => [ accounts(:depository).id ] },
+      dedup_key: "connection_needs_attention:TradeRepublicItem:cleared:reconnect", generated_at: Time.current
+    )
+    other = @family.insights.create!(
+      insight_type: "idle_cash", priority: "low", status: "dismissed", title: "t", body: "b",
+      metadata: {}, dedup_key: "idle_cash:acknowledged", generated_at: Time.current
+    )
+    stub_generated([], succeeded_types: %w[connection_needs_attention idle_cash])
+
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+
+    assert connection.reload.expired?
+    assert other.reload.acknowledged?, "other types keep their acknowledgement"
   end
 
   test "an account added to a connection updates its insight without notifying again" do
@@ -584,7 +603,7 @@ class GenerateInsightsJobTest < ActiveJob::TestCase
         template_key: "connection_needs_attention.reconnect",
         facts: { provider: "Test Bank" },
         metadata: { connection_type: "TradeRepublicItem", connection_id: "tr-1", reason: "reconnect",
-                    last_success_on: "2026-11-20", reminder: reminder, account_ids: account_ids },
+                    detected_on: "2026-11-20", reminder: reminder, account_ids: account_ids },
         currency: "USD",
         period_start: nil,
         period_end: nil,

@@ -429,7 +429,11 @@ class Sync < ApplicationRecord
 
       GenerateInsightsJob.perform_later(family_id: family.id, types: [ Insight::Generators::ConnectionAttentionGenerator::TYPE ])
     rescue => e
-      Rails.logger.error("Failed to enqueue connection insight refresh for sync #{id}: #{e.message}")
+      DebugLogEntry.capture(
+        category: "insights", level: "error", source: "Sync#refresh_connection_insights", family: family,
+        message: "Failed to enqueue connection insight refresh: #{e.class}: #{e.message}",
+        metadata: { sync_id: id, syncable_type: syncable_type, syncable_id: syncable_id }
+      )
     end
 
     def connection_sync_finished?

@@ -6,11 +6,13 @@
 # - failing: its syncs keep failing and nothing went through for FAILING_AFTER
 # - expiring: an Enable Banking consent ends within EXPIRY_WARNING
 #
-# Each problem is one insight per connection and reason. Its metadata carries
-# the last successful sync as the episode anchor, so a connection that recovers
-# and fails again notifies again even if the earlier insight was dismissed, and
-# a `reminder` flag that turns on once after REMIND_AFTER, which notifies a
-# second time while the problem lasts.
+# Each problem is one insight per connection and reason, and one problem is one
+# episode: GenerateInsightsJob expires the row once the problem clears, even if
+# it was acknowledged (Insight::EPISODIC_TYPES), so a problem that returns
+# notifies again. While it lasts, metadata keeps the day it was first
+# detected, and a `reminder` flag turns on once REMIND_AFTER later, which
+# notifies a second time. Nothing else in metadata moves while the problem
+# lasts, so a sync that completes in between does not notify again.
 #
 # A connection names its linked accounts in metadata account_ids instead of
 # account_id. The feed shows the insight only while every active member can
@@ -23,6 +25,7 @@ class Insight::Generators::ConnectionAttentionGenerator < Insight::Generator
   FAILING_AFTER = 24.hours
   EXPIRY_WARNING = 7.days
   REMIND_AFTER = 3.days
+  REMINDING_REASONS = %w[reconnect failing].freeze
 
   def generate
     connections = ProviderConnectionStatus::PROVIDERS.flat_map do |provider|
@@ -34,6 +37,7 @@ class Insight::Generators::ConnectionAttentionGenerator < Insight::Generator
     items = connections.map(&:first)
     terminal_syncs = latest_syncs(items, Sync.where(status: %w[completed failed stale]))
     completed_syncs = latest_syncs(items, Sync.completed)
+    ongoing = family.insights.where(insight_type: TYPE).where.not(status: :expired).index_by(&:dedup_key)
 
     connections.filter_map do |item, provider|
       account_ids = linked_account_ids(item, provider)
@@ -41,62 +45,58 @@ class Insight::Generators::ConnectionAttentionGenerator < Insight::Generator
 
       key = [ item.class.name, item.id ]
       problem = detect_problem(item, terminal_syncs[key], completed_syncs[key])
-      build(item, provider, problem, account_ids) if problem
+      build(item, provider, problem, account_ids, ongoing) if problem
     end
   end
 
   private
-    Problem = Data.define(:reason, :last_success_at, :reportable_at, :expires_at)
+    Problem = Data.define(:reason, :last_success_at, :expires_at)
 
     def detect_problem(item, latest_terminal, latest_completed)
       last_success_at = latest_completed&.completed_at
 
       if ProviderConnectionStatus.requires_update?(item, latest_sync: latest_terminal)
-        started_at = first_failure_after(item, last_success_at) || last_success_at || item.created_at
-        return Problem.new(reason: "reconnect", last_success_at: last_success_at, reportable_at: started_at, expires_at: nil)
+        return Problem.new(reason: "reconnect", last_success_at: last_success_at, expires_at: nil)
       end
 
-      if latest_terminal && (latest_terminal.failed? || latest_terminal.stale?)
-        quiet_since = last_success_at || item.created_at
-        return unless quiet_since <= FAILING_AFTER.ago
-
-        first_failure = first_failure_after(item, last_success_at) || latest_terminal.created_at
-        reportable_at = [ first_failure, quiet_since + FAILING_AFTER ].max
-        return Problem.new(reason: "failing", last_success_at: last_success_at, reportable_at: reportable_at, expires_at: nil)
+      if latest_terminal && (latest_terminal.failed? || latest_terminal.stale?) &&
+         (last_success_at || item.created_at) <= FAILING_AFTER.ago
+        return Problem.new(reason: "failing", last_success_at: last_success_at, expires_at: nil)
       end
 
-      expiring_problem(item, last_success_at)
+      expiring_problem(item)
     end
 
     # Enable Banking is the one provider whose consent end is known ahead of
     # time and lasts long enough for a week's notice to mean something.
-    def expiring_problem(item, last_success_at)
+    def expiring_problem(item)
       return unless item.is_a?(EnableBankingItem)
 
       expires_at = item.session_expires_at
       return unless expires_at && expires_at > Time.current && expires_at <= EXPIRY_WARNING.from_now
 
-      Problem.new(reason: "expiring", last_success_at: last_success_at, reportable_at: nil, expires_at: expires_at)
+      Problem.new(reason: "expiring", last_success_at: nil, expires_at: expires_at)
     end
 
-    def build(item, provider, problem, account_ids)
+    def build(item, provider, problem, account_ids, ongoing)
       provider_name = item.try(:institution_display_name).presence || item.try(:name).presence || provider[:key].humanize
+      dedup_key = "#{TYPE}:#{item.class.name}:#{item.id}:#{problem.reason}"
+      detected_on = detected_on(ongoing[dedup_key])
       expires_on = problem.expires_at&.to_date
-      reminder = problem.reportable_at.present? && problem.reportable_at <= REMIND_AFTER.ago
 
       metadata = {
         connection_type: item.class.name,
         connection_id: item.id,
         reason: problem.reason,
-        last_success_on: problem.last_success_at&.to_date&.iso8601,
-        reminder: reminder,
+        detected_on: detected_on.iso8601,
+        reminder: problem.reason.in?(REMINDING_REASONS) && detected_on <= REMIND_AFTER.ago.to_date,
         account_ids: account_ids
       }
       metadata[:expires_on] = expires_on.iso8601 if expires_on
 
       facts = { provider: provider_name }
       # "No new data since" reads from the last sync that went through.
-      facts[:since] = I18n.l((problem.last_success_at || problem.reportable_at).to_date, format: :long) if problem.reason == "failing"
+      facts[:since] = I18n.l((problem.last_success_at || item.created_at).to_date, format: :long) if problem.reason == "failing"
       facts[:expires_on] = I18n.l(expires_on, format: :long) if expires_on
 
       GeneratedInsight.new(
@@ -109,8 +109,18 @@ class Insight::Generators::ConnectionAttentionGenerator < Insight::Generator
         currency: family.currency,
         period_start: nil,
         period_end: nil,
-        dedup_key: "#{TYPE}:#{item.class.name}:#{item.id}:#{problem.reason}"
+        dedup_key: dedup_key
       )
+    end
+
+    # The day an ongoing problem was first reported, carried over from its row;
+    # today for a new one.
+    def detected_on(ongoing_insight)
+      return Date.current unless ongoing_insight
+
+      Date.iso8601(ongoing_insight.metadata["detected_on"].to_s)
+    rescue Date::Error
+      Date.current
     end
 
     # One query per lookup across every provider: DISTINCT ON keeps the newest
@@ -120,12 +130,6 @@ class Insight::Generators::ConnectionAttentionGenerator < Insight::Generator
         .select("DISTINCT ON (syncable_type, syncable_id) syncs.*")
         .order("syncable_type, syncable_id, created_at DESC, id DESC")
         .index_by { |sync| [ sync.syncable_type, sync.syncable_id ] }
-    end
-
-    def first_failure_after(item, time)
-      failures = Sync.where(syncable: item, status: %w[failed stale])
-      failures = failures.where("syncs.created_at > ?", time) if time
-      failures.minimum(:created_at)
     end
 
     # Linked accounts the family still shows, through AccountProvider or the

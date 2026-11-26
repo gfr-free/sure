@@ -49,6 +49,15 @@ class Insight::ConnectionNeedsAttentionTest < ActiveSupport::TestCase
     assert_not insight.notifies?(@member)
   end
 
+  test "the native app is only notified about a connection the shared feed shows" do
+    hidden = connection_insight(accounts(:connected))
+    shown = connection_insight(accounts(:depository))
+
+    assert hidden.notifies?(@admin, channel: "WebPushSubscription")
+    assert_not hidden.notifies?(@admin, channel: "PushSubscription"), "the app could not open it"
+    assert shown.notifies?(@admin, channel: "PushSubscription")
+  end
+
   test "notification still needs preview features" do
     @member.update!(preferences: @member.preferences.merge("preview_features_enabled" => false))
     insight = connection_insight(accounts(:depository))

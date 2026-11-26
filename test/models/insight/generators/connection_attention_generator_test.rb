@@ -44,7 +44,7 @@ class Insight::Generators::ConnectionAttentionGeneratorTest < ActiveSupport::Tes
     insight = insight_for(@item)
 
     assert_equal "failing", insight.metadata[:reason]
-    assert_equal 30.hours.ago.to_date.iso8601, insight.metadata[:last_success_on]
+    assert_equal Date.current.iso8601, insight.metadata[:detected_on]
     assert_equal I18n.l(30.hours.ago.to_date, format: :long), insight.facts[:since]
     assert_equal false, insight.metadata[:reminder]
   end
@@ -71,23 +71,57 @@ class Insight::Generators::ConnectionAttentionGeneratorTest < ActiveSupport::Tes
     assert_nil insight_for(@item)
   end
 
-  test "the reminder turns on once the problem has lasted three days" do
-    @item.update!(session_expires_at: 4.days.ago)
-    sync(:completed, 5.days.ago)
-    sync(:failed, 4.days.ago)
+  test "the reminder turns on three days after the problem was first reported" do
+    @item.update!(session_expires_at: 1.minute.ago)
+    run_job
+    insight = @family.insights.find_by!(insight_type: "connection_needs_attention")
+    assert_equal false, insight.metadata["reminder"]
+    assert_equal 1, insight.notification_version
 
-    assert_equal true, insight_for(@item).metadata[:reminder]
+    travel 2.days
+    run_job
+    assert_equal 1, insight.reload.notification_version, "nothing moves while the problem lasts"
+
+    travel 1.day
+    run_job
+    assert_equal true, insight.reload.metadata["reminder"]
+    assert_equal 2, insight.notification_version
+    assert_equal 3.days.ago.to_date.iso8601, insight.metadata["detected_on"]
   end
 
-  test "the failure episode starts when the failures became reportable" do
-    sync(:completed, 3.days.ago)
-    sync(:failed, 2.days.ago - 1.hour)
+  test "a sync that completes while the connection still needs a sign-in does not notify again" do
+    @item.update!(session_expires_at: 1.minute.ago)
+    run_job
+    insight = @family.insights.find_by!(insight_type: "connection_needs_attention")
 
-    # Reportable a day after the last good sync, so two days before now.
-    assert_equal false, insight_for(@item).metadata[:reminder]
+    travel 1.day
+    sync(:completed, 1.minute.ago)
+    run_job
 
-    travel 1.day + 1.minute
-    assert_equal true, insight_for(@item).metadata[:reminder]
+    assert_equal 1, insight.reload.notification_version
+  end
+
+  test "a problem that clears and returns notifies again even after it was acknowledged" do
+    @item.update!(session_expires_at: 1.minute.ago)
+    run_job
+    insight = @family.insights.find_by!(insight_type: "connection_needs_attention")
+    insight.acknowledge!
+
+    @item.update!(session_expires_at: 1.hour.from_now)
+    run_job
+    assert insight.reload.expired?
+
+    travel 2.hours
+    run_job
+    assert insight.reload.active?
+    assert_equal 2, insight.notification_version
+  end
+
+  test "a recent failure does not hide an Enable Banking consent ending soon" do
+    item = enable_banking_item(session_expires_at: 4.days.from_now)
+    Sync.create!(syncable: item, status: :failed, created_at: 1.minute.ago, failed_at: 1.minute.ago)
+
+    assert_equal "expiring", insight_for(item).metadata[:reason]
   end
 
   test "an Enable Banking consent ending within a week is reported" do
@@ -132,6 +166,11 @@ class Insight::Generators::ConnectionAttentionGeneratorTest < ActiveSupport::Tes
     def sync(status, at)
       Sync.create!(syncable: @item, status: status, created_at: at,
                    completed_at: (at if status == :completed), failed_at: (at if status == :failed))
+    end
+
+    def run_job
+      users(:family_admin).update!(preferences: users(:family_admin).preferences.merge("preview_features_enabled" => true))
+      GenerateInsightsJob.perform_now(family_id: @family.id, types: [ "connection_needs_attention" ])
     end
 
     def enable_banking_item(session_expires_at:)

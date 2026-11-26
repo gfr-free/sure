@@ -2,6 +2,11 @@ import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import { normalizeSearchText } from "utils/normalize_search_text";
 
+// Whether a typed name is an existing one: exact but for case and Unicode
+// form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
+// still counts as the existing one.
+const exactName = (value) => value.normalize("NFC").toLowerCase();
+
 export default class extends Controller {
   static targets = [
     "button",
@@ -75,7 +80,7 @@ export default class extends Controller {
     let exactMatch = false;
     let anyVisible = false;
 
-    const exactQuery = rawQuery.toLowerCase();
+    const exactQuery = exactName(rawQuery);
 
     this.optionTargets.forEach((option) => {
       const names = this.#optionNames(option);
@@ -90,7 +95,7 @@ export default class extends Controller {
       if (matches) anyVisible = true;
 
       // "Exists" stays exact but for case: "Café" next to "Cafe" can be created.
-      if (names.some((name) => name.toLowerCase() === exactQuery))
+      if (names.some((name) => exactName(name) === exactQuery))
         exactMatch = true;
     });
 
@@ -128,25 +133,32 @@ export default class extends Controller {
       return;
     }
 
-    if (!this.createFormTarget.classList.contains("hidden")) {
+    const rawQuery = this.searchTarget.value.trim();
+    const visible = this.optionTargets.filter(
+      (option) => !option.classList.contains("hidden"),
+    );
+    const isExact = (name) => exactName(name || "") === exactName(rawQuery);
+    const isFolded = (name) =>
+      normalizeSearchText(name || "") === normalizeSearchText(rawQuery);
+    // Two categories can show the same name (a default one translated, a
+    // custom one stored under that label), so the stored name wins; a name
+    // typed without its accents still picks that category.
+    const exact =
+      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
+      visible.find((option) => this.#optionNames(option).some(isExact));
+    const folded = visible.find((option) =>
+      this.#optionNames(option).some(isFolded),
+    );
+
+    if (!this.createFormTarget.classList.contains("hidden") && !folded) {
       if (!this.creating) this.createCategory();
       return;
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const query = this.searchTarget.value.trim().toLowerCase();
-    if (!query) return;
+    if (!rawQuery) return;
 
-    const visible = this.optionTargets.filter(
-      (option) => !option.classList.contains("hidden"),
-    );
-    const isExact = (name) => (name || "").toLowerCase() === query;
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const match =
-      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
-      visible.find((option) => this.#optionNames(option).some(isExact)) ??
-      visible[0];
+    const match = exact ?? folded ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);

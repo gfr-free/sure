@@ -323,6 +323,14 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
       fill_in "Search categories", with: "Epicerie fine"
 
       assert_selector "[data-category-select-target='createForm']", text: 'Create "Epicerie fine"'
+
+      # Enter on that name still picks the existing category; creating the
+      # near-duplicate takes a click.
+      assert_no_difference "Category.count" do
+        find_field("Search categories").send_keys(:enter)
+
+        assert_selector "[data-category-select-target='selectionContainer']", text: "Épicerie fine"
+      end
     end
   end
 

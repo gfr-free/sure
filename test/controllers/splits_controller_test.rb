@@ -389,8 +389,12 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal merchants(:amazon).id, template.at_css("input[type='hidden'][name$='[merchant_id]']")["value"]
   end
 
-  test "create stores the prefilled parent merchant a row sends back" do
+  test "create passes a prefilled parent merchant on to the split as sent" do
     @entry.transaction.update!(merchant: merchants(:amazon))
+
+    Entry.any_instance.expects(:split_once!).with do |splits, **|
+      splits.map { |split| split[:merchant_id] } == [ merchants(:amazon).id, merchants(:netflix).id ]
+    end.returns(true)
 
     post transaction_split_path(@entry), params: {
       split: {
@@ -400,10 +404,27 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
         ]
       }
     }
+  end
 
-    children = @entry.reload.child_entries.index_by(&:name)
-    assert_equal merchants(:amazon).id, children["Groceries"].entryable.merchant_id
-    assert_equal merchants(:netflix).id, children["Household"].entryable.merchant_id
+  test "update passes a prefilled parent merchant on to the split as sent" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+    @entry.split!([
+      { name: "Part 1", amount: 60, category_id: nil },
+      { name: "Part 2", amount: 40, category_id: nil }
+    ])
+
+    Entry.any_instance.expects(:resplit!).with do |splits, **|
+      splits.map { |split| split[:merchant_id] } == [ merchants(:amazon).id, merchants(:netflix).id ]
+    end.returns(true)
+
+    patch transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Part 1", amount: "-60", category_id: "", merchant_id: merchants(:amazon).id },
+          { name: "Part 2", amount: "-40", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
   end
 
   # Destroy from child tests

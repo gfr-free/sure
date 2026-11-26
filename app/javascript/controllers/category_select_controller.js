@@ -1,6 +1,9 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { normalizeSearchText } from "utils/normalize_search_text";
+import {
+  normalizeSearchText,
+  sameNameIgnoringLatinAccents,
+} from "utils/normalize_search_text";
 
 // Whether a typed name is an existing one: exact but for case and Unicode
 // form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
@@ -134,26 +137,35 @@ export default class extends Controller {
       return;
     }
 
-    if (!this.createFormTarget.classList.contains("hidden")) {
-      if (!this.creating) this.createCategory();
-      return;
-    }
+    if (this.creating) return;
 
-    // Nothing to create (locked, or the name exists already): pick the match.
     const rawQuery = this.searchTarget.value.trim();
     if (!rawQuery) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const exactQuery = exactName(rawQuery);
-    const isExact = (name) => exactName(name || "") === exactQuery;
     // Two categories can show the same name (a default one translated, a
     // custom one stored under that label), so the stored name wins.
-    const match =
-      visible.find((option) => isExact(option.dataset.categoryStoredName)) ??
-      visible.find((option) => this.#optionNames(option).some(isExact)) ??
-      visible[0];
+    const findByName = (same) =>
+      visible.find((option) => same(option.dataset.categoryStoredName)) ??
+      visible.find((option) => this.#optionNames(option).some(same));
+    const exactQuery = exactName(rawQuery);
+    const exactMatch = findByName(
+      (name) => exactName(name || "") === exactQuery,
+    );
+    // A name that differs only in Latin accents is still the existing one
+    // for Enter; creating that near-duplicate takes a click on the create row.
+    const accentMatch =
+      exactMatch ??
+      findByName((name) => sameNameIgnoringLatinAccents(name || "", rawQuery));
+
+    if (!accentMatch && !this.createFormTarget.classList.contains("hidden")) {
+      this.createCategory();
+      return;
+    }
+
+    const match = accentMatch ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);

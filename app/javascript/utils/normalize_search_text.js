@@ -15,3 +15,19 @@ export function normalizeSearchText(value) {
     .replaceAll("_", " ")
     .toLowerCase();
 }
+
+// Whether two names are the same once accents on Latin letters are
+// ignored, so Enter on "epicerie fine" can pick the existing "Épicerie
+// fine". Marks on other scripts stay: without them Japanese dakuten, Indic
+// vowel signs or the Cyrillic "й" spell a different word.
+export function sameNameIgnoringLatinAccents(a, b) {
+  return foldLatinAccents(a) === foldLatinAccents(b);
+}
+
+function foldLatinAccents(value) {
+  return value
+    .normalize("NFD")
+    .replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1")
+    .normalize("NFC")
+    .toLowerCase();
+}

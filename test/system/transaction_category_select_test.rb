@@ -307,7 +307,7 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
   end
 
   test "the category search ignores accents and case" do
-    @user.family.categories.create!(name: "Épicerie fine", color: "#e99537", lucide_icon: "shopping-basket")
+    category = @user.family.categories.create!(name: "Épicerie fine", color: "#e99537", lucide_icon: "shopping-basket")
 
     visit new_transaction_url
 
@@ -329,7 +329,10 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
       fill_in "Search categories", with: "E\u0301picerie fine"
 
       assert_no_selector "[data-category-select-target='createForm']"
+      find_field("Search categories").send_keys(:enter)
     end
+
+    assert_selector "[data-category-select-target='hiddenInput'][value='#{category.id}']", visible: :all
   end
 
   private

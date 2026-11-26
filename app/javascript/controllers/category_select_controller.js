@@ -146,7 +146,8 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const isExact = (name) => exactName(name || "") === exactName(rawQuery);
+    const exactQuery = exactName(rawQuery);
+    const isExact = (name) => exactName(name || "") === exactQuery;
     // Two categories can show the same name (a default one translated, a
     // custom one stored under that label), so the stored name wins.
     const match =

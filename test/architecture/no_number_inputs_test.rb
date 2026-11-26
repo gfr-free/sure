@@ -41,6 +41,8 @@ class NoNumberInputsTest < ActiveSupport::TestCase
 
   NUMBER_FIELD_CALL = /\bnumber_field(?:_tag)?[\s(]+["':]?([\w\[\]#{}]+)/
   NUMBER_TYPE = /type(?::\s*|\s*=\s*)["':]?number\b/
+  DECIMAL_INPUTMODE = /inputmode(?::\s*|\s*=\s*|"\s*=>\s*)["':]?decimal\b/
+  MONEY_FIELD = "app/views/shared/_money_field.html.erb"
 
   test "only whole numbers use a number input" do
     unexpected = number_inputs.reject do |path, field|
@@ -63,12 +65,35 @@ class NoNumberInputsTest < ActiveSupport::TestCase
     assert_empty stale.map { |path, field| "#{path}: #{field}" }, "remove these from WHOLE_NUMBER_FIELDS"
   end
 
+  # A hand-built decimal text input skips the money field's reading of a
+  # comma, an expression and the currency's precision, and what it submits.
+  test "only the money field builds a decimal text input" do
+    hand_built = view_files.flat_map do |path, lines|
+      lines.filter_map do |line|
+        next if comment?(line) || path == MONEY_FIELD
+
+        path if line.match?(DECIMAL_INPUTMODE)
+      end
+    end
+
+    assert_empty hand_built.uniq, "use form.money_field or form.decimal_field instead of inputmode: \"decimal\""
+  end
+
   private
+    def view_files
+      Dir[Rails.root.join("app/{views,components}/**/*.{erb,rb}")].map do |file|
+        [ Pathname(file).relative_path_from(Rails.root).to_s, File.read(file).lines ]
+      end
+    end
+
+    def comment?(line)
+      line.lstrip.start_with?("#", "<%#")
+    end
+
     def number_inputs
-      Dir[Rails.root.join("app/{views,components}/**/*.{erb,rb}")].flat_map do |file|
-        path = Pathname(file).relative_path_from(Rails.root).to_s
-        File.read(file).each_line.filter_map do |line|
-          next if line.lstrip.start_with?("#", "<%#")
+      view_files.flat_map do |path, lines|
+        lines.filter_map do |line|
+          next if comment?(line)
 
           if (match = line.match(NUMBER_FIELD_CALL))
             [ path, match[1] ]

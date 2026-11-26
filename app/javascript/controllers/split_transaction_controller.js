@@ -29,6 +29,15 @@ export default class extends Controller {
     this.updateRemaining()
   }
 
+  // Name suggestions load asynchronously and can update a row's hidden name field after the
+  // user has moved on. The visible text, including an intentional blank, is what gets saved.
+  syncNames(event) {
+    this.nameInputTargets.forEach((input) => {
+      const hiddenField = input.closest(".hw-combobox")?.querySelector("[data-hw-combobox-target='hiddenField']")
+      if (hiddenField?.name) event.formData.set(hiddenField.name, input.value)
+    })
+  }
+
   removeRow(event) {
     event.stopPropagation()
     const row = event.target.closest("[data-split-transaction-target='row']")

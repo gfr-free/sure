@@ -4,6 +4,9 @@ import { Controller } from "@hotwired/stimulus"
 // that transaction's name from the description autocomplete, and clears it again if a
 // later-picked name has no usual category of its own. A manual category pick always
 // wins over the suggestion, even if the name field changes afterward.
+//
+// The category field can be a DS::CategorySelect (transaction form) or a searchable
+// DS::Select of categories (split rows); both are driven by clicking their option.
 export default class extends Controller {
   static targets = ["categoryField", "name"]
 
@@ -23,7 +26,7 @@ export default class extends Controller {
 
   onCategorySelected(event) {
     if (this.applyingSuggestion) return
-    if (!event.target.matches('[data-category-select-target="hiddenInput"]')) return
+    if (event.target !== this.#categoryHiddenInput()) return
 
     this.userPickedCategory = true
   }
@@ -49,20 +52,24 @@ export default class extends Controller {
 
   #categoryHiddenInput() {
     return this.hasCategoryFieldTarget
-      ? this.categoryFieldTarget.querySelector('[data-category-select-target="hiddenInput"]')
+      ? this.categoryFieldTarget.querySelector('[data-category-select-target="hiddenInput"], [data-form-dropdown-target="input"]')
       : null
   }
 
   #selectCategoryOption(categoryId) {
     if (this.userPickedCategory || !this.hasCategoryFieldTarget) return
 
+    const id = CSS.escape(String(categoryId))
     const option = this.categoryFieldTarget.querySelector(
-      `[data-category-select-target="option"][data-category-id="${CSS.escape(String(categoryId))}"]`
+      `[data-category-select-target="option"][data-category-id="${id}"], [data-select-target="option"][data-value="${id}"]`
     )
     if (!option) return
 
+    // DS::Select moves focus to its trigger on a pick; keep it where the user is typing.
+    const focused = document.activeElement
     this.applyingSuggestion = true
     option.click()
     this.applyingSuggestion = false
+    if (focused instanceof HTMLElement && document.activeElement !== focused) focused.focus()
   }
 }

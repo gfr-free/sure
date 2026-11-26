@@ -61,7 +61,88 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "picking a past name in a new split row sets that name's usual category" do
+    entry = create_transaction(amount: 50, name: "Split suggestions", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      click_button I18n.t("splits.new.add_row")
+      row = all("[data-split-transaction-target='row']", count: 2).last
+
+      within row do
+        name_input = find("input[role='combobox']")
+        name_input.fill_in with: "Starb"
+        assert_selector ".hw-combobox [role='option']", text: "Starbucks"
+        name_input.send_keys(:arrow_down, :enter)
+
+        assert_equal "Starbucks", name_input.value
+        assert_category categories(:food_and_drink)
+        assert_equal name_input, page.active_element, "picking a name moved focus out of the name field"
+
+        find("input[name$='[amount]']").fill_in with: "-20"
+      end
+
+      first_row = all("[data-split-transaction-target='row']", count: 2).first
+      within(first_row) { find("input[name$='[amount]']").fill_in with: "-30" }
+      assert_category nil, scope: first_row
+
+      click_button I18n.t("splits.new.submit")
+    end
+
+    assert_text I18n.t("splits.create.success")
+
+    children = entry.reload.child_entries.index_by(&:name)
+    assert_equal [ "Split suggestions", "Starbucks" ], children.keys.sort
+    assert_equal categories(:food_and_drink), children["Starbucks"].entryable.category
+    assert_nil children["Split suggestions"].entryable.category
+  end
+
+  test "mobile name picker in a split row sets the usual category" do
+    page.current_window.resize_to(390, 844)
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      within(all("[data-split-transaction-target='row']", minimum: 2).first) { find("input[role='combobox']").click }
+    end
+
+    within "dialog.hw-combobox__dialog[open]" do
+      find("input[role='combobox']").set("Starb")
+      find("[role='option']", text: "Starbucks").click
+    end
+
+    within all("[data-split-transaction-target='row']", minimum: 2).first do
+      assert_equal "Starbucks", find("input[role='combobox']").value
+      assert_category categories(:food_and_drink)
+    end
+  end
+
+  test "a category already chosen in a split row is not replaced by a picked name" do
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      within all("[data-split-transaction-target='row']", minimum: 2).first do
+        find(".category-select-container [data-select-target='button']").click
+        find(".category-select-container [role='option'][data-value='#{categories(:income).id}']").click
+
+        name_input = find("input[role='combobox']")
+        name_input.fill_in with: "Starb"
+        assert_selector ".hw-combobox [role='option']", text: "Starbucks"
+        name_input.send_keys(:arrow_down, :enter)
+
+        assert_equal "Starbucks", name_input.value
+        assert_category categories(:income)
+      end
+    end
+  end
+
   private
+    def assert_category(category, scope: current_scope)
+      within(scope) do
+        assert_selector(".category-select-container input[type='hidden']", visible: :all) { |input| input.value == category&.id.to_s }
+      end
+    end
+
     # Heights of the category, merchant and tag fields in the current split row.
     def picker_heights
       evaluate_script(<<~JS, current_scope)

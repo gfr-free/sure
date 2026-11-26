@@ -17,6 +17,20 @@ class TradesTest < ApplicationSystemTestCase
     visit_account_portfolio
   end
 
+  test "a quantity with a comma decimal is read as a fraction" do
+    open_new_trade_modal
+
+    fill_in "Ticker symbol", with: "AAPL"
+    fill_in "Date", with: Date.current
+    fill_in "Quantity", with: "2,5"
+    fill_in "model[price]", with: 100
+
+    click_button "Add transaction"
+
+    assert_text "Entry created"
+    assert_equal 2.5.to_d, Trade.order(:created_at).last.qty
+  end
+
   test "can create buy transaction" do
     shares_qty = 25
 
@@ -123,6 +137,24 @@ class TradesTest < ApplicationSystemTestCase
     end
 
     assert_eventually { trade.reload.fee.to_d == 2.5.to_d }
+  end
+
+  # trades.qty holds 18 decimals, more than a JS number keeps, so the drawer
+  # submits a plain quantity as shown when another field saves.
+  test "an existing trade keeps a quantity with 18 decimals when another field is saved" do
+    entry = entries(:trade)
+    qty = BigDecimal("0.123456789012345678")
+    entry.trade.update!(qty: qty)
+
+    visit trade_path(entry)
+
+    within "turbo-frame#drawer" do
+      fill_in "Transaction fee", with: "1"
+      find_field("Transaction fee").send_keys(:tab)
+    end
+
+    assert_eventually { entry.trade.reload.fee.to_d == 1.to_d }
+    assert_equal qty, entry.trade.reload.qty.abs
   end
 
   private

@@ -238,6 +238,13 @@ module ApplicationHelper
     [ nil, min_precision ]
   end
 
+  # A saved amount as the field's text, with the separator the field reads
+  # ("12,50" in a euro field), as amounts are shown everywhere else.
+  def money_field_text(value, precision:, separator:)
+    text = format("%.#{precision}f", value)
+    separator == "." ? text : text.sub(".", separator)
+  end
+
   # A number as plain decimal text ("0.000063", not Float#to_s's "6.3e-05"),
   # for a money field that shows a value as given (an exchange rate). Text
   # that is not a number is returned unchanged, so an invalid entry is shown

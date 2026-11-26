@@ -74,13 +74,13 @@
                            controller: "auto-submit-form",
                            "auto-submit-form-trigger-event-value": "change"
                          } do |form| %>
-      <%= form.number_field :categorization_confidence_threshold,
+      <%= form.decimal_field :categorization_confidence_threshold,
                             label: t(".confidence_threshold_label"),
                             in: 0..1,
                             step: 0.05,
                             value: Current.family.effective_categorization_confidence_threshold,
                             disabled: threshold_locked,
-                            data: { "auto-submit-form-target": "auto" } %>
+                            auto_submit: true %>
     <% end %>
     <p class="text-xs text-secondary"><%= t(".confidence_threshold_help") %></p>
     <% if threshold_locked %>
@@ -109,13 +109,13 @@
                          controller: "auto-submit-form",
                          "auto-submit-form-trigger-event-value": "change"
                        } do |form| %>
-    <%= form.number_field :categorization_shadow_rate,
+    <%= form.decimal_field :categorization_shadow_rate,
                           label: t(".shadow_rate_label"),
                           in: 0..1,
                           step: 0.05,
                           value: Current.family.effective_categorization_shadow_rate,
                           disabled: shadow_locked,
-                          data: { "auto-submit-form-target": "auto" } %>
+                          auto_submit: true %>
   <% end %>
   <p class="text-xs text-warning"><%= t(".shadow_rate_help") %></p>
   <% if shadow_locked %>

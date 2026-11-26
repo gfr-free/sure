@@ -101,6 +101,42 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
     }
   end
 
+  # A decimal that is not an amount of money (a share quantity, an interest
+  # rate): the money field without a symbol or currency, so "3,5" or an
+  # expression is read as in every amount field, where a number input drops a
+  # comma decimal. `step` sets the decimals it rounds to, and the value is
+  # shown with them, so leaving the field unedited changes nothing; without
+  # a step ("any") it is shown as saved and kept unrounded. It is written
+  # with the language's decimal separator ("6,000" in German).
+  def decimal_field(method, options = {})
+    options = { step: "any" }.merge(options)
+    value = options.key?(:value) ? options.delete(:value) : object.try(method)
+    if (range = options.delete(:in))
+      options[:min] ||= range.min
+      options[:max] ||= range.max
+    end
+    if options.delete(:auto_submit)
+      # A text input auto-submits on blur; a decimal field saves only when edited.
+      options[:auto_submit] = true
+      options[:amount_data] = { autosubmit_trigger_event: "change" }.merge(options[:amount_data] || {})
+    end
+
+    # A saved value with more decimals than the step keeps them, shown and
+    # submitted, so an unedited save does not round it.
+    decimals = decimal_field_decimals(value, options[:step])
+    options[:min_precision] ||= decimals if decimals && decimals > step_decimals(options[:step]).to_i
+
+    separator = I18n.t("number.format.separator", default: ".")
+    money_field(method, {
+      raw_value: decimal_field_text(value, decimals).sub(".", separator),
+      separator: separator,
+      delimiter: I18n.t("number.format.delimiter", default: ","),
+      placeholder: "",
+      hide_currency: true,
+      hide_symbol: true
+    }.merge(options))
+  end
+
   def toggle(method, options = {}, checked_value = "1", unchecked_value = "0")
     field_id = field_id(method)
     field_name = field_name(method)
@@ -205,5 +241,33 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
           @template.tag.div(tooltip_text, role: "tooltip", data: { tooltip_target: "tooltip" }, class: "tooltip bg-gray-700 text-sm p-2 rounded w-64 text-white")
         ])
       end
+    end
+
+    # The decimals a decimal field shows: the step's, or the saved value's
+    # own when it has more; nil for a step of "any" or a value that is not a
+    # finite number, which is shown as saved.
+    # A numeric string (a loan's rate-change rows) counts as its number.
+    def decimal_field_decimals(value, step)
+      decimals = step_decimals(step)
+      number = value.is_a?(String) ? BigDecimal(value, exception: false) : value
+      return if decimals.nil? || !number.is_a?(Numeric) || !number.to_f.finite?
+
+      [ decimals, @template.amount_decimals(number) ].max
+    end
+
+    # A decimal field's text, as normalizing it on blur would write it; text
+    # (a rate as entered) is shown as given.
+    def decimal_field_text(value, decimals)
+      return @template.plain_decimal_text(value) if decimals.nil? || value.is_a?(String)
+
+      format("%.#{decimals}f", value)
+    end
+
+    # 0.005 has 3 decimals and 100 has none; nil for "any" or a non-number.
+    def step_decimals(step)
+      decimal = BigDecimal(step.to_s, exception: false)
+      return unless decimal&.positive?
+
+      decimal.to_s("F").split(".").last.sub(/0+\z/, "").length
     end
 end

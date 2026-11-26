@@ -96,15 +96,16 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1">
-            <%= f.label :qty, t(".quantity_label"), class: "font-medium text-sm text-primary block" %>
-            <%= f.number_field :qty,
-                  step: "any",
-                  placeholder: t(".quantity_placeholder"),
-                  class: "form-field__input border border-secondary rounded-lg px-3 py-2 w-full text-primary bg-container",
-                  data: {
-                    action: "input->convert-to-trade#validatePrice",
-                    convert_to_trade_target: "qtyField"
-                  } %>
+            <%= fields builder: StyledFormBuilder do |qty_form| %>
+              <%= qty_form.decimal_field :qty,
+                    label: t(".quantity_label"),
+                    step: "any",
+                    placeholder: t(".quantity_placeholder"),
+                    amount_data: {
+                      action: "input->convert-to-trade#validatePrice",
+                      convert_to_trade_target: "qtyField"
+                    } %>
+            <% end %>
             <p class="text-xs text-secondary"><%= t(".quantity_hint") %></p>
           </div>
 

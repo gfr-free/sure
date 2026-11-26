@@ -18,10 +18,13 @@
   </label>
   <% if number_key %>
     <% range = Family::BayesSettings::RANGES[number_key] %>
-    <%= number_field_tag "bayes_settings[#{number_key}]", settings.public_send(number_key),
-                         id: nil, disabled: disabled || !settings.public_send(key), autocomplete: "off",
-                         class: "rounded-lg border border-primary px-3 py-1.5 text-sm bg-container text-primary w-36 shrink-0",
-                         aria: { label: label },
-                         data: { auto_submit_form_target: "auto" }, min: range&.min, max: range&.max, **number_attrs %>
+    <%= fields :bayes_settings, builder: StyledFormBuilder do |number_form| %>
+      <%= number_form.decimal_field number_key,
+            value: settings.public_send(number_key), id: nil, autocomplete: "off",
+            disabled: disabled || !settings.public_send(key),
+            label: label, label_class: "sr-only", aria: { label: label },
+            container_class: "w-36 shrink-0", auto_submit: true,
+            min: range&.min, max: range&.max, step: 1, **number_attrs %>
+    <% end %>
   <% end %>
 </div>

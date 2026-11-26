@@ -21,7 +21,7 @@
                                         placeholder: t("credit_cards.form.minimum_payment_placeholder"),
                                         default_currency: Current.family.currency %>
 
-        <%= credit_card_form.number_field :apr,
+        <%= credit_card_form.decimal_field :apr,
                                         label: t("credit_cards.form.apr"),
                                         placeholder: t("credit_cards.form.apr_placeholder"),
                                         min: 0,

@@ -13,6 +13,7 @@ const {
   amountBoundViolation,
   formatAmountForDisplay,
   hasWholeNumberGrouping,
+  plainNumberText,
   precisionFromStep,
 } = await import(MODULE_URL)
 
@@ -691,5 +692,24 @@ describe("hasWholeNumberGrouping", () => {
     assert.equal(hasWholeNumberGrouping("1500,00*12"), false)
     assert.equal(hasWholeNumberGrouping("abc"), false)
     assert.equal(hasWholeNumberGrouping(null), false)
+  })
+})
+
+describe("plainNumberText", () => {
+  it("keeps every digit of a plain number, which a JS number would shorten", () => {
+    assert.equal(plainNumberText("0.123456789012345678"), "0.123456789012345678")
+    assert.equal(plainNumberText("0,123456789012345678"), "0.123456789012345678")
+    assert.equal(plainNumberText(" 12,50 "), "12.50")
+    assert.equal(plainNumberText("-5"), "-5")
+    assert.equal(plainNumberText("+7"), "7")
+  })
+
+  it("is null for anything that is not one plain number", () => {
+    assert.equal(plainNumberText("1,50+1"), null)
+    assert.equal(plainNumberText("1.234,56"), null)
+    assert.equal(plainNumberText("12."), null)
+    assert.equal(plainNumberText(""), null)
+    assert.equal(plainNumberText("abc"), null)
+    assert.equal(plainNumberText(undefined), null)
   })
 })

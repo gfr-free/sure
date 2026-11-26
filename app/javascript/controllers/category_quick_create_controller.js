@@ -13,7 +13,7 @@ import {
 // refreshes in place and the "create a rule?" prompt still appears.
 //
 // The create targets are only rendered when the user may annotate the
-// account; without them this controller does nothing.
+// account; without them only the shared Enter rule (createOnEnter) applies.
 export default class extends Controller {
   static targets = [
     "input",
@@ -94,8 +94,9 @@ export default class extends Controller {
 
   // The same Enter rule as the category select (utils/search_match
   // enterMatch): an existing row the search names wins, else Enter creates
-  // while the create row shows, else it picks the first visible row. A row
-  // picked with the arrow keys wins over all of it (list-filter submits it).
+  // while the create row shows, else it picks the first row the search
+  // found (never a parent shown only as context). A row picked with the
+  // arrow keys wins over all of it (list-filter submits it).
   createOnEnter(event) {
     if (isComposing(event)) return;
     if (this.#parentPickerOpen || this.#hasHighlightedRow) return;

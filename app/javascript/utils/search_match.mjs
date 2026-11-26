@@ -103,7 +103,7 @@ export function isComposing(event) {
 // on "epicerie fine" picks "Épicerie fine" (creating the near-duplicate takes
 // a click on the create row). Several such rows ("Résumé", "Resumé") give no
 // single answer. With no row, Enter creates while the create row shows and
-// otherwise picks the first visible row.
+// otherwise picks the first visible search hit (firstSearchHit).
 export function enterMatch(rows, rawQuery) {
   const exact = exactMatch(rows, rawQuery);
   if (exact) return exact;

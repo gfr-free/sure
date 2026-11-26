@@ -62,12 +62,20 @@ class SplitsTest < ApplicationSystemTestCase
   end
 
   test "split dialog shows the category and merchant name a blank row will get" do
-    entry = create_transaction(amount: 50, name: "Corner shop", account: accounts(:depository), merchant: merchants(:netflix))
+    @user.family.update!(auto_generate_transaction_names: true)
+    entry = create_transaction(amount: 50, name: "Corner shop", account: accounts(:depository))
 
     visit new_transaction_split_path(entry)
 
     within "dialog" do
       name_input = find("input[name='split[splits][0][name]']")
+      assert_equal "Corner shop", name_input[:placeholder]
+
+      within find("[data-split-transaction-target='row']") do
+        find("[data-merchant-select-target='button']").click
+        find("[role='option'][data-merchant-name='Netflix']").click
+      end
+
       assert_equal "Netflix", name_input[:placeholder]
 
       within find("[data-split-transaction-target='row']") do
@@ -79,7 +87,7 @@ class SplitsTest < ApplicationSystemTestCase
 
       click_button I18n.t("splits.new.add_row")
       added = all("input[data-split-transaction-target='nameInput']").last
-      assert_equal "Netflix", added[:placeholder]
+      assert_equal "Corner shop", added[:placeholder]
 
       name_input.fill_in with: ""
       find("input[name='split[splits][0][amount]']").fill_in with: (-entry.amount).to_s

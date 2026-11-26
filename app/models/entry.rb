@@ -694,11 +694,26 @@ class Entry < ApplicationRecord
     child_entries.exists?
   end
 
-  # Name for a split part submitted without one: "Category - Merchant", the pattern a new
-  # transaction gets when names are generated. A part without its own merchant gets the
-  # parent's in split!, so the name uses that one too. Falls back to the parent's name.
-  def default_split_name(category: nil, merchant: nil)
-    self.class.generated_name(category: category, merchant: merchant || entryable.try(:merchant)) || name
+  # Names the splits submitted without a name the way a new transaction is named: with
+  # generated names on, "Category - Merchant", or the parent's name when a split has neither.
+  # With them off, the name stays blank and the presence validation rejects it. Category and
+  # merchant ids must already be scoped to what `user` may use (Entry::SplitReferences).
+  def name_blank_splits(splits, user:)
+    family = account.family
+    return splits unless family.auto_generate_transaction_names?
+
+    blank = splits.select { |split| split[:name].blank? }
+    return splits if blank.empty?
+
+    categories = family.categories.where(id: blank.filter_map { |split| split[:category_id] }).index_by(&:id)
+    merchants = family.available_merchants_for(user).where(id: blank.filter_map { |split| split[:merchant_id] }).index_by(&:id)
+
+    splits.map do |split|
+      next split unless split[:name].blank?
+
+      generated = self.class.generated_name(category: categories[split[:category_id]], merchant: merchants[split[:merchant_id]])
+      split.merge(name: generated || name)
+    end
   end
 
   # Splits this entry unless it stopped being splittable. Two callers (the split dialog, two
@@ -707,11 +722,11 @@ class Entry < ApplicationRecord
   # of children would land and the amount would count twice. A provider sync can also mark the
   # transaction pending or a transfer in between, so those are re-checked too. Returns true
   # when it split.
-  def split_once!(splits, lock_attributes: false)
+  def split_once!(splits, lock_attributes: false, inherit_merchant: true)
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes)
+      split!(splits, lock_attributes: lock_attributes, inherit_merchant: inherit_merchant)
       true
     end
   end
@@ -720,12 +735,12 @@ class Entry < ApplicationRecord
   # and two edits can't both insert children. Returns false when the entry is no longer a split
   # parent. Editing an existing split doesn't re-check whether the parent is pending or a transfer:
   # it creates no new split. Raises SplitPartTransferredError while a part is a leg of a confirmed transfer.
-  def resplit!(splits)
+  def resplit!(splits, inherit_merchant: true)
     with_split_lock do
       next false unless split_parent?
 
       unsplit!
-      split!(splits)
+      split!(splits, inherit_merchant: inherit_merchant)
       true
     end
   end
@@ -768,10 +783,12 @@ class Entry < ApplicationRecord
   #
   # @param splits [Array<Hash>] array of { name:, amount:, category_id:, merchant_id:, tag_ids:, excluded: } hashes.
   #   merchant_id and tag_ids are optional per split and fall back to the parent's merchant / no tags.
+  # @param inherit_merchant [Boolean] false leaves a split without merchant_id without a merchant, the
+  #   way the split dialog shows an empty merchant field.
   # @param lock_attributes [Boolean] locks the category and merchant each split sets on its child, so
   #   rules further down (or a later run) don't overwrite them. Tags are only ever added by rules.
   # @return [Array<Entry>] the created child entries
-  def split!(splits, lock_attributes: false)
+  def split!(splits, lock_attributes: false, inherit_merchant: true)
     total = splits.sum { |s| s[:amount].to_d }
     unless total == amount
       raise ActiveRecord::RecordInvalid.new(self), "Split amounts must sum to parent amount (expected #{amount}, got #{total})"
@@ -781,7 +798,7 @@ class Entry < ApplicationRecord
       children = splits.map do |split_attrs|
         child_transaction = Transaction.new(
           category_id: split_attrs[:category_id],
-          merchant_id: split_attrs[:merchant_id].presence || entryable.try(:merchant_id),
+          merchant_id: split_attrs[:merchant_id].presence || (entryable.try(:merchant_id) if inherit_merchant),
           tag_ids: split_attrs[:tag_ids] || [],
           kind: entryable.try(:kind)
         )

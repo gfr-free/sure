@@ -28,8 +28,8 @@
             controller: "split-transaction",
             split_transaction_total_value: (-@entry.amount).to_f,
             split_transaction_currency_value: @entry.currency,
+            split_transaction_generate_names_value: Current.family.auto_generate_transaction_names?,
             split_transaction_default_name_value: @entry.name,
-            split_transaction_default_merchant_value: @entry.entryable.try(:merchant)&.name,
             action: "change->split-transaction#updateNamePlaceholders",
             turbo_frame: :_top
           }
@@ -39,6 +39,7 @@
       <div data-split-transaction-target="rowsContainer" class="space-y-3">
         <%= render "splits/row",
                    index: 0,
+                   name: (@entry.name unless Current.family.auto_generate_transaction_names?),
                    categories: @categories,
                    merchants: @merchants,
                    tags: @tags,

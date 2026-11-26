@@ -65,6 +65,16 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_equal parent_merchant.id, children.last.transaction.merchant_id
   end
 
+  test "split! without inherit_merchant leaves a split without merchant_id without a merchant" do
+    parent_merchant = @entry.account.family.merchants.create!(name: "Parent merchant", type: "FamilyMerchant")
+    @entry.transaction.update!(merchant: parent_merchant)
+
+    children = @entry.split!([ { name: "Groceries", amount: 70 }, { name: "Household", amount: 30, merchant_id: parent_merchant.id } ], inherit_merchant: false)
+
+    assert_nil children.first.transaction.merchant_id
+    assert_equal parent_merchant.id, children.last.transaction.merchant_id
+  end
+
   test "split! supports per-split tags" do
     tag_one = @entry.account.family.tags.create!(name: "Tag one")
     tag_two = @entry.account.family.tags.create!(name: "Tag two")

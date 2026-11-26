@@ -14,7 +14,7 @@ class SplitsController < ApplicationController
 
     # A rule run, an API request or a double submit can split it between the check above and
     # here; split_once! re-checks under a lock.
-    unless @entry.split_once!(build_splits)
+    unless @entry.split_once!(build_splits, inherit_merchant: false)
       redirect_back_or_to transactions_path, alert: t("splits.create.not_splittable")
       return
     end
@@ -48,7 +48,7 @@ class SplitsController < ApplicationController
     splits = build_splits
 
     # A concurrent unsplit or edit can land between the check above and here.
-    unless @entry.resplit!(splits)
+    unless @entry.resplit!(splits, inherit_merchant: false)
       redirect_to transactions_path, alert: t("splits.edit.not_split")
       return
     end
@@ -114,7 +114,7 @@ class SplitsController < ApplicationController
       raw_splits = split_params[:splits] || []
       raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
-      rows = raw_splits.map do |s|
+      splits = raw_splits.map do |s|
         {
           name: s[:name],
           amount: s[:amount].to_d * -1,
@@ -123,22 +123,7 @@ class SplitsController < ApplicationController
         }
       end
 
-      fill_blank_split_names(rows)
-    end
-
-    # A row left without a name is named like a new transaction: "Category - Merchant".
-    def fill_blank_split_names(rows)
-      blank_rows = rows.select { |row| row[:name].blank? }
-      return rows if blank_rows.empty?
-
-      categories = Current.family.categories.where(id: blank_rows.filter_map { |row| row[:category_id] }).index_by(&:id)
-      merchants = Current.family.available_merchants_for(Current.user).where(id: blank_rows.filter_map { |row| row[:merchant_id] }).index_by(&:id)
-
-      blank_rows.each do |row|
-        row[:name] = @entry.default_split_name(category: categories[row[:category_id]], merchant: merchants[row[:merchant_id]])
-      end
-
-      rows
+      @entry.name_blank_splits(splits, user: Current.user)
     end
 
     def grouped_categories

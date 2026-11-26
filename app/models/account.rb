@@ -710,6 +710,11 @@ class Account < ApplicationRecord
       end
   end
 
+  # The account's post-sync transfer matching follows the sync's window.
+  def perform_post_sync(sync = nil)
+    syncer.perform_post_sync(sync)
+  end
+
   def institution_name
     read_attribute(:institution_name).presence || provider&.institution_name
   end

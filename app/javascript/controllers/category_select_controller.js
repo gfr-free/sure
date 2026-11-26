@@ -6,8 +6,8 @@ import {
 } from "utils/normalize_search_text";
 
 // Whether a typed name is an existing one: exact but for case and Unicode
-// form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
-// still counts as the existing one.
+// form, so "Café" can be created (by click) next to "Cafe" yet a pasted
+// decomposed "Café" still counts as the existing one.
 const exactName = (value) => value.normalize("NFC").toLowerCase();
 
 export default class extends Controller {
@@ -97,8 +97,8 @@ export default class extends Controller {
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      // "Exists" ignores case and Unicode form but not accents, so "Cafe"
-      // can still be created next to "Café".
+      // "Exists" ignores case and Unicode form but not accents, so the create
+      // row still offers "Cafe" next to "Café" (Enter picks "Café" though).
       if (names.some((name) => exactName(name) === exactQuery))
         exactMatch = true;
     });
@@ -156,9 +156,17 @@ export default class extends Controller {
     );
     // A name that differs only in Latin accents is still the existing one
     // for Enter; creating that near-duplicate takes a click on the create row.
+    // Several such names ("Résumé", "Resumé") give no single answer, so
+    // Enter then behaves as if none existed.
+    const accentMatches = exactMatch
+      ? []
+      : visible.filter((option) =>
+          this.#optionNames(option).some((name) =>
+            sameNameIgnoringLatinAccents(name, rawQuery),
+          ),
+        );
     const accentMatch =
-      exactMatch ??
-      findByName((name) => sameNameIgnoringLatinAccents(name || "", rawQuery));
+      exactMatch ?? (accentMatches.length === 1 ? accentMatches[0] : null);
 
     if (!accentMatch && !this.createFormTarget.classList.contains("hidden")) {
       this.createCategory();

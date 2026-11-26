@@ -20,6 +20,7 @@ export function normalizeSearchText(value) {
 // ignored, so Enter on "epicerie fine" can pick the existing "Épicerie
 // fine". Marks on other scripts stay: without them Japanese dakuten, Indic
 // vowel signs or the Cyrillic "й" spell a different word.
+// Letters without a decomposition ("ł", "ø", "ß") are not folded.
 export function sameNameIgnoringLatinAccents(a, b) {
   return foldLatinAccents(a) === foldLatinAccents(b);
 }

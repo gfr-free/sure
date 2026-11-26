@@ -323,15 +323,50 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
       fill_in "Search categories", with: "E\u0301picerie fine"
 
       assert_no_selector "[data-category-select-target='createForm']"
+      find_field("Search categories").send_keys(:enter)
+    end
 
-      # A name that differs only in accents can still be created by click,
-      # but Enter picks the existing category.
+    assert_selector "[data-category-select-target='hiddenInput'][value='#{category.id}']", visible: :all
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      # A name that differs only in accents is offered for creation, but
+      # Enter picks the existing category.
       fill_in "Search categories", with: "epicerie fine"
 
       assert_selector "[data-category-select-target='createForm']", text: 'Create "epicerie fine"'
       assert_no_difference -> { Category.count } do
         find_field("Search categories").send_keys(:enter)
         assert_selector "[data-category-select-target='hiddenInput'][value='#{category.id}']", visible: :all
+      end
+    end
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "epicerie fine"
+
+      assert_difference -> { Category.count }, 1 do
+        click_button 'Create "epicerie fine"'
+        assert_selector "[data-category-select-target='option']", text: "epicerie fine", visible: :all
+      end
+    end
+  end
+
+  test "Enter creates a new category when several differ only in accents" do
+    @user.family.categories.create!(name: "Résumé", color: "#e99537", lucide_icon: "shopping-basket")
+    @user.family.categories.create!(name: "Resumé", color: "#e99537", lucide_icon: "shopping-basket")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Search categories", with: "resume"
+
+      assert_difference -> { Category.count }, 1 do
+        find_field("Search categories").send_keys(:enter)
+        assert_selector "[data-category-select-target='option']", text: "resume", visible: :all
       end
     end
   end

@@ -11,12 +11,16 @@
 # a new field needs a decision about split parts before it ships.
 class Entry::SplitInheritance
   ENTRY_COLUMNS = {
-    inherited: %w[account_id currency date import_id import_locked],
+    # The reconciliation (manual status, or the statement that matched the
+    # parent) covers the same money, so the parts don't start over as open.
+    inherited: %w[
+      account_id currency date import_id import_locked
+      reconciled_at reconciled_by_statement_id reconciled_status
+    ],
     per_part: %w[amount excluded name notes],
     not_inherited: %w[
       created_at entryable_id entryable_type external_id id idempotency_key
-      locked_attributes parent_entry_id plaid_id reconciled_at
-      reconciled_by_statement_id reconciled_status source updated_at user_modified
+      locked_attributes parent_entry_id plaid_id source updated_at user_modified
     ]
   }.freeze
 

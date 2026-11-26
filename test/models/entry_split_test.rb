@@ -434,6 +434,22 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert_equal [ security.id ] * 2, parts.map(&:activity_security_id)
   end
 
+  test "split parts keep the parent's manual and statement reconciliation" do
+    statement = AccountStatement.create_from_upload!(
+      family: @entry.account.family,
+      account: @entry.account,
+      file: uploaded_file(filename: "statement.csv", content_type: "text/csv")
+    )
+    reconciled_at = 2.days.ago.change(usec: 0)
+    @entry.update!(reconciled_status: "cleared", reconciled_at: reconciled_at, reconciled_by_statement: statement)
+
+    parts = @entry.split!([ { name: "Groceries", amount: 70 }, { name: "Household", amount: 30 } ])
+
+    assert_equal %w[cleared cleared], parts.map(&:reconciled_status)
+    assert_equal [ reconciled_at ] * 2, parts.map { |part| part.reload.reconciled_at }
+    assert_equal [ statement.id ] * 2, parts.map(&:reconciled_by_statement_id)
+  end
+
   test "split parts don't take the parent's provider data, references or edit state" do
     parent = create_transaction(amount: 100, name: "Bank row", external_id: "bank-1", source: "simplefin")
     parent.entryable.update!(
@@ -441,14 +457,13 @@ class EntrySplitTest < ActiveSupport::TestCase
       provider_entry_reference: "ref-1",
       extra: { "simplefin" => { "pending" => false, "type" => "card" } }
     )
-    parent.update!(user_modified: true, reconciled_status: "cleared")
+    parent.update!(user_modified: true)
 
     part = parent.split!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ]).first
 
     assert_nil part.external_id
     assert_nil part.source
     assert_not part.user_modified?
-    assert_equal "unreconciled", part.reconciled_status
     assert_nil part.transaction.external_id
     assert_nil part.transaction.provider_entry_reference
     assert_not part.transaction.extra.key?("simplefin")

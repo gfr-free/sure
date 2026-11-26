@@ -106,7 +106,8 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
   # expression is read as in every amount field, where a number input drops a
   # comma decimal. `step` sets the decimals it rounds to, and the value is
   # shown with them, so leaving the field unedited changes nothing; without
-  # a step ("any") it is shown as saved and kept unrounded.
+  # a step ("any") it is shown as saved and kept unrounded. It is written
+  # with the language's decimal separator ("6,000" in German).
   def decimal_field(method, options = {})
     options = { step: "any" }.merge(options)
     value = options.key?(:value) ? options.delete(:value) : object.try(method)
@@ -120,8 +121,11 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
       options[:amount_data] = { autosubmit_trigger_event: "change" }.merge(options[:amount_data] || {})
     end
 
+    separator = I18n.t("number.format.separator", default: ".")
     money_field(method, {
-      raw_value: decimal_field_text(value, options[:step]),
+      raw_value: decimal_field_text(value, options[:step]).sub(".", separator),
+      separator: separator,
+      delimiter: I18n.t("number.format.delimiter", default: ","),
       placeholder: "",
       hide_currency: true,
       hide_symbol: true

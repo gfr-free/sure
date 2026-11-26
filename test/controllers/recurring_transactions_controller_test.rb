@@ -61,7 +61,8 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
                                                   name: "STREAMBOX", entryable: Transaction.new)
     get new_recurring_transaction_url(entry_id: entry.id), headers: { "Turbo-Frame" => "modal" }
     assert_select "select[name=?] option[selected][value=?]", "recurring_transaction[currency]", "EUR"
-    assert_select "input[name=?][value=?]", "recurring_transaction[amount]", "12.50"
+    # Shown the way a euro amount is written; the field submits 12.50.
+    assert_select "input[name=?][value=?]", "recurring_transaction[amount]", "12,50"
 
     get edit_recurring_transaction_url(@recurring_transaction), headers: { "Turbo-Frame" => "modal" }
     assert_select "select[name=?][disabled] option[selected][value=?]", "recurring_transaction[currency]", @recurring_transaction.currency

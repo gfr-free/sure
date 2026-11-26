@@ -100,10 +100,9 @@
                                   type: :password,
                                   value: nil %>
 
-              <%= form.date_field :sync_start_date,
+              <%= form.sync_start_date_field :sync_start_date,
                                   label: t("fio_items.provider_panel.sync_start_date_label"),
-                                  value: item.sync_start_date&.to_date,
-                                  max: Date.current %>
+                                  value: item.sync_start_date&.to_date %>
 
               <p class="text-xs text-secondary"><%= t("fio_items.provider_panel.sync_start_date_hint") %></p>
 
@@ -148,9 +147,8 @@
                         type: :password,
                         value: nil %>
 
-    <%= form.date_field :sync_start_date,
-                        label: t("fio_items.provider_panel.sync_start_date_label"),
-                        max: Date.current %>
+    <%= form.sync_start_date_field :sync_start_date,
+                        label: t("fio_items.provider_panel.sync_start_date_label") %>
 
     <p class="text-xs text-secondary"><%= t("fio_items.provider_panel.sync_start_date_hint") %></p>
 

@@ -9,9 +9,9 @@ require "test_helper"
 # each of those inputs carries a max.
 class DateFieldsTest < ActiveSupport::TestCase
   # Form attributes that become an Entry's date.
-  ENTRY_DATE_ATTRIBUTES = %w[date opening_balance_date paid_on].freeze
+  ENTRY_DATE_ATTRIBUTES = %w[date opening_balance_date purchase_date].freeze
 
-  DATE_INPUT = /\bdate_field(?:_tag)?\b|type=["']date["']/
+  DATE_INPUT = /\b(?:entry_|sync_start_)?date_field(?:_tag)?\b|type=["']date["']/
   ENTRY_DATE_FIELD = /\A\s*date_field\s*\(?\s*:(#{ENTRY_DATE_ATTRIBUTES.join("|")})\b/
 
   test "entry dates use entry_date_field" do
@@ -29,12 +29,13 @@ class DateFieldsTest < ActiveSupport::TestCase
   test "sync start date inputs cannot pick a future day" do
     offenders = date_input_statements.filter_map do |path, number, statement|
       next unless statement.include?("sync_start_date")
-      next if statement.match?(/\bmax[:=]/)
+      next if statement.match?(/\Async_start_date_field\b/)
+      next if statement.match?(/\bmax[:=]\s*["']?\s*past_date_max\b/)
 
       "#{path}:#{number}"
     end
 
-    assert_empty offenders, "Give every sync start date input max: Date.current (a sync cannot start in the future)."
+    assert_empty offenders, "Use form.sync_start_date_field, or max: past_date_max(saved_date) on other inputs (a sync cannot start in the future)."
   end
 
   private
@@ -52,8 +53,9 @@ class DateFieldsTest < ActiveSupport::TestCase
           rest = lines[index..].join[start..]
           statement =
             if rest.start_with?("type")
-              # A raw <input>: drop ERB inside its attributes, then stop at ">".
-              rest.gsub(/<%=?.*?%>/m, "erb").split(">", 2).first
+              # A raw <input>: keep the Ruby inside its ERB attributes, minus any
+              # ">" it holds, then stop at the tag's own ">".
+              rest.gsub(/<%=?(.*?)%>/m) { Regexp.last_match(1).delete(">") }.split(">", 2).first
             else
               rest.split("%>", 2).first
             end

@@ -58,10 +58,54 @@ class StyledFormBuilderTest < ActionView::TestCase
   # saved date would block saving the amount.
   test "an entry date older than the limit stays selectable" do
     old_date = Entry.min_supported_date - 3.days
-    builder = StyledFormBuilder.new(:entry, Entry.new(date: old_date), self, {})
+    entry = entries(:transaction)
+    entry.update_column(:date, old_date)
+    entry.date = Date.current
+    builder = StyledFormBuilder.new(:entry, entry, self, {})
     input = Nokogiri::HTML.fragment(builder.entry_date_field(:date)).at("input[type=date]")
 
     assert_equal old_date.iso8601, input["min"]
+  end
+
+  test "a new entry gets the usual lower bound even with an old date typed in" do
+    builder = StyledFormBuilder.new(:entry, Entry.new(date: Entry.min_supported_date - 3.days), self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date)).at("input[type=date]")
+
+    assert_equal (Entry.min_supported_date + 1.day).iso8601, input["min"]
+  end
+
+  test "a past-only entry date keeps a saved future date selectable" do
+    travel_to Time.zone.local(2026, 5, 6, 12) do
+      entry = entries(:valuation)
+      entry.update_column(:date, Date.new(2026, 6, 1))
+      builder = StyledFormBuilder.new(:entry, entry, self, {})
+      input = Nokogiri::HTML.fragment(builder.entry_date_field(:date, past_only: true)).at("input[type=date]")
+
+      assert_equal "2026-06-01", input["max"]
+    end
+  end
+
+  test "a virtual date attribute widens the bounds by the date it shows" do
+    travel_to Time.zone.local(2026, 5, 6, 12) do
+      vehicle = accounts(:vehicle).accountable
+      anchor = Entry.min_supported_date - 2.days
+      builder = StyledFormBuilder.new(:vehicle, vehicle, self, {})
+      input = Nokogiri::HTML.fragment(builder.entry_date_field(:purchase_date, value: anchor, past_only: true)).at("input[type=date]")
+
+      assert_equal anchor.iso8601, input["min"]
+      assert_equal "2026-05-06", input["max"]
+    end
+  end
+
+  test "a sync start date field stops at today unless a later date is saved" do
+    travel_to Time.zone.local(2026, 5, 6, 12) do
+      fresh = StyledFormBuilder.new(:connection, Struct.new(:sync_start_date).new(nil), self, {})
+      assert_equal "2026-05-06", Nokogiri::HTML.fragment(fresh.sync_start_date_field).at("input")["max"]
+
+      saved = Struct.new(:sync_start_date, :persisted?).new(Date.new(2026, 7, 1), true)
+      builder = StyledFormBuilder.new(:connection, saved, self, {})
+      assert_equal "2026-07-01", Nokogiri::HTML.fragment(builder.sync_start_date_field).at("input")["max"]
+    end
   end
 
   test "an entry date field keeps an explicit min, also as a string key" do

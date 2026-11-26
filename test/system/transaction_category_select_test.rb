@@ -259,6 +259,36 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     assert_equal fresh_parent, Category.find_by!(name: "Fresh Child").parent
   end
 
+  # Default categories keep the name of the locale they were created in, but
+  # the picker shows the name in the viewer's locale. The search has to match
+  # the name on screen, or a default category can't be found by what it shows.
+  test "the category search finds a default category by its translated name" do
+    @user.update!(locale: "de")
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Kategorien suchen", with: "Bars"
+
+      assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Restaurants & Bars"
+
+      # The shown name is an exact match, so the picker must not offer to
+      # create a second category under the same visible name.
+      fill_in "Kategorien suchen", with: "Restaurants & Bars"
+
+      assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Restaurants & Bars"
+      assert_no_text "„Restaurants & Bars“ erstellen"
+
+      # The stored name still finds it, so creating it again isn't offered
+      # (that create would fail on the unique name).
+      fill_in "Kategorien suchen", with: "Food & Drink"
+
+      assert_selector "[data-category-select-target='option']:not(.hidden)", text: "Restaurants & Bars"
+      assert_no_text "„Food & Drink“ erstellen"
+    end
+  end
+
   private
     def active_element_attribute(name)
       page.evaluate_script("document.activeElement.getAttribute('#{name}')")

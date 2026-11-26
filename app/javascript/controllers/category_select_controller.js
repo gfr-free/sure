@@ -75,13 +75,13 @@ export default class extends Controller {
     let anyVisible = false;
 
     this.optionTargets.forEach((option) => {
-      const name = option.dataset.categoryName.toLowerCase();
-      const matches = name.includes(query);
+      const names = this.#optionNames(option);
+      const matches = names.some((name) => name.includes(query));
 
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      if (name === query) exactMatch = true;
+      if (names.includes(query)) exactMatch = true;
     });
 
     const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
@@ -131,9 +131,8 @@ export default class extends Controller {
       (option) => !option.classList.contains("hidden"),
     );
     const match =
-      visible.find(
-        (option) => option.dataset.categoryName.toLowerCase() === query,
-      ) ?? visible[0];
+      visible.find((option) => this.#optionNames(option).includes(query)) ??
+      visible[0];
     if (!match) return;
 
     this.selectOption(match);
@@ -304,6 +303,16 @@ export default class extends Controller {
   #setCreating(creating) {
     this.createFormTarget.disabled = creating;
     for (const row of this.parentOptionTargets) row.disabled = creating;
+  }
+
+  // The shown name is in the viewer's locale; a default category's stored
+  // name can be in another one. Both find it, and either typed exactly means
+  // the category exists, so creating it again is not offered.
+  #optionNames(option) {
+    const { categoryName, categoryStoredName } = option.dataset;
+    return [categoryName, categoryStoredName]
+      .filter(Boolean)
+      .map((name) => name.toLowerCase());
   }
 
   #lastOptionInGroup(parentId) {

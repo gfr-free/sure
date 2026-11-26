@@ -250,7 +250,7 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     within "turbo-frame#category_dropdown" do
       search = find("input[type='search']")
       search.fill_in with: "Restaur"
-      assert_selector "[role='option']", text: categories(:food_and_drink).name
+      assert_selector "[data-filter-id='#{categories(:food_and_drink).id}'][data-filter-context]"
 
       search.send_keys(:up)
       assert_selector "input[type='search'][aria-activedescendant='#{dom_id(subcategory, 'category_option')}']"

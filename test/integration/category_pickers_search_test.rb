@@ -103,6 +103,22 @@ class CategoryPickersSearchTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The pages above are the ones rendered today; a new cascading list must
+  # set wholeGroups too. Every view that starts a category-filter controller
+  # must also set the value (directly or through _filter_popover, which
+  # derives it from its list_controllers).
+  test "no view starts a category-filter list without whole groups" do
+    offenders = Dir[Rails.root.join("app/{views,components}/**/*.erb")].filter_map do |path|
+      source = File.read(path)
+      next unless source.match?(/data-controller="[^"]*\bcategory-filter\b/)
+      next if source.include?("data-list-filter-whole-groups-value")
+
+      Pathname(path).relative_path_from(Rails.root).to_s
+    end
+
+    assert_empty offenders, "set data-list-filter-whole-groups-value on cascading category lists"
+  end
+
   # A category row whose search name is written by hand drifts from the
   # others; it must come from category_search_data instead. Any line that
   # sets a filter name and mentions a category (in any spelling) counts.

@@ -289,6 +289,23 @@ class TransactionCategorySelectTest < ApplicationSystemTestCase
     end
   end
 
+  test "Enter on a shown name picks the category stored under that name" do
+    @user.update!(locale: "de")
+    # Shown as "Restaurants & Bars" too: the default "Food & Drink" in German.
+    custom = @user.family.categories.create!(name: "Restaurants & Bars", color: "#e99537", lucide_icon: "utensils")
+
+    visit new_transaction_url
+
+    find("[data-controller='category-select'] button").click
+
+    within "[data-controller='category-select']" do
+      fill_in "Kategorien suchen", with: "Restaurants & Bars"
+      find_field("Kategorien suchen").send_keys(:enter)
+    end
+
+    assert_selector "[data-category-select-target='hiddenInput'][value='#{custom.id}']", visible: :all
+  end
+
   private
     def active_element_attribute(name)
       page.evaluate_script("document.activeElement.getAttribute('#{name}')")

@@ -46,6 +46,25 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     end
   end
 
+  # A default category shows under its name in the viewer's locale, which can
+  # differ from the stored one; creating it under the shown name would leave
+  # two categories that look the same.
+  test "hides the create option for a default category's translated name" do
+    @user.update!(locale: "de")
+
+    visit transactions_url
+
+    within "##{dom_id(@entry.entryable, 'category_menu_desktop')}" do
+      find("button", match: :first).click
+    end
+
+    within "turbo-frame#category_dropdown" do
+      find("input[type='search']").fill_in with: "Restaurants & Bars"
+      assert_selector ".filterable-item", text: "Restaurants & Bars"
+      assert_no_button 'Create "Restaurants & Bars"'
+    end
+  end
+
   test "creates a new subcategory from the list's quick picker and assigns it" do
     parent = categories(:food_and_drink)
     visit transactions_url

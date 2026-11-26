@@ -130,7 +130,12 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
+    // Two categories can show the same name (a default one translated, a
+    // custom one stored under that label), so the stored name wins.
     const match =
+      visible.find(
+        (option) => option.dataset.categoryStoredName?.toLowerCase() === query,
+      ) ??
       visible.find((option) => this.#optionNames(option).includes(query)) ??
       visible[0];
     if (!match) return;

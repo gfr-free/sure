@@ -65,8 +65,11 @@ export default class extends Controller {
       this.emptyMessageTarget.classList.add("hidden");
     }
 
+    const searching = hasSearchQuery(rawFilterValue);
     items.forEach((item) => {
-      const shouldDisplay = matchesSearch(item, rawFilterValue);
+      const shouldDisplay =
+        !(searching && recentItems.has(item)) &&
+        matchesSearch(item, rawFilterValue);
       item.style.display = shouldDisplay ? "" : "none";
 
       if (shouldDisplay) {
@@ -153,8 +156,12 @@ export default class extends Controller {
   }
 
   // A row either submits its own form or carries a checkbox (merchant merge).
-  // A typed Enter only checks a box; toggling off takes an explicit pick.
+  // A typed Enter only adds: it leaves an applied row (data-list-filter-applied,
+  // e.g. a tag already on the transaction) and a checked box alone; removing
+  // takes an explicit pick.
   activate(item, { toggle }) {
+    if (!toggle && item.dataset.listFilterApplied === "true") return;
+
     const form = item.querySelector("form");
     if (form) {
       form.requestSubmit();

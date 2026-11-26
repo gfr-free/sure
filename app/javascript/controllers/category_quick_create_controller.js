@@ -87,8 +87,9 @@ export default class extends Controller {
     this.#clearError();
   }
 
-  // Enter creates only when the search matches no row at all; otherwise
-  // list-filter keeps handling Enter to pick the highlighted row.
+  // The shared Enter rule (utils/search_match): while the create row shows,
+  // Enter creates and list-filter steps aside; a row highlighted with the
+  // arrow keys still wins.
   createOnEnter(event) {
     if (!this.hasCreateButtonTarget) return;
     if (this.createButtonTarget.classList.contains("hidden")) return;

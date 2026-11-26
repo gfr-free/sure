@@ -1,7 +1,8 @@
 require "application_system_test_case"
 
 # The shared Enter rule (utils/search_match) for every picker: Enter in the
-# search box never submits the form, picks the exact name, else the first row.
+# search box never submits the form, picks the exact name, else the only
+# visible row, and otherwise picks nothing.
 class PickerEnterTest < ApplicationSystemTestCase
   include EntriesTestHelper
 
@@ -64,6 +65,20 @@ class PickerEnterTest < ApplicationSystemTestCase
 
     assert find("label.filterable-item", text: "Amazon").find("input[type='checkbox']").checked?
     assert_current_path merge_family_merchants_path
+  end
+
+  test "Enter in the row tag menu adds a tag but never removes an applied one" do
+    @entry.entryable.update!(tags: [ tags(:one) ])
+    visit transactions_url
+    find("##{dom_id(@entry.entryable, "tag_summary_desktop")}").click
+
+    search = find("turbo-frame#tag_dropdown input[data-list-filter-target='input']")
+    search.fill_in(with: "trips").send_keys(:enter)
+    search.fill_in(with: "emergency fund").send_keys(:enter)
+
+    option_id = "#{dom_id(@entry, :tag_option)}_#{tags(:two).id}"
+    assert_selector "##{option_id}[aria-selected='true']"
+    assert_equal [ tags(:one).id, tags(:two).id ].sort, @entry.entryable.reload.tag_ids.sort
   end
 
   private

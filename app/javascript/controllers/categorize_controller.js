@@ -1,5 +1,9 @@
 import { Controller } from "@hotwired/stimulus";
-import { enterMatch, isConfirmingEnter } from "utils/search_match";
+import {
+  enterMatch,
+  hasSearchQuery,
+  isConfirmingEnter,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -27,7 +31,8 @@ export default class extends Controller {
   }
 
   // The shared Enter rule (utils/search_match): the typed name or the only
-  // visible category.
+  // visible category. With nothing typed, a single category is still picked,
+  // so a family with one category can confirm it with Enter.
   selectFirst(event) {
     if (!isConfirmingEnter(event)) return;
 
@@ -43,7 +48,13 @@ export default class extends Controller {
       this.listTarget.querySelectorAll(".filterable-item")
     ).filter((el) => el.style.display !== "none");
 
-    enterMatch(visible, this.hasFilterTarget ? this.filterTarget.value : "")?.click();
+    const query = this.hasFilterTarget ? this.filterTarget.value : "";
+    const match = hasSearchQuery(query)
+      ? enterMatch(visible, query)
+      : visible.length === 1
+        ? visible[0]
+        : null;
+    match?.click();
   }
 
   clearFilter(event) {

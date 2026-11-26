@@ -4,7 +4,6 @@ import {
   exactName,
   matchesSearch,
   namesExactly,
-  namesFolded,
   primarySearchName,
 } from "utils/search_match";
 
@@ -125,28 +124,26 @@ export default class extends Controller {
       return;
     }
 
-    const rawQuery = this.searchTarget.value.trim();
-    const visible = this.optionTargets.filter(
-      (option) => !option.classList.contains("hidden"),
-    );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins; a name
-    // typed without its accents still picks that category.
-    const exact =
-      visible.find(
-        (option) => exactName(primarySearchName(option)) === exactName(rawQuery),
-      ) ?? visible.find((option) => namesExactly(option, rawQuery));
-    const folded = visible.find((option) => namesFolded(option, rawQuery));
-
-    if (!this.createFormTarget.classList.contains("hidden") && !folded) {
+    // Enter does what the create row says: while it shows, it creates.
+    if (!this.createFormTarget.classList.contains("hidden")) {
       if (!this.creating) this.createCategory();
       return;
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
+    const rawQuery = this.searchTarget.value.trim();
     if (!rawQuery) return;
 
-    const match = exact ?? folded ?? visible[0];
+    const visible = this.optionTargets.filter(
+      (option) => !option.classList.contains("hidden"),
+    );
+    // Two categories can show the same name (a default one translated, a
+    // custom one stored under that label), so the stored name wins.
+    const query = exactName(rawQuery);
+    const match =
+      visible.find((option) => exactName(primarySearchName(option)) === query) ??
+      visible.find((option) => namesExactly(option, rawQuery)) ??
+      visible[0];
     if (!match) return;
 
     this.selectOption(match);

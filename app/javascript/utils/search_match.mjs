@@ -88,15 +88,3 @@ export function namesExactly(element, rawQuery) {
 
   return searchNames(element).some((name) => exactName(name) === query);
 }
-
-// Whether the query is one of the row's names typed without its accents
-// (or case), e.g. "cafe" for "Café". Enter picks such a row instead of
-// creating a near-duplicate.
-export function namesFolded(element, rawQuery) {
-  const query = normalizeSearchText(String(rawQuery ?? "").trim());
-  if (query.length === 0) return false;
-
-  return searchNames(element).some(
-    (name) => normalizeSearchText(name) === query,
-  );
-}

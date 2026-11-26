@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
+import { exactName } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -202,10 +203,11 @@ export default class extends Controller {
     return { id: this.created.id };
   }
 
+  // Same "exists" rule as the category select (utils/search_match).
   #nameExists(name) {
-    const wanted = name.toLocaleLowerCase();
+    const wanted = exactName(name);
     return this.existingNamesValue.some(
-      (existing) => existing.toLocaleLowerCase() === wanted,
+      (existing) => exactName(existing) === wanted,
     );
   }
 

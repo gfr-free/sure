@@ -6,7 +6,6 @@ import {
   hasSearchQuery,
   matchesSearch,
   namesExactly,
-  namesFolded,
   normalizeSearchText,
   primarySearchName,
   searchNames,
@@ -77,13 +76,6 @@ describe("exactName", () => {
   it("treats composed and decomposed accents as the same name", () => {
     assert.equal(exactName("Cafe\u0301"), exactName("Café"))
     assert.notEqual(exactName("Cafe"), exactName("Café"))
-  })
-})
-
-describe("namesFolded", () => {
-  it("is true for a name typed without its accents", () => {
-    assert.equal(namesFolded(row("Café"), "cafe"), true)
-    assert.equal(namesFolded(row("Café"), "caf"), false)
   })
 })
 

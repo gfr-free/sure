@@ -108,7 +108,7 @@ class SplitsTest < ApplicationSystemTestCase
 
       amount_fields.call.last.fill_in with: "-60"
       amount_fields.call.first.fill_in with: "-20"
-      assert_equal "-60", amount_fields.call.last.value
+      assert_equal(-60, amount_fields.call.last.value.to_d)
       assert_selector "[data-split-transaction-target='remaining']", text: "-20.00"
     end
   end

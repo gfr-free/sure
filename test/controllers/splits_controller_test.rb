@@ -389,24 +389,7 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal merchants(:amazon).id, template.at_css("input[type='hidden'][name$='[merchant_id]']")["value"]
   end
 
-  test "create sends an unchanged prefilled merchant to the split as blank" do
-    @entry.transaction.update!(merchant: merchants(:amazon))
-
-    Entry.any_instance.expects(:split_once!).with do |splits, **|
-      splits.map { |split| split[:merchant_id] } == [ nil, merchants(:netflix).id ]
-    end.returns(true)
-
-    post transaction_split_path(@entry), params: {
-      split: {
-        splits: [
-          { name: "Groceries", amount: "-70", category_id: "", merchant_id: merchants(:amazon).id },
-          { name: "Household", amount: "-30", category_id: "", merchant_id: merchants(:netflix).id }
-        ]
-      }
-    }
-  end
-
-  test "create keeps the parent's merchant on a row that sent it back unchanged" do
+  test "create stores the prefilled parent merchant a row sends back" do
     @entry.transaction.update!(merchant: merchants(:amazon))
 
     post transaction_split_path(@entry), params: {
@@ -421,28 +404,6 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     children = @entry.reload.child_entries.index_by(&:name)
     assert_equal merchants(:amazon).id, children["Groceries"].entryable.merchant_id
     assert_equal merchants(:netflix).id, children["Household"].entryable.merchant_id
-    assert_empty children["Groceries"].entryable.locked_attributes
-  end
-
-  test "update sends an unchanged prefilled merchant to the split as blank" do
-    @entry.transaction.update!(merchant: merchants(:amazon))
-    @entry.split!([
-      { name: "Part 1", amount: 60, category_id: nil },
-      { name: "Part 2", amount: 40, category_id: nil }
-    ])
-
-    Entry.any_instance.expects(:resplit!).with do |splits, **|
-      splits.map { |split| split[:merchant_id] } == [ nil, merchants(:netflix).id ]
-    end.returns(true)
-
-    patch transaction_split_path(@entry), params: {
-      split: {
-        splits: [
-          { name: "Part 1", amount: "-60", category_id: "", merchant_id: merchants(:amazon).id },
-          { name: "Part 2", amount: "-40", category_id: "", merchant_id: merchants(:netflix).id }
-        ]
-      }
-    }
   end
 
   # Destroy from child tests

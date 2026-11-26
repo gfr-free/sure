@@ -103,16 +103,13 @@ class SplitsController < ApplicationController
       @categories = grouped_categories
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically
       @tags = Current.family.tags.alphabetically
-      @parent_merchant_id = parent_merchant_id
+      # Every split row starts with the parent's merchant, like the other fields of a new part.
+      @parent_merchant_id = @entry.entryable.try(:merchant_id)
     end
 
     # Builds Entry#split! input from submitted params. Category, merchant and tag ids are
     # re-scoped to the current family (Entry::SplitReferences, shared with rule-driven splits)
     # rather than trusted, so a crafted request can't attach another family's records.
-    #
-    # The dialog prefills every row with the parent's merchant. A row that sends it back unchanged
-    # made no choice of its own, so it goes in blank: split! still gives the part the parent's
-    # merchant, and a split that locks the values picked in the dialog does not lock this one.
     def build_splits
       references = Entry::SplitReferences.for_user(Current.family, Current.user)
 
@@ -120,20 +117,13 @@ class SplitsController < ApplicationController
       raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
       raw_splits.map do |s|
-        scoped = references.scope(category_id: s[:category_id], merchant_id: s[:merchant_id], tag_ids: s[:tag_ids])
-        scoped[:merchant_id] = nil if parent_merchant_id.present? && scoped[:merchant_id] == parent_merchant_id
-
         {
           name: s[:name],
           amount: s[:amount].to_d * -1,
           excluded: s[:excluded],
-          **scoped
+          **references.scope(category_id: s[:category_id], merchant_id: s[:merchant_id], tag_ids: s[:tag_ids])
         }
       end
-    end
-
-    def parent_merchant_id
-      @entry.entryable.try(:merchant_id)
     end
 
     def grouped_categories

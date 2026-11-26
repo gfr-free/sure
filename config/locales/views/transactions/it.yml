@@ -12,7 +12,6 @@ it:
         merchant_prompt: Seleziona un esercente
         name_label: Nome
         name_placeholder: Inserisci un nome da applicare alle transazioni selezionate
-        none: "(nessuno)"
         notes_label: Note
         notes_placeholder: Inserisci una nota da applicare alle transazioni selezionate
         overview: Panoramica

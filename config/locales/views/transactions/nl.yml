@@ -17,7 +17,6 @@ nl:
         merchant_prompt: "Selecteer een handelaar"
         name_label: "Naam"
         name_placeholder: "Voer een naam in die op de geselecteerde transacties wordt toegepast"
-        none: "(geen)"
         notes_label: "Notities"
         notes_placeholder: "Voer een notitie in die op de geselecteerde transacties wordt toegepast"
         overview: "Overzicht"

@@ -48,7 +48,6 @@ ca:
         merchant_prompt: Selecciona un comerç
         name_label: Nom
         name_placeholder: Introdueix un nom que s'aplicarà a les transaccions seleccionades
-        none: "(cap)"
         notes_label: Notes
         notes_placeholder: Introdueix una nota que s'aplicarà a les transaccions seleccionades
         overview: Resum

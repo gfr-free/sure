@@ -238,7 +238,6 @@ nb:
         merchant_prompt: Velg en forhandler
         name_label: Navn
         name_placeholder: Skriv inn et navn som skal brukes på de valgte transaksjonene
-        none: (ingen)
         notes_label: Notater
         notes_placeholder: Skriv inn et notat som skal brukes på de valgte transaksjonene
         overview: Oversikt

@@ -31,8 +31,14 @@
                   tags: Current.family.tags.alphabetically,
                   selected_ids: [],
                   label: t(".tags_label"),
-                  keep_until_edited: true
+                  keep_until_edited: true,
+                  placeholder: t(".no_change")
                 ) %>
+            <%# An explicit empty tag list clears tags; tags picked above take precedence. %>
+            <label class="flex items-center gap-2 text-sm text-secondary px-1">
+              <%= check_box_tag "bulk_update[tag_ids][]", "", false, id: "bulk_update_clear_tags", class: "checkbox checkbox--light" %>
+              <%= t(".clear_tags") %>
+            </label>
             <% if Current.family&.manual_reconciliation? && @has_transaction_entry %>
               <%= form.select :reconciled_status,
                   Entry.reconciled_statuses.keys.map { |status| [ t("transactions.reconcile.statuses.#{status}"), status ] },

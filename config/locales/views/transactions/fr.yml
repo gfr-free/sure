@@ -45,7 +45,6 @@ fr:
         name_label: Nom
         name_placeholder: Entrez un nom qui sera appliqué aux transactions sélectionnées
         no_change: "(aucun changement)"
-        none: "(aucun)"
         notes_label: Remarques
         notes_placeholder: Saisissez une note qui sera appliquée aux transactions sélectionnées
         overview: Aperçu

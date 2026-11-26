@@ -12,7 +12,6 @@ id:
         merchant_prompt: Pilih merchant
         name_label: Nama
         name_placeholder: Masukkan nama yang akan diterapkan pada transaksi terpilih
-        none: "(tidak ada)"
         notes_label: Catatan
         notes_placeholder: Masukkan catatan yang akan diterapkan pada transaksi terpilih
         overview: Ringkasan

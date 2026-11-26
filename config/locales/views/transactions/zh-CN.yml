@@ -15,7 +15,6 @@ zh-CN:
         reconciled_status_hint: 仅适用于手动录入的账户（无银行同步）。
         reconciled_status_label: 核对状态
         name_placeholder: 输入一个名称，该名称将应用于所选交易
-        none: （无）
         notes_label: 备注
         notes_placeholder: 输入将应用于所选交易的备注
         overview: 概览

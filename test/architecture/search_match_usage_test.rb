@@ -25,10 +25,8 @@ class SearchMatchUsageTest < ActiveSupport::TestCase
   end
 
   test "no controller compares typed search text on its own" do
-    offenders = controller_files.flat_map do |path, source|
-      source.lines.each_with_index.filter_map do |line, index|
-        "#{path}:#{index + 1}" if line.match?(OWN_COMPARISON)
-      end
+    offenders = controller_files.filter_map do |path, source|
+      path if joined_chains(source).lines.any? { |line| line.match?(OWN_COMPARISON) }
     end
 
     assert_empty offenders, "Use matchesSearch / namesExactly from utils/search_match instead of lowercasing the query."
@@ -38,11 +36,17 @@ class SearchMatchUsageTest < ActiveSupport::TestCase
     [
       "const query = this.searchTarget.value.trim().toLowerCase();",
       'const name = (option.dataset.filterName || "").toLowerCase();',
-      "const name = option.dataset.tagName.toLowerCase();"
-    ].each { |sample| assert_match OWN_COMPARISON, sample }
+      "const name = option.dataset.tagName.toLowerCase();",
+      "const query = this.searchTarget.value\n      .trim()\n      .toLowerCase();"
+    ].each { |sample| assert_match OWN_COMPARISON, joined_chains(sample) }
   end
 
   private
+    # Biome wraps long method chains; put each chain back on one line.
+    def joined_chains(source)
+      source.gsub(/\n\s*(?=\.)/, "")
+    end
+
     def controller_files
       Dir[Rails.root.join(CONTROLLERS)].sort.map do |file|
         [ Pathname(file).relative_path_from(Rails.root).to_s, File.read(file) ]

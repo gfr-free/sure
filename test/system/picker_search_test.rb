@@ -23,6 +23,35 @@ class PickerSearchTest < ApplicationSystemTestCase
     assert_equal [ tags(:one) ], entry.entryable.reload.tags.to_a
   end
 
+  test "bulk edit keeps tags when a tag is picked and unpicked again" do
+    entry = create_transaction(account: @account, name: "Tagged", amount: 10, tags: [ tags(:one) ])
+
+    open_bulk_edit(entry)
+    within "#bulk_transaction_edit_drawer" do
+      find("[data-tag-select-target='button']").click
+      find("[data-tag-select-target='option']", text: "Emergency fund").click
+      find("[data-tag-select-target='option']", text: "Emergency fund").click
+      find("[data-tag-select-target='search']").send_keys(:escape)
+      fill_in "bulk_update[name]", with: "Renamed"
+      click_button I18n.t("transactions.bulk_updates.new.save")
+    end
+
+    assert_equal "Renamed", wait_for { entry.reload.name == "Renamed" && entry.name }
+    assert_equal [ tags(:one) ], entry.entryable.reload.tags.to_a
+  end
+
+  test "bulk edit removes all tags only when asked to" do
+    entry = create_transaction(account: @account, name: "Tagged", amount: 10, tags: [ tags(:one) ])
+
+    open_bulk_edit(entry)
+    within "#bulk_transaction_edit_drawer" do
+      check I18n.t("transactions.bulk_updates.new.clear_tags")
+      click_button I18n.t("transactions.bulk_updates.new.save")
+    end
+
+    assert wait_for { entry.entryable.reload.tags.empty? }
+  end
+
   test "bulk edit sets a tag found by any word of its name" do
     entry = create_transaction(account: @account, name: "Untagged", amount: 10)
 

@@ -187,7 +187,11 @@ export default class extends Controller {
 
   renderSelection() {
     this.hiddenInputsElement.innerHTML = "";
-    const sendsTags = !this.keepUntilEditedValue || this.edited;
+    // In keep-until-edited mode an empty pick sends nothing, so ticking and
+    // unticking a tag cannot clear tags; clearing is a choice of its own.
+    const sendsTags =
+      !this.keepUntilEditedValue ||
+      (this.edited && this.selectedIds.size > 0);
     if (sendsTags) {
       this.hiddenInputsElement.appendChild(this.buildHiddenInput(""));
     }

@@ -11,7 +11,6 @@ uk:
         merchant_prompt: Вибрати продавця
         name_label: Назва
         name_placeholder: Введіть назву, яка буде застосована до вибраних транзакцій
-        none: "(немає)"
         notes_label: Нотатки
         notes_placeholder: Введіть нотатку, яка буде застосована до вибраних транзакцій
         overview: Огляд

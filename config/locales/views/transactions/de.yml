@@ -346,6 +346,7 @@ de:
         cancel: Abbrechen
         category_label: Kategorie
         category_prompt: Kategorie wählen
+        clear_tags: Alle Tags entfernen
         date_label: Datum
         header_title: Transaktionen bearbeiten
         merchant_label: Händler
@@ -353,7 +354,6 @@ de:
         name_label: Name
         name_placeholder: Name, der für die gewählten Transaktionen gilt
         no_change: (keine Änderung)
-        none: "(keine)"
         notes_label: Notizen
         notes_placeholder: Notiz, die für die gewählten Transaktionen gilt
         overview: Übersicht

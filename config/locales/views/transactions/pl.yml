@@ -50,7 +50,6 @@ pl:
         merchant_prompt: Wybierz kontrahenta
         name_label: Nazwa
         name_placeholder: Wpisz nazwę, która zostanie zastosowana do wybranych transakcji
-        none: "(brak)"
         notes_label: Notatki
         notes_placeholder: Wpisz notatkę, która zostanie zastosowana do wybranych
           transakcji

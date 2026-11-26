@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import comboboxHiddenField from "utils/combobox_hidden_field"
 
 // Applies the category most commonly used on a past transaction when the user picks
 // that transaction's name from the description autocomplete, and clears it again if a
@@ -18,7 +19,7 @@ export default class extends Controller {
     this.applyingSuggestion = false
     // The combobox reports a "selection" every time its list closes. A prefilled name (split
     // rows, duplicated transactions) only counts once the user picks a different one.
-    this.lastPickedName = this.hasNameTarget ? this.nameTarget.value : ""
+    this.lastPickedName = this.#renderedName()
   }
 
   syncName(event) {
@@ -49,6 +50,14 @@ export default class extends Controller {
     // that was auto-applied for a previously selected name — otherwise it stays attached to
     // the new, unrelated name. #selectCategoryOption already leaves a manual pick untouched.
     this.#selectCategoryOption(categoryId || "")
+  }
+
+  // In content loaded into a frame this controller can connect before the combobox has copied
+  // the name into its visible input; the server-rendered hidden field has it from the start.
+  #renderedName() {
+    if (!this.hasNameTarget) return ""
+
+    return this.nameTarget.value || comboboxHiddenField(this.nameTarget)?.value || ""
   }
 
   #hasCategorySelection() {

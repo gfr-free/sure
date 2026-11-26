@@ -101,9 +101,12 @@ class SplitsTest < ApplicationSystemTestCase
   test "opening and leaving a prefilled split name does not apply a category" do
     create_transaction(amount: 12, name: "Groceries", account: accounts(:depository), category: categories(:food_and_drink))
 
-    visit edit_transaction_split_path(@entry)
+    # Opened from the transaction drawer, the way users reach it: the dialog is loaded into
+    # the modal frame after the page's controllers are running.
+    visit transaction_path(@entry)
+    click_on I18n.t("splits.child.edit_split")
 
-    within "dialog" do
+    within "turbo-frame#modal dialog" do
       within all("[data-split-transaction-target='row']", minimum: 2).first do
         # Typing and removing a character loads the list without changing the name.
         find("input[role='combobox']").send_keys(:end, "x", :backspace)

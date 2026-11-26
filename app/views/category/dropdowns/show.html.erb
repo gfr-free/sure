@@ -47,7 +47,7 @@
           <%= render DS::ActionRow.new(
                 icon: "plus",
                 hidden: true,
-                data: { category_quick_create_target: "createButton", action: "category-quick-create#create" }
+                data: { category_quick_create_target: "createButton", action: "category-quick-create#create", list_filter_create: true }
               ) do %>
             <span data-category-quick-create-target="createLabel"></span>
           <% end %>

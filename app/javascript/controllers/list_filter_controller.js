@@ -1,5 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
-import { hasSearchQuery, matchesSearch } from "utils/search_match";
+import {
+  enterMatch,
+  hasSearchQuery,
+  isConfirmingEnter,
+  matchesSearch,
+} from "utils/search_match";
 
 // Filters a list by the shared search rule in utils/search_match: each
 // .filterable-item is found by its data-filter-name and data-filter-terms.
@@ -85,7 +90,7 @@ export default class extends Controller {
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       this.highlightPrevious();
-    } else if (event.key === "Enter") {
+    } else if (isConfirmingEnter(event)) {
       event.preventDefault();
       this.selectHighlighted();
     }
@@ -129,16 +134,40 @@ export default class extends Controller {
     });
   }
 
+  // A row picked with the arrow keys wins. Otherwise the shared Enter rule
+  // (utils/search_match): a visible create row is left to its own handler,
+  // else the typed name picks its match.
   selectHighlighted() {
     const items = this.visibleItems;
-    if (this.highlightedIndex < 0 || this.highlightedIndex >= items.length)
+    const highlighted = items[this.highlightedIndex];
+    if (this.highlightedIndex >= 0 && highlighted) {
+      this.activate(highlighted, { toggle: true });
       return;
+    }
 
-    const item = items[this.highlightedIndex];
+    // A hidden list (the quick create's parent picker covers it) has nothing to pick.
+    if (this.createRowShown || this.listTarget.classList.contains("hidden")) return;
+
+    const match = enterMatch(items, this.inputTarget.value);
+    if (match) this.activate(match, { toggle: false });
+  }
+
+  // A row either submits its own form or carries a checkbox (merchant merge).
+  // A typed Enter only checks a box; toggling off takes an explicit pick.
+  activate(item, { toggle }) {
     const form = item.querySelector("form");
     if (form) {
       form.requestSubmit();
+      return;
     }
+
+    const checkbox = item.querySelector("input[type='checkbox']");
+    if (checkbox && (toggle || !checkbox.checked)) checkbox.click();
+  }
+
+  get createRowShown() {
+    const row = this.element.querySelector("[data-list-filter-create]");
+    return Boolean(row && !row.classList.contains("hidden"));
   }
 
   updateAriaActiveDescendant() {

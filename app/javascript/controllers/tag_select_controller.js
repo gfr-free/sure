@@ -1,6 +1,11 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { matchesSearch, namesExactly } from "utils/search_match";
+import {
+  enterMatch,
+  isConfirmingEnter,
+  matchesSearch,
+  namesExactly,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -129,14 +134,19 @@ export default class extends Controller {
     this.syncActiveOption();
   }
 
+  // The shared Enter rule, see utils/search_match. A tag that is already
+  // picked stays picked: Enter adds, it never removes.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
-
-    // Never submit the surrounding form natively.
+    if (!isConfirmingEnter(event)) return;
     event.preventDefault();
-    if (!this.createFormTarget.classList.contains("hidden") && !this.creating) {
-      this.createTag();
+
+    if (!this.createFormTarget.classList.contains("hidden")) {
+      if (!this.creating) this.createTag();
+      return;
     }
+
+    const match = enterMatch(this.visibleOptions, this.searchTarget.value);
+    if (match && !this.selectedIds.has(match.dataset.tagId)) match.click();
   }
 
   async createTag() {

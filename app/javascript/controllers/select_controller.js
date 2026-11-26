@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { autoUpdate } from "@floating-ui/dom"
+import { enterMatch, isConfirmingEnter } from "utils/search_match"
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -268,13 +269,11 @@ export default class extends Controller {
     const visibleOptions = this.visibleOptions()
 
     if (fromSearch) {
-      // keyCode 229: Safari reports the Enter that ends an IME composition
-      // with isComposing === false.
-      if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) {
+      if (isConfirmingEnter(event)) {
         // The search box sits inside the surrounding form, so Enter must never
-        // fall through and submit it. Pick the match like DS::CategorySelect.
+        // fall through and submit it. The shared Enter rule picks the match.
         event.preventDefault()
-        this.selectSearchMatch(event.target.value, visibleOptions)
+        enterMatch(visibleOptions, event.target.value)?.click()
         return
       }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
@@ -322,22 +321,6 @@ export default class extends Controller {
     } else {
       this.menuTarget.removeAttribute("inert")
     }
-  }
-
-  // Exact label match first, otherwise the first visible option. An empty
-  // query picks nothing, so Enter on an untouched search is a no-op.
-  selectSearchMatch(rawQuery, visibleOptions) {
-    const query = this.#normalizeForSearch(rawQuery).trim()
-    if (!query) return
-
-    const match = visibleOptions.find(opt => this.#normalizeForSearch(opt.dataset.filterName || "").trim() === query) ?? visibleOptions[0]
-    match?.click()
-  }
-
-  // Same folding as list-filter#normalize, so an option the search shows
-  // also counts as its exact match (accents, "_" as space, case).
-  #normalizeForSearch(value) {
-    return value.normalize("NFD").replace(/\p{Mark}/gu, "").replaceAll("_", " ").toLowerCase()
   }
 
   // Options the user can currently see — list-filter hides non-matches

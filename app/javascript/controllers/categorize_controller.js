@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
+import { enterMatch, isConfirmingEnter } from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -25,8 +26,10 @@ export default class extends Controller {
     clearTimeout(this._previewTimer);
   }
 
+  // The shared Enter rule (utils/search_match): the typed name or the only
+  // visible category.
   selectFirst(event) {
-    if (event.key !== "Enter") return;
+    if (!isConfirmingEnter(event)) return;
 
     const tag = event.target.tagName;
     if (tag === "BUTTON" || tag === "A") return;
@@ -40,9 +43,7 @@ export default class extends Controller {
       this.listTarget.querySelectorAll(".filterable-item")
     ).filter((el) => el.style.display !== "none");
 
-    if (visible.length !== 1) return;
-
-    visible[0].click();
+    enterMatch(visible, this.hasFilterTarget ? this.filterTarget.value : "")?.click();
   }
 
   clearFilter(event) {

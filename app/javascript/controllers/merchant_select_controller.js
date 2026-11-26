@@ -1,6 +1,11 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { matchesSearch, namesExactly } from "utils/search_match";
+import {
+  enterMatch,
+  isConfirmingEnter,
+  matchesSearch,
+  namesExactly,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -143,23 +148,17 @@ export default class extends Controller {
     this.createNameElement.textContent = this.searchTarget.value.trim();
   }
 
+  // The shared Enter rule, see utils/search_match.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (!isConfirmingEnter(event)) return;
+    event.preventDefault();
 
-    if (!this.createFormTarget.classList.contains("hidden") && !this.creating) {
-      event.preventDefault();
-      this.createMerchant();
+    if (!this.createFormTarget.classList.contains("hidden")) {
+      if (!this.creating) this.createMerchant();
       return;
     }
 
-    event.preventDefault();
-
-    const match = this.optionTargets.find(
-      (option) =>
-        !option.classList.contains("hidden") &&
-        namesExactly(option, this.searchTarget.value),
-    );
-
+    const match = enterMatch(this.visibleOptions, this.searchTarget.value);
     if (match) {
       this.applySelection(match);
       this.close();

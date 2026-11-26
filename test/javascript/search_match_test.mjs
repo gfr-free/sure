@@ -2,8 +2,10 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  enterMatch,
   exactName,
   hasSearchQuery,
+  isConfirmingEnter,
   matchesSearch,
   namesExactly,
   normalizeSearchText,
@@ -98,5 +100,58 @@ describe("hasSearchQuery", () => {
     assert.equal(hasSearchQuery("  "), false)
     assert.equal(hasSearchQuery("́"), false)
     assert.equal(hasSearchQuery("a"), true)
+  })
+})
+
+describe("isConfirmingEnter", () => {
+  it("confirms a plain Enter", () => {
+    assert.equal(isConfirmingEnter({ key: "Enter", isComposing: false, keyCode: 13 }), true)
+  })
+
+  it("leaves the Enter that ends an IME composition alone", () => {
+    assert.equal(isConfirmingEnter({ key: "Enter", isComposing: true, keyCode: 13 }), false)
+    // Safari: composition already over, but keyCode still 229.
+    assert.equal(isConfirmingEnter({ key: "Enter", isComposing: false, keyCode: 229 }), false)
+  })
+
+  it("ignores other keys", () => {
+    assert.equal(isConfirmingEnter({ key: "a", isComposing: false, keyCode: 65 }), false)
+  })
+})
+
+describe("enterMatch", () => {
+  const zedExtra = row("Zed Extra")
+  const zed = row("Zéd")
+  const cafe = row("Cafe")
+  const cafeAccent = row("Café")
+
+  it("picks nothing for an empty query", () => {
+    assert.equal(enterMatch([zedExtra, zed], ""), null)
+    assert.equal(enterMatch([zedExtra, zed], "   "), null)
+  })
+
+  it("prefers the exact name over the first row", () => {
+    assert.equal(enterMatch([cafe, cafeAccent], "café"), cafeAccent)
+    assert.equal(enterMatch([cafeAccent, cafe], "cafe"), cafe)
+  })
+
+  it("then the name equal once accents are folded", () => {
+    assert.equal(enterMatch([zedExtra, zed], "zed"), zed)
+  })
+
+  it("then the only visible row", () => {
+    assert.equal(enterMatch([zedExtra], "ze"), zedExtra)
+  })
+
+  it("picks nothing among several rows without the typed name", () => {
+    assert.equal(enterMatch([zedExtra, zed], "ze"), null)
+  })
+
+  it("matches a stored name too", () => {
+    assert.equal(enterMatch([row("Other"), translated], "food & drink"), translated)
+  })
+
+  it("has nothing to pick in an empty list", () => {
+    assert.equal(enterMatch([], "zed"), null)
   })
 })

@@ -1,7 +1,10 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
+  enterMatch,
   exactName,
+  hasSearchQuery,
+  isConfirmingEnter,
   matchesSearch,
   namesExactly,
   primarySearchName,
@@ -110,8 +113,9 @@ export default class extends Controller {
       this.createLabelValue.replace("__CATEGORY_NAME__", rawQuery);
   }
 
+  // The shared Enter rule, see utils/search_match.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (!isConfirmingEnter(event)) return;
 
     // The search box sits inside the surrounding form, so Enter must never
     // fall through and submit it.
@@ -131,8 +135,8 @@ export default class extends Controller {
     }
 
     // Nothing to create (locked, or the name exists already): pick the match.
-    const rawQuery = this.searchTarget.value.trim();
-    if (!rawQuery) return;
+    const rawQuery = this.searchTarget.value;
+    if (!hasSearchQuery(rawQuery)) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
@@ -143,9 +147,7 @@ export default class extends Controller {
     const match =
       visible.find(
         (option) => exactName(primarySearchName(option)) === query,
-      ) ??
-      visible.find((option) => namesExactly(option, rawQuery)) ??
-      visible[0];
+      ) ?? enterMatch(visible, rawQuery);
     if (!match) return;
 
     this.selectOption(match);

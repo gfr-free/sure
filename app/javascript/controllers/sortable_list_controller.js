@@ -134,6 +134,7 @@ export default class extends Controller {
       "account-sort-mode:stop",
       this.releaseOnSortModeStop,
     );
+    this.#allowPrefetch();
     this.stopAutoscroll();
     this.cancelHold();
   }
@@ -434,6 +435,7 @@ export default class extends Controller {
     }
 
     this.keyboardGrabbedElement = section;
+    this.#blockPrefetch();
     section.setAttribute("aria-grabbed", "true");
     section.classList.add("ring-2", "ring-primary", "ring-offset-2");
   }
@@ -447,7 +449,14 @@ export default class extends Controller {
         "ring-offset-2",
       );
       this.keyboardGrabbedElement = null;
-      return this.saveOrder();
+      const saved = Promise.resolve(this.saveOrder());
+      this.pendingKeyboardSaves = (this.pendingKeyboardSaves || 0) + 1;
+      const settle = () => {
+        this.pendingKeyboardSaves -= 1;
+        this.#allowPrefetchWhenIdle();
+      };
+      saved.then(settle, settle);
+      return saved;
     }
   }
 
@@ -477,6 +486,29 @@ export default class extends Controller {
       this.element.insertBefore(nextSibling, section);
       this.keyboardFocusElement?.focus();
     }
+  }
+
+  // A page Turbo prefetches on hover while a row is held, or before its move
+  // is saved, would show the order from before the move, even after
+  // saveBeforeVisit waited for the save. Any link on the page can show the
+  // sidebar, so prefetching pauses everywhere until then.
+  #blockPrefetch() {
+    if (this.preventPrefetch) return;
+    this.preventPrefetch = (event) => event.preventDefault();
+    document.addEventListener("turbo:before-prefetch", this.preventPrefetch);
+  }
+
+  // Another row can be grabbed, or another move saved, before this save
+  // settles; prefetching stays paused until none is.
+  #allowPrefetchWhenIdle() {
+    if (this.keyboardGrabbedElement || this.pendingKeyboardSaves > 0) return;
+    this.#allowPrefetch();
+  }
+
+  #allowPrefetch() {
+    if (!this.preventPrefetch) return;
+    document.removeEventListener("turbo:before-prefetch", this.preventPrefetch);
+    this.preventPrefetch = null;
   }
 
   get itemSelector() {

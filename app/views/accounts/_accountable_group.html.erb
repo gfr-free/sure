@@ -9,7 +9,10 @@
   <% if sortable %>
     <%= render "accounts/sort_handle", list: "sortable-group-list", label: t("accounts.sidebar.reorder_group", group: account_group.name), class_name: "mt-1.5" %>
   <% end %>
-  <% is_open = open.nil? ? (account_group.accounts.any? { |account| page_active?(account_path(account)) } || Current.user.always_expanded_account_group?(account_group.key)) : open %>
+  <%# The sidebar is cached once for every page, so the group holding the
+      open account is opened, and its link highlighted, in the browser
+      (markActiveSidebarAccount in the application layout). %>
+  <% is_open = open.nil? ? Current.user.always_expanded_account_group?(account_group.key) : open %>
   <%= tag.div class: ("min-w-0 grow" if sortable) do %>
     <%# The summary owns the name's slide: it is what a tap or keyboard focus
         lands on (sidebar_name_marquee_controller). %>

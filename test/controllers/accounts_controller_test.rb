@@ -2470,6 +2470,40 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @user.reload.manual_account_order["not_a_type"]
   end
 
+  # The sidebar fragment is cached once for every page; which account is open
+  # travels outside it, and the browser highlights that account.
+  test "one cached sidebar serves every account page" do
+    sidebar_writes = []
+    record_write = ->(*, payload) { sidebar_writes << payload[:key] if payload[:key].to_s.include?("account_sidebar_tabs") }
+
+    with_fragment_caching do
+      ActiveSupport::Notifications.subscribed(record_write, "write_fragment.action_controller") do
+        get account_url(@account)
+      end
+      assert_not_empty sidebar_writes, "the first account page builds the sidebar"
+      first_sidebar = css_select("#sidebar-scroll #account-sidebar-tabs").first.to_html
+      assert_select "[data-sidebar-active-account-id=?]", @account.id
+
+      other = accounts(:credit_card)
+      sidebar_writes.clear
+      ActiveSupport::Notifications.subscribed(record_write, "write_fragment.action_controller") do
+        get account_url(other)
+      end
+
+      assert_empty sidebar_writes, "the second account page reuses the cached sidebar instead of building it again"
+      assert_select "[data-sidebar-active-account-id=?]", other.id
+      assert_equal first_sidebar, css_select("#sidebar-scroll #account-sidebar-tabs").first.to_html
+      assert_select "#sidebar-scroll a[data-sidebar-account-id=?]", other.id
+      assert_select "#sidebar-scroll a[data-active-account]", count: 0
+    end
+  end
+
+  test "a page outside an account carries no open account for the sidebar" do
+    get root_url
+
+    assert_select "[data-sidebar-active-account-id='']"
+  end
+
   test "sidebar shows drag handles only with the manual account order" do
     get account_url(@account)
     assert_select "[data-controller~='sortable-list']", count: 0
@@ -2552,6 +2586,17 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
         currency: "USD",
         accountable: Depository.new
       )
+    end
+
+    def with_fragment_caching
+      original_perform_caching = ActionController::Base.perform_caching
+      original_store = ActionController::Base.cache_store
+      ActionController::Base.perform_caching = true
+      ActionController::Base.cache_store = ActiveSupport::Cache::MemoryStore.new
+      yield
+    ensure
+      ActionController::Base.perform_caching = original_perform_caching
+      ActionController::Base.cache_store = original_store
     end
 
     def sidebar_sparkline_src(frame_id)

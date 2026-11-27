@@ -49,6 +49,7 @@ tr:
         merchant_prompt: Bir satıcı seçin
         name_label: İsim
         name_placeholder: Seçilen işlemlere uygulanacak bir isim girin
+        no_change: "(değişiklik yok)"
         notes_label: Notlar
         notes_placeholder: Seçilen işlemlere uygulanacak bir not girin
         overview: Genel Bakış

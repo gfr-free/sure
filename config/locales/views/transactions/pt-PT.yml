@@ -13,6 +13,7 @@ pt-PT:
         merchant_prompt: Selecione um comerciante
         name_label: Designação
         name_placeholder: Introduza uma designação a ser aplicada às transações selecionadas.
+        no_change: "(sem alteração)"
         notes_label: Notas
         notes_placeholder: Introduza uma nota a ser aplicada às transações selecionadas.
         overview: Visão geral

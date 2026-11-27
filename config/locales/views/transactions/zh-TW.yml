@@ -13,6 +13,7 @@ zh-TW:
         merchant_prompt: 選擇一個商家
         name_label: 名稱
         name_placeholder: 輸入要套用到所選交易的名稱
+        no_change: "（不變更）"
         notes_label: 備註
         notes_placeholder: 輸入要套用到所選交易的備註
         overview: 概覽

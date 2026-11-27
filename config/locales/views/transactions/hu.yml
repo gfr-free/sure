@@ -13,6 +13,7 @@ hu:
         merchant_prompt: Válassz kereskedőt
         name_label: Név
         name_placeholder: Add meg a kiválasztott tranzakciókra alkalmazandó nevet
+        no_change: "(nincs változás)"
         notes_label: Megjegyzések
         notes_placeholder: Add meg a kiválasztott tranzakciókra alkalmazandó megjegyzést
         overview: Áttekintés

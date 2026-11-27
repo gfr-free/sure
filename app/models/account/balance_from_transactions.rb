@@ -92,6 +92,21 @@ module Account::BalanceFromTransactions
       .sum(&:amount)
   end
 
+  # Syncs the account after the switch changed. Switching on only rebuilds the
+  # balances. Switching off goes back to the provider's balance, whose anchor
+  # has stood still while the switch was on, so the provider items sync first
+  # and anchor a fresh reading; each of them syncs the account when it is done.
+  def sync_after_balance_switch_later
+    items = balance_from_transactions? ? [] : provider_items
+    return sync_later if items.empty?
+
+    items.each do |item|
+      next if item.syncing?
+
+      item.is_a?(PlaidItem) ? item.sync_later_with_provider_refresh : item.sync_later
+    end
+  end
+
   # Lets Balance::Materializer store the balance it calculated.
   def writing_calculated_balance
     @writing_calculated_balance = true
@@ -101,6 +116,13 @@ module Account::BalanceFromTransactions
   end
 
   private
+    def provider_items
+      items = account_providers.filter_map { |account_provider| account_provider.adapter&.item }
+      items << plaid_account.plaid_item if plaid_account
+      items << simplefin_account.simplefin_item if simplefin_account
+      items.compact.uniq
+    end
+
     # Providers write their balance straight to the account on every sync. An
     # account that keeps its own balance keeps the calculated one instead.
     def keep_calculated_balance

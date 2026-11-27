@@ -176,6 +176,7 @@ class Account::BalanceFromTransactionsTest < ActiveSupport::TestCase
     materialize
     @account.update!(balance_from_transactions: false)
 
+    # The provider sync that switching off starts anchors a fresh reading.
     @account.set_current_balance(5000)
     materialize
 

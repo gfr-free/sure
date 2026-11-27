@@ -148,10 +148,9 @@ module AccountableResource
     # The stored figures were worked out under the old method; a sync restates
     # them. Compared by hand: lock_saved_attributes! saves again, which clears
     # saved_change_to_cost_basis_method?.
-    # Switching between the provider's balance and the account's own changes
-    # which way the balances are rebuilt.
-    if @account.cost_basis_method != previous_cost_basis_method ||
-        @account.balance_from_transactions? != previous_balance_from_transactions
+    if @account.balance_from_transactions? != previous_balance_from_transactions
+      @account.sync_after_balance_switch_later
+    elsif @account.cost_basis_method != previous_cost_basis_method
       @account.sync_later
     end
     @account_updated = true

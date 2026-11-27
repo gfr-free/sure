@@ -140,10 +140,21 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
   test "switching a linked account to its own balance records the day and syncs it" do
     linked_account = accounts(:connected)
 
-    Account.any_instance.expects(:sync_later).twice
+    Account.any_instance.expects(:sync_later).once
+    PlaidItem.any_instance.expects(:sync_later_with_provider_refresh).never
     patch depository_path(linked_account), params: { account: { balance_from_transactions: "1" } }
 
     assert_equal Date.current, linked_account.reload.balance_from_transactions_since
+  end
+
+  # The provider's anchor stood still while the switch was on; a bare account
+  # sync would rebuild the balances backwards from it.
+  test "switching back to the provider balance syncs the provider items" do
+    linked_account = accounts(:connected)
+    linked_account.update!(balance_from_transactions: true)
+
+    PlaidItem.any_instance.expects(:sync_later_with_provider_refresh).once
+    Account.any_instance.expects(:sync_later).never
 
     patch depository_path(linked_account), params: { account: { balance_from_transactions: "0" } }
 

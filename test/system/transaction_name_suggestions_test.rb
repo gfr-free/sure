@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class TransactionNameSuggestionsTest < ApplicationSystemTestCase
+  include EntriesTestHelper
+
   setup do
     @user = users(:family_admin)
     @user.family.update!(auto_sync_on_login: false, auto_generate_transaction_names: true)
@@ -71,6 +73,24 @@ class TransactionNameSuggestionsTest < ApplicationSystemTestCase
     assert_category categories(:income)
     select_starbucks
     assert_category categories(:income)
+  end
+
+  test "opening and leaving a duplicated name in the modal does not apply its category" do
+    source = create_transaction(name: "Starbucks", amount: 12, account: accounts(:depository))
+
+    visit account_url(accounts(:depository), tab: "activity")
+    # Loaded into the modal frame like the Duplicate action, after the page's controllers run.
+    execute_script("document.querySelector('turbo-frame#modal').src = arguments[0]", new_transaction_path(duplicate_entry_id: source.id))
+    assert_selector "turbo-frame#modal dialog[open] #entry_name"
+    assert_field "entry_name", with: "Starbucks"
+
+    # Typing and removing a character loads the list without changing the name.
+    find("#entry_name").send_keys(:end, "x", :backspace)
+    assert_selector ".hw-combobox [role='option']", text: "Starbucks"
+    find("#entry_name").send_keys(:tab)
+    assert_no_selector ".hw-combobox [role='option']"
+
+    assert_category nil
   end
 
   test "mobile picker selects a name and category without a second suggestions menu" do

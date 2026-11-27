@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import comboboxHiddenField from "utils/combobox_hidden_field"
 
 // Split rows are real, individually-named form fields rendered server-side (via the
 // "splits/row" partial) and cloned from a <template> for new rows — mirrors
@@ -33,7 +34,7 @@ export default class extends Controller {
   // user has moved on. The visible text, including an intentional blank, is what gets saved.
   syncNames(event) {
     this.nameInputTargets.forEach((input) => {
-      const hiddenField = input.closest(".hw-combobox")?.querySelector("[data-hw-combobox-target='hiddenField']")
+      const hiddenField = comboboxHiddenField(input)
       if (hiddenField?.name) event.formData.set(hiddenField.name, input.value)
     })
   }

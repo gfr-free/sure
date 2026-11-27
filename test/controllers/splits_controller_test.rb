@@ -75,6 +75,15 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Grocery Store", doc.at_css("input[name='split[splits][0][name]'][data-hw-combobox-target='hiddenField']")["value"]
   end
 
+  test "new and edit forms wire formdata to syncNames" do
+    get new_transaction_split_path(@entry)
+    assert_select "form[data-controller~='split-transaction'][data-action~='formdata->split-transaction#syncNames']"
+
+    @entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])
+    get edit_transaction_split_path(@entry)
+    assert_select "form[data-controller~='split-transaction'][data-action~='formdata->split-transaction#syncNames']"
+  end
+
   test "create with valid params splits transaction" do
     assert_difference "Entry.count", 2 do
       post transaction_split_path(@entry), params: {

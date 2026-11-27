@@ -54,6 +54,15 @@ class StyledFormBuilderTest < ActionView::TestCase
     end
   end
 
+  test "a saved entry with its date cleared stays blank instead of showing today" do
+    entry = entries(:transaction)
+    entry.date = nil
+    builder = StyledFormBuilder.new(:entry, entry, self, {})
+    input = Nokogiri::HTML.fragment(builder.entry_date_field(:date)).at("input[type=date]")
+
+    assert_nil input["value"]
+  end
+
   # The drawer's date shares a form with the amount; a minimum above the
   # saved date would block saving the amount.
   test "an entry date older than the limit stays selectable" do

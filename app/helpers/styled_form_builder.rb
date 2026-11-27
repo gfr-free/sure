@@ -30,7 +30,7 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
   # The date of an entry (transaction, trade, transfer, valuation). Entry
   # rejects a date on or before Entry.min_supported_date, so the earliest
   # selectable day is the one after it. Without a value the field starts at
-  # the record's date, or today; pass `value: nil` where blank means "leave
+  # the record's date, or today for a new record; pass `value: nil` where blank means "leave
   # unchanged" (bulk edit). `past_only: true` also caps it at today.
   #
   # A saved date outside those bounds (aged past the lower limit, or a future
@@ -41,7 +41,9 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
     options = options.symbolize_keys
     past_only = options.delete(:past_only)
     current = object.try(method)
-    options[:value] = current || Date.current unless options.key?(:value)
+    # Only a new record starts at today: a saved record shown again after a
+    # failed save keeps its blank date, so the error stays visible.
+    options[:value] = current || (Date.current unless object.try(:persisted?)) unless options.key?(:value)
 
     saved_date = saved_date_for(method, options[:value])
     unless options.key?(:min)

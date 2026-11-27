@@ -69,7 +69,7 @@
                                     redbark_account.sync_start_date || default_sync_start_date,
                                     id: "sync_start_date_#{redbark_account.id}",
                                     min: min_sync_start_date,
-                                    max: past_date_max(redbark_account.sync_start_date),
+                                    max: past_date_max(redbark_account.sync_start_date_in_database),
                                     autocomplete: "off",
                                     class: "bg-container border border-primary rounded px-2 py-1 text-sm text-primary w-full" %>
                 <p class="text-xs text-secondary mt-1"><%= t(".sync_start_date_help") %></p>

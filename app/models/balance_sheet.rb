@@ -35,6 +35,10 @@ class BalanceSheet
     [ assets.account_groups(by: by, user: user), liabilities.account_groups(by: by, user: user) ].flatten
   end
 
+  def account_ids_in_order_of(dimension)
+    classification_groups.flat_map { |group| group.account_ids_in_order_of(dimension, user: user) }
+  end
+
   def net_worth
     assets.total - liabilities.total
   end

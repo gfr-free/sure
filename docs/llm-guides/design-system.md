@@ -79,3 +79,8 @@ variant carries the hierarchy, not the width.
 - Amount inputs stay left-aligned, as `money_field` renders them. Right
   alignment with tabular digits is for displayed figures (`numeric: true`
   above) and for inputs inside a column of them, such as the budget grid.
+- An amount is a `form.money_field`, and any other decimal (a quantity, a
+  rate, a share) a `form.decimal_field`. A number input drops a comma decimal
+  in Chromium ("12,50" is lost or read as 1250), so only a whole number may
+  be a `number_field`, listed with its reason in
+  [`no_number_inputs_test.rb`](../../test/architecture/no_number_inputs_test.rb).

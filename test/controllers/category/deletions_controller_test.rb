@@ -14,6 +14,16 @@ class Category::DeletionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-frame#modal button span.min-w-0.truncate", text: /Delete "Food & Drink" and leave uncategorized/
   end
 
+  test "replacement labels only tell apart the categories on offer" do
+    custom = @category.family.categories.create!(name: "Einkommen", color: "#407706")
+
+    get new_category_deletion_url(custom, locale: "de")
+
+    assert_response :success
+    assert_select "[role=option][data-value=?][data-filter-name=?]", categories(:income).id, "Einkommen"
+    assert_not_includes response.body, "Einkommen (Income)"
+  end
+
   test "create with replacement" do
     replacement_category = categories(:income)
 

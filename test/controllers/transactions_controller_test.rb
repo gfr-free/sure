@@ -920,6 +920,27 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/autofocus/, response.body)
   end
 
+  test "a tag picked from the search box is only added, so a retry keeps it" do
+    @entry.entryable.update!(tag_ids: [], locked_attributes: {})
+
+    2.times do
+      patch tags_transaction_url(@entry), params: { toggle_tag_id: tags(:one).id, from_search: "1" }, as: :turbo_stream
+      assert_response :success
+    end
+
+    assert_equal [ tags(:one).id ], @entry.reload.entryable.tag_ids
+  end
+
+  test "a search pick of a tag that is already there locks nothing" do
+    @entry.entryable.update!(tag_ids: [ tags(:one).id ], locked_attributes: {})
+
+    patch tags_transaction_url(@entry), params: { toggle_tag_id: tags(:one).id, from_search: "1" }, as: :turbo_stream
+
+    assert_response :success
+    assert_equal [ tags(:one).id ], @entry.reload.entryable.tag_ids
+    assert_not @entry.entryable.locked?(:tag_ids)
+  end
+
   test "tag-only endpoint toggles a single tag and streams the row's tag UI" do
     @entry.entryable.update!(tag_ids: [ tags(:one).id ], locked_attributes: {})
 

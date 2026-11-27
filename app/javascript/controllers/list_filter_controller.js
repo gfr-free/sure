@@ -29,9 +29,18 @@ export default class extends Controller {
       };
       this.hostDetails.addEventListener("toggle", this._onHostToggle);
     }
+
+    // A row a Turbo stream replaces comes back without its filter state, so
+    // the current search is applied to the new rows. Only to those rows: the
+    // empty message and highlights belong to filter() and other controllers.
+    this.rowObserver = new MutationObserver((mutations) =>
+      this.#filterAddedRows(mutations),
+    );
+    this.rowObserver.observe(this.listTarget, { childList: true, subtree: true });
   }
 
   disconnect() {
+    this.rowObserver?.disconnect();
     if (this.hostDetails) {
       this.hostDetails.removeEventListener("toggle", this._onHostToggle);
     }
@@ -83,6 +92,28 @@ export default class extends Controller {
     this.highlightedIndex = -1;
     this.clearHighlights();
     this.updateAriaActiveDescendant();
+  }
+
+  #filterAddedRows(mutations) {
+    const query = this.inputTarget.value;
+    const searching = hasSearchQuery(query);
+
+    for (const { addedNodes } of mutations) {
+      for (const node of addedNodes) {
+        if (!(node instanceof Element)) continue;
+        const rows = node.matches(".filterable-item")
+          ? [node]
+          : node.querySelectorAll(".filterable-item");
+        for (const row of rows) {
+          const inRecent =
+            this.hasRecentSectionTarget &&
+            this.recentSectionTarget.contains(row);
+          if ((searching && inRecent) || !matchesSearch(row, query)) {
+            row.style.display = "none";
+          }
+        }
+      }
+    }
   }
 
   handleKeydown(event) {
@@ -183,8 +214,9 @@ export default class extends Controller {
           },
           { once: true },
         );
-        // Tells the server the pick came from the search box, which keeps
-        // focus (e.g. the tag menu re-renders the row without autofocus).
+        // Tells the server the pick came from the search box: it only adds
+        // (a retry cannot take a tag off) and keeps focus there (the tag menu
+        // re-renders the row without autofocus).
         const marker = document.createElement("input");
         marker.type = "hidden";
         marker.name = "from_search";

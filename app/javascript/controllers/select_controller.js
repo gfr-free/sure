@@ -260,7 +260,8 @@ export default class extends Controller {
       this.close()
       return
     }
-    if (event.key === "Enter" && event.target.dataset.value) { event.preventDefault(); event.target.click(); return }
+    // The blank option carries data-value="", so this asks for the option role.
+    if (event.key === "Enter" && event.target.matches('[role="option"]')) { event.preventDefault(); event.target.click(); return }
 
     // WAI-ARIA APG listbox keyboard pattern: ArrowUp/Down moves focus
     // between options, Home/End jump to first/last. Options stay at

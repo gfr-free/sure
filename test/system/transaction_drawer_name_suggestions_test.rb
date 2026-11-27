@@ -91,6 +91,33 @@ class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
     assert_nil entry.entryable.category
   end
 
+  test "a late failed save of an earlier pick does not drop the same name picked again" do
+    entry = create_transaction(account: @account, name: "CARD 4716", amount: 7)
+    visit transaction_path(entry)
+    assert_selector "[data-controller~='category-suggestion'] input[role='combobox']"
+
+    # Request order A (in flight), B, A again: the first A save fails after
+    # the second A pick, then the second A save succeeds.
+    still_pending = execute_script(<<~JS, categories(:food_and_drink).id)
+      const element = document.querySelector("[data-controller~='category-suggestion']");
+      const controller = window.Stimulus.getControllerForElementAndIdentifier(element, "category-suggestion");
+      const first = {}, second = {};
+      controller.pendingPick = { name: "Starbucks", categoryId: arguments[0] };
+      controller.nameSubmitting({ detail: { formSubmission: first } });
+      controller.pendingPick = { name: "Starbucks", categoryId: arguments[0] };
+      controller.nameSubmitting({ detail: { formSubmission: second } });
+      controller.nameSaved({ detail: { formSubmission: first, success: false } });
+      const pending = controller.pendingPick !== null;
+      controller.nameTarget.value = "Starbucks";
+      controller.nameSaved({ detail: { formSubmission: second, success: true } });
+      return pending;
+    JS
+
+    assert still_pending, "the earlier save's failure cleared the later pick"
+    assert_category categories(:food_and_drink)
+    assert_equal categories(:food_and_drink), wait_for { entry.reload.entryable.category }
+  end
+
   private
     def pick_name_suggestion(typed, name)
       name_input = find("input[role='combobox'][id$='name']")

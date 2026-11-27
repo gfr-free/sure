@@ -64,14 +64,18 @@ export default class extends Controller {
     this.#selectCategoryOption(categoryId || "")
   }
 
+  // Drawer: the first save that starts after a pick is the one that sends it.
+  nameSubmitting(event) {
+    const pick = this.pendingPick
+    if (pick && !pick.submission) pick.submission = event.detail?.formSubmission
+  }
+
   // Drawer: the picked name's form saved; fill the category it suggested.
   nameSaved(event) {
     const pick = this.pendingPick
-    if (!pick) return
-    // Only the save that sent this pick's name settles it: an earlier save
-    // finishing late must neither fill nor drop the later pick's category.
-    const sentName = event.detail?.formSubmission?.formData?.get?.("entry[name]")
-    if (sentName != null && sentName !== pick.name) return
+    // Only the pick's own save settles it: an earlier save finishing late
+    // (even for the same name) must neither fill nor drop its category.
+    if (!pick?.submission || event.detail?.formSubmission !== pick.submission) return
     this.pendingPick = null
 
     const categoryId = pick.categoryId

@@ -66,7 +66,7 @@
             result. %>
         <%= styled_form_with model: @entry,
               url: transaction_path(@entry),
-              data: { controller: "auto-submit-form", action: "formdata->category-suggestion#syncName turbo:submit-end->category-suggestion#nameSaved" } do |f| %>
+              data: { controller: "auto-submit-form", action: "formdata->category-suggestion#syncName turbo:submit-start->category-suggestion#nameSubmitting turbo:submit-end->category-suggestion#nameSaved" } do |f| %>
           <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
           <%# "change", not "blur": leaving the field untouched must not send its stale value. %>
           <% if @entry.split_child? || edit_locked %>

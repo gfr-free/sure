@@ -17,7 +17,6 @@
               data-action="click->merchant-select#toggle"
               id="<%= form.field_id(method) %>"
               aria-haspopup="listbox"
-              <%= tag.attributes(aria: { label: (aria_label if label.blank?) }) %>
               aria-expanded="false"
               aria-controls="<%= menu_id %>"
               <%= "disabled" if disabled %>>

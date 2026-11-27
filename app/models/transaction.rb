@@ -539,16 +539,6 @@ class Transaction < ApplicationRecord
     transfer ? transfer.payment? : kind == "cc_payment"
   end
 
-  # Automatic-categorization provenance for the UI, or nil when no
-  # ai/bayes enrichment was ever recorded for this transaction.
-  def category_provenance
-    # ||= alone would re-run the lookup every call for transactions with no
-    # automatic categorization history (nil is not memoized by ||=).
-    return @category_provenance if defined?(@category_provenance)
-
-    @category_provenance = Transaction::CategoryProvenance.for(self)
-  end
-
   # Stops the counterpart-transfer suggestion (and its automatic counterpart,
   # see Family::AutoTransferMatchable) for this outflow. A single atomic jsonb
   # merge, so a concurrent write to other extra keys (e.g. provider metadata)
@@ -558,6 +548,16 @@ class Transaction < ApplicationRecord
     self.class.where(id: id).update_all([ "extra = COALESCE(extra, '{}'::jsonb) || ?::jsonb, updated_at = ?", flag.to_json, Time.current ])
     self.extra = (extra || {}).merge(flag)
     clear_attribute_change(:extra)
+  end
+
+  # Automatic-categorization provenance for the UI, or nil when no
+  # ai/bayes enrichment was ever recorded for this transaction.
+  def category_provenance
+    # ||= alone would re-run the lookup every call for transactions with no
+    # automatic categorization history (nil is not memoized by ||=).
+    return @category_provenance if defined?(@category_provenance)
+
+    @category_provenance = Transaction::CategoryProvenance.for(self)
   end
 
   def set_category!(category)

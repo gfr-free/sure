@@ -20,11 +20,11 @@ class Transfer < ApplicationRecord
   # (or its entry) is deleted, so the surviving leg never keeps a transfer kind
   # without a transfer.
   before_destroy :release_transactions
+  after_destroy :destroy_fabricated_counterpart
   # Destroying locks this row before the fee transactions and the legs, the
   # order confirm! and Entry#unsplit! take them in, so an unlink and a confirm
   # or unsplit do not deadlock each other.
   before_destroy :lock_row, prepend: true
-  after_destroy :destroy_fabricated_counterpart
 
   class << self
     # The outflow leg's kind for a transfer into this account. Transfer::Creator,

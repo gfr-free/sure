@@ -4,7 +4,7 @@
   <% dialog.with_body do %>
     <p class="mb-4 text-sm text-secondary"><%= t(".instruction", email: @user.email) %></p>
 
-    <%= styled_form_with url: admin_user_path(@user), method: :delete, data: { turbo_frame: "_top" } do |form| %>
+    <%= styled_form_with url: admin_user_path(@user, list_params), method: :delete, data: { turbo_frame: "_top" } do |form| %>
       <%= form.text_field :confirmation_email,
             label: t(".email_label"),
             autocomplete: "off",

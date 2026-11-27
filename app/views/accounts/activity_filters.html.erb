@@ -1,0 +1,11 @@
+<%= turbo_frame_tag "account-activity-filter-menu" do %>
+  <%# fields (not form_with): this frame lives inside the activity search
+      form, and its inputs submit with that form. %>
+  <%= fields :q do |form| %>
+    <%= render "transactions/searches/menu",
+          form: form,
+          exclude: account_activity_excluded_filters(@account),
+          clear_filters_path: account_path(@account, tab: "activity"),
+          balance_updates: @account.offers_balance_updates_filter? %>
+  <% end %>
+<% end %>

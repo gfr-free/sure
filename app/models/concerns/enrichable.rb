@@ -162,13 +162,15 @@ module Enrichable
     update!(locked_attributes: locked_attributes.except(attr.to_s))
   end
 
-  # `except` leaves attributes the user did not choose (a filled-in
-  # suggestion) open to rules.
+  # Locks every attribute the last save changed, in one write. except: names
+  # attributes the save set that the person didn't choose (a filled-in
+  # suggestion), which stay open to rules.
   def lock_saved_attributes!(except: nil)
-    skipped = ignored_enrichable_attributes + Array(except)
-    saved_changes.keys.reject { |attr| skipped.include?(attr) }.each do |attr|
-      lock_attr!(attr)
-    end
+    attrs = saved_changes.keys - ignored_enrichable_attributes - Array(except).map(&:to_s)
+    return if attrs.empty?
+
+    locked_at = Time.current
+    update!(locked_attributes: locked_attributes.merge(attrs.index_with { locked_at }))
   end
 
   # Returns the number of AI cache entries removed from this record.

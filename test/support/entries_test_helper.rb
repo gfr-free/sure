@@ -158,4 +158,64 @@ module EntriesTestHelper
       family: bill.family, original_due_on: due_on, due_on: due_on, currency: bill.currency, expected_amount: amount
     )
   end
+
+  # Runs a rule that recategorises and renames every split part, then checks which values held.
+  # Expects the parent's parts ordered by amount, largest first.
+  def assert_split_parts_survive_rules(parent, expected_categories:, expected_names:)
+    rule = parent.account.family.rules.create!(
+      resource_type: "transaction",
+      conditions: [ Rule::Condition.new(condition_type: "transaction_amount", operator: ">", value: 0) ],
+      actions: [
+        Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id),
+        Rule::Action.new(action_type: "set_transaction_name", value: "Renamed by rule")
+      ]
+    )
+    rule.apply
+    rule.destroy!
+
+    parts = parent.reload.child_entries.order(amount: :desc).includes(:entryable).to_a
+    assert_equal expected_categories, parts.map { |part| part.transaction.category }
+    assert_equal expected_names, parts.map(&:name)
+  end
+
+  # Contract: a split part the person entered is a transaction they created, so it
+  # must be finished exactly like the same input from the transaction form or
+  # POST /transactions (Entry.finish_user_created!). Compares the locks on what
+  # the person enters per row, user_modified and the "apply immediately" rule run.
+  # Account, date, currency and kind come from the parent (Entry::SPLIT_INHERITED_ATTRIBUTES)
+  # and aren't compared.
+  SPLIT_CONTRACT_COLUMNS = {
+    entry: %w[name amount excluded notes],
+    transaction: %w[category_id merchant_id kind tag_ids]
+  }.freeze
+
+  def create_split_contract_rule(family)
+    family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Contract") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id) ]
+    )
+  end
+
+  def split_contract_locks(entry)
+    entry.reload
+    {
+      entry: (entry.locked_attributes.keys & SPLIT_CONTRACT_COLUMNS[:entry]).sort,
+      transaction: (entry.transaction.locked_attributes.keys & SPLIT_CONTRACT_COLUMNS[:transaction]).sort
+    }
+  end
+
+  def assert_finished_like(created, part)
+    assert_equal split_contract_locks(created), split_contract_locks(part)
+    assert_equal created.user_modified?, part.reload.user_modified?
+    assert_immediate_rules_enqueued_for created
+    assert_immediate_rules_enqueued_for part
+  end
+
+  def assert_immediate_rules_enqueued_for(entry)
+    ids = enqueued_jobs
+      .select { |job| job["job_class"] == "ApplyImmediateRulesJob" }
+      .flat_map { |job| ActiveJob::Arguments.deserialize(job["arguments"]).last[:transaction_ids] }
+    assert_includes ids, entry.entryable_id, "no immediate rule run for #{entry.name}"
+  end
 end

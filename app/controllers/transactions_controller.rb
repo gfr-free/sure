@@ -164,10 +164,7 @@ class TransactionsController < ApplicationController
 
     if @entry.save
       @entry.sync_account_later
-      @entry.lock_saved_attributes!
-      @entry.mark_user_modified!
-      @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
-      @entry.apply_immediate_rules_later
+      @entry.finish_user_created!
 
       respond_with_created_entry(@entry)
     else

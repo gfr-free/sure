@@ -21,6 +21,9 @@ class Entry < ApplicationRecord
   class SplitPartTransferredError < StandardError; end
 
   attr_accessor :unsplitting
+  # What a new split part took from its parent rather than from the person's input
+  # (set by split!), so finish_user_created! doesn't lock it as their choice.
+  attr_accessor :split_inherited_attributes
 
   monetize :amount
 
@@ -514,6 +517,36 @@ class Entry < ApplicationRecord
     Rule.apply_immediately_later(account.family, entryable_id)
   end
 
+  # The steps after a person created a transaction, in one place for every way
+  # they can: the form, the API, the assistant, and each part of a split they
+  # entered. Locks what the create saved (and the tags), so rules and syncs
+  # keep the values the person chose, marks the entry user-modified and runs
+  # the "apply immediately" rules. Rule-made splits and imports are not a
+  # person's input and don't call this.
+  #
+  # Call it right after the create, before any other save: the locks come from
+  # saved_changes.
+  #
+  # @param entries [Array<Entry>] transactions just created in one request, all of one family
+  # @param user_modified [Boolean] false where the caller leaves that flag to the request (API, assistant)
+  # @return [void]
+  def self.finish_user_created!(entries, user_modified: true)
+    entries = Array(entries).select(&:transaction?)
+    return if entries.empty?
+
+    entries.each do |entry|
+      entry.lock_saved_attributes!(except: entry.split_inherited_attributes || [])
+      entry.transaction.lock_attr!(:tag_ids) if entry.transaction.tags.any?
+      entry.mark_user_modified! if user_modified
+    end
+
+    Rule.apply_immediately_later(entries.first.account.family, entries.map(&:entryable_id))
+  end
+
+  def finish_user_created!(user_modified: true)
+    self.class.finish_user_created!([ self ], user_modified: user_modified)
+  end
+
   # Enqueues an account sync whose window starts at the earliest date this
   # entry has occupied since it was loaded, so balances are recomputed from
   # wherever the entry used to sit.
@@ -707,6 +740,18 @@ class Entry < ApplicationRecord
     end
   end
 
+  # Values a split part can take from its parent (entries and transactions
+  # columns). A part gets them whatever the person entered, so they aren't
+  # locked as the person's choice; the merchant joins them when a part falls
+  # back to the parent's. Kept in step with the "inherited" groups of
+  # Entry::SplitInheritance where that lands; listing a column split! doesn't
+  # copy yet is harmless, since only saved changes are locked.
+  SPLIT_INHERITED_ATTRIBUTES = %w[
+    account_id currency date import_id import_locked
+    reconciled_at reconciled_by_statement_id reconciled_status
+    extra investment_activity_label kind
+  ].freeze
+
   def split_parent?
     child_entries.exists?
   end
@@ -737,28 +782,33 @@ class Entry < ApplicationRecord
   # split rules, a rule and an API request) can both pass a splittable? check before either
   # inserts children, and split! only validates its own amounts, so without the lock both sets
   # of children would land and the amount would count twice. A provider sync can also mark the
-  # transaction pending or a transfer in between, so those are re-checked too. Returns true
-  # when it split.
+  # transaction pending or a transfer in between, so those are re-checked too. Returns the
+  # new parts when it split, false otherwise.
+  #
+  # A block gets the parts inside the lock, so whatever it writes on them commits with the split.
   def split_once!(splits, lock_attributes: false, inherit_merchant: true)
     with_split_lock do |txn|
       next false if split_parent? || excluded? || txn&.transfer? || txn&.pending?
 
-      split!(splits, lock_attributes: lock_attributes, inherit_merchant: inherit_merchant)
-      true
+      parts = split!(splits, lock_attributes: lock_attributes, inherit_merchant: inherit_merchant)
+      yield parts if block_given?
+      parts
     end
   end
 
   # Replaces the children of a split under the same lock, so a concurrent unsplit can't be undone
-  # and two edits can't both insert children. Returns false when the entry is no longer a split
-  # parent. Editing an existing split doesn't re-check whether the parent is pending or a transfer:
-  # it creates no new split. Raises SplitPartTransferredError while a part is a leg of a confirmed transfer.
+  # and two edits can't both insert children. Returns the new parts, or false when the entry is
+  # no longer a split parent. Editing an existing split doesn't re-check whether the parent is
+  # pending or a transfer: it creates no new split. Raises SplitPartTransferredError while a part
+  # is a leg of a confirmed transfer. A block gets the new parts inside the lock, as in split_once!.
   def resplit!(splits, inherit_merchant: true)
     with_split_lock do
       next false unless split_parent?
 
       unsplit!
-      split!(splits, inherit_merchant: inherit_merchant)
-      true
+      parts = split!(splits, inherit_merchant: inherit_merchant)
+      yield parts if block_given?
+      parts
     end
   end
 
@@ -836,7 +886,10 @@ class Entry < ApplicationRecord
           notes: split_attrs[:notes],
           excluded: TRUTHY_VALUES.include?(split_attrs[:excluded]),
           entryable: child_transaction
-        )
+        ).tap do |child|
+          child.split_inherited_attributes = SPLIT_INHERITED_ATTRIBUTES +
+            (split_attrs[:merchant_id].present? || !inherit_merchant ? [] : %w[merchant_id])
+        end
       end
 
       update!(excluded: true)

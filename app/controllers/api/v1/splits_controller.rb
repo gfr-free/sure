@@ -44,7 +44,8 @@ class Api::V1::SplitsController < Api::V1::BaseController
 
     # Two concurrent POSTs can both clear the check above; split_once! locks
     # the parent and re-checks, so only one set of children is inserted.
-    raise NotSplittable unless @entry.split_once!(splits, inherit_merchant: false)
+    # Each part is finished like POST /transactions finishes a transaction, user_modified default included.
+    raise NotSplittable unless @entry.split_once!(splits, inherit_merchant: false) { |parts| Entry.finish_user_created!(parts, user_modified: false) }
     @entry.sync_account_later
     @entry.reload
 
@@ -72,7 +73,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
 
     # The split_parent? test above runs before the lock, so a concurrent DELETE can unsplit in
     # between; resplit! re-checks under the lock instead of resurrecting the split.
-    raise NotSplit unless @entry.resplit!(splits, inherit_merchant: false)
+    raise NotSplit unless @entry.resplit!(splits, inherit_merchant: false) { |parts| Entry.finish_user_created!(parts, user_modified: false) }
     @entry.sync_account_later
     @entry.reload
 

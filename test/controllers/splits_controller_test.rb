@@ -51,6 +51,39 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "new offers past transaction names in every split row, like the transaction form" do
+    get new_transaction_split_path(@entry)
+    assert_response :success
+
+    doc = Nokogiri::HTML::Document.parse(response.body)
+    # The first row plus the template that added rows are cloned from.
+    rows = doc.css("[data-split-transaction-target='row']")
+    assert_equal 2, rows.size
+
+    rows.each do |row|
+      assert_equal "category-suggestion", row["data-controller"]
+      assert_includes row["data-action"], "hw-combobox:selection->category-suggestion#onNameSuggestionSelected"
+      assert_includes row.at_css(".hw-combobox")["data-hw-combobox-async-src-value"], name_suggestions_transactions_path
+
+      input = row.at_css("input[role='combobox']")
+      assert_equal "nameInput", input["data-split-transaction-target"]
+      assert_equal "name", input["data-category-suggestion-target"]
+      assert input.key?("required")
+      assert_not_nil row.at_css(".category-select-container[data-category-suggestion-target='categoryField']")
+    end
+
+    assert_equal "Grocery Store", doc.at_css("input[name='split[splits][0][name]'][data-hw-combobox-target='hiddenField']")["value"]
+  end
+
+  test "new and edit forms wire formdata to syncNames" do
+    get new_transaction_split_path(@entry)
+    assert_select "form[data-controller~='split-transaction'][data-action~='formdata->split-transaction#syncNames']"
+
+    @entry.split!([ { name: "Part 1", amount: 60 }, { name: "Part 2", amount: 40 } ])
+    get edit_transaction_split_path(@entry)
+    assert_select "form[data-controller~='split-transaction'][data-action~='formdata->split-transaction#syncNames']"
+  end
+
   test "create with valid params splits transaction" do
     assert_difference "Entry.count", 2 do
       post transaction_split_path(@entry), params: {

@@ -1,17 +1,24 @@
 <%# locals: (index:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], removable: true) %>
 
 <%# Styled builder fields and DS pickers, the same controls as the transaction form. %>
-<div class="p-3 rounded-lg border border-secondary bg-container space-y-2" data-split-transaction-target="row">
+<%# Like the transaction form, picking a past name suggests that name's usual category. %>
+<div class="p-3 rounded-lg border border-secondary bg-container space-y-2"
+     data-split-transaction-target="row"
+     data-controller="category-suggestion"
+     data-action="hw-combobox:selection->category-suggestion#onNameSuggestionSelected change->category-suggestion#onCategorySelected">
   <%= fields "split[splits][#{index}]", builder: StyledFormBuilder do |row| %>
     <div class="flex flex-wrap md:flex-nowrap items-center gap-2">
-      <%= row.text_field :name,
-            value: name,
-            label: t("splits.new.name_label"),
-            placeholder: t("splits.new.name_placeholder"),
-            required: true,
-            autocomplete: "off",
-            container_class: "w-full md:flex-1 min-w-0",
-            data: { split_transaction_target: "nameInput" } %>
+      <div class="form-field combobox w-full md:flex-1 min-w-0">
+        <%= row.combobox :name,
+              name_suggestions_transactions_path,
+              value: name,
+              free_text: true,
+              autocomplete: :list,
+              label: t("splits.new.name_label"),
+              placeholder: t("splits.new.name_placeholder"),
+              required: true,
+              input: { data: { split_transaction_target: "nameInput", category_suggestion_target: "name" } } %>
+      </div>
 
       <%= row.number_field :amount,
             value: amount,
@@ -37,7 +44,7 @@
     <%# Category and merchant share a row and tags get their own, like in the rule form, so the
         category badge has room for real category names. %>
     <div class="grid grid-cols-1 md:grid-cols-2 items-start gap-2">
-      <div class="category-select-container min-w-0">
+      <div class="category-select-container min-w-0" data-category-suggestion-target="categoryField">
         <%= row.collection_select :category_id,
               categories,
               :id,

@@ -155,6 +155,17 @@ class CategoryTest < ActiveSupport::TestCase
     end
   end
 
+  test "search_names holds the shown and the stored name once each" do
+    I18n.with_locale(:de) do
+      assert_equal [ "Restaurants & Bars", "Food & Drink" ], categories(:food_and_drink).search_names
+    end
+
+    I18n.with_locale(:en) do
+      assert_equal [ "Food & Drink" ], categories(:food_and_drink).search_names
+      assert_nil categories(:food_and_drink).stored_name_if_translated
+    end
+  end
+
   test "rejects the reserved Uncategorized filter sentinel as a name" do
     category = Category.new(name: Category::UNCATEGORIZED_FILTER_VALUE, color: "#123456", lucide_icon: "folder", family: @family)
 

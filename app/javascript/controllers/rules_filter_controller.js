@@ -239,7 +239,8 @@ export default class extends Controller {
     }
   }
 
-  // Case- and diacritic-insensitive, as in list_filter_controller.
+  // Case- and diacritic-insensitive, like utils/normalize_search_text
+  // (which also reads underscores as spaces).
   #normalize(value) {
     return value
       .normalize("NFD")

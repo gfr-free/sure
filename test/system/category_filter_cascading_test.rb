@@ -16,6 +16,22 @@ class CategoryFilterCascadingTest < ApplicationSystemTestCase
     visit transactions_url
   end
 
+  # A default category stored under another locale's label shows translated;
+  # its stored name still finds it.
+  test "the category search finds a translated default category by its stored name" do
+    @user.family.categories.create!(name: "Lebensmittel", color: "#4da568", lucide_icon: "shopping-basket")
+    visit transactions_url
+
+    find("#transaction-filters-button").click
+
+    within "#transaction-filters-menu" do
+      click_button "Category"
+      find("[data-list-filter-target='input']").fill_in with: "Lebensmittel"
+
+      assert_selector ".filterable-item", text: "Groceries", count: 1
+    end
+  end
+
   test "checking a parent category checks all its subcategories" do
     find("#transaction-filters-button").click
 

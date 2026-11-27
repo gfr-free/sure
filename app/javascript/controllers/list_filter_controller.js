@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
+import { normalizeSearchText } from "utils/normalize_search_text";
 
 // Basic functionality to filter a list based on a provided text attribute.
 export default class extends Controller {
@@ -61,10 +62,18 @@ export default class extends Controller {
     }
 
     items.forEach((item) => {
-      const text = this.normalize(item.getAttribute("data-filter-name"));
+      // data-filter-terms holds other names a row answers to (e.g. a
+      // category's stored name when it shows a translated one).
+      const texts = [
+        item.getAttribute("data-filter-name"),
+        item.getAttribute("data-filter-terms"),
+      ]
+        .filter(Boolean)
+        .map((text) => this.normalize(text));
       const shouldDisplay =
         rawFilterValue.length === 0 ||
-        (filterValue.length > 0 && text.includes(filterValue));
+        (filterValue.length > 0 &&
+          texts.some((text) => text.includes(filterValue)));
       item.style.display = shouldDisplay ? "" : "none";
 
       if (shouldDisplay) {
@@ -81,22 +90,8 @@ export default class extends Controller {
     this.updateAriaActiveDescendant();
   }
 
-  // Case- and diacritic-insensitive: "prestecs" should match "Prèstecs".
-  // NFD splits each accented char into base char + combining mark, then
-  // \p{Mark} strips the marks, so both sides compare on bare base characters.
-  // Not \p{Diacritic}: that property is broader than combining marks — it
-  // also covers standalone characters like "^", "`", the middot, and
-  // modifier letters (e.g. the Hawaiian ʻokina) — so a query of just one of
-  // those would normalize to "", and "".includes() matches everything,
-  // silently showing every row instead of filtering.
-  // Underscores read as spaces, so an identifier typed as "America/New_York"
-  // finds its label "America/New York".
   normalize(value) {
-    return value
-      .normalize("NFD")
-      .replace(/\p{Mark}/gu, "")
-      .replaceAll("_", " ")
-      .toLowerCase();
+    return normalizeSearchText(value);
   }
 
   handleKeydown(event) {

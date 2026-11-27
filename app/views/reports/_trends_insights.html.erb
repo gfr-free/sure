@@ -54,6 +54,7 @@
                     value: option.value,
                     checked: option.checked,
                     filter_name: option.category.display_name,
+                    filter_terms: option.category.stored_name_if_translated,
                     checkbox_data: {
                       category_filter_target: "checkbox",
                       action: "change->category-filter#toggle",

@@ -30,8 +30,8 @@ module AccountsHelper
   end
 
   # Returns the account id segment from `/accounts/<id>(/...)?`, or nil.
-  # Used as a cache-key component so the sidebar's active-link styling is
-  # correct without busting the cache for every unrelated path change.
+  # The layout hands it to the browser, which highlights that account in the
+  # sidebar; the sidebar itself is cached once for every page.
   def sidebar_active_account_id
     match = request.path.match(%r{\A/accounts/([\w-]+)})
     match && match[1]
@@ -97,7 +97,7 @@ module AccountsHelper
       .pick(Arel.sql("count(*)"), Arel.sql("max(account_providers.updated_at)"))
 
     [
-      family.build_cache_key("account_sidebar_tabs_v12", invalidate_on_data_updates: true),
+      family.build_cache_key("account_sidebar_tabs_v13", invalidate_on_data_updates: true),
       Current.user&.id,
       shares_version,
       providers_version,
@@ -106,7 +106,6 @@ module AccountsHelper
       I18n.locale,
       # Sparkline URLs carry a version that rolls over with the 30-day window.
       Date.current,
-      sidebar_active_account_id,
       # Fold the per-user "start expanded by default" preference into the key
       # so toggling it in Settings busts the 12h fragment cache immediately
       # (this partial renders with skip_digest: true, so the template digest

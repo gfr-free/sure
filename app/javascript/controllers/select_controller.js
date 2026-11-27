@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { autoUpdate } from "@floating-ui/dom"
-import { enterTarget, isConfirmingEnter } from "utils/search_match"
+import { enterTarget, isComposing, isConfirmingEnter } from "utils/search_match"
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -227,6 +227,9 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    // Keys that end an IME composition only commit the characters.
+    if (isComposing(event)) return
+
     if (!this.isOpen && event.target === this.buttonTarget) {
       if (["ArrowDown", "ArrowUp", " ", "Enter"].includes(event.key)) {
         event.preventDefault()

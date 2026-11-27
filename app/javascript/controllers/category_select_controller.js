@@ -129,19 +129,19 @@ export default class extends Controller {
       return;
     }
 
-    if (this.creating) return;
-
-    // Nothing to create (locked, or the name exists already): pick the match.
+    // The row the search names; else create while the create row shows;
+    // else the first visible row (utils/search_match).
     const rawQuery = this.searchTarget.value;
     if (!hasSearchQuery(rawQuery)) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const existing = enterMatch(visible, rawQuery);
+    const createShown = !this.createFormTarget.classList.contains("hidden");
+    const existing = enterMatch(visible, rawQuery, { blank: !createShown });
 
-    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
-      this.createCategory();
+    if (!existing && createShown) {
+      if (!this.creating) this.createCategory();
       return;
     }
 

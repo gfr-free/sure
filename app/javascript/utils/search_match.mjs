@@ -87,8 +87,7 @@ export function matchesSearch(element, rawQuery) {
 // Whether a typed name is an existing one: exact but for case and Unicode
 // form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
 // still counts as the existing one. This decides whether "create" is
-// offered. Case folds without the browser locale: in Turkish,
-// toLocaleLowerCase turns "Income" into "ıncome".
+// offered.
 export function exactName(value) {
   // toLowerCase, not toLocaleLowerCase: in a Turkish browser the latter
   // turns "I" into a dotless "ı", so "Income" would not equal "income".
@@ -122,11 +121,15 @@ function enterRows(rows) {
 }
 
 // The existing row the search names. Several rows equal once accents are
-// ignored ("Résumé", "Resumé") give no single answer.
-export function enterMatch(rows, rawQuery) {
+// ignored ("Résumé", "Resumé") give no single answer. blank: false leaves
+// out the blank "None" row, for a picker whose create row is showing: the
+// typed name is then a new one, not a request to clear the field.
+export function enterMatch(rows, rawQuery, { blank = true } = {}) {
   if (!hasSearchQuery(rawQuery)) return undefined;
 
-  const hits = enterRows(rows);
+  const hits = enterRows(rows).filter(
+    (row) => blank || !row.hasAttribute?.("data-filter-blank"),
+  );
   const exact = exactMatch(hits, rawQuery);
   if (exact) return exact;
 

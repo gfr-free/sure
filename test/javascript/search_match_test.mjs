@@ -243,6 +243,12 @@ describe("enterTarget", () => {
     assert.equal(enterTarget([ivanExtra, row("Йван")], "иван"), ivanExtra)
   })
 
+  it("leaves the blank row out while a create row shows", () => {
+    const none = { ...row("None"), hasAttribute: (name) => name === "data-filter-blank" }
+    assert.equal(enterMatch([none], "none"), none)
+    assert.equal(enterMatch([none], "none", { blank: false }), undefined)
+  })
+
   it("enterMatch alone gives no answer for a partial name", () => {
     assert.equal(enterMatch([zedExtra, zed], "ze"), undefined)
     assert.equal(enterFallback([zedExtra, zed]), zedExtra)

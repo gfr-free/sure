@@ -4,6 +4,7 @@ import {
   enterFallback,
   enterMatch,
   hasSearchQuery,
+  isComposing,
   isConfirmingEnter,
   matchesSearch,
   namesExactly,
@@ -145,8 +146,11 @@ export default class extends Controller {
     const query = this.searchTarget.value;
     if (!hasSearchQuery(query)) return;
 
-    const existing = enterMatch(this.visibleOptions, query);
-    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
+    const createShown = !this.createFormTarget.classList.contains("hidden");
+    const existing = enterMatch(this.visibleOptions, query, {
+      blank: !createShown,
+    });
+    if (!existing && createShown) {
       if (!this.creating) this.createTag();
       return;
     }
@@ -328,6 +332,9 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    // Keys that end an IME composition only commit the characters.
+    if (isComposing(event)) return;
+
     if (!this.isOpen && event.target === this.buttonTarget) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();

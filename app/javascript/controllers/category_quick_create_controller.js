@@ -1,6 +1,11 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { enterMatch, exactName, isConfirmingEnter } from "utils/search_match";
+import {
+  enterMatch,
+  exactName,
+  hasSearchQuery,
+  isConfirmingEnter,
+} from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -97,8 +102,8 @@ export default class extends Controller {
     if (!this.hasCreateButtonTarget) return;
     if (this.createButtonTarget.classList.contains("hidden")) return;
 
-    const query = this.inputTarget.value.trim();
-    if (!query || enterMatch(this.#visibleRows, query)) return;
+    const query = this.inputTarget.value;
+    if (!hasSearchQuery(query) || enterMatch(this.#visibleRows, query)) return;
 
     event.preventDefault();
     this.create();

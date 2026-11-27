@@ -65,7 +65,6 @@ export default class extends Controller {
       this.emptyMessageTarget.classList.add("hidden");
     }
 
-    const searching = hasSearchQuery(rawFilterValue);
     items.forEach((item) => {
       const shouldDisplay =
         !(searching && recentItems.has(item)) &&

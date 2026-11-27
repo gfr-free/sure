@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { exactName, isConfirmingEnter } from "utils/search_match";
+import { enterMatch, exactName, isConfirmingEnter } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -87,16 +87,18 @@ export default class extends Controller {
     this.#clearError();
   }
 
-  // The shared Enter rule (utils/search_match): while the create row shows,
-  // Enter creates and list-filter steps aside; a row highlighted with the
-  // arrow keys still wins.
+  // The shared Enter rule (utils/search_match): with no existing row named
+  // by the search, Enter creates while the create row shows. Picking a row
+  // (named, else the first visible) is list-filter's part, which steps aside
+  // in exactly this case; a row picked with the arrow keys wins over both.
   createOnEnter(event) {
     if (!isConfirmingEnter(event)) return;
+    if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
     if (!this.hasCreateButtonTarget) return;
     if (this.createButtonTarget.classList.contains("hidden")) return;
-    // Enter does what the create row says, as in the category select; only
-    // a row picked with the arrow keys (list-filter handles that) wins.
-    if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
+
+    const query = this.inputTarget.value.trim();
+    if (!query || enterMatch(this.#visibleRows, query)) return;
 
     event.preventDefault();
     this.create();
@@ -219,6 +221,12 @@ export default class extends Controller {
     return (
       this.hasParentPickerTarget &&
       !this.parentPickerTarget.classList.contains("hidden")
+    );
+  }
+
+  get #visibleRows() {
+    return Array.from(this.element.querySelectorAll(".filterable-item")).filter(
+      (item) => item.style.display !== "none" && item.offsetParent !== null,
     );
   }
 

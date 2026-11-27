@@ -3,8 +3,12 @@ import assert from "node:assert/strict"
 
 import {
   displaySortKey,
+  enterFallback,
   enterMatch,
+  enterTarget,
+  exactMatch,
   exactName,
+  isComposing,
   hasSearchQuery,
   isConfirmingEnter,
   matchesSearch,
@@ -76,6 +80,19 @@ describe("namesExactly", () => {
 })
 
 describe("exactName", () => {
+  it("ignores the browser locale", () => {
+    // Simulate a Turkish browser, where "I" lowercases to a dotless "ı".
+    const original = String.prototype.toLocaleLowerCase
+    String.prototype.toLocaleLowerCase = function () {
+      return original.call(this, "tr")
+    }
+    try {
+      assert.equal(exactName("Income"), exactName("income"))
+    } finally {
+      String.prototype.toLocaleLowerCase = original
+    }
+  })
+
   it("treats composed and decomposed accents as the same name", () => {
     assert.equal(exactName("Cafe\u0301"), exactName("Café"))
     assert.notEqual(exactName("Cafe"), exactName("Café"))
@@ -91,6 +108,42 @@ describe("exactName", () => {
     } finally {
       String.prototype.toLocaleLowerCase = original
     }
+  })
+})
+
+describe("exactMatch", () => {
+  it("prefers the row whose stored name the query is", () => {
+    const custom = row("Restaurants & Bars", ["Restaurants & Bars"])
+    assert.equal(exactMatch([translated, custom], "restaurants & bars"), custom)
+    assert.equal(exactMatch([translated], "Restaurants & Bars"), translated)
+    assert.equal(exactMatch([translated], "Restaurants"), undefined)
+    assert.equal(exactMatch([translated], " "), undefined)
+  })
+})
+
+describe("enterMatch", () => {
+  it("takes the exact name, else the only Latin-accent match", () => {
+    const epicerie = row("Épicerie fine")
+    const pet = row("Pet Supplies")
+    assert.equal(enterMatch([pet, translated], "food & drink"), translated)
+    assert.equal(enterMatch([pet, epicerie], "epicerie fine"), epicerie)
+    assert.equal(enterMatch([pet, epicerie], "pet"), undefined)
+  })
+
+  it("gives no answer when several rows differ only in accents", () => {
+    assert.equal(enterMatch([row("Résumé"), row("Resumé")], "resume"), undefined)
+  })
+
+  it("keeps marks outside Latin script", () => {
+    assert.equal(enterMatch([row("ハンバーガー")], "ハンハーカー"), undefined)
+  })
+})
+
+describe("isComposing", () => {
+  it("recognises an IME composition", () => {
+    assert.equal(isComposing({ isComposing: true, keyCode: 13 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 229 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 13 }), false)
   })
 })
 
@@ -132,68 +185,73 @@ describe("isConfirmingEnter", () => {
   })
 })
 
-describe("enterMatch", () => {
+describe("enterTarget", () => {
   const zedExtra = row("Zed Extra")
   const zed = row("Zéd")
   const cafe = row("Cafe")
   const cafeAccent = row("Café")
 
   it("picks nothing for an empty query", () => {
-    assert.equal(enterMatch([zedExtra, zed], ""), null)
-    assert.equal(enterMatch([zedExtra, zed], "   "), null)
+    assert.equal(enterTarget([zedExtra, zed], ""), undefined)
+    assert.equal(enterTarget([zedExtra, zed], "   "), undefined)
   })
 
   it("prefers the exact name over the first row", () => {
-    assert.equal(enterMatch([cafe, cafeAccent], "café"), cafeAccent)
-    assert.equal(enterMatch([cafeAccent, cafe], "cafe"), cafe)
+    assert.equal(enterTarget([cafe, cafeAccent], "café"), cafeAccent)
+    assert.equal(enterTarget([cafeAccent, cafe], "cafe"), cafe)
   })
 
   it("then the name equal once accents are folded", () => {
-    assert.equal(enterMatch([zedExtra, zed], "zed"), zed)
+    assert.equal(enterTarget([zedExtra, zed], "zed"), zed)
   })
 
   it("then the first visible row", () => {
-    assert.equal(enterMatch([zedExtra, zed], "ze"), zedExtra)
+    assert.equal(enterTarget([zedExtra, zed], "ze"), zedExtra)
   })
 
   it("can skip the first-visible fallback", () => {
-    assert.equal(enterMatch([zedExtra, zed], "ze", { firstVisible: false }), null)
-    assert.equal(enterMatch([zedExtra, zed], "zed", { firstVisible: false }), zed)
+    assert.equal(enterTarget([zedExtra, zed], "ze", { firstVisible: false }), undefined)
+    assert.equal(enterTarget([zedExtra, zed], "zed", { firstVisible: false }), zed)
   })
 
   it("never falls back to the blank row", () => {
     const none = { ...row("Uncategorized"), hasAttribute: (name) => name === "data-filter-blank" }
     const utilities = row("Utilities")
-    assert.equal(enterMatch([none, utilities], "u"), utilities)
-    assert.equal(enterMatch([none], "u"), null)
-    assert.equal(enterMatch([none, utilities], "uncategorized"), none)
+    assert.equal(enterTarget([none, utilities], "u"), utilities)
+    assert.equal(enterTarget([none], "u"), undefined)
+    assert.equal(enterTarget([none, utilities], "uncategorized"), none)
   })
 
   it("matches a stored name too", () => {
-    assert.equal(enterMatch([row("Other"), translated], "food & drink"), translated)
+    assert.equal(enterTarget([row("Other"), translated], "food & drink"), translated)
   })
 
   it("has nothing to pick in an empty list", () => {
-    assert.equal(enterMatch([], "zed"), null)
+    assert.equal(enterTarget([], "zed"), undefined)
   })
 
   it("prefers the stored name when two rows show the same label", () => {
     const translatedDefault = row("Lebensmittel", ["Groceries", "Lebensmittel"])
     const custom = row("Lebensmittel", ["Lebensmittel"])
-    assert.equal(enterMatch([translatedDefault, custom], "Lebensmittel"), custom)
+    assert.equal(enterTarget([translatedDefault, custom], "Lebensmittel"), custom)
   })
 
   it("folds accents on Latin letters only", () => {
     const burger = row("ハンバーガー")
-    assert.equal(enterMatch([burger, row("バン")], "ハン"), burger)
+    assert.equal(enterTarget([burger, row("バン")], "ハン"), burger)
     const ivanExtra = row("Иван Extra")
-    assert.equal(enterMatch([ivanExtra, row("Йван")], "иван"), ivanExtra)
+    assert.equal(enterTarget([ivanExtra, row("Йван")], "иван"), ivanExtra)
+  })
+
+  it("enterMatch alone gives no answer for a partial name", () => {
+    assert.equal(enterMatch([zedExtra, zed], "ze"), undefined)
+    assert.equal(enterFallback([zedExtra, zed]), zedExtra)
   })
 
   it("never picks a row shown only as context for a hit", () => {
     const parent = { ...row("Food & Drink"), hasAttribute: (name) => name === "data-filter-context" }
     const child = { ...row("Restaurants"), hasAttribute: () => false }
-    assert.equal(enterMatch([parent, child], "Restaur"), child)
+    assert.equal(enterTarget([parent, child], "Restaur"), child)
   })
 })
 

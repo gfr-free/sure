@@ -86,11 +86,101 @@ export function matchesSearch(element, rawQuery) {
 
 // Whether a typed name is an existing one: exact but for case and Unicode
 // form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
-// still counts as the existing one. This decides whether "create" is offered.
+// still counts as the existing one. This decides whether "create" is
+// offered. Case folds without the browser locale: in Turkish,
+// toLocaleLowerCase turns "Income" into "ıncome".
 export function exactName(value) {
   // toLowerCase, not toLocaleLowerCase: in a Turkish browser the latter
   // turns "I" into a dotless "ı", so "Income" would not equal "income".
   return String(value ?? "").trim().normalize("NFC").toLowerCase();
+}
+
+// Enter and Escape that finish an IME composition must not act on the list.
+// Safari reports the committing Enter with keyCode 229 and isComposing false.
+export function isComposing(event) {
+  return event.isComposing || event.keyCode === 229;
+}
+
+// One Enter rule for every picker's search box:
+// 1. Enter never submits the surrounding form (callers preventDefault).
+// 2. It picks the row the search names (enterMatch): the stored name, else
+//    the exact shown name, else the only name equal once Latin accents are
+//    ignored ("epicerie fine" → "Épicerie fine").
+// 3. With no named row, Enter creates while a "create" row shows.
+// 4. Otherwise it picks the first visible row (enterFallback), never the
+//    blank "None" row, so a partial search cannot clear the field.
+// 5. An empty search picks nothing.
+// enterTarget is 2 and 4 for lists without a create row.
+export function isConfirmingEnter(event) {
+  return event.key === "Enter" && !isComposing(event);
+}
+
+// Rows that may be an Enter target: a row marked data-filter-context is
+// shown only as context around a hit.
+function enterRows(rows) {
+  return rows.filter((row) => !row.hasAttribute?.("data-filter-context"));
+}
+
+// The existing row the search names. Several rows equal once accents are
+// ignored ("Résumé", "Resumé") give no single answer.
+export function enterMatch(rows, rawQuery) {
+  if (!hasSearchQuery(rawQuery)) return undefined;
+
+  const hits = enterRows(rows);
+  const exact = exactMatch(hits, rawQuery);
+  if (exact) return exact;
+
+  const query = String(rawQuery).trim();
+  const folded = hits.filter((row) =>
+    searchNames(row).some((name) => sameNameIgnoringLatinAccents(name, query)),
+  );
+  return folded.length === 1 ? folded[0] : undefined;
+}
+
+// The first visible row a partial search falls back to.
+export function enterFallback(rows) {
+  return enterRows(rows).find((row) => !row.hasAttribute?.("data-filter-blank"));
+}
+
+// enterMatch, else (firstVisible) enterFallback. firstVisible: false is for
+// a list where one Enter acts on many records (categorize assigns a group).
+export function enterTarget(rows, rawQuery, { firstVisible = true } = {}) {
+  if (!hasSearchQuery(rawQuery)) return undefined;
+  return enterMatch(rows, rawQuery) ?? (firstVisible ? enterFallback(rows) : undefined);
+}
+
+// Whether two names are the same once accents on Latin letters are
+// ignored. Marks on other scripts stay: without them Japanese dakuten, Indic
+// vowel signs or the Cyrillic "й" spell a different word. Letters without a
+// decomposition ("ł", "ø", "ß") are not folded.
+export function sameNameIgnoringLatinAccents(a, b) {
+  return foldLatinAccents(a) === foldLatinAccents(b);
+}
+
+// The browser twin of Category#display_sort_key (without its id tie-break).
+export function displaySortKey(value) {
+  return foldLatinAccents(value);
+}
+
+function foldLatinAccents(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1")
+    .normalize("NFC")
+    .toLowerCase();
+}
+
+// The visible row the query names exactly, preferring a row whose stored
+// name it is: two categories can show the same name (a default one
+// translated, a custom one stored under that label).
+export function exactMatch(rows, rawQuery) {
+  const query = exactName(rawQuery);
+  if (query.length === 0) return undefined;
+
+  return (
+    rows.find((row) => exactName(primarySearchName(row)) === query) ??
+    rows.find((row) => namesExactly(row, rawQuery))
+  );
 }
 
 export function namesExactly(element, rawQuery) {
@@ -98,53 +188,4 @@ export function namesExactly(element, rawQuery) {
   if (query.length === 0) return false;
 
   return searchNames(element).some((name) => exactName(name) === query);
-}
-
-// One Enter rule for every picker's search box:
-// 1. Enter never submits the surrounding form (callers preventDefault).
-// 2. While a "create" row shows, Enter creates (callers check that first).
-// 3. Otherwise it picks enterMatch: the stored name, else the exact shown
-//    name, else the name equal once Latin accents are folded, else the first
-//    visible row that is not the blank "None" row (data-filter-blank), so a
-//    partial search never clears the field.
-// 4. An empty search picks nothing.
-// The Enter that ends an IME composition only commits the characters;
-// Safari reports it with keyCode 229 and isComposing already false.
-export function isConfirmingEnter(event) {
-  return event.key === "Enter" && !event.isComposing && event.keyCode !== 229;
-}
-
-// firstVisible: false drops the last fallback, for a list where one Enter
-// acts on many rows at once (categorize assigns a whole group).
-export function enterMatch(visibleRows, rawQuery, { firstVisible = true } = {}) {
-  if (!hasSearchQuery(rawQuery)) return null;
-
-  // A row marked data-filter-context is shown only as context around a hit
-  // and is never the Enter target.
-  const hits = visibleRows.filter((row) => !row.hasAttribute?.("data-filter-context"));
-  const query = exactName(rawQuery);
-  const latin = foldLatinAccents(query);
-  return (
-    // Two rows can show the same label (a default category translated, a
-    // custom one stored under that label): the stored name wins.
-    hits.find((row) => exactName(primarySearchName(row)) === query) ??
-    hits.find((row) => namesExactly(row, rawQuery)) ??
-    hits.find((row) =>
-      searchNames(row).some((name) => foldLatinAccents(exactName(name)) === latin),
-    ) ??
-    (firstVisible ? hits.find((row) => !row.hasAttribute?.("data-filter-blank")) : null) ??
-    null
-  );
-}
-
-// The browser twin of Category#display_sort_key (without its id tie-break):
-// Latin accents folded, then lower case.
-export function displaySortKey(value) {
-  return foldLatinAccents(String(value ?? "")).toLowerCase();
-}
-
-// Drops accents on Latin letters only (é → e). Marks in other scripts change
-// the letter (й, バ) and stay, so Enter never swaps one word for another.
-function foldLatinAccents(value) {
-  return value.normalize("NFD").replace(/([A-Za-z])\p{Mark}+/gu, "$1").normalize("NFC");
 }

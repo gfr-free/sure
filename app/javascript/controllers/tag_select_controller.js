@@ -1,7 +1,9 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
 import {
+  enterFallback,
   enterMatch,
+  hasSearchQuery,
   isConfirmingEnter,
   matchesSearch,
   namesExactly,
@@ -140,12 +142,16 @@ export default class extends Controller {
     if (!isConfirmingEnter(event)) return;
     event.preventDefault();
 
-    if (!this.createFormTarget.classList.contains("hidden")) {
+    const query = this.searchTarget.value;
+    if (!hasSearchQuery(query)) return;
+
+    const existing = enterMatch(this.visibleOptions, query);
+    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
       if (!this.creating) this.createTag();
       return;
     }
 
-    const match = enterMatch(this.visibleOptions, this.searchTarget.value);
+    const match = existing ?? enterFallback(this.visibleOptions);
     if (match && !this.selectedIds.has(match.dataset.tagId)) match.click();
   }
 

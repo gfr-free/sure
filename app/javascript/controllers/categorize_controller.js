@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import {
-  enterMatch,
+  enterTarget,
   hasSearchQuery,
   isConfirmingEnter,
 } from "utils/search_match";
@@ -55,7 +55,7 @@ export default class extends Controller {
         ? this.filterTarget.value
         : "";
     const match = hasSearchQuery(query)
-      ? enterMatch(visible, query, { firstVisible: visible.length === 1 })
+      ? enterTarget(visible, query, { firstVisible: visible.length === 1 })
       : visible.length === 1
         ? visible[0]
         : null;

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { autoUpdate } from "@floating-ui/dom"
-import { enterMatch, isConfirmingEnter } from "utils/search_match"
+import { enterTarget, isConfirmingEnter } from "utils/search_match"
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -273,7 +273,7 @@ export default class extends Controller {
         // The search box sits inside the surrounding form, so Enter must never
         // fall through and submit it. The shared Enter rule picks the match.
         event.preventDefault()
-        enterMatch(visibleOptions, event.target.value)?.click()
+        enterTarget(visibleOptions, event.target.value)?.click()
         return
       }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return

@@ -329,6 +329,16 @@ class CategoryTest < ActiveSupport::TestCase
     end
   end
 
+  test "labels stay apart when the stored-name suffix collides too" do
+    @family.categories.create!(name: "Einkommen", color: "#407706")
+    @family.categories.create!(name: "Einkommen (Income)", color: "#407706")
+
+    I18n.with_locale(:de) do
+      labels = Category.option_labels(@family.categories).values
+      assert_equal labels.map(&:downcase).uniq.size, labels.size
+    end
+  end
+
   test "labels with parent read Parent > Child and other scripts sort as they are" do
     labels = Category.option_labels(@family.categories, with_parent: true)
     assert_equal "#{categories(:food_and_drink).display_name} > Restaurants", labels[categories(:subcategory).id]

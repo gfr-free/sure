@@ -1,7 +1,9 @@
 import { Controller } from "@hotwired/stimulus";
 import {
+  enterFallback,
   enterMatch,
   hasSearchQuery,
+  isComposing,
   isConfirmingEnter,
   matchesSearch,
 } from "utils/search_match";
@@ -54,11 +56,9 @@ export default class extends Controller {
       ? new Set(this.recentSectionTarget.querySelectorAll(".filterable-item"))
       : new Set();
 
+    const searching = hasSearchQuery(rawFilterValue);
     if (this.hasRecentSectionTarget) {
-      this.recentSectionTarget.classList.toggle(
-        "hidden",
-        hasSearchQuery(rawFilterValue),
-      );
+      this.recentSectionTarget.classList.toggle("hidden", searching);
     }
 
     if (this.hasEmptyMessageTarget) {
@@ -87,6 +87,8 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    if (isComposing(event)) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       this.highlightNext();
@@ -138,8 +140,8 @@ export default class extends Controller {
   }
 
   // A row picked with the arrow keys wins. Otherwise the shared Enter rule
-  // (utils/search_match): a visible create row is left to its own handler,
-  // else the typed name picks its match.
+  // (utils/search_match): the row the search names; with none, a visible
+  // create row is left to its own handler, else the first visible row.
   selectHighlighted() {
     const items = this.visibleItems;
     const highlighted = items[this.highlightedIndex];
@@ -149,10 +151,15 @@ export default class extends Controller {
     }
 
     // A hidden list (the quick create's parent picker covers it) has nothing to pick.
-    if (this.createRowShown || this.listTarget.classList.contains("hidden"))
-      return;
+    if (this.listTarget.classList.contains("hidden")) return;
 
-    const match = enterMatch(items, this.inputTarget.value);
+    const query = this.inputTarget.value;
+    if (!hasSearchQuery(query)) return;
+
+    const existing = enterMatch(items, query);
+    if (!existing && this.createRowShown) return;
+
+    const match = existing ?? enterFallback(items);
     if (match) this.activate(match, { toggle: false });
   }
 

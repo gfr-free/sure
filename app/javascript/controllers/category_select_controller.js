@@ -1,13 +1,15 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
+  displaySortKey,
+  enterFallback,
   enterMatch,
   expandTreeMatches,
+  hasSearchQuery,
   isComposing,
-  isSearchHit,
+  isConfirmingEnter,
   matchesSearch,
   namesExactly,
-  normalizeSearchText,
   treeRow,
 } from "utils/search_match";
 
@@ -122,8 +124,9 @@ export default class extends Controller {
       this.createLabelValue.replace("__CATEGORY_NAME__", rawQuery);
   }
 
+  // The shared Enter rule, see utils/search_match.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter" || isComposing(event)) return;
+    if (!isConfirmingEnter(event)) return;
 
     // The search box sits inside the surrounding form, so Enter must never
     // fall through and submit it.
@@ -136,29 +139,28 @@ export default class extends Controller {
       return;
     }
 
-    if (this.creating) return;
-
-    const rawQuery = this.searchTarget.value.trim();
-    if (!rawQuery) return;
+    // The row the search names; else create while the create row shows;
+    // else the first visible row (utils/search_match).
+    const rawQuery = this.searchTarget.value;
+    if (!hasSearchQuery(rawQuery)) return;
 
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    // A parent shown only as context above the subcategory found is never
-    // what Enter stands for.
-    const hits = visible.filter(isSearchHit);
-    const existing = enterMatch(hits, rawQuery);
+    const createShown = !this.createFormTarget.classList.contains("hidden");
+    const existing = enterMatch(visible, rawQuery, { blank: !createShown });
 
-    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
-      this.createCategory();
+    if (!existing && createShown) {
+      if (!this.creating) this.createCategory();
       return;
     }
 
-    const match = existing ?? hits[0];
+    const match = existing ?? enterFallback(visible);
     if (!match) return;
 
     this.selectOption(match);
     this.close();
+    this.buttonTarget.focus({ preventScroll: true });
     this.submitForm();
   }
 
@@ -356,10 +358,10 @@ export default class extends Controller {
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    // Same order as the server's display_sort_key: accents folded.
-    const name = normalizeSearchText(row.dataset.parentName);
+    // Same order as the server's Category#display_sort_key.
+    const name = displaySortKey(row.dataset.parentName);
     const before = this.parentOptionTargets.find(
-      (existing) => normalizeSearchText(existing.dataset.parentName) > name,
+      (existing) => displaySortKey(existing.dataset.parentName) > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

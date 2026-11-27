@@ -1,6 +1,14 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { matchesSearch, namesExactly } from "utils/search_match";
+import {
+  enterFallback,
+  enterMatch,
+  hasSearchQuery,
+  isComposing,
+  isConfirmingEnter,
+  matchesSearch,
+  namesExactly,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -143,26 +151,29 @@ export default class extends Controller {
     this.createNameElement.textContent = this.searchTarget.value.trim();
   }
 
+  // The shared Enter rule, see utils/search_match.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (!isConfirmingEnter(event)) return;
+    event.preventDefault();
 
-    if (!this.createFormTarget.classList.contains("hidden") && !this.creating) {
-      event.preventDefault();
-      this.createMerchant();
+    const query = this.searchTarget.value;
+    if (!hasSearchQuery(query)) return;
+
+    const createShown = !this.createFormTarget.classList.contains("hidden");
+    const existing = enterMatch(this.visibleOptions, query, {
+      blank: !createShown,
+    });
+    if (!existing && createShown) {
+      if (!this.creating) this.createMerchant();
       return;
     }
 
-    event.preventDefault();
-
-    const match = this.optionTargets.find(
-      (option) =>
-        !option.classList.contains("hidden") &&
-        namesExactly(option, this.searchTarget.value),
-    );
-
+    const match = existing ?? enterFallback(this.visibleOptions);
     if (match) {
       this.applySelection(match);
       this.close();
+      // The search box is about to hide; keep focus on the picker.
+      this.buttonTarget.focus({ preventScroll: true });
       this.submitForm();
     }
   }
@@ -217,6 +228,9 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    // Keys that end an IME composition only commit the characters.
+    if (isComposing(event)) return;
+
     if (!this.isOpen) return;
 
     if (event.key === "Escape") {

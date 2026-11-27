@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { firstSearchHit } from "utils/search_match"
 import { autoUpdate } from "@floating-ui/dom"
+import { enterTarget, isComposing, isConfirmingEnter } from "utils/search_match"
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -227,6 +228,9 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    // Keys that end an IME composition only commit the characters.
+    if (isComposing(event)) return
+
     if (!this.isOpen && event.target === this.buttonTarget) {
       if (["ArrowDown", "ArrowUp", " ", "Enter"].includes(event.key)) {
         event.preventDefault()
@@ -257,7 +261,8 @@ export default class extends Controller {
       this.close()
       return
     }
-    if (event.key === "Enter" && event.target.dataset.value) { event.preventDefault(); event.target.click(); return }
+    // The blank option carries data-value="", so this asks for the option role.
+    if (event.key === "Enter" && event.target.matches('[role="option"]')) { event.preventDefault(); event.target.click(); return }
 
     // WAI-ARIA APG listbox keyboard pattern: ArrowUp/Down moves focus
     // between options, Home/End jump to first/last. Options stay at
@@ -269,6 +274,13 @@ export default class extends Controller {
     const visibleOptions = this.visibleOptions()
 
     if (fromSearch) {
+      if (isConfirmingEnter(event)) {
+        // The search box sits inside the surrounding form, so Enter must never
+        // fall through and submit it. The shared Enter rule picks the match.
+        event.preventDefault()
+        enterTarget(visibleOptions, event.target.value)?.click()
+        return
+      }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
       if (visibleOptions.length === 0) return
       event.preventDefault()

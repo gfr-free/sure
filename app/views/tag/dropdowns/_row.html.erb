@@ -6,7 +6,7 @@
       aria: { selected: selected.to_s },
       class: ["filterable-item flex items-center border-none rounded-lg px-2 py-1 w-full hover:bg-container-inset-hover",
               { "bg-container-inset": selected }],
-      data: { filter_name: tag.name } do %>
+      data: { filter_name: tag.name, list_filter_applied: selected } do %>
   <%= button_to tags_transaction_path(entry),
         method: :patch,
         params: { toggle_tag_id: tag.id },

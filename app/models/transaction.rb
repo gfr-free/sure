@@ -592,6 +592,18 @@ class Transaction < ApplicationRecord
     tags.reset
   end
 
+  # Adds the tag unless it is already there, so a repeated request (a retry
+  # after a lost response) cannot take it off again. Returns whether it added.
+  def add_tag!(tag)
+    added = with_lock do
+      next false if taggings.exists?(tag: tag)
+      taggings.create!(tag: tag)
+      true
+    end
+    tags.reset
+    added
+  end
+
   # Applies a tag picker's changes (selected_ids against previous_ids, the set
   # it last saved) to the tags stored now, so tags another writer added in the
   # meantime stay. Takes the same row lock as toggle_tag! and the rule tag

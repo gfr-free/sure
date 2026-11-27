@@ -1,6 +1,14 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { matchesSearch, namesExactly } from "utils/search_match";
+import {
+  enterFallback,
+  enterMatch,
+  hasSearchQuery,
+  isComposing,
+  isConfirmingEnter,
+  matchesSearch,
+  namesExactly,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -129,14 +137,26 @@ export default class extends Controller {
     this.syncActiveOption();
   }
 
+  // The shared Enter rule, see utils/search_match. A tag that is already
+  // picked stays picked: Enter adds, it never removes.
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
-
-    // Never submit the surrounding form natively.
+    if (!isConfirmingEnter(event)) return;
     event.preventDefault();
-    if (!this.createFormTarget.classList.contains("hidden") && !this.creating) {
-      this.createTag();
+
+    const query = this.searchTarget.value;
+    if (!hasSearchQuery(query)) return;
+
+    const createShown = !this.createFormTarget.classList.contains("hidden");
+    const existing = enterMatch(this.visibleOptions, query, {
+      blank: !createShown,
+    });
+    if (!existing && createShown) {
+      if (!this.creating) this.createTag();
+      return;
     }
+
+    const match = existing ?? enterFallback(this.visibleOptions);
+    if (match && !this.selectedIds.has(match.dataset.tagId)) match.click();
   }
 
   async createTag() {
@@ -312,6 +332,9 @@ export default class extends Controller {
   }
 
   handleKeydown(event) {
+    // Keys that end an IME composition only commit the characters.
+    if (isComposing(event)) return;
+
     if (!this.isOpen && event.target === this.buttonTarget) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();

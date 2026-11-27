@@ -31,6 +31,91 @@ class TransactionQuickCategoryCreateTest < ApplicationSystemTestCase
     assert_equal category.id, @entry.entryable.reload.category_id
   end
 
+  # Same Enter rule as the category select: while the create row shows,
+  # Enter creates, even when the words also find an existing row.
+  test "Enter creates while the create row shows, even next to a found row" do
+    @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+
+    visit transactions_url
+
+    within "##{dom_id(@entry.entryable, 'category_menu_desktop')}" do
+      find("button", match: :first).click
+    end
+
+    assert_difference "Category.count", +1 do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "supplies pet"
+        assert_selector ".filterable-item", text: "Pet Supplies"
+        assert_button 'Create "supplies pet"'
+        find("input[type='search']").send_keys(:enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "supplies pet"
+    end
+  end
+
+  test "Enter after ArrowDown assigns the highlighted row instead of creating" do
+    target = @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+    visit transactions_url
+    open_quick_picker
+
+    assert_no_difference "Category.count" do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "pet supp"
+        assert_button 'Create "pet supp"'
+        find("input[type='search']").send_keys(:down, :enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "Pet Supplies"
+    end
+
+    assert_equal target.id, @entry.entryable.reload.category_id
+  end
+
+  test "Enter on an existing name typed in full assigns that category" do
+    target = @user.family.categories.create!(name: "Pet Supplies", color: "#123456", lucide_icon: "dog")
+    visit transactions_url
+    open_quick_picker
+
+    assert_no_difference "Category.count" do
+      within "turbo-frame#category_dropdown" do
+        find("input[type='search']").fill_in with: "pet supplies"
+        assert_selector "[data-category-quick-create-target='createButton'].hidden", visible: :all
+        find("input[type='search']").send_keys(:enter)
+      end
+
+      assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: "Pet Supplies"
+    end
+
+    assert_equal target.id, @entry.entryable.reload.category_id
+  end
+
+  test "recent rows stay out of keyboard reach while searching" do
+    recent = @user.family.categories.create!(name: "Aardvark Recent", color: "#123456", lucide_icon: "dog", last_used_at: 1.hour.ago)
+    visit transactions_url
+    open_quick_picker
+
+    within "turbo-frame#category_dropdown" do
+      find("input[type='search']").fill_in with: "aardvark"
+
+      recent_rows = page.evaluate_script(<<~JS)
+        Array.from(document.querySelectorAll("[data-list-filter-target='recentSection'] .filterable-item"))
+          .map((item) => item.style.display)
+      JS
+      assert_not_empty recent_rows, "the recent section is rendered"
+      assert recent_rows.all?("none"), "recent rows must be hidden while searching"
+
+      find("input[type='search']").send_keys(:down)
+      highlighted = find("input[type='search']")["aria-activedescendant"]
+      assert highlighted.present?, "a row is highlighted"
+      assert_not highlighted.start_with?("recent_category_option"), "the highlight skips the hidden recent row"
+
+      find("input[type='search']").send_keys(:enter)
+    end
+
+    assert_selector "##{dom_id(@entry.entryable, 'category_menu_desktop')} [data-testid='category-name']", text: recent.name
+  end
+
   test "hides the create option when the search exactly matches an existing category" do
     existing = @user.family.categories.alphabetically.first
 

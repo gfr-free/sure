@@ -1,14 +1,11 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
-  normalizeSearchText,
-  sameNameIgnoringLatinAccents,
-} from "utils/normalize_search_text";
-
-// Whether a typed name is an existing one: exact but for case and Unicode
-// form, so "Café" can be created (by click) next to "Cafe" yet a pasted
-// decomposed "Café" still counts as the existing one.
-const exactName = (value) => value.normalize("NFC").toLowerCase();
+  enterMatch,
+  isComposing,
+  matchesSearch,
+  namesExactly,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -78,32 +75,22 @@ export default class extends Controller {
     this.hideParentPicker();
 
     const rawQuery = this.searchTarget.value.trim();
-    const query = normalizeSearchText(rawQuery);
 
-    let exactMatch = false;
+    let nameExists = false;
     let anyVisible = false;
 
-    const exactQuery = exactName(rawQuery);
-
     this.optionTargets.forEach((option) => {
-      const names = this.#optionNames(option);
-      // Finding ignores accents; a query that normalizes away (a lone
-      // combining mark) matches nothing.
-      const matches =
-        rawQuery.length === 0 ||
-        (query.length > 0 &&
-          names.some((name) => normalizeSearchText(name).includes(query)));
+      const matches = matchesSearch(option, rawQuery);
 
       option.classList.toggle("hidden", !matches);
       if (matches) anyVisible = true;
 
-      // "Exists" ignores case and Unicode form but not accents, so the create
-      // row still offers "Cafe" next to "Café" (Enter picks "Café" though).
-      if (names.some((name) => exactName(name) === exactQuery))
-        exactMatch = true;
+      // Either the shown or the stored name typed exactly means the category
+      // exists, so creating it again is not offered.
+      if (namesExactly(option, rawQuery)) nameExists = true;
     });
 
-    const canCreate = !this.lockedValue && rawQuery.length > 0 && !exactMatch;
+    const canCreate = !this.lockedValue && rawQuery.length > 0 && !nameExists;
 
     this.createFormTarget.classList.toggle("hidden", !canCreate);
     this.createFormTarget.classList.toggle("flex", canCreate);
@@ -124,7 +111,7 @@ export default class extends Controller {
   }
 
   handleSearchKeydown(event) {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter" || isComposing(event)) return;
 
     // The search box sits inside the surrounding form, so Enter must never
     // fall through and submit it.
@@ -145,35 +132,14 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const findByName = (same) =>
-      visible.find((option) => same(option.dataset.categoryStoredName)) ??
-      visible.find((option) => this.#optionNames(option).some(same));
-    const exactQuery = exactName(rawQuery);
-    const exactMatch = findByName(
-      (name) => exactName(name || "") === exactQuery,
-    );
-    // A name that differs only in Latin accents is still the existing one
-    // for Enter; creating that near-duplicate takes a click on the create row.
-    // Several such names ("Résumé", "Resumé") give no single answer, so
-    // Enter then behaves as if none existed.
-    const accentMatches = exactMatch
-      ? []
-      : visible.filter((option) =>
-          this.#optionNames(option).some((name) =>
-            sameNameIgnoringLatinAccents(name, rawQuery),
-          ),
-        );
-    const accentMatch =
-      exactMatch ?? (accentMatches.length === 1 ? accentMatches[0] : null);
+    const existing = enterMatch(visible, rawQuery);
 
-    if (!accentMatch && !this.createFormTarget.classList.contains("hidden")) {
+    if (!existing && !this.createFormTarget.classList.contains("hidden")) {
       this.createCategory();
       return;
     }
 
-    const match = accentMatch ?? visible[0];
+    const match = existing ?? visible[0];
     if (!match) return;
 
     this.selectOption(match);
@@ -184,6 +150,7 @@ export default class extends Controller {
   // Escape from anywhere in the menu: leave the parent picker first, then
   // close the menu, keeping focus where the keyboard user can carry on.
   escape(event) {
+    if (isComposing(event)) return;
     event.preventDefault();
     if (this.#parentPickerOpen()) {
       this.hideParentPicker(event);
@@ -346,14 +313,6 @@ export default class extends Controller {
     for (const row of this.parentOptionTargets) row.disabled = creating;
   }
 
-  // The shown name is in the viewer's locale; a default category's stored
-  // name can be in another one. Both find it, and either typed exactly means
-  // the category exists, so creating it again is not offered.
-  #optionNames(option) {
-    const { categoryName, categoryStoredName } = option.dataset;
-    return [categoryName, categoryStoredName].filter(Boolean);
-  }
-
   #lastOptionInGroup(parentId) {
     let node = this.optionTargets.find(
       (option) => option.dataset.categoryId === String(parentId),
@@ -382,10 +341,10 @@ export default class extends Controller {
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    const name = category.name.toLocaleLowerCase();
+    const name = category.name.toLowerCase();
     const before = this.parentOptionTargets.find(
       (existing) =>
-        (existing.dataset.parentName || "").toLocaleLowerCase() > name,
+        (existing.dataset.parentName || "").toLowerCase() > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

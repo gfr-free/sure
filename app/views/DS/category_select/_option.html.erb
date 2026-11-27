@@ -6,8 +6,7 @@
         data-category-select-target="option"
         data-value="<%= category.id %>"
         data-category-id="<%= category.id %>"
-        data-category-name="<%= category.display_name %>"
-        data-category-stored-name="<%= category.name %>"
+        <%= view_helpers.tag.attributes(data: view_helpers.category_search_data(category)) %>
         data-category-display-label="<%= category.display_name %>"
         data-action="click->category-select#selectCategory"
         class="flex items-center gap-2 w-full px-3 py-1.5 text-sm rounded-lg hover:bg-container-inset-hover <%= "bg-container-inset" if selected %>">

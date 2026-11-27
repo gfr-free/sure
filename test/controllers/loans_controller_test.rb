@@ -1125,7 +1125,7 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_select "input[name='account[name]'][value='Unsaved loan name']", count: 1
-    assert_select "input[name='account[accountable_attributes][interest_rate]'][value='7.25']", count: 1
+    assert_select "input[name='account[accountable_attributes][interest_rate]'][value='7.250']", count: 1
     assert_match "Balance update failed", response.body
     assert_equal balance_before, @account.reload.balance
     assert_equal name_before, @account.name
@@ -1155,11 +1155,20 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-rate-change-row] button[data-action='loan-rate-changes#remove'] span", text: I18n.t("loans.form.rate_change_remove")
   end
 
-  # The design-system guide asks inputs to take the form's field shape. The rows
-  # were bare inputs outside any .form-field, so they rendered with no field
-  # border and no visible label. The partial is also the Stimulus clone
-  # template, so each label wraps its input rather than pointing at an id that
-  # every cloned row would repeat.
+  test "the interest rate is a decimal field showing the saved rate unrounded" do
+    @account.loan.update!(interest_rate: 4.125)
+
+    get edit_loan_path(@account)
+
+    assert_response :success
+    assert_select "input[type=text][inputmode=decimal][name='account[accountable_attributes][interest_rate]'][value='4.125']", count: 1
+    assert_select "input[type=number]", count: 1 # term in months, a whole number
+  end
+
+  # The design-system guide asks inputs to take the form's field shape. The
+  # partial is also the Stimulus clone template, so no input has an id that
+  # every cloned row would repeat: the date's label wraps its input, and the
+  # rate (a decimal field) is named by its aria-label.
   test "each rate-change input is a labelled form field without an id" do
     @account.loan.update!(rate_type: "variable", start_date: Date.new(2026, 1, 1),
                           variable_rate_schedule: { "2026-04-01" => "7.25" })
@@ -1170,7 +1179,11 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
     rows = "[data-loan-rate-changes-target=rows] [data-rate-change-row]"
     assert_select "#{rows} .form-field label", count: 2
     assert_select "#{rows} .form-field label input[type=date][value='2026-04-01']", count: 1
-    assert_select "#{rows} .form-field label input[type=number][value='7.25']", count: 1
+    # The rate is a decimal field, so "3,5" reads as 3.5; its label names it
+    # through aria-label, since there is no id to point at.
+    assert_select "#{rows} .form-field input[type=text][inputmode=decimal][value='7.25'][aria-label=?]",
+                  I18n.t("loans.form.rate_change_rate"), count: 1
+    assert_select "#{rows} .form-field label[for]", count: 0
     assert_select "#{rows} .form-field__label", text: I18n.t("loans.form.rate_change_effective_date")
     assert_select "#{rows} .form-field__label", text: I18n.t("loans.form.rate_change_rate")
     # Unscoped on purpose: the <template> copy is the one every added row clones.
@@ -1198,7 +1211,7 @@ class LoansControllerTest < ActionDispatch::IntegrationTest
     # Rebuilt from the submission, not a blank account: what was typed comes
     # back for correction.
     assert_select "input[name='account[name]'][value='Loan With Bad Anchor']", count: 1
-    assert_select "input[name='account[accountable_attributes][interest_rate]'][value='6']", count: 1
+    assert_select "input[name='account[accountable_attributes][interest_rate]'][value='6.000']", count: 1
   end
 
   # The submission that trips this rescue need not carry nested attributes at

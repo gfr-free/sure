@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
-import parseLocaleFloat from "utils/parse_locale_float"
+import evaluateAmountExpression from "utils/evaluate_amount_expression"
+import submittedAmount from "utils/submitted_amount"
 
 export default class extends Controller {
   static targets = ["customWrapper", "customField", "tickerSelect", "qtyField", "priceField", "priceWarning", "priceWarningMessage"]
@@ -43,8 +44,10 @@ export default class extends Controller {
 
     // Calculate the implied/entered price
     let enteredPriceCents = null
-    const qty = parseLocaleFloat(this.qtyFieldTarget?.value)
-    const enteredPrice = parseLocaleFloat(this.priceFieldTarget?.value)
+    // The quantity is a decimal field, read the way it is submitted.
+    const qty = this.hasQtyFieldTarget ? submittedAmount(this.application, this.qtyFieldTarget) : null
+    // The price is a money field, so it can hold a comma decimal or an expression.
+    const enteredPrice = evaluateAmountExpression(this.priceFieldTarget?.value ?? "")
 
     if (enteredPrice && enteredPrice > 0) {
       // User entered a price directly

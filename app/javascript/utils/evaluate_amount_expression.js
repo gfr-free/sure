@@ -259,14 +259,41 @@ export default function evaluateAmountExpression(value, options = {}) {
   return result
 }
 
+// A single plain number ("0.123456789012345678", "12,5") as dot text, or null
+// for anything else (an expression, grouping). An unrounded field submits
+// such text as typed rather than through a JS number, which keeps only about
+// 16 significant digits, so a share quantity with 18 decimals is not shortened.
+const PLAIN_NUMBER = /^([+-]?)(\d+)(?:[.,](\d+))?$/
+
+export function plainNumberText(text) {
+  const match = typeof text === "string" ? text.trim().match(PLAIN_NUMBER) : null
+  if (!match) return null
+
+  const sign = match[1] === "-" ? "-" : ""
+  return match[3] === undefined ? `${sign}${match[2]}` : `${sign}${match[2]}.${match[3]}`
+}
+
 // toFixed rounds away IEEE-754 float drift (e.g. "0.1+0.2" evaluates to
 // 0.30000000000000004) but, unlike Number/String round-tripping, never
 // switches to exponential notation for very small magnitudes — that only
 // happens when a number below 1e-6 is converted back through Number()/
 // String(). Trimming the padding zeros toFixed leaves behind keeps a
 // sub-cent crypto price ("0.00000001") intact instead of rounding it to 0.
+// Rounds to 15 significant digits when that only drops float drift (0.1 +
+// 0.2, a few units in the last place) and keeps the 16th and 17th digit
+// otherwise, so a large amount keeps its cents (12345678901234.25) and a
+// tiny exchange rate to BTC (3.8e-10) keeps its digits. Never falls back to
+// exponential notation.
 export function formatUnroundedAmount(amount) {
-  const fixed = amount.toFixed(10)
+  if (amount === 0 || !Number.isFinite(amount)) return amount.toFixed(0)
+
+  const integerDigits = Math.floor(Math.log10(Math.abs(amount))) + 1
+  const decimals = Math.min(20, Math.max(0, 15 - integerDigits))
+  const driftTolerance = Math.abs(amount) * Number.EPSILON * 4
+  let fixed = amount.toFixed(decimals)
+  for (let extra = 1; extra <= 2 && Math.abs(Number(fixed) - amount) > driftTolerance; extra++) {
+    fixed = amount.toFixed(Math.min(20, decimals + extra))
+  }
   return fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed
 }
 

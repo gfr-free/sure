@@ -317,7 +317,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     account.update!(balance: 90_000)
 
     get balances_property_path(account)
-    assert_select "input[name='account[balance]'][value='100000.00']"
+    assert_select "input[name='account[balance]'][value='100000,00']"
   end
 
   test "value step keeps showing the saved purchase price when a blank price is rejected" do
@@ -332,7 +332,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       account: { balance: "", currency: "EUR", purchase_date: 1.day.from_now.to_date.iso8601 }
     }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='100000.00']"
+    assert_select "input[name='account[balance]'][value='100000,00']"
   end
 
   test "value step ignores a malformed account parameter" do
@@ -352,7 +352,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
 
       assert_response :unprocessable_entity
-      assert_select "input[name='account[balance]'][value='250000.00']"
+      assert_select "input[name='account[balance]'][value='250000,00']"
     end
     assert_equal "EUR", account.reload.currency
     assert_not account.has_opening_anchor?
@@ -379,13 +379,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       account: { balance: 250_000, currency: "EUR", purchase_date: Date.current.iso8601 }
     }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='250000.00']"
+    assert_select "input[name='account[balance]'][value='250000,00']"
 
     patch update_balances_property_path(account), params: {
       account: { balance: 260_000, currency: "EUR", purchase_date: 1.day.from_now.to_date.iso8601 }
     }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='260000.00']"
+    assert_select "input[name='account[balance]'][value='260000,00']"
   end
 
   test "value step rejects an oversized or non-string purchase date and keeps the submitted price" do
@@ -395,19 +395,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       account: { balance: 250_000, currency: "EUR", purchase_date: "2020-03-01#{" " * 119}" }
     }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='250000.00']"
+    assert_select "input[name='account[balance]'][value='250000,00']"
 
     patch update_balances_property_path(account),
           params: { account: { balance: 260_000, currency: "EUR", purchase_date: 20200301 } }.to_json,
           headers: { "CONTENT_TYPE" => "application/json" }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='260000.00']"
+    assert_select "input[name='account[balance]'][value='260000,00']"
 
     patch update_balances_property_path(account),
           params: { account: { balance: 270_000, currency: "EUR", purchase_date: false } }.to_json,
           headers: { "CONTENT_TYPE" => "application/json" }
     assert_response :unprocessable_entity
-    assert_select "input[name='account[balance]'][value='270000.00']"
+    assert_select "input[name='account[balance]'][value='270000,00']"
 
     assert_not account.reload.has_opening_anchor?
   end

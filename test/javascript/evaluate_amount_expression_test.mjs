@@ -13,6 +13,7 @@ const {
   amountBoundViolation,
   formatAmountForDisplay,
   hasWholeNumberGrouping,
+  plainNumberText,
   precisionFromStep,
 } = await import(MODULE_URL)
 
@@ -580,6 +581,25 @@ describe("formatAmountForDisplay", () => {
       assert.ok(!formatted.includes("e"), `expected no exponential notation, got ${formatted}`)
     })
 
+    it("keeps the significant digits of a tiny exchange rate", () => {
+      assert.equal(formatAmountForDisplay(0.00000000038, null, "0.00000000038"), "0.00000000038")
+      assert.equal(formatAmountForDisplay(0.00000006712345, null, "x"), "0.00000006712345")
+    })
+
+    it("drops float drift on a large amount", () => {
+      assert.equal(formatAmountForDisplay(12345678.9, null, "12345678.9"), "12345678.9")
+    })
+
+    it("keeps the cents of a large amount", () => {
+      assert.equal(formatAmountForDisplay(12345678901234.25, null, "12345678901234.25"), "12345678901234.25")
+      assert.equal(formatAmountForDisplay(1234567890123.15, null, "1234567890123.15"), "1234567890123.15")
+    })
+
+    it("drops float drift in the last digits", () => {
+      assert.equal(formatAmountForDisplay(0.1 + 0.7, null, "0.1+0.7"), "0.8")
+      assert.equal(formatAmountForDisplay(4.35 * 100, null, "4.35*100"), "435")
+    })
+
     it("renders a whole number without a trailing decimal point", () => {
       assert.equal(formatAmountForDisplay(12, null, "12"), "12")
     })
@@ -672,5 +692,24 @@ describe("hasWholeNumberGrouping", () => {
     assert.equal(hasWholeNumberGrouping("1500,00*12"), false)
     assert.equal(hasWholeNumberGrouping("abc"), false)
     assert.equal(hasWholeNumberGrouping(null), false)
+  })
+})
+
+describe("plainNumberText", () => {
+  it("keeps every digit of a plain number, which a JS number would shorten", () => {
+    assert.equal(plainNumberText("0.123456789012345678"), "0.123456789012345678")
+    assert.equal(plainNumberText("0,123456789012345678"), "0.123456789012345678")
+    assert.equal(plainNumberText(" 12,50 "), "12.50")
+    assert.equal(plainNumberText("-5"), "-5")
+    assert.equal(plainNumberText("+7"), "7")
+  })
+
+  it("is null for anything that is not one plain number", () => {
+    assert.equal(plainNumberText("1,50+1"), null)
+    assert.equal(plainNumberText("1.234,56"), null)
+    assert.equal(plainNumberText("12."), null)
+    assert.equal(plainNumberText(""), null)
+    assert.equal(plainNumberText("abc"), null)
+    assert.equal(plainNumberText(undefined), null)
   })
 })

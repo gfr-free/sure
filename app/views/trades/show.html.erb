@@ -44,11 +44,11 @@
                             { container_class: "w-1/3", label: t(".type_label"), selected: trade.buy? ? "outflow" : "inflow" },
                             { data: { "auto-submit-form-target": "auto" }, disabled: @entry.linked? } %>
               <%= f.fields_for :entryable do |ef| %>
-                <%= ef.number_field :qty,
+                <%= ef.decimal_field :qty,
                     label: t(".quantity_label"),
                     step: "any",
                     value: trade.qty.abs,
-                    "data-auto-submit-form-target": "auto",
+                    auto_submit: true,
                     disabled: @entry.linked? %>
               <% end %>
             </div>

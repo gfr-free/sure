@@ -24,7 +24,7 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <%= loan_form.number_field :interest_rate,
+        <%= loan_form.decimal_field :interest_rate,
                                  label: t("loans.form.interest_rate"),
                                  placeholder: t("loans.form.interest_rate_placeholder"),
                                  min: 0,
@@ -80,7 +80,7 @@
         <%# The premium many lenders quote beside the instalment. Charged
             alongside it rather than inside it, so it moves the loan's total
             cost without moving its repayment. %>
-        <%= loan_form.number_field :insurance_rate,
+        <%= loan_form.decimal_field :insurance_rate,
                                  label: t("loans.form.insurance_rate"),
                                  placeholder: t("loans.form.insurance_rate_placeholder"),
                                  min: 0,

@@ -3,9 +3,10 @@ import { Controller } from "@hotwired/stimulus";
 // Add and remove rate-change rows, and show the section only for a loan whose
 // rate can actually move.
 //
-// Rows are plain inputs named as an array, so the form submits and the server
-// reads them with no JavaScript at all — this controller saves a round trip
-// per row and keeps the section honest about whether it applies.
+// Rows are inputs named as an array, so the server reads them in submit order
+// as one row per date; the rate is a decimal field, whose own controller
+// writes a comma decimal as a dot on submit. This controller saves a round
+// trip per row and keeps the section honest about whether it applies.
 //
 // Hidden means DISABLED, not merely invisible. A disabled input is not
 // submitted, so a fixed-rate loan sends no `rate_changes` key at all and its

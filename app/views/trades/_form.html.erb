@@ -74,7 +74,7 @@
       <% end %>
 
       <% if %w[buy sell].include?(type) %>
-        <%= form.number_field :qty, label: bullion_trade ? t(".qty_pieces") : t(".qty"), placeholder: bullion_trade ? "1" : "10", min: 0.000000000000000001, step: "any", required: true %>
+        <%= form.decimal_field :qty, label: bullion_trade ? t(".qty_pieces") : t(".qty"), placeholder: bullion_trade ? "1" : "10", min: "0.000000000000000001", step: "any", required: true %>
         <%= form.money_field :price, label: bullion_trade ? t(".price_per_piece") : t(".price"), step: "any", precision: 10, required: true, default_currency: account&.currency %>
         <%= form.money_field :fee, label: t(".fee"), step: "any", min: 0, default_currency: account&.currency %>
       <% end %>

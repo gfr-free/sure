@@ -40,6 +40,13 @@ jobs:
           printf 'CMD ["./bin/rails", "server"]\n' >> Dockerfile
           tail -3 Dockerfile
 
+      # Production only: render the first pages once after boot so the first
+      # visitor after the daily image update does not hit cold templates.
+      - name: Warm the web process after boot
+        run: |
+          test -f production/warmup.rb
+          cp production/warmup.rb config/initializers/zz_prod_warmup.rb
+
       # Upstream no longer commits .sure-version; its release workflow writes
       # it at build time. Without it the app shows 0.0.0-dev.<sha>.
       - name: Stamp the version shown in the app

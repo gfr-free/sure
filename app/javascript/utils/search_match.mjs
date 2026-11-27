@@ -103,7 +103,7 @@ export function isComposing(event) {
 // on "epicerie fine" picks "Épicerie fine" (creating the near-duplicate takes
 // a click on the create row). Several such rows ("Résumé", "Resumé") give no
 // single answer. With no row, Enter creates while the create row shows and
-// otherwise picks the first visible row.
+// otherwise picks the first visible search hit (firstSearchHit).
 export function enterMatch(rows, rawQuery) {
   const exact = exactMatch(rows, rawQuery);
   if (exact) return exact;
@@ -151,4 +151,56 @@ export function namesExactly(element, rawQuery) {
   if (query.length === 0) return false;
 
   return searchNames(element).some((name) => exactName(name) === query);
+}
+
+// Widens matches to a two-level tree (categories and their subcategories).
+// Each row is { id, parentId, direct }, where `direct` says whether the row
+// matched by its own names (matchesSearch). A row stays visible when it
+// matched itself, when its parent matched (searching "Car" keeps "Fuel"
+// under "Car"), or when one of its children matched (searching "Fuel" keeps
+// "Car" above it for context). Rows without an id or parentId only ever
+// match directly.
+//
+// With wholeGroups, a matching subcategory shows its whole group (parent and
+// siblings). Checkbox lists need that: checking a parent there checks all of
+// its subcategories, so none of them may be hidden while the parent shows.
+export function expandTreeMatches(rows, { wholeGroups = false } = {}) {
+  const matchedIds = new Set();
+  const parentsOfMatches = new Set();
+
+  for (const row of rows) {
+    if (!row.direct) continue;
+    if (row.id) matchedIds.add(row.id);
+    if (row.parentId) {
+      parentsOfMatches.add(row.parentId);
+      if (wholeGroups) matchedIds.add(row.parentId);
+    }
+  }
+
+  return rows.map(
+    (row) =>
+      row.direct ||
+      Boolean(row.parentId && matchedIds.has(row.parentId)) ||
+      Boolean(row.id && parentsOfMatches.has(row.id)),
+  );
+}
+
+// The tree position of a row rendered with CategoriesHelper#category_search_data.
+export function treeRow(element, direct) {
+  return {
+    id: element.dataset.filterId,
+    parentId: element.dataset.filterParentId,
+    direct,
+  };
+}
+
+// Rows a search actually found, as opposed to a parent the tree rule shows
+// only for context (list-filter and category-select mark those with
+// data-filter-context). Keyboard selection and Enter start at a found row.
+export function isSearchHit(element) {
+  return !element.hasAttribute("data-filter-context");
+}
+
+export function firstSearchHit(elements) {
+  return Array.from(elements).find(isSearchHit);
 }

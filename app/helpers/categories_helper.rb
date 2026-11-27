@@ -2,8 +2,9 @@ module CategoriesHelper
   # Data attributes for one row of a category picker, so that every picker
   # finds a category by the same rule (utils/search_match): the shown label
   # and every name it may be typed as (stored name first, see
-  # Category#search_names), plus the row's id and parent id, which identify
-  # the row (today only the guard test reads them). Merge them into the
+  # Category#search_names), plus the row's id and parent id, which place the
+  # row in the tree, so a match also shows its parent and its subcategories
+  # (utils/search_match expandTreeMatches). Merge them into the
   # row's data; test/integration/category_pickers_search_test.rb checks that
   # every picker does.
   def category_search_data(category, label: category.display_name)

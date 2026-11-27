@@ -104,6 +104,42 @@ class CategoryFilterCascadingTest < ApplicationSystemTestCase
     assert_selector "#" + dom_id(@child_two_transaction)
   end
 
+  test "searching the parent lists its subcategories, and checking it still checks them" do
+    find("#transaction-filters-button").click
+
+    within "#transaction-filters-menu" do
+      click_button "Category"
+      find("input[type='search']", visible: true).fill_in with: "Food"
+
+      assert_field @child_one.name
+      assert_field @child_two.name
+      assert_no_field categories(:income).name
+
+      check(@parent.name)
+      assert_checked_field @child_one.name
+      assert_checked_field @child_two.name
+    end
+  end
+
+  test "searching a subcategory lists its whole group, so checking the parent hides nothing" do
+    find("#transaction-filters-button").click
+
+    within "#transaction-filters-menu" do
+      click_button "Category"
+      find("input[type='search']", visible: true).fill_in with: @child_two.name
+
+      # Checking the parent checks every subcategory, so the siblings show too.
+      assert_field @parent.name
+      assert_field @child_one.name
+      assert_field @child_two.name
+      assert_no_field categories(:income).name
+
+      check(@parent.name)
+      assert_checked_field @child_one.name
+      assert_checked_field @child_two.name
+    end
+  end
+
   private
 
     def create_transaction(name, date, amount, category:)

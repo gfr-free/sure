@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { firstSearchHit } from "utils/search_match"
 import { autoUpdate } from "@floating-ui/dom"
 
 const FOCUSABLE_SELECTOR = [
@@ -271,8 +272,9 @@ export default class extends Controller {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
       if (visibleOptions.length === 0) return
       event.preventDefault()
-      const targetIndex = event.key === "ArrowDown" ? 0 : visibleOptions.length - 1
-      this.focusOption(visibleOptions[targetIndex])
+      // Both arrows start at the first row the search found, as in every
+      // list-filter picker, not at a parent shown only for context.
+      this.focusOption(firstSearchHit(visibleOptions) ?? visibleOptions[0])
       return
     }
 
@@ -334,7 +336,7 @@ export default class extends Controller {
     if (!this.hasOptionTarget || !this.optionTargets.includes(active)) return
     if (visible.includes(active)) return
 
-    this.focusOption(visible[0])
+    this.focusOption(firstSearchHit(visible) ?? visible[0])
   }
 
   handleTurboLoad() { if (this.isOpen) this.close() }

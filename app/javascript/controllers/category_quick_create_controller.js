@@ -1,6 +1,11 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { enterMatch, exactName, isComposing } from "utils/search_match";
+import {
+  enterMatch,
+  exactName,
+  isComposing,
+  isSearchHit,
+} from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -8,7 +13,7 @@ import { enterMatch, exactName, isComposing } from "utils/search_match";
 // refreshes in place and the "create a rule?" prompt still appears.
 //
 // The create targets are only rendered when the user may annotate the
-// account; without them this controller does nothing.
+// account; without them only the shared Enter rule (createOnEnter) applies.
 export default class extends Controller {
   static targets = [
     "input",
@@ -89,8 +94,9 @@ export default class extends Controller {
 
   // The same Enter rule as the category select (utils/search_match
   // enterMatch): an existing row the search names wins, else Enter creates
-  // while the create row shows, else it picks the first visible row. A row
-  // picked with the arrow keys wins over all of it (list-filter submits it).
+  // while the create row shows, else it picks the first row the search
+  // found (never a parent shown only as context). A row picked with the
+  // arrow keys wins over all of it (list-filter submits it).
   createOnEnter(event) {
     if (isComposing(event)) return;
     if (this.#parentPickerOpen || this.#hasHighlightedRow) return;
@@ -98,7 +104,9 @@ export default class extends Controller {
     const query = this.inputTarget.value.trim();
     if (!query) return;
 
-    const rows = this.#visibleRows;
+    // A parent shown only as context above the subcategory found is never
+    // what Enter stands for.
+    const rows = this.#visibleRows.filter(isSearchHit);
     const existing = enterMatch(rows, query);
 
     if (

@@ -2,9 +2,12 @@ import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
   enterMatch,
+  expandTreeMatches,
   isComposing,
+  isSearchHit,
   matchesSearch,
   namesExactly,
+  treeRow,
 } from "utils/search_match";
 
 export default class extends Controller {
@@ -79,15 +82,23 @@ export default class extends Controller {
     let nameExists = false;
     let anyVisible = false;
 
-    this.optionTargets.forEach((option) => {
-      const matches = matchesSearch(option, rawQuery);
-
-      option.classList.toggle("hidden", !matches);
-      if (matches) anyVisible = true;
-
+    const options = this.optionTargets;
+    const rows = options.map((option) => {
       // Either the shown or the stored name typed exactly means the category
       // exists, so creating it again is not offered.
       if (namesExactly(option, rawQuery)) nameExists = true;
+      return treeRow(option, matchesSearch(option, rawQuery));
+    });
+
+    // A match on a category also shows its subcategories, and a match on a
+    // subcategory also shows its parent (expandTreeMatches).
+    expandTreeMatches(rows).forEach((visible, index) => {
+      options[index].classList.toggle("hidden", !visible);
+      options[index].toggleAttribute(
+        "data-filter-context",
+        visible && !rows[index].direct,
+      );
+      if (visible) anyVisible = true;
     });
 
     const canCreate = !this.lockedValue && rawQuery.length > 0 && !nameExists;
@@ -132,14 +143,17 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    const existing = enterMatch(visible, rawQuery);
+    // A parent shown only as context above the subcategory found is never
+    // what Enter stands for.
+    const hits = visible.filter(isSearchHit);
+    const existing = enterMatch(hits, rawQuery);
 
     if (!existing && !this.createFormTarget.classList.contains("hidden")) {
       this.createCategory();
       return;
     }
 
-    const match = existing ?? visible[0];
+    const match = existing ?? hits[0];
     if (!match) return;
 
     this.selectOption(match);

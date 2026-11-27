@@ -1,5 +1,6 @@
 <%# locals: (form:) %>
-<div data-controller="list-filter category-filter">
+<%# Checking a parent checks its subcategories, so the search shows whole groups. %>
+<div data-controller="list-filter category-filter" data-list-filter-whole-groups-value="true">
   <%= render DS::SearchInput.new(
         variant: :embedded,
         placeholder: t(".filter_category"),

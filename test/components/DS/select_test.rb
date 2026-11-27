@@ -112,6 +112,35 @@ class DS::SelectTest < ViewComponent::TestCase
     assert_selector "button#parent_id_trigger", text: "Groceries"
   end
 
+  test "a searchable option links a subcategory to its parent for the search" do
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+
+    render_inline(
+      DS::Select.new(form: form_builder_for(Transaction.new, :entry), method: :category_id, items: [ parent, child ], searchable: true)
+    )
+
+    assert_selector ".filterable-item[data-filter-id='#{parent.id}']:not([data-filter-parent-id])"
+    assert_selector ".filterable-item[data-filter-id='#{child.id}'][data-filter-parent-id='#{parent.id}']"
+  end
+
+  test "a searchable option whose value isn't the object's id gets no tree link" do
+    child = categories(:subcategory)
+
+    render_inline(
+      DS::Select.new(
+        form: form_builder_for(Transaction.new, :entry),
+        method: :category_id,
+        items: [ { value: "custom-#{child.id}", label: child.name, object: child } ],
+        searchable: true
+      )
+    )
+
+    assert_selector ".filterable-item[data-value='custom-#{child.id}']"
+    assert_no_selector ".filterable-item[data-filter-id]"
+    assert_no_selector ".filterable-item[data-filter-parent-id]"
+  end
+
   private
     def render_select(**options)
       with_request_url "/" do

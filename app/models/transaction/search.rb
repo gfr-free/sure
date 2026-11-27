@@ -274,7 +274,8 @@ class Transaction::Search
       # Their entries are still written, so they get their own per-user key and
       # can never be served to a search without the unread filter.
       # v4: Totals gained excluded_scheduled_count.
-      totals_cache_key = "transaction_search_totals/v4/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}"
+      # v5: The search text matches merchant names, word by word.
+      totals_cache_key = "transaction_search_totals/v5/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{cache_key_base}"
       totals_cache_key += "/unread/#{user.id}" if unread_filter?
       Rails.cache.fetch(totals_cache_key, force: unread_filter?) do
         scope = transactions_scope
@@ -348,6 +349,8 @@ class Transaction::Search
       family.currency,
       Digest::SHA256.hexdigest(attributes.sort.to_h.to_json), # cached by filters
       family.entries_cache_version,
+      (family.transaction_merchants_version if search.present? || merchants.present?),
+      (family.tags_version if tags.present?),
       ExchangeRate.updated_at_version, # a rate stored later can complete the totals
       Digest::SHA256.hexdigest(family.tax_advantaged_account_ids.sort.to_json), # stable across processes
       accessible_account_ids ? Digest::SHA256.hexdigest(accessible_account_ids.sort.to_json) : "all",

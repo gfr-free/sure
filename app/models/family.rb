@@ -830,6 +830,21 @@ class Family < ApplicationRecord
     "#{scope.count}-#{scope.maximum(:updated_at)&.to_f}"
   end
 
+  # Merchant names are matched by the transaction search text and merchant
+  # filter. Renaming a merchant changes those results without touching any
+  # entry, and merging, deduplicating or deleting one moves
+  # transactions.merchant_id with update_all. The hash over every
+  # (transaction, merchant) pair catches a move between merchants that are
+  # both still in use; the latest merchant update catches a rename.
+  def transaction_merchants_version
+    count, pairs_hash, merchants_max_at = transactions.joins(:merchant).pick(
+      Arel.sql("count(*)"),
+      Arel.sql("sum(hashtext(transactions.id::text || ':' || transactions.merchant_id::text)::bigint)"),
+      Arel.sql('max("merchants"."updated_at")')
+    )
+    "#{count}-#{pairs_hash || 0}-#{merchants_max_at&.to_f || 0}"
+  end
+
   def self_hoster?
     Rails.application.config.app_mode.self_hosted?
   end

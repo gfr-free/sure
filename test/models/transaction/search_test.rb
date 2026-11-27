@@ -547,7 +547,7 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     key2 = search2.cache_key_base
 
     assert_equal key1, key2
-    assert_not_nil cache.read("transaction_search_totals/v4/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{key2}")
+    assert_not_nil cache.read("transaction_search_totals/v5/#{ExchangeRate::CONVERSION_CACHE_VERSION}/#{key2}")
     assert_equal result1, search2.totals
   end
 
@@ -693,6 +693,56 @@ class Transaction::SearchTest < ActiveSupport::TestCase
 
     # Should not match unrelated transactions
     assert_not_includes result_ids, no_match.entryable.id
+  end
+
+  test "search text finds transactions by their merchant name" do
+    by_merchant = create_transaction(account: @checking_account, amount: 20, name: "AMZN Mktp DE", merchant: merchants(:amazon))
+    other = create_transaction(account: @checking_account, amount: 20, name: "Streaming", merchant: merchants(:netflix))
+
+    result_ids = Transaction::Search.new(@family, filters: { search: "amazon" }).transactions_scope.pluck(:id)
+
+    assert_includes result_ids, by_merchant.entryable.id
+    assert_not_includes result_ids, other.entryable.id
+  end
+
+  test "cached totals for a text search follow a merchant rename" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    create_transaction(account: @checking_account, amount: 20, name: "AMZN Mktp DE", merchant: merchants(:amazon))
+
+    assert_equal 1, Transaction::Search.new(@family, filters: { search: "amazon" }).totals.count
+
+    merchants(:amazon).update!(name: "Online retailer")
+
+    assert_equal 0, Transaction::Search.new(@family.reload, filters: { search: "amazon" }).totals.count
+  end
+
+  # Merging or deduplicating merchants moves transactions with update_all,
+  # touching no entry; the set of merchants in use can stay the same.
+  test "cached totals for a text search follow a transaction moved between merchants" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    source = @family.merchants.create!(name: "Amazon Marketplace", type: "FamilyMerchant")
+    target = @family.merchants.create!(name: "Online shop", type: "FamilyMerchant")
+    moved = create_transaction(account: @checking_account, amount: 20, name: "Order 1", merchant: source)
+    create_transaction(account: @checking_account, amount: 20, name: "Order 2", merchant: source)
+    create_transaction(account: @checking_account, amount: 20, name: "Order 3", merchant: target)
+
+    assert_equal 2, Transaction::Search.new(@family, filters: { search: "marketplace" }).totals.count
+
+    Transaction.where(id: moved.entryable_id).update_all(merchant_id: target.id)
+
+    assert_equal 1, Transaction::Search.new(@family.reload, filters: { search: "marketplace" }).totals.count
+  end
+
+  # Tagging writes no entry, so the tag filter needs its own cache version.
+  test "cached totals for a tag filter follow a tag removed from a transaction" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    tagged = create_transaction(account: @checking_account, amount: 20, name: "Trip", tags: [ tags(:one) ])
+
+    assert_equal 1, Transaction::Search.new(@family, filters: { tags: [ tags(:one).name ] }).totals.count
+
+    Tagging.where(taggable: tagged.entryable).delete_all
+
+    assert_equal 0, Transaction::Search.new(@family.reload, filters: { tags: [ tags(:one).name ] }).totals.count
   end
 
   test "uncategorized filter works regardless of current locale since the filter value is a stable sentinel" do

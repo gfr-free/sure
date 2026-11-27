@@ -16,6 +16,20 @@ class EntrySearch
   attribute :tags, array: true
   attribute :merchants, array: true
 
+  MAX_SEARCH_WORDS = 8
+
+  SEARCH_WORD_CONDITION = <<~SQL.squish.freeze
+    entries.name ILIKE :word
+    OR entries.notes ILIKE :word
+    OR EXISTS (
+      SELECT 1 FROM transactions search_transactions
+      JOIN merchants search_merchants ON search_merchants.id = search_transactions.merchant_id
+      WHERE entries.entryable_type = 'Transaction'
+        AND search_transactions.id = entries.entryable_id
+        AND search_merchants.name ILIKE :word
+    )
+  SQL
+
   attr_reader :family
 
   # `family` is required to scope the category-name lookup in
@@ -28,14 +42,20 @@ class EntrySearch
   end
 
   class << self
+    # Every word must appear, in any order, in the entry's name, its notes or
+    # the name of its transaction's merchant. Merchant names count because a
+    # bank's raw text ("AMZN Mktp") often differs from the merchant shown.
     def apply_search_filter(scope, search)
-      return scope if search.blank?
+      search_words(search).reduce(scope) do |query, word|
+        query.where(SEARCH_WORD_CONDITION, word: "%#{ActiveRecord::Base.sanitize_sql_like(word)}%")
+      end
+    end
 
-      query = scope
-      query = query.where("entries.name ILIKE :search OR entries.notes ILIKE :search",
-        search: "%#{ActiveRecord::Base.sanitize_sql_like(search)}%"
-      )
-      query
+    # Split on any Unicode space (bank text often carries non-breaking ones),
+    # case-insensitively unique and capped, so a pasted paragraph cannot turn
+    # into hundreds of unindexed conditions.
+    def search_words(search)
+      search.to_s.split(/[[:space:]]+/).reject(&:empty?).uniq(&:downcase).first(MAX_SEARCH_WORDS)
     end
 
     def apply_date_filters(scope, start_date, end_date)

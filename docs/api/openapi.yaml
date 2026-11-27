@@ -10926,7 +10926,7 @@ paths:
       - name: search
         in: query
         required: false
-        description: Search by name, notes, or merchant name
+        description: Words that must all appear in the name, notes or merchant name (first 8 distinct words count)
         schema:
           type: string
       - name: account_ids

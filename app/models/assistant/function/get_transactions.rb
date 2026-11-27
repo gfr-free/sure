@@ -98,7 +98,7 @@ class Assistant::Function::GetTransactions < Assistant::Function
         },
         search: {
           type: "string",
-          description: "Search for transactions by name"
+          description: "Words that must all appear in the transaction name, notes or merchant name (first 8 distinct words count)"
         },
         amount: {
           type: "string",

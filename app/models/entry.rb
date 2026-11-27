@@ -476,9 +476,9 @@ class Entry < ApplicationRecord
     amount.negative? ? "income" : "expense"
   end
 
-  def lock_saved_attributes!
+  def lock_saved_attributes!(except: nil)
     super
-    entryable.lock_saved_attributes!
+    entryable.lock_saved_attributes!(except:)
   end
 
   # Columns no rule condition or action reads: how an entry was edited, and

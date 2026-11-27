@@ -162,8 +162,11 @@ module Enrichable
     update!(locked_attributes: locked_attributes.except(attr.to_s))
   end
 
-  def lock_saved_attributes!
-    saved_changes.keys.reject { |attr| ignored_enrichable_attributes.include?(attr) }.each do |attr|
+  # `except` leaves attributes the user did not choose (a filled-in
+  # suggestion) open to rules.
+  def lock_saved_attributes!(except: nil)
+    skipped = ignored_enrichable_attributes + Array(except)
+    saved_changes.keys.reject { |attr| skipped.include?(attr) }.each do |attr|
       lock_attr!(attr)
     end
   end

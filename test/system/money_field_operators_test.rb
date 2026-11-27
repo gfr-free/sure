@@ -21,13 +21,15 @@ class MoneyFieldOperatorsTest < ApplicationSystemTestCase
     JS
 
     within "turbo-frame#drawer" do
-      find_field("entry[name]").click
+      # The name field is a suggestion combobox; its visible input is not named entry[name].
+      name_input = find("input[role='combobox'][id$='name']")
+      name_input.click
       assert_no_selector OPERATOR_ROW
 
       find_field("entry[amount]").click
       assert_selector OPERATOR_ROW
 
-      find_field("entry[name]").click
+      name_input.click
       assert_no_selector OPERATOR_ROW
     end
   end

@@ -2938,7 +2938,7 @@ end
   # save of that field, undoing the rule's result and locking it.
   test "the drawer sends each field that rules can set in a form of its own" do
     rule_fields = %w[entry[name] entry[excluded] entry[entryable_attributes][category_id] entry[entryable_attributes][merchant_id] entry[entryable_attributes][tag_ids][]]
-    form_meta = %w[authenticity_token _method grouped entry[entryable_attributes][id]]
+    form_meta = %w[authenticity_token _method grouped fill_empty_category entry[entryable_attributes][id]]
 
     get transaction_url(@entry), headers: { "Turbo-Frame" => "drawer" }
     assert_response :success
@@ -2952,8 +2952,41 @@ end
     end
 
     assert_equal rule_fields.sort, seen.sort
-    # Leaving the name field untouched must not send its stale value either.
-    assert_select "input[name='entry[name]'][data-autosubmit-trigger-event=change]"
+    # Leaving the name field untouched must not send its stale value either:
+    # the name combobox saves on "change", which a pick also dispatches.
+    assert_select "form:has(input[name='entry[name]']) input[role=combobox][data-auto-submit-form-target=auto][data-autosubmit-trigger-event=change]"
+  end
+
+  test "a suggested category fills an empty category" do
+    @entry.transaction.update!(category: nil)
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_equal categories(:food_and_drink), @entry.transaction.reload.category
+  end
+
+  # Rules started by the name save may still categorize; a suggestion is not
+  # the user's pick, so it neither locks the category nor prompts a rule.
+  test "a filled-in suggestion stays open to rules and prompts no rule" do
+    @entry.transaction.update!(category: nil)
+    @entry.transaction.unlock_attr!(:category_id)
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    transaction = @entry.transaction.reload
+    assert_equal categories(:food_and_drink), transaction.category
+    assert_not transaction.locked?(:category_id)
+    assert_nil flash[:cta]
+  end
+
+  test "a suggested category keeps a category set in the meantime" do
+    @entry.transaction.update!(category: categories(:income))
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_response :success
+    assert_equal categories(:income), @entry.transaction.reload.category
+    assert_select "turbo-stream[action=replace][target=?]", ActionView::RecordIdentifier.dom_id(@entry, :category_field)
   end
 
   test "does not offer guests to create a rule through a transaction update" do

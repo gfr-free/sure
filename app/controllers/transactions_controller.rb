@@ -190,13 +190,26 @@ class TransactionsController < ApplicationController
 
   def update
     rule_input = @entry.rule_input_snapshot
+    suggested_fill = params[:fill_empty_category] == "1"
 
-    if @entry.update(permitted_entry_params)
+    updated = Entry.transaction do
+      # A suggested category only fills an empty one. The row lock and fresh
+      # read keep a category that a rule or another tab set meanwhile.
+      if suggested_fill && @entry.transaction?
+        @entry.transaction.lock!
+        rule_input = @entry.rule_input_snapshot
+      end
+      @entry.update(permitted_entry_params)
+    end
+
+    if updated
       sync_needed = @entry.saved_changes_affect_balances?
       transaction = @entry.transaction
-      transaction.record_category_usage!
+      # A filled-in suggestion is not the user's choice: it is not counted as
+      # a recent pick, prompts no rule and stays open to rules (no lock).
+      transaction.record_category_usage! unless suggested_fill
 
-      if needs_rule_notification?(transaction)
+      if !suggested_fill && needs_rule_notification?(transaction)
         flash[:cta] = {
           type: "category_rule",
           category_id: transaction.category_id,
@@ -205,7 +218,8 @@ class TransactionsController < ApplicationController
         }
       end
 
-      @entry.lock_saved_attributes!
+      category_filled = suggested_fill && transaction.saved_change_to_category_id?
+      @entry.lock_saved_attributes!(except: (%w[category_id] if category_filled))
       @entry.mark_user_modified!
       @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
       @entry.sync_account_later if sync_needed
@@ -253,6 +267,13 @@ class TransactionsController < ApplicationController
               partial: "transactions/create_rule",
               locals: { entry: @entry }
             ) if offer_create_rule?),
+            # The drawer filled the suggestion in on the client; show the
+            # category that was kept instead.
+            (turbo_stream.replace(
+              dom_id(@entry, :category_field),
+              partial: "transactions/category_field",
+              locals: { entry: @entry, annotate_locked: !can_annotate_entry? }
+            ) if suggested_fill && !category_filled && @entry.transaction.category_editable?),
             turbo_stream.replace(
               dom_id(@entry, :category_provenance),
               partial: "transactions/category_provenance",
@@ -882,6 +903,12 @@ class TransactionsController < ApplicationController
       # A matched transfer's category lives on its outflow leg; a category
       # sent for the inflow leg would look saved but never reach a budget.
       if permitted[:entryable_attributes]&.key?(:category_id) && @entry.transaction.category_set_on_transfer_outflow?
+        permitted[:entryable_attributes] = permitted[:entryable_attributes].except(:category_id)
+      end
+
+      # A category suggested from a picked name only fills an empty one; a
+      # category a rule or the user set in the meantime is kept.
+      if permitted[:entryable_attributes]&.key?(:category_id) && params[:fill_empty_category] == "1" && @entry.transaction.category_id.present?
         permitted[:entryable_attributes] = permitted[:entryable_attributes].except(:category_id)
       end
 

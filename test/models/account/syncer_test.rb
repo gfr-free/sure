@@ -4,9 +4,29 @@ class Account::SyncerTest < ActiveSupport::TestCase
   test "post-sync auto matches only transfers touching the synced account" do
     account = accounts(:depository)
 
-    account.family.expects(:auto_match_transfers!).with(account: account).once
+    account.family.expects(:auto_match_transfers!).with(account: account, on_or_after: nil).once
 
     Account::Syncer.new(account).perform_post_sync
+  end
+
+  test "post-sync matches transfers from the start of the sync's window" do
+    account = accounts(:depository)
+    sync = account.syncs.create!(window_start_date: Date.new(2026, 3, 10))
+
+    account.family.expects(:auto_match_transfers!).with(account: account, on_or_after: Date.new(2026, 3, 10)).once
+
+    account.perform_post_sync(sync)
+  end
+
+  test "a finished sync hands its window to the transfer matching" do
+    account = accounts(:depository)
+    sync = account.syncs.create!(window_start_date: Date.new(2026, 3, 10))
+    Account::MarketDataImporter.any_instance.stubs(:import_all)
+    Balance::Materializer.any_instance.stubs(:materialize_balances)
+
+    Family.any_instance.expects(:auto_match_transfers!).with(account: account, on_or_after: Date.new(2026, 3, 10)).once
+
+    sync.perform
   end
 
   test "a cost basis method changed while the sync ran starts another sync once it completes" do

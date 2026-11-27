@@ -325,6 +325,21 @@ class Sync < ApplicationRecord
     )
   end
 
+  # A running sync cannot widen its window. When a request reaches further,
+  # it is marked for a full sync once it finishes (queue_full_resync). Returns
+  # false when it can take no request any more, so the caller starts a new
+  # sync. Its row is only locked while it is being finalized, and finalizing
+  # then takes the syncable's lock, which the caller holds: SKIP LOCKED treats
+  # a locked row as finished instead of waiting on it.
+  def take_window_while_running(new_window_start_date, new_window_end_date)
+    return true if window_covers?(new_window_start_date, new_window_end_date)
+
+    Sync.transaction do
+      running = Sync.where(id: id, status: "syncing").lock("FOR UPDATE SKIP LOCKED").pick(:id)
+      running.present? && update_columns(full_resync_requested: true)
+    end
+  end
+
   protected
     def cancel_pending_descendants!
       children.incomplete.find_each do |child|
@@ -338,6 +353,12 @@ class Sync < ApplicationRecord
       Rails.logger.info("changing from #{aasm.from_state} to #{aasm.to_state} (event: #{aasm.current_event})")
     end
 
+    def window_covers?(new_window_start_date, new_window_end_date)
+      starts_inside = window_start_date.nil? || (new_window_start_date.present? && new_window_start_date >= window_start_date)
+      ends_inside = window_end_date.nil? || (new_window_end_date.present? && new_window_end_date <= window_end_date)
+      starts_inside && ends_inside
+    end
+
     def has_failed_children?
       children.any?(&:failed?)
     end
@@ -348,7 +369,7 @@ class Sync < ApplicationRecord
 
     def perform_post_sync
       Rails.logger.info("Performing post-sync for #{syncable_type} (#{syncable.id})")
-      syncable.perform_post_sync
+      syncable.perform_post_sync(self)
       syncable.broadcast_sync_complete
     rescue => e
       Rails.logger.error("Error performing post-sync for #{syncable_type} (#{syncable.id}): #{e.message}")

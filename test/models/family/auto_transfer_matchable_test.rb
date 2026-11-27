@@ -39,6 +39,43 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_not_includes pairs, [ beyond.entryable_id, outflow.entryable_id ], "five days apart is outside a four-day window"
   end
 
+  # A sync from a date on changed nothing earlier, so only pairs with a leg on
+  # or after that date are matched; the other leg may lie up to the date
+  # window before it.
+  test "matching from a date skips older pairs and reaches back by the date window" do
+    on_or_after = Date.new(2026, 3, 10)
+    old_outflow = create_transaction(date: Date.new(2026, 2, 1), account: @depository, amount: 210)
+    old_inflow = create_transaction(date: Date.new(2026, 2, 2), account: @credit_card, amount: -210)
+    new_outflow = create_transaction(date: Date.new(2026, 3, 11), account: @depository, amount: 320)
+    early_inflow = create_transaction(date: Date.new(2026, 3, 7), account: @credit_card, amount: -320)
+    # Both legs inside the reach-back days, neither on or after the date.
+    band_inflow = create_transaction(date: Date.new(2026, 3, 8), account: @depository, amount: -150)
+    band_outflow = create_transaction(date: Date.new(2026, 3, 7), account: @other_asset, amount: 150)
+
+    @family.auto_match_transfers!(account: @depository, on_or_after: on_or_after)
+
+    assert Transfer.exists?(inflow_transaction_id: early_inflow.entryable_id, outflow_transaction_id: new_outflow.entryable_id)
+    assert_not Transfer.exists?(inflow_transaction_id: band_inflow.entryable_id), "a pair with no leg on or after the date is left alone"
+    assert_not Transfer.exists?(inflow_transaction_id: old_inflow.entryable_id), "a pair before the window is left to a full match"
+
+    @family.auto_match_transfers!(account: @depository)
+
+    assert Transfer.exists?(inflow_transaction_id: old_inflow.entryable_id, outflow_transaction_id: old_outflow.entryable_id)
+    assert Transfer.exists?(inflow_transaction_id: band_inflow.entryable_id, outflow_transaction_id: band_outflow.entryable_id)
+  end
+
+  test "matching from a date narrows the candidates for given transactions too" do
+    outflow = create_transaction(date: Date.new(2026, 3, 10), account: @depository, amount: 432.10)
+    early_inflow = create_transaction(date: Date.new(2026, 3, 6), account: @credit_card, amount: -432.10)
+    late_inflow = create_transaction(date: Date.new(2026, 3, 14), account: @other_asset, amount: -432.10)
+
+    pairs = @family.transfer_match_candidates(date_window: 4, transaction_ids: [ outflow.entryable_id ], on_or_after: Date.new(2026, 3, 12))
+      .map { |candidate| [ candidate.inflow_transaction_id, candidate.outflow_transaction_id ] }
+
+    assert_includes pairs, [ late_inflow.entryable_id, outflow.entryable_id ]
+    assert_not_includes pairs, [ early_inflow.entryable_id, outflow.entryable_id ]
+  end
+
   test "auto-matched transfers wait for confirmation before changing transaction kinds" do
     outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
     inflow_entry = create_transaction(date: Date.current, account: accounts(:investment), amount: -500)

@@ -93,6 +93,9 @@ en:
       no_results: Nothing matches “%{query}”. Try fewer words, or go back and fill in the form yourself.
     picker_row:
       claimed: Part of %{name}
+    toggle_auto_post:
+      enabled: Sure now posts this transaction on each due date, starting today
+      disabled: Automatic posting is off
     create:
       success: Bill added
       success_income: Income added
@@ -117,6 +120,10 @@ en:
       bank_reference_hint: A stable token from the payment note (Verwendungszweck). Payments on this account whose note contains it match this bill whatever the amount or date, unless the payment carries a different merchant than a merchant-bound bill. Use something distinctive, at least 3 characters.
       autopay_label: Pays automatically
       autopay_hint: Keep it on your bills list, but stop treating it as something to do.
+      auto_post_label: Post automatically
+      auto_post_hint: Sure adds the transaction to the account on each due date.
+      income_auto_post_hint: Sure adds the income to the account on each payday.
+      auto_post_manual_only: Only for manual accounts. A linked account already gets this transaction from the bank.
       more_options: More options
       notes_label: Notes
       notes_placeholder: Account 4821, charged to the Amex

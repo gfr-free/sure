@@ -48,6 +48,7 @@ class RecurringTransaction
         currency: chosen_currency || account&.currency || family.currency,
         payment_url: attrs[:payment_url],
         autopay: ActiveModel::Type::Boolean.new.cast(attrs[:autopay]) || false,
+        auto_post: ActiveModel::Type::Boolean.new.cast(attrs[:auto_post]) || false,
         notes: attrs[:notes],
         bank_reference: (attrs[:bank_reference] unless is_income),
         reference_only: (attrs[:reference_only] unless is_income),

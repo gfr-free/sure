@@ -46,7 +46,9 @@ module Syncable
   end
 
   # Schedules a sync for syncable.  If there is an existing sync pending/syncing for this syncable,
-  # we do not create a new sync, and attempt to expand the sync window if needed.
+  # we do not create a new sync, and attempt to expand the sync window if needed. A running
+  # sync cannot widen its window; a request reaching further marks it for a full sync
+  # once it finishes (Sync#take_window_while_running).
   #
   # NOTE: Uses `visible` scope (syncs < 5 min old) instead of `incomplete` to prevent
   # getting stuck on stale syncs after server/Sidekiq restarts. If a sync is older than
@@ -55,6 +57,7 @@ module Syncable
     Sync.transaction do
       with_lock do
         sync = self.syncs.visible.first
+        sync = nil if sync&.syncing? && !sync.take_window_while_running(window_start_date, window_end_date)
 
         if sync
           Rails.logger.info("There is an existing recent sync, expanding window if needed (#{sync.id})")
@@ -83,7 +86,9 @@ module Syncable
     syncer.perform_sync(sync)
   end
 
-  def perform_post_sync
+  # The finalized sync is passed for syncables whose post-sync work depends
+  # on its window (Account); other syncers take no argument.
+  def perform_post_sync(_sync = nil)
     syncer.perform_post_sync
   end
 

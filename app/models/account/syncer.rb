@@ -18,8 +18,11 @@ class Account::Syncer
     report_anchor_dated_away_from_holdings
   end
 
-  def perform_post_sync
-    account.family.auto_match_transfers!(account: account)
+  # A sync from a date on (an entry saved or edited) only changed entries from
+  # that date on, so transfer matching only looks at pairs from then; a full
+  # sync matches across the account's whole history.
+  def perform_post_sync(sync = nil)
+    account.family.auto_match_transfers!(account: account, on_or_after: sync&.window_start_date)
     account.family.auto_create_missing_transfer_counterparts!(account: account)
     restate_if_cost_basis_method_changed
   end

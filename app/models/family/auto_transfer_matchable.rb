@@ -47,11 +47,13 @@ module Family::AutoTransferMatchable
     restrict_cross_currency_to_linked_accounts: false,
     require_common_writer: false,
     exclude_same_connection_pairs: false,
-    require_compatible_categories: false
+    require_compatible_categories: false,
+    on_or_after: nil
   )
     date_window = coerce_transfer_match_date_window!(date_window)
     exchange_rate_tolerance = coerce_transfer_match_exchange_rate_tolerance!(exchange_rate_tolerance)
     window_start, window_end = transfer_match_window(transaction_ids, date_window) if transaction_ids.present?
+    window_start = transfer_match_window_start(window_start, on_or_after, date_window) if on_or_after
 
     Entry.find_by_sql([
       transfer_match_candidates_sql,
@@ -67,6 +69,7 @@ module Family::AutoTransferMatchable
         transaction_ids: transaction_ids.presence || [ nil ],
         window_start:,
         window_end:,
+        on_or_after: on_or_after&.to_date,
         include_rejected:,
         restrict_cross_currency_to_linked_accounts:,
         require_common_writer:,
@@ -116,7 +119,10 @@ module Family::AutoTransferMatchable
     end
   end
 
-  def auto_match_transfers!(account: nil, exchange_rate_tolerance: Family::AutoTransferMatchable.exchange_rate_tolerance)
+  # With `on_or_after`, only pairs with a leg on or after that date are
+  # matched (both legs then lie within the date window before it), for a sync
+  # that changed nothing earlier. Without it, the whole history is matched.
+  def auto_match_transfers!(account: nil, on_or_after: nil, exchange_rate_tolerance: Family::AutoTransferMatchable.exchange_rate_tolerance)
     return if auto_match_transfers_disabled?
 
     # Exclude already matched transfers. Cross-currency FX-tolerance matching is
@@ -128,6 +134,7 @@ module Family::AutoTransferMatchable
     # real cross-currency transfer that happens to involve a manual account.
     candidates_scope = transfer_match_candidates(
       account_id: account&.id,
+      on_or_after:,
       include_rejected: false,
       exchange_rate_tolerance:,
       restrict_cross_currency_to_linked_accounts: true,
@@ -498,6 +505,13 @@ module Family::AutoTransferMatchable
       [ first - date_window, last + date_window ] if first
     end
 
+    # A pair with a leg on or after `on_or_after` has its other leg at most
+    # `date_window` days earlier, so both legs start there at the latest.
+    def transfer_match_window_start(window_start, on_or_after, date_window)
+      earliest = on_or_after.to_date - date_window
+      window_start ? [ window_start, earliest ].max : earliest
+    end
+
     def coerce_transfer_match_date_window!(value)
       Integer(value)
     rescue ArgumentError, TypeError
@@ -653,10 +667,9 @@ module Family::AutoTransferMatchable
             (:inflow_transaction_id IS NULL OR inflow_candidates.entryable_id = :inflow_transaction_id) AND
             (:outflow_transaction_id IS NULL OR outflow_candidates.entryable_id = :outflow_transaction_id) AND
             (:filter_transaction_ids = FALSE OR inflow_candidates.entryable_id IN (:transaction_ids) OR outflow_candidates.entryable_id IN (:transaction_ids)) AND
-            (:window_start IS NULL OR (
-              inflow_candidates.date BETWEEN :window_start AND :window_end AND
-              outflow_candidates.date BETWEEN :window_start AND :window_end
-            )) AND
+            (:window_start IS NULL OR (inflow_candidates.date >= :window_start AND outflow_candidates.date >= :window_start)) AND
+            (:window_end IS NULL OR (inflow_candidates.date <= :window_end AND outflow_candidates.date <= :window_end)) AND
+            (:on_or_after IS NULL OR inflow_candidates.date >= :on_or_after OR outflow_candidates.date >= :on_or_after) AND
             (:include_rejected = TRUE OR rejected_transfers.id IS NULL) AND
             #{provider_exclusion_condition} AND
             #{common_writer_condition_sql}
@@ -744,10 +757,9 @@ module Family::AutoTransferMatchable
             (:inflow_transaction_id IS NULL OR inflow_candidates.entryable_id = :inflow_transaction_id) AND
             (:outflow_transaction_id IS NULL OR outflow_candidates.entryable_id = :outflow_transaction_id) AND
             (:filter_transaction_ids = FALSE OR inflow_candidates.entryable_id IN (:transaction_ids) OR outflow_candidates.entryable_id IN (:transaction_ids)) AND
-            (:window_start IS NULL OR (
-              inflow_candidates.date BETWEEN :window_start AND :window_end AND
-              outflow_candidates.date BETWEEN :window_start AND :window_end
-            )) AND
+            (:window_start IS NULL OR (inflow_candidates.date >= :window_start AND outflow_candidates.date >= :window_start)) AND
+            (:window_end IS NULL OR (inflow_candidates.date <= :window_end AND outflow_candidates.date <= :window_end)) AND
+            (:on_or_after IS NULL OR inflow_candidates.date >= :on_or_after OR outflow_candidates.date >= :on_or_after) AND
             (:include_rejected = TRUE OR rejected_transfers.id IS NULL) AND
             (
               :restrict_cross_currency_to_linked_accounts = FALSE OR

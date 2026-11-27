@@ -618,6 +618,168 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     end
   end
 
+  test "never writes the counterparty iban onto a new provider merchant" do
+    assert_difference "ProviderMerchant.count", 1 do
+      merchant = @adapter.find_or_create_merchant(
+        provider_merchant_id: "enable_banking_merchant_1",
+        name: "Landlord GmbH",
+        source: "enable_banking",
+        iban: "de89 3704 0044 0532 0130 00"
+      )
+
+      assert_instance_of ProviderMerchant, merchant
+      assert_nil merchant.reload.iban
+    end
+  end
+
+  test "never backfills the counterparty iban onto an existing provider merchant" do
+    existing_merchant = ProviderMerchant.create!(
+      provider_merchant_id: "enable_banking_merchant_3",
+      name: "Landlord GmbH",
+      source: "enable_banking"
+    )
+
+    merchant = @adapter.find_or_create_merchant(
+      provider_merchant_id: "enable_banking_merchant_3",
+      name: "Landlord GmbH",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_equal existing_merchant.id, merchant.id
+    assert_nil existing_merchant.reload.iban
+  end
+
+  test "falls back to a family merchant matched by iban when no provider merchant matches the name" do
+    family_merchant = @family.merchants.create!(
+      name: "My Landlord",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_no_difference "ProviderMerchant.count" do
+      merchant = @adapter.find_or_create_merchant(
+        provider_merchant_id: "enable_banking_merchant_new_name",
+        name: "Some Varying Provider Name",
+        source: "enable_banking",
+        iban: "de89 3704 0044 0532 0130 00"
+      )
+
+      assert_equal family_merchant.id, merchant.id
+    end
+  end
+
+  test "a family merchant matched by iban wins over a shared provider merchant with the same name" do
+    # The IBAN the family entered is its own statement; a same-named
+    # ProviderMerchant that any family may have imported must not beat it.
+    family_merchant = @family.merchants.create!(
+      name: "My Landlord",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+    ProviderMerchant.create!(
+      provider_merchant_id: "enable_banking_merchant_landlord",
+      name: "Landlord GmbH",
+      source: "enable_banking"
+    )
+
+    merchant = @adapter.find_or_create_merchant(
+      provider_merchant_id: "enable_banking_merchant_landlord",
+      name: "Landlord GmbH",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_equal family_merchant.id, merchant.id
+  end
+
+  test "an iban entered on two family merchants is resolved by the name" do
+    # Two people paying from one joint account share the IBAN; the family
+    # enters it on both merchants and the provider name picks between them.
+    @family.merchants.create!(name: "Alice Example", iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    bob = @family.merchants.create!(name: "Bob Example", iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    merchant = @adapter.find_or_create_merchant(
+      provider_merchant_id: "enable_banking_merchant_bob",
+      name: "BOB EXAMPLE",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_equal bob.id, merchant.id
+  end
+
+  test "does not match an iban the family entered on two merchants when the name matches neither" do
+    @family.merchants.create!(name: "Alice Example", iban: "DE89370400440532013000") # pipelock:ignore IBAN
+    @family.merchants.create!(name: "Bob Example", iban: "DE89370400440532013000") # pipelock:ignore IBAN
+
+    merchant = @adapter.find_or_create_merchant(
+      provider_merchant_id: "enable_banking_merchant_joint",
+      name: "Joint Account",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_instance_of ProviderMerchant, merchant
+  end
+
+  test "does not match another family's merchant by iban" do
+    other_family_merchant = families(:empty).merchants.create!(
+      name: "Other Family Landlord",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    merchant = @adapter.find_or_create_merchant(
+      provider_merchant_id: "enable_banking_merchant_new_name",
+      name: "Some Provider Name",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_not_equal other_family_merchant.id, merchant.id
+    assert_instance_of ProviderMerchant, merchant
+    assert_nil merchant.iban
+  end
+
+  test "does not match a shared provider merchant by iban" do
+    # A shared ProviderMerchant may carry an iban that came from another
+    # family's data; it must not attract this family's transactions.
+    shared_merchant = ProviderMerchant.create!(
+      provider_merchant_id: "old_hash",
+      name: "Landlord GmbH",
+      source: "enable_banking",
+      iban: "DE89370400440532013000" # pipelock:ignore IBAN
+    )
+
+    assert_difference "ProviderMerchant.count", 1 do
+      merchant = @adapter.find_or_create_merchant(
+        provider_merchant_id: "different_hash_because_remittance_text_changed",
+        name: "Different Remittance Text",
+        source: "enable_banking",
+        iban: "de89 3704 0044 0532 0130 00"
+      )
+
+      assert_not_equal shared_merchant.id, merchant.id
+    end
+  end
+
+  test "falls back to name-based lookup when no iban is provided" do
+    existing_merchant = ProviderMerchant.create!(
+      provider_merchant_id: "enable_banking_merchant_2",
+      name: "Landlord GmbH",
+      source: "enable_banking"
+    )
+
+    assert_no_difference "ProviderMerchant.count" do
+      merchant = @adapter.find_or_create_merchant(
+        provider_merchant_id: "enable_banking_merchant_2",
+        name: "Landlord GmbH",
+        source: "enable_banking"
+      )
+
+      assert_equal existing_merchant.id, merchant.id
+      assert_nil merchant.iban
+    end
+  end
+
   test "updates account balance" do
     @adapter.update_balance(
       balance: 5000.00,
@@ -2924,7 +3086,349 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
       "a flag that does not mark the transaction pending is not cleared"
   end
 
+  test "backfills counterparty iban on a user-modified entry that predates the feature" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_user_mod_no_iban",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Old Landlord Payment",
+      source: "enable_banking"
+    )
+    assert_nil entry.transaction.counterparty_iban_last4
+
+    entry.mark_user_modified!
+    assert entry.reload.user_modified?, "entry should be marked user-modified"
+
+    # A later sync now carries counterparty data the original payload lacked.
+    # The entry is protected (user_modified), but this field has no UI for the
+    # user to have relied upon, so it should still be backfilled.
+    assert_no_difference "@account.entries.count" do
+      updated_entry = @adapter.import_transaction(
+        external_id: "eb_user_mod_no_iban",
+        amount: 20.0,
+        currency: "EUR",
+        date: Date.today - 5.days,
+        name: "Old Landlord Payment",
+        source: "enable_banking",
+        extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+      )
+
+      assert_equal entry.id, updated_entry.id
+      updated_entry.reload
+      assert_equal "3201", updated_entry.transaction.counterparty_iban_last4
+    end
+  end
+
+  test "leaves the counterparty of an import-locked user-modified entry alone" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_user_mod_locked_no_iban",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Old Landlord Payment",
+      source: "enable_banking"
+    )
+    entry.mark_user_modified!
+    entry.update!(import_locked: true)
+
+    @adapter.import_transaction(
+      external_id: "eb_user_mod_locked_no_iban",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Old Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+
+    assert_nil entry.reload.transaction.counterparty_iban_last4
+  end
+
+  test "does not clobber a backfilled counterparty iban with a later nil on a user-modified entry" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_user_mod_iban_then_nil",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Old Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+    assert_equal "3201", entry.transaction.counterparty_iban_last4
+
+    entry.mark_user_modified!
+    assert entry.reload.user_modified?, "entry should be marked user-modified"
+
+    # A later sync's payload doesn't carry counterparty data this time (e.g. a
+    # re-delivery through a path that doesn't populate it) -- this is a purely
+    # additive backfill for a protected entry, so it must not erase data a
+    # previous sync already filled in.
+    assert_no_difference "@account.entries.count" do
+      updated_entry = @adapter.import_transaction(
+        external_id: "eb_user_mod_iban_then_nil",
+        amount: 20.0,
+        currency: "EUR",
+        date: Date.today - 5.days,
+        name: "Old Landlord Payment",
+        source: "enable_banking",
+        extra: { "counterparty_iban" => nil }
+      )
+
+      assert_equal entry.id, updated_entry.id
+      updated_entry.reload
+      assert_equal "3201", updated_entry.transaction.counterparty_iban_last4,
+        "a nil counterparty_iban on a later sync must not clobber an already-backfilled value on a protected entry"
+    end
+  end
+
+  test "keeps a captured counterparty iban when a later unprotected sync carries none" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_unprotected_iban_then_nil",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+    assert_equal "3201", entry.transaction.counterparty_iban_last4
+
+    updated_entry = @adapter.import_transaction(
+      external_id: "eb_unprotected_iban_then_nil",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => nil, "counterparty_reference" => nil }
+    )
+
+    assert_equal entry.id, updated_entry.id
+    assert_equal "3201", updated_entry.reload.transaction.counterparty_iban_last4,
+      "a redelivery without counterparty data must not clear an IBAN an earlier sync captured"
+  end
+
+  test "replaces counterparty data on the unprotected path when a later sync corrects it" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_unprotected_iban_corrected",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => nil, "counterparty_reference" => "LEGACY-ACCOUNT-1" }
+    )
+    assert_equal "NT-1", entry.transaction.counterparty_reference_last4
+
+    updated_entry = @adapter.import_transaction(
+      external_id: "eb_unprotected_iban_corrected",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201", "counterparty_reference" => nil } # pipelock:ignore IBAN
+    )
+
+    assert_equal entry.id, updated_entry.id
+    updated_entry.reload
+    assert_equal "3201", updated_entry.transaction.counterparty_iban_last4
+    assert_nil updated_entry.transaction.counterparty_reference_last4
+  end
+
+  test "leaves counterparty iban columns untouched when the provider never mentions them" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_no_counterparty_keys",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Some Payment",
+      source: "plaid",
+      extra: { "fx_rate" => "1.05" }
+    )
+
+    assert_nil entry.transaction.counterparty_iban_last4
+    assert_nil entry.transaction.counterparty_reference_last4
+    assert_equal "1.05", entry.transaction.extra["fx_rate"]
+  end
+
+  test "keeps a pending row's counterparty iban when the booked redelivery carries only an account id" do
+    entry = @adapter.import_transaction(
+      external_id: "eb_pdng_iban_book_account_id",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "enable_banking" => { "pending" => true }, "counterparty_iban" => "AT611904300234573201", "counterparty_reference" => nil } # pipelock:ignore IBAN
+    )
+    assert entry.transaction.pending?
+
+    booked_entry = @adapter.import_transaction(
+      external_id: "eb_pdng_iban_book_account_id",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => nil, "counterparty_reference" => "OTHER-ACCOUNT-1" }
+    )
+
+    assert_equal entry.id, booked_entry.id
+    booked_entry.reload
+    assert_not booked_entry.transaction.pending?
+    assert_equal "3201", booked_entry.transaction.counterparty_iban_last4
+    assert_equal "NT-1", booked_entry.transaction.counterparty_reference_last4
+  end
+
+  test "never stores counterparty keys in the plaintext extra column" do
+    counterparty = { counterparty_iban: "AT611904300234573201", counterparty_reference: "OTHER-ACCOUNT-1" } # pipelock:ignore IBAN
+
+    entry = @adapter.import_transaction(
+      external_id: "eb_counterparty_not_in_extra",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "enable_banking" => { "pending" => true } }.merge(counterparty)
+    )
+    assert_counterparty_absent_from_extra entry
+
+    # Unprotected update (deep-merges extra) ...
+    entry = @adapter.import_transaction(
+      external_id: "eb_counterparty_not_in_extra",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: { "fx_rate" => "1.05" }.merge(counterparty.stringify_keys)
+    )
+    assert_equal "1.05", entry.reload.transaction.extra["fx_rate"]
+    assert_counterparty_absent_from_extra entry
+
+    # ... and the protected path, which rewrites extra to clear the pending flag.
+    entry.mark_user_modified!
+    entry = @adapter.import_transaction(
+      external_id: "eb_counterparty_not_in_extra",
+      amount: 20.0,
+      currency: "EUR",
+      date: Date.today - 5.days,
+      name: "Landlord Payment",
+      source: "enable_banking",
+      extra: counterparty
+    )
+    assert_counterparty_absent_from_extra entry
+    assert_equal "3201", entry.reload.transaction.counterparty_iban_last4
+  end
+
+  test "links the counterparty to the family's own account with that iban" do
+    own_account = accounts(:connected)
+    own_account.update!(iban: "AT61 1904 3002 3457 3201") # pipelock:ignore IBAN
+
+    entry = @adapter.import_transaction(
+      external_id: "eb_own_account_counterparty",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Transfer to savings",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201", "counterparty_reference" => nil } # pipelock:ignore IBAN
+    )
+
+    assert_equal own_account, entry.reload.transaction.counterparty_own_account
+    assert_equal "3201", entry.transaction.counterparty_iban_last4
+  end
+
+  test "links the own sub-account in the transaction's currency when one iban backs several" do
+    accounts(:connected).update!(iban: "AT611904300234573201") # pipelock:ignore IBAN
+    euro_account = @family.accounts.create!(name: "Euro pocket", balance: 0, currency: "EUR", accountable: Depository.new,
+      iban: "AT611904300234573201") # pipelock:ignore IBAN
+
+    entry = @adapter.import_transaction(
+      external_id: "eb_sub_account_counterparty",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Transfer",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+
+    assert_equal euro_account, entry.reload.transaction.counterparty_own_account
+  end
+
+  test "does not link a counterparty iban shared by two own accounts in one currency" do
+    accounts(:connected).update!(iban: "AT611904300234573201", currency: "EUR") # pipelock:ignore IBAN
+    @family.accounts.create!(name: "Second savings", balance: 0, currency: "EUR", accountable: Depository.new,
+      iban: "AT611904300234573201") # pipelock:ignore IBAN
+
+    entry = @adapter.import_transaction(
+      external_id: "eb_ambiguous_own_account",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Transfer",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+
+    assert_nil entry.reload.transaction.counterparty_own_account_id
+    assert_equal "3201", entry.transaction.counterparty_iban_last4
+  end
+
+  test "never links a transaction to the account it was imported into" do
+    @account.update!(iban: "AT611904300234573201") # pipelock:ignore IBAN
+
+    entry = @adapter.import_transaction(
+      external_id: "eb_self_counterparty",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Refund",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+
+    assert_nil entry.reload.transaction.counterparty_own_account_id
+  end
+
+  test "a corrected counterparty iban drops a stale own-account link" do
+    accounts(:connected).update!(iban: "AT611904300234573201") # pipelock:ignore IBAN
+    entry = @adapter.import_transaction(
+      external_id: "eb_corrected_own_account",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Transfer",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "AT611904300234573201" } # pipelock:ignore IBAN
+    )
+    assert_equal accounts(:connected), entry.reload.transaction.counterparty_own_account
+
+    Account::ProviderImportAdapter.new(@account).import_transaction(
+      external_id: "eb_corrected_own_account",
+      amount: 200.0,
+      currency: "EUR",
+      date: Date.today - 2.days,
+      name: "Transfer",
+      source: "enable_banking",
+      extra: { "counterparty_iban" => "DE89370400440532013000" } # pipelock:ignore IBAN
+    )
+
+    assert_nil entry.reload.transaction.counterparty_own_account_id
+    assert_equal "3000", entry.transaction.counterparty_iban_last4
+  end
+
   private
+    def assert_counterparty_absent_from_extra(entry)
+      extra_json = entry.reload.transaction.extra.to_json
+      assert_not_includes extra_json, "counterparty_iban"
+      assert_not_includes extra_json, "counterparty_reference"
+      assert_not_includes extra_json, "AT611904300234573201" # pipelock:ignore IBAN
+    end
 
     def capture_sql_queries
       queries = []

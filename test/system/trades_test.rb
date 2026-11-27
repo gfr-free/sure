@@ -125,6 +125,27 @@ class TradesTest < ApplicationSystemTestCase
     assert_eventually { trade.reload.fee.to_d == 2.5.to_d }
   end
 
+  test "changing the coin keeps the entered price, fee and their currency" do
+    open_new_trade_modal
+    select "Precious metal", from: "Asset"
+    assert_selector "select[name='model[bullion_choice]']"
+
+    fill_in "model[qty]", with: "2"
+    fill_in "model[price]", with: "1234.5"
+    fill_in "model[fee]", with: "3"
+    all("select[name='model[currency]']").each { |currency| currency.find("option[value='EUR']").select_option }
+
+    choice = find("select[name='model[bullion_choice]']")
+    other = choice.all("option").map(&:value).find { |value| value.start_with?("product:") && value != choice.value }
+    choice.find("option[value='#{other}']").select_option
+    assert_selector "select[name='model[bullion_choice]'] option[value='#{other}'][selected]"
+
+    assert_equal "2", find_field("model[qty]").value
+    assert_equal BigDecimal("1234.5"), BigDecimal(find_field("model[price]").value)
+    assert_equal BigDecimal("3"), BigDecimal(find_field("model[fee]").value)
+    assert_equal [ "EUR", "EUR" ], all("select[name='model[currency]']").map(&:value)
+  end
+
   private
     def assert_eventually(timeout: Capybara.default_max_wait_time)
       deadline = Time.current + timeout

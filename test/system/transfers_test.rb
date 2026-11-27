@@ -74,6 +74,10 @@ class TransfersTest < ApplicationSystemTestCase
 
   test "enter in an account search skips rows shown only for context" do
     open_transfer_form
+    # A complete form, so a submitted Enter would really create a transfer.
+    select_ds("From", accounts(:depository))
+    fill_in "transfer[amount]", with: 500
+    fill_in "Date", with: Date.current
     search = open_to_search
     search.set(accounts(:credit_card).name)
 

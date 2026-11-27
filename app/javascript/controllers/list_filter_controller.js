@@ -149,7 +149,8 @@ export default class extends Controller {
     }
 
     // A hidden list (the quick create's parent picker covers it) has nothing to pick.
-    if (this.createRowShown || this.listTarget.classList.contains("hidden")) return;
+    if (this.createRowShown || this.listTarget.classList.contains("hidden"))
+      return;
 
     const match = enterMatch(items, this.inputTarget.value);
     if (match) this.activate(match, { toggle: false });
@@ -164,6 +165,29 @@ export default class extends Controller {
 
     const form = item.querySelector("form");
     if (form) {
+      // Until the response redraws the row, a second Enter must not toggle
+      // the same row back off.
+      if (!toggle) {
+        item.dataset.listFilterApplied = "true";
+        // A failed request leaves the row as it was, so Enter can retry.
+        form.addEventListener(
+          "turbo:submit-end",
+          (event) => {
+            if (!event.detail.success) delete item.dataset.listFilterApplied;
+          },
+          { once: true },
+        );
+        // Tells the server the pick came from the search box, which keeps
+        // focus (e.g. the tag menu re-renders the row without autofocus).
+        const marker = document.createElement("input");
+        marker.type = "hidden";
+        marker.name = "from_search";
+        marker.value = "1";
+        form.append(marker);
+        form.requestSubmit();
+        marker.remove();
+        return;
+      }
       form.requestSubmit();
       return;
     }
@@ -181,7 +205,12 @@ export default class extends Controller {
     const items = this.visibleItems;
     if (this.highlightedIndex >= 0 && this.highlightedIndex < items.length) {
       const item = items[this.highlightedIndex];
-      this.inputTarget.setAttribute("aria-activedescendant", item.id);
+      // A row without an id (currency list, merchant merge) cannot be named.
+      if (item.id) {
+        this.inputTarget.setAttribute("aria-activedescendant", item.id);
+      } else {
+        this.inputTarget.removeAttribute("aria-activedescendant");
+      }
     } else {
       this.inputTarget.removeAttribute("aria-activedescendant");
     }

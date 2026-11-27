@@ -239,7 +239,7 @@ export default class extends Controller {
     }
   }
 
-  // Case- and diacritic-insensitive, as in list_filter_controller.
+  // Case- and diacritic-insensitive, as in utils/search_match normalizeSearchText.
   #normalize(value) {
     return value
       .normalize("NFD")

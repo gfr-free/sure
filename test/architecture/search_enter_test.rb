@@ -24,7 +24,7 @@ class SearchEnterTest < ActiveSupport::TestCase
 
   test "picker search boxes handle Enter" do
     offenders = list_search_lines.filter_map do |path, number, line|
-      next if line.include?("keydown")
+      next if line.match?(/keydown->[\w-]+#handle(?:Search)?Keydown\b/)
       next if ENTER_SUBMITS.key?(path)
 
       "#{path}:#{number}"
@@ -53,6 +53,22 @@ class SearchEnterTest < ActiveSupport::TestCase
     end
 
     assert_empty controllers, "Handle Enter with isConfirmingEnter and enterMatch from utils/search_match."
+  end
+
+  # An extra keydown.enter handler on a picker search box (quick create)
+  # must also let an IME composition finish first.
+  test "extra Enter handlers on picker search boxes skip IME composition" do
+    offenders = list_search_lines.flat_map do |_path, _number, line|
+      line.scan(/keydown\.enter->([\w-]+)#/).flatten
+    end.uniq.filter_map do |identifier|
+      file = Rails.root.join("app/javascript/controllers/#{identifier.tr("-", "_")}_controller.js")
+      next unless file.exist?
+      next if file.read.include?("isConfirmingEnter")
+
+      file.relative_path_from(Rails.root).to_s
+    end
+
+    assert_empty offenders, "Check isConfirmingEnter(event) before acting on Enter."
   end
 
   private

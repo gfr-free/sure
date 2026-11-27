@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  displaySortKey,
   enterMatch,
   exactName,
   hasSearchQuery,
@@ -155,6 +156,19 @@ describe("enterMatch", () => {
     assert.equal(enterMatch([zedExtra, zed], "ze"), zedExtra)
   })
 
+  it("can skip the first-visible fallback", () => {
+    assert.equal(enterMatch([zedExtra, zed], "ze", { firstVisible: false }), null)
+    assert.equal(enterMatch([zedExtra, zed], "zed", { firstVisible: false }), zed)
+  })
+
+  it("never falls back to the blank row", () => {
+    const none = { ...row("Uncategorized"), hasAttribute: (name) => name === "data-filter-blank" }
+    const utilities = row("Utilities")
+    assert.equal(enterMatch([none, utilities], "u"), utilities)
+    assert.equal(enterMatch([none], "u"), null)
+    assert.equal(enterMatch([none, utilities], "uncategorized"), none)
+  })
+
   it("matches a stored name too", () => {
     assert.equal(enterMatch([row("Other"), translated], "food & drink"), translated)
   })
@@ -163,9 +177,30 @@ describe("enterMatch", () => {
     assert.equal(enterMatch([], "zed"), null)
   })
 
+  it("prefers the stored name when two rows show the same label", () => {
+    const translatedDefault = row("Lebensmittel", ["Groceries", "Lebensmittel"])
+    const custom = row("Lebensmittel", ["Lebensmittel"])
+    assert.equal(enterMatch([translatedDefault, custom], "Lebensmittel"), custom)
+  })
+
+  it("folds accents on Latin letters only", () => {
+    const burger = row("ハンバーガー")
+    assert.equal(enterMatch([burger, row("バン")], "ハン"), burger)
+    const ivanExtra = row("Иван Extra")
+    assert.equal(enterMatch([ivanExtra, row("Йван")], "иван"), ivanExtra)
+  })
+
   it("never picks a row shown only as context for a hit", () => {
     const parent = { ...row("Food & Drink"), hasAttribute: (name) => name === "data-filter-context" }
     const child = { ...row("Restaurants"), hasAttribute: () => false }
     assert.equal(enterMatch([parent, child], "Restaur"), child)
+  })
+})
+
+describe("displaySortKey", () => {
+  it("folds Latin accents only and keeps underscores", () => {
+    assert.equal(displaySortKey("Épargne"), "epargne")
+    assert.equal(displaySortKey("Йогурт"), "йогурт")
+    assert.ok(displaySortKey("A B") < displaySortKey("A_A"))
   })
 })

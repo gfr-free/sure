@@ -162,6 +162,8 @@ export default class extends Controller {
     if (match) {
       this.applySelection(match);
       this.close();
+      // The search box is about to hide; keep focus on the picker.
+      this.buttonTarget.focus({ preventScroll: true });
       this.submitForm();
     }
   }

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
-import { exactName } from "utils/search_match";
+import { exactName, isConfirmingEnter } from "utils/search_match";
 
 // Lets the transaction list's quick category picker create a category that
 // doesn't exist yet, optionally under a top-level parent. The new category is
@@ -91,6 +91,7 @@ export default class extends Controller {
   // Enter creates and list-filter steps aside; a row highlighted with the
   // arrow keys still wins.
   createOnEnter(event) {
+    if (!isConfirmingEnter(event)) return;
     if (!this.hasCreateButtonTarget) return;
     if (this.createButtonTarget.classList.contains("hidden")) return;
     // Enter does what the create row says, as in the category select; only

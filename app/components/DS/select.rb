@@ -120,7 +120,9 @@ module DS
         return helpers.category_search_data(obj, label: item[:label])
       end
 
-      { filter_name: item[:label] }
+      # The include_blank row ("None") is picked only by its exact name, never
+      # as the first partial match (utils/search_match enterMatch).
+      { filter_name: item[:label], filter_blank: item[:value].nil? || nil }.compact
     end
 
     private

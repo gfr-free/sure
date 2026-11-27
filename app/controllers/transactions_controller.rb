@@ -284,11 +284,13 @@ class TransactionsController < ApplicationController
         end
         if @toggled_tag
           # autofocus hands keyboard focus back to the re-rendered option,
-          # which Turbo focuses after the stream renders.
+          # which Turbo focuses after the stream renders. A pick made by Enter
+          # in the search box (list-filter sends from_search) keeps focus
+          # there, so the next tag can be typed right away.
           streams << turbo_stream.replace(
             "#{dom_id(@entry, :tag_option)}_#{@toggled_tag.id}",
             partial: "tag/dropdowns/row",
-            locals: { tag: @toggled_tag, entry: @entry, selected: transaction.tag_ids.include?(@toggled_tag.id), autofocus: true }
+            locals: { tag: @toggled_tag, entry: @entry, selected: transaction.tag_ids.include?(@toggled_tag.id), autofocus: params[:from_search].blank? }
           )
         end
         render turbo_stream: streams

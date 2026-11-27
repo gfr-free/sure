@@ -30,9 +30,10 @@ export default class extends Controller {
     clearTimeout(this._previewTimer);
   }
 
-  // The shared Enter rule (utils/search_match): the typed name, else the
-  // first visible category. With nothing typed, only a single category is
-  // picked, so a family with one category can confirm it with Enter.
+  // The shared Enter rule (utils/search_match), but a partial name picks a
+  // category only when it is the single one left: Enter here assigns the
+  // whole group and may create a rule. With nothing typed, likewise only a
+  // single visible category is picked.
   selectFirst(event) {
     if (!isConfirmingEnter(event)) return;
 
@@ -48,9 +49,13 @@ export default class extends Controller {
       this.listTarget.querySelectorAll(".filterable-item")
     ).filter((el) => el.style.display !== "none");
 
-    const query = this.hasFilterTarget ? this.filterTarget.value : "";
+    // A typed search picks its match only from the search box itself.
+    const query =
+      this.hasFilterTarget && event.target === this.filterTarget
+        ? this.filterTarget.value
+        : "";
     const match = hasSearchQuery(query)
-      ? enterMatch(visible, query)
+      ? enterMatch(visible, query, { firstVisible: visible.length === 1 })
       : visible.length === 1
         ? visible[0]
         : null;

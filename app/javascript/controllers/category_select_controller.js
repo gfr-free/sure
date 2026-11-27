@@ -1,14 +1,12 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
 import {
+  displaySortKey,
   enterMatch,
-  exactName,
   hasSearchQuery,
   isConfirmingEnter,
   matchesSearch,
   namesExactly,
-  normalizeSearchText,
-  primarySearchName,
 } from "utils/search_match";
 
 export default class extends Controller {
@@ -142,17 +140,12 @@ export default class extends Controller {
     const visible = this.optionTargets.filter(
       (option) => !option.classList.contains("hidden"),
     );
-    // Two categories can show the same name (a default one translated, a
-    // custom one stored under that label), so the stored name wins.
-    const query = exactName(rawQuery);
-    const match =
-      visible.find(
-        (option) => exactName(primarySearchName(option)) === query,
-      ) ?? enterMatch(visible, rawQuery);
+    const match = enterMatch(visible, rawQuery);
     if (!match) return;
 
     this.selectOption(match);
     this.close();
+    this.buttonTarget.focus({ preventScroll: true });
     this.submitForm();
   }
 
@@ -349,10 +342,10 @@ export default class extends Controller {
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    // Same order as the server's display_sort_key: accents folded.
-    const name = normalizeSearchText(row.dataset.parentName);
+    // Same order as the server's Category#display_sort_key.
+    const name = displaySortKey(row.dataset.parentName);
     const before = this.parentOptionTargets.find(
-      (existing) => normalizeSearchText(existing.dataset.parentName) > name,
+      (existing) => displaySortKey(existing.dataset.parentName) > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

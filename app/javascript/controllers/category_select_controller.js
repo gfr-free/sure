@@ -7,6 +7,7 @@ import {
   isSearchHit,
   matchesSearch,
   namesExactly,
+  normalizeSearchText,
   treeRow,
 } from "utils/search_match";
 
@@ -349,16 +350,16 @@ export default class extends Controller {
     const row =
       this.parentOptionTemplateTarget.content.firstElementChild.cloneNode(true);
     row.dataset.parentId = String(category.id);
-    row.dataset.parentName = category.name;
+    row.dataset.parentName = category.display_name || category.name;
 
     const badge = option?.querySelector("[data-category-select-badge]");
     const slot = row.querySelector("[data-category-select-parent-badge]");
     if (badge && slot) slot.replaceWith(badge.cloneNode(true));
 
-    const name = category.name.toLowerCase();
+    // Same order as the server's display_sort_key: accents folded.
+    const name = normalizeSearchText(row.dataset.parentName);
     const before = this.parentOptionTargets.find(
-      (existing) =>
-        (existing.dataset.parentName || "").toLowerCase() > name,
+      (existing) => normalizeSearchText(existing.dataset.parentName) > name,
     );
     this.parentRowsTarget.insertBefore(
       row,

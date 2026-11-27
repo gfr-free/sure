@@ -7,6 +7,19 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     sign_in users(:family_admin)
   end
 
+  test "the transfer category picker tells apart categories that read the same" do
+    custom = users(:family_admin).family.categories.create!(name: "Einkommen", color: "#407706")
+    outflow = create_transaction(account: accounts(:depository), amount: 50)
+    inflow = create_transaction(account: accounts(:loan), amount: -50)
+    transfer = Transfer.create!(outflow_transaction: outflow.entryable, inflow_transaction: inflow.entryable)
+
+    get transfer_url(transfer, locale: "de")
+
+    assert_response :success
+    assert_select "[role=option][data-value=?][data-filter-name=?]", categories(:income).id, "Einkommen (Income)"
+    assert_select "[role=option][data-value=?][data-filter-name=?]", custom.id, "Einkommen"
+  end
+
   test "should get new" do
     get new_transfer_url
     assert_response :success

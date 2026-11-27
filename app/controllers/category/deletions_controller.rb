@@ -4,6 +4,10 @@ class Category::DeletionsController < ApplicationController
   before_action :set_replacement_category, only: :create
 
   def new
+    @replacement_categories = Category::Group.ordered(Current.family.categories).without(@category)
+    # Labeled among the offered categories only, so the one being deleted
+    # cannot make another look like a duplicate.
+    @replacement_labels = Category.option_labels(@replacement_categories, with_parent: true)
   end
 
   def create

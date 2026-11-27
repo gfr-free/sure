@@ -17,7 +17,9 @@ class TransfersController < ApplicationController
   end
 
   def show
-    @categories = Current.family.categories.alphabetically_by_hierarchy
+    # In the order the translated labels read, like every other picker.
+    @categories = Category::Group.ordered(Current.family.categories)
+    @category_labels = Category.option_labels(@categories)
     @tags = Current.family.tags.alphabetically
 
     # Whether the current user can hit `mark_as_recurring` (feature flag on)

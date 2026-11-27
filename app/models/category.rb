@@ -153,27 +153,41 @@ class Category < ApplicationRecord
     def self.for(categories)
       categories_by_parent_id = categories.to_a.group_by(&:parent_id)
 
-      roots = categories_by_parent_id[nil].to_a.sort_by { |category| category.name.downcase }
+      roots = categories_by_parent_id[nil].to_a.sort_by(&:display_sort_key)
 
       roots.map do |category|
-        subcategories = categories_by_parent_id[category.id].to_a.sort_by { |sub| sub.name.downcase }
+        subcategories = categories_by_parent_id[category.id].to_a.sort_by(&:display_sort_key)
         new(category, subcategories)
       end
     end
 
+    # The categories parent-then-children, in the order the pickers show.
+    def self.ordered(categories)
+      self.for(categories).flat_map { |group| [ group.category, *group.subcategories ] }
+    end
+
+    # Top-level categories (the only ones that can be parents), in that order.
+    def self.parent_options(categories)
+      categories.select { |category| category.parent_id.nil? }.sort_by(&:display_sort_key)
+    end
+
     # Builds [label, id] pairs for plain HTML <select> elements, ordered
-    # parent-then-children with children visually indented. Native <select>
-    # options can't render icons, so we use a unicode arrow prefix (regular
-    # leading spaces collapse in <option> text).
+    # parent-then-children with children visually indented. Labels are the
+    # display names (Category.option_labels), so a default category reads as
+    # it does everywhere else. Native <select> options can't render icons, so
+    # we use a unicode arrow prefix (regular leading spaces collapse in
+    # <option> text).
     #
     # Pass indent: false when the result is used as a display-label lookup
     # rather than rendered as actual <select> options (e.g. Rule::Action and
     # Rule::Condition#value_display), so the cosmetic arrow doesn't leak into
     # plain-text summaries.
     def self.select_options(categories, indent: true)
+      categories = categories.to_a
+      labels = Category.option_labels(categories)
       self.for(categories).flat_map do |group|
-        [ [ group.category.name, group.category.id ] ] +
-          group.subcategories.map { |sub| [ indent ? "↳ #{sub.name}" : sub.name, sub.id ] }
+        [ [ labels[group.category.id], group.category.id ] ] +
+          group.subcategories.map { |sub| [ indent ? "↳ #{labels[sub.id]}" : labels[sub.id], sub.id ] }
       end
     end
 
@@ -413,6 +427,48 @@ class Category < ApplicationRecord
   # name comes first because it is the one that is unique in the family.
   def search_names
     [ name, display_name ].uniq
+  end
+
+  # Sort key for lists ordered by what people read: the display name with
+  # accents on Latin letters folded (Épargne files under E, not after Z),
+  # then the id, so equal labels keep one order across renders. Marks in
+  # other scripts make a letter of its own (Й after И) and stay.
+  def display_sort_key
+    [ display_name.unicode_normalize(:nfd).gsub(/(\p{Latin})\p{M}+/, '\1').unicode_normalize(:nfc).downcase, id.to_s ]
+  end
+
+  # Option labels by id. A default category's translation can equal a
+  # custom category's name (default "Income" and a custom "Einkommen" both
+  # read "Einkommen" in German); such a label gets the stored name added so
+  # the two options stay apart.
+  # With with_parent: a subcategory reads "Parent > Child".
+  def self.option_labels(categories, with_parent: false)
+    categories = categories.to_a
+    counts = categories.group_by { |category| category.display_name.downcase }.transform_values(&:size)
+
+    labels = categories.to_h do |category|
+      label = category.display_name
+      label = "#{label} (#{category.name})" if counts[label.downcase] > 1 && category.name != label
+      [ category.id, label ]
+    end
+    # The stored name can collide too (a custom "Einkommen (Income)" beside
+    # the two above); then later ones, by id, get a running number.
+    labels.group_by { |_id, label| label.downcase }.each_value do |same|
+      same.sort_by { |id, _label| id.to_s }.drop(1).each.with_index(2) do |(id, label), number|
+        labels[id] = "#{label} (#{number})"
+      end
+    end
+    return labels unless with_parent
+
+    categories.to_h do |category|
+      parent_label = labels[category.parent_id] || category.parent&.display_name if category.parent_id
+      [ category.id, [ parent_label, labels[category.id] ].compact.join(" > ") ]
+    end
+  end
+
+  # [label, id] pairs for a native <select>, in the order given.
+  def self.label_options(categories, with_parent: false)
+    option_labels(categories, with_parent:).map { |id, label| [ label, id ] }
   end
 
   def display_name_with_parent

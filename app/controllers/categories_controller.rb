@@ -25,7 +25,8 @@ class CategoriesController < ApplicationController
   end
 
   def merge
-    @categories = Current.family.categories.alphabetically_by_hierarchy
+    @categories = Category::Group.ordered(Current.family.categories)
+    @category_labels = Category.option_labels(@categories, with_parent: true)
 
     render layout: turbo_frame_request? ? false : "settings"
   end
@@ -170,7 +171,7 @@ class CategoriesController < ApplicationController
 
     def set_categories
       @categories = unless @category.parent?
-        Current.family.categories.alphabetically.roots.where.not(id: @category.id)
+        Current.family.categories.roots.where.not(id: @category.id).sort_by(&:display_sort_key)
       else
         []
       end
@@ -197,6 +198,7 @@ class CategoriesController < ApplicationController
 
     def category_json(category)
       category.as_json(only: %i[id name color]).merge(
+        display_name: category.display_name,
         html: render_to_string(
           partial: "DS/category_select/option",
           formats: [ :html ],

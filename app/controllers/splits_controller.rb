@@ -14,7 +14,7 @@ class SplitsController < ApplicationController
 
     # A rule run, an API request or a double submit can split it between the check above and
     # here; split_once! re-checks under a lock.
-    unless @entry.split_once!(build_splits)
+    unless @entry.split_once!(build_splits, inherit_merchant: false)
       redirect_back_or_to transactions_path, alert: t("splits.create.not_splittable")
       return
     end
@@ -48,7 +48,7 @@ class SplitsController < ApplicationController
     splits = build_splits
 
     # A concurrent unsplit or edit can land between the check above and here.
-    unless @entry.resplit!(splits)
+    unless @entry.resplit!(splits, inherit_merchant: false)
       redirect_to transactions_path, alert: t("splits.edit.not_split")
       return
     end
@@ -114,7 +114,7 @@ class SplitsController < ApplicationController
       raw_splits = split_params[:splits] || []
       raw_splits = raw_splits.values if raw_splits.respond_to?(:values)
 
-      raw_splits.map do |s|
+      splits = raw_splits.map do |s|
         {
           name: s[:name],
           amount: s[:amount].to_d * -1,
@@ -122,6 +122,8 @@ class SplitsController < ApplicationController
           **references.scope(category_id: s[:category_id], merchant_id: s[:merchant_id], tag_ids: s[:tag_ids])
         }
       end
+
+      @entry.name_blank_splits(splits, user: Current.user)
     end
 
     def grouped_categories

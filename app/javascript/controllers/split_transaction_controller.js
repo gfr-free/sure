@@ -8,10 +8,11 @@ import { Controller } from "@hotwired/stimulus"
 // without this controller needing to know about them.
 export default class extends Controller {
   static targets = ["rowsContainer", "row", "rowTemplate", "amountInput", "remaining", "remainingContainer", "error", "submitButton", "nameInput"]
-  static values = { total: Number, currency: String }
+  static values = { total: Number, currency: String, generateNames: Boolean, defaultName: String }
 
   connect() {
     this.updateRemaining()
+    this.updateNamePlaceholders()
   }
 
   get rowCount() {
@@ -27,6 +28,7 @@ export default class extends Controller {
     const html = this.rowTemplateTarget.innerHTML.replaceAll("ROW_IDX_PLACEHOLDER", this.nextRowIndex++)
     this.rowsContainerTarget.insertAdjacentHTML("beforeend", html)
     this.updateRemaining()
+    this.updateNamePlaceholders()
   }
 
   removeRow(event) {
@@ -67,5 +69,35 @@ export default class extends Controller {
 
     this.errorTarget.classList.toggle("hidden", balanced)
     this.submitButtonTarget.disabled = !balanced
+  }
+
+  // With generated names on, a row submitted without a name is saved as "Category - Merchant"
+  // (SplitsController), so each name field shows that name as its placeholder.
+  updateNamePlaceholders() {
+    if (!this.generateNamesValue) return
+
+    this.rowTargets.forEach((row) => {
+      const input = row.querySelector("[data-split-transaction-target='nameInput']")
+      if (input) input.placeholder = this.#defaultRowName(row)
+    })
+  }
+
+  #defaultRowName(row) {
+    const parts = [this.#categoryName(row), this.#merchantName(row)].filter(Boolean)
+    return parts.length > 0 ? parts.join(" - ") : this.defaultNameValue
+  }
+
+  #categoryName(row) {
+    const id = row.querySelector("input[type='hidden'][name$='[category_id]']")?.value
+    if (!id) return null
+
+    return row.querySelector(`.category-select-container [role='option'][data-value='${CSS.escape(id)}']`)?.dataset.filterName?.trim() || null
+  }
+
+  #merchantName(row) {
+    const id = row.querySelector("[data-merchant-select-target='hiddenInput']")?.value
+    if (!id) return null
+
+    return row.querySelector(`[data-merchant-select-target='option'][data-merchant-id='${CSS.escape(id)}']`)?.dataset.merchantName || null
   }
 }

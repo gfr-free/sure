@@ -143,8 +143,8 @@ RSpec.describe 'API V1 Transaction Split', type: :request do
       security [ { apiKeyAuth: [] } ]
       description 'Replaces the children of an existing split. The previous children are ' \
                   'destroyed, so anything set on them afterwards is not carried over. Send ' \
-                  'each child in full, including its merchant_id and tag_ids. A child without a ' \
-                  'merchant_id takes the parent\'s merchant.'
+                  'each child in full, including its merchant_id and tag_ids. A child that omits ' \
+                  'merchant_id takes the parent\'s merchant; a null merchant_id leaves it without one.'
       consumes 'application/json'
       produces 'application/json'
       parameter name: :split, in: :body, schema: { '$ref' => '#/components/schemas/SplitRequest' }

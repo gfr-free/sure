@@ -43,6 +43,16 @@
       </div>
     <% end %>
 
+    <% if account.persisted? && account.supports_balance_from_transactions? %>
+      <div class="flex items-center justify-between gap-3 py-2">
+        <div class="space-y-1">
+          <p class="text-sm text-primary"><%= t(".balance_from_transactions_label") %></p>
+          <p class="text-secondary text-sm"><%= t(".balance_from_transactions_hint") %></p>
+        </div>
+        <%= form.toggle :balance_from_transactions %>
+      </div>
+    <% end %>
+
     <% if account.persisted? && account.supports_trades? %>
       <div class="space-y-1">
         <%= form.select :cost_basis_method,

@@ -52,6 +52,8 @@ de:
       notes_placeholder: Zusätzliche Informationen wie Kontonummern, Sort codes, IBAN, Routing-Nummern usw.
       enable_category_matcher_hint: Ist die Option an, wird die vom Anbieter vorgeschlagene Kategorie auf importierte Transaktionen angewendet. Schalte sie aus, damit neue Transaktionen ohne Kategorie bleiben.
       enable_category_matcher_label: Kategoriezuordnung aktivieren
+      balance_from_transactions_label: Kontostand aus Umsätzen berechnen
+      balance_from_transactions_hint: Ist die Option an, wird der Kontostand des Anbieters nicht mehr verwendet. Ab dem Einschalten ergibt sich der Kontostand aus dem bisherigen Stand plus den importierten Umsätzen. Frühere Kontostände bleiben unverändert.
       exclude_from_reports: Aus allen Berichten ausschließen
       institution_domain_hint: "Wird verwendet, um das Symbol der Institution zu finden."
       institution_domain_missing_logo_key_hint: "Wird verwendet, um das Symbol der Institution zu finden. Brandfetch-Logos sind nicht verfügbar, weil keine Brandfetch-Client-ID eingerichtet ist."

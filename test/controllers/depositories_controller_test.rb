@@ -587,6 +587,44 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "button[form=?]", dom_id(@account, :logo_options)
   end
+  test "switching a linked account to its own balance records the day and syncs it" do
+    linked_account = accounts(:connected)
+
+    Account.any_instance.expects(:sync_later).once
+    PlaidItem.any_instance.expects(:sync_later_with_provider_refresh).never
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "1" } }
+
+    assert_equal Date.current, linked_account.reload.balance_from_transactions_since
+  end
+
+  test "switching back to the provider balance syncs the provider items" do
+    linked_account = accounts(:connected)
+    linked_account.update!(balance_from_transactions: true)
+
+    PlaidItem.any_instance.expects(:sync_later_with_provider_refresh).once
+    Account.any_instance.expects(:sync_later).never
+
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "0" } }
+
+    assert_nil linked_account.reload.balance_from_transactions_since
+  end
+
+  test "saving the form without changing the balance switch does not sync" do
+    linked_account = accounts(:connected)
+
+    Account.any_instance.expects(:sync_later).never
+    patch depository_path(linked_account), params: { account: { balance_from_transactions: "0", name: "Renamed" } }
+    assert_equal "Renamed", linked_account.reload.name
+  end
+
+  test "edit form renders the balance switch only for linked accounts" do
+    get edit_account_url(accounts(:connected))
+    assert_select "input[type=checkbox][name='account[balance_from_transactions]']", 1
+
+    get edit_account_url(accounts(:depository))
+    assert_select "input[type=checkbox][name='account[balance_from_transactions]']", 0
+  end
+
   private
     def set_preview(enabled)
       @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => enabled))

@@ -29,8 +29,10 @@ class Balance::SyncCache
     converted_entries
   end
 
-  def get_valuation(date)
-    entries_by_date[date]&.find { |e| e.valuation? }
+  # include_current_anchor: false skips a provider's current balance, for an
+  # account that keeps its own (Account::BalanceFromTransactions).
+  def get_valuation(date, include_current_anchor: true)
+    entries_by_date[date]&.find { |e| e.valuation? && (include_current_anchor || !e.entryable.current_anchor?) }
   end
 
   def get_holdings_value(date)

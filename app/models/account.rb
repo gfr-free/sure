@@ -1,5 +1,5 @@
 class Account < ApplicationRecord
-  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, Reconcileable, TaxTreatable, Encryptable, IbanNormalizable, Liquidity, Logoable
+  include AASM, Syncable, Monetizable, Chartable, Linkable, Enrichable, Anchorable, BalanceFromTransactions, Reconcileable, TaxTreatable, Encryptable, IbanNormalizable, Liquidity, Logoable
 
   # Not deterministic: an IBAN is never looked up by value in SQL. Code that
   # matches IBANs loads the family's few accounts and compares in Ruby, so

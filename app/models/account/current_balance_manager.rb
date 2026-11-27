@@ -38,6 +38,12 @@ class Account::CurrentBalanceManager
   # account: a manual one has no statement, and its strategies reconcile against
   # today by design.
   def set_current_balance(balance, date: nil, reuse_explained_anchor: true)
+    # The account keeps its own balance (Account::BalanceFromTransactions), so
+    # a provider's reading is left out rather than anchored.
+    if account.calculates_balance_from_transactions?
+      return Result.new(success?: true, changes_made?: false)
+    end
+
     if account.linked?
       set_current_balance_for_linked_account(
         balance,

@@ -6,12 +6,28 @@ class Balance::ForwardCalculator < Balance::BaseCalculator
   end
 
   # True only when we are actually running in incremental mode (i.e. window_start_date
-  # was provided and we successfully found a valid prior balance to seed from).
+  # was provided and we successfully found a valid prior balance to seed from), or
+  # for a linked account that keeps its own balance (Account::BalanceFromTransactions):
+  # that one is calculated from the day it was switched on, and the materializer
+  # keeps every balance before that day.
   #
   # Must not be called before calculate — @fell_back is nil until resolve_starting_balances runs.
   def incremental?
+    return true if from_transactions_start?
+
     raise "incremental? must not be called before calculate" if @window_start_date.present? && @fell_back.nil?
     @window_start_date.present? && @fell_back == false
+  end
+
+  # Balances dated before this are left as they are by an incremental run. An
+  # account that keeps its own balance never has the days before its switch
+  # rebuilt, so all of them are kept.
+  def oldest_kept_balance_date
+    if from_transactions_start?
+      [ account.balances.minimum(:date), calculation_start_date ].compact.min
+    else
+      calculation_start_date
+    end
   end
 
   def calculate
@@ -19,7 +35,7 @@ class Balance::ForwardCalculator < Balance::BaseCalculator
       start_cash_balance, start_non_cash_balance = resolve_starting_balances
 
       calc_start_date.upto(calc_end_date).map do |date|
-        valuation = sync_cache.get_valuation(date)
+        valuation = sync_cache.get_valuation(date, include_current_anchor: !from_transactions_start?)
 
         if valuation
           end_cash_balance = derive_cash_balance_on_date_from_total(
@@ -72,6 +88,8 @@ class Balance::ForwardCalculator < Balance::BaseCalculator
     #     because Holding::Materializer always does a full recalc, which could make the
     #     persisted non-cash seed stale relative to freshly-computed holding prices.
     def resolve_starting_balances
+      return from_transactions_starting_balances if from_transactions_start?
+
       if @window_start_date.present?
         if multi_currency_account?
           Rails.logger.info("Account has multi-currency entries or is foreign, falling back to full recalculation")
@@ -131,11 +149,51 @@ class Balance::ForwardCalculator < Balance::BaseCalculator
     end
 
     def sync_cache
-      @sync_cache ||= Balance::SyncCache.new(account, start_date: (@window_start_date if incremental?))
+      @sync_cache ||= Balance::SyncCache.new(account, start_date: sync_cache_start_date)
+    end
+
+    def sync_cache_start_date
+      if from_transactions_start?
+        account.balance_from_transactions_since
+      elsif incremental?
+        @window_start_date
+      end
     end
 
     def calc_start_date
-      incremental? ? @window_start_date : calculation_start_date
+      if from_transactions_start?
+        account.balance_from_transactions_since
+      else
+        incremental? ? @window_start_date : calculation_start_date
+      end
+    end
+
+    # The start recorded on switching on, moved by any change since then to the
+    # transactions dated before the switch (Account::BalanceFromTransactions).
+    def from_transactions_starting_balances
+      cash = account.balance_from_transactions_start_cash || 0
+      non_cash = account.balance_from_transactions_start_non_cash || 0
+      recorded_total = account.balance_from_transactions_ledger_total
+      return [ cash, non_cash ] if recorded_total.nil?
+
+      change = account.ledger_total_before(account.balance_from_transactions_since) - recorded_total
+      change = account.asset? ? -change : change
+
+      if account.balance_type == :cash
+        cash += change
+      elsif account.accountable_type == "Loan"
+        non_cash += change
+      end
+
+      [ cash, non_cash ]
+    end
+
+    # Read once per calculation: linked? asks the database, and the day loop
+    # checks this for every date.
+    def from_transactions_start?
+      return @from_transactions_start if defined?(@from_transactions_start)
+
+      @from_transactions_start = account.calculates_balance_from_transactions?
     end
 
     def calc_end_date
@@ -143,7 +201,13 @@ class Balance::ForwardCalculator < Balance::BaseCalculator
       # otherwise their flows would materialize a balance dated in the future,
       # and Balance::Materializer#update_account_info would surface that as the
       # account's *current* balance. See Entry#scheduled? and Balance::SyncCache.
-      [ account.entries.excluding_pending.where(date: ..Date.current).maximum(:date), account.holdings.maximum(:date) ].compact.max || Date.current
+      # From the day it was switched on, an account that keeps its own balance
+      # has a row for every day, even before its first new transaction.
+      [
+        account.entries.excluding_pending.where(date: ..Date.current).maximum(:date),
+        account.holdings.maximum(:date),
+        (account.balance_from_transactions_since if from_transactions_start?)
+      ].compact.max || Date.current
     end
 
     # Negative entries amount on an "asset" account means, "account value has increased"

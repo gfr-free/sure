@@ -336,6 +336,14 @@ class CategoryTest < ActiveSupport::TestCase
     alpha = @family.categories.create!(name: "Банк", color: "#407706")
     beta = @family.categories.create!(name: "Аренда", color: "#407706")
     assert_equal [ beta, alpha ], [ alpha, beta ].sort_by(&:display_sort_key)
+
+    # Й is a letter of its own after И; only Latin accents fold (É as E).
+    yogurt = @family.categories.create!(name: "Йогурт", color: "#407706")
+    raisins = @family.categories.create!(name: "Изюм", color: "#407706")
+    savings = @family.categories.create!(name: "Épargne", color: "#407706")
+    fuel = @family.categories.create!(name: "Fuel", color: "#407706")
+    assert_equal [ raisins, yogurt ], [ yogurt, raisins ].sort_by(&:display_sort_key)
+    assert_equal [ savings, fuel ], [ fuel, savings ].sort_by(&:display_sort_key)
   end
 
   test "ordered keeps the children of a category left out of the list" do

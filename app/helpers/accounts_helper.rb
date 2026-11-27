@@ -67,6 +67,15 @@ module AccountsHelper
     }
   end
 
+  # The activity Filter menu leaves out the account itself, AI status and
+  # attachments (the account search applies neither), and manual
+  # reconciliation on an account with a live sync.
+  def account_activity_excluded_filters(account)
+    excluded = %w[account_filter ai_filter attachment_filter]
+    excluded << "reconcile_status_filter" unless account.manual?
+    excluded
+  end
+
   # Returns the account id segment from `/accounts/<id>(/...)?`, or nil.
   # The layout hands it to the browser, which highlights that account in the
   # sidebar; the sidebar itself is cached once for every page.

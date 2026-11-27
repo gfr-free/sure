@@ -29,10 +29,17 @@ class UI::Account::ActivityFeed < ApplicationComponent
     feed_data.entries_by_date
   end
 
-  # The Filter menu offers to show synced balance updates on accounts that
-  # hide them by default, once they have any.
-  def balance_updates_filter?
-    account.hides_balance_updates_by_default? && account.entries.balance_updates.exists?
+  # Hidden copies of the active filters while the Filter menu is not loaded,
+  # so a search typed before opening it keeps them. The loaded menu replaces
+  # them with its own inputs.
+  def active_filter_fields
+    q.to_h.except("search").flat_map do |key, value|
+      if value.is_a?(Array)
+        value.map { |item| [ "q[#{key}][]", item ] }
+      else
+        [ [ "q[#{key}]", value ] ]
+      end
+    end
   end
 
   private

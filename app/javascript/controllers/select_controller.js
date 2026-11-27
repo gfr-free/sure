@@ -327,8 +327,9 @@ export default class extends Controller {
   // Enter picks, in order: the exact label (case and Unicode form only), else
   // the one label that is equal once accents on Latin letters are ignored
   // ("epicerie fine" picks "Épicerie fine"), else the first row the search
-  // found. Several accent-equal labels count as no match, so Enter does not
-  // guess. Same rule as DS::CategorySelect. A row marked data-filter-context
+  // found that is not the blank row ("Uncategorized" would clear the field,
+  // and auto-submit forms save that at once). Several accent-equal labels
+  // count as no match, so Enter does not guess. Same rule as DS::CategorySelect. A row marked data-filter-context
   // is only shown around a hit (e.g. a parent category) and is never the
   // target. An empty query picks nothing.
   selectSearchMatch(rawQuery, visibleOptions) {
@@ -343,7 +344,7 @@ export default class extends Controller {
 
     const match = hits.find(opt => this.#exactName(label(opt)) === exact) ??
       (accentEqual.length === 1 ? accentEqual[0] : null) ??
-      hits[0]
+      hits.find(opt => opt.dataset.value !== "")
     match?.click()
   }
 

@@ -434,7 +434,7 @@ class Category < ApplicationRecord
   # then the id, so equal labels keep one order across renders. Marks in
   # other scripts make a letter of its own (Й after И) and stay.
   def display_sort_key
-    [ display_name.unicode_normalize(:nfd).gsub(/([A-Za-z])\p{Mn}+/, '\1').unicode_normalize(:nfc).downcase, id.to_s ]
+    [ display_name.unicode_normalize(:nfd).gsub(/(\p{Latin})\p{M}+/, '\1').unicode_normalize(:nfc).downcase, id.to_s ]
   end
 
   # Option labels by id. A default category's translation can equal a

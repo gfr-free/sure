@@ -497,10 +497,18 @@ class User < ApplicationRecord
   # this check, however "obviously" already-checked the user seems.
   # Pass the #password_fingerprint taken when the password was checked to
   # also reject issuance after a concurrent password change.
+  #
+  # FOR NO KEY UPDATE still conflicts with every update and delete of this
+  # row, but not with the FOR KEY SHARE lock Postgres takes on it whenever
+  # another transaction inserts a row pointing at this user (an import
+  # creating owned accounts, a chat). FOR UPDATE would wait for each of those
+  # transactions to commit, holding the sign-in request and its Puma thread
+  # for as long as they run. Two sign-ins of the same user still serialize,
+  # both here and on the sessions_count / last_login_at update.
   def with_active_lock!(password_fingerprint: nil)
     lock_acquired = false
 
-    with_lock do
+    with_lock("FOR NO KEY UPDATE") do
       lock_acquired = true
       raise InactiveError unless active?
       raise StaleCredentialsError if password_fingerprint && password_fingerprint != self.password_fingerprint

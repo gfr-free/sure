@@ -72,6 +72,39 @@ class TransfersTest < ApplicationSystemTestCase
     assert_to_account exact.id
   end
 
+  test "enter in an account search does not guess between several accent-equal names" do
+    @user.family.accounts.create!(name: "Résumé", balance: 0, currency: "USD", accountable: Depository.new)
+    @user.family.accounts.create!(name: "Resumé", balance: 0, currency: "USD", accountable: Depository.new)
+    first = @user.family.accounts.create!(name: "Resume Fund", balance: 0, currency: "USD", accountable: Depository.new)
+
+    open_transfer_form
+    search = open_to_search
+    # Put the non-equal hit first: with two accent-equal names Enter falls
+    # back to the first row instead of picking one of them.
+    option = to_select.find("[role='option'][data-value='#{first.id}']", visible: :all)
+    page.execute_script("arguments[0].parentElement.prepend(arguments[0])", option)
+
+    search.set("resume")
+    search.send_keys(:enter)
+
+    assert_to_account first.id
+  end
+
+  test "enter in an account search keeps accents on non-Latin letters" do
+    @user.family.accounts.create!(name: "Счёт", balance: 0, currency: "USD", accountable: Depository.new)
+    first = @user.family.accounts.create!(name: "Счет Плюс", balance: 0, currency: "USD", accountable: Depository.new)
+
+    open_transfer_form
+    search = open_to_search
+    option = to_select.find("[role='option'][data-value='#{first.id}']", visible: :all)
+    page.execute_script("arguments[0].parentElement.prepend(arguments[0])", option)
+
+    search.set("счет")
+    search.send_keys(:enter)
+
+    assert_to_account first.id
+  end
+
   test "enter in an account search skips rows shown only for context" do
     open_transfer_form
     search = open_to_search

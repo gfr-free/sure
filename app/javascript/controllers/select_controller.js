@@ -324,12 +324,13 @@ export default class extends Controller {
     }
   }
 
-  // Enter picks, in order: the exact label (case and Unicode form only), the
-  // label that is equal once accents are folded, else the first row the
-  // search found. Folding only breaks ties after the exact check, so "cafe"
-  // picks "Cafe" even when "Café" is listed first. A row marked
-  // data-filter-context is only shown around a hit (e.g. a parent category)
-  // and is never the target. An empty query picks nothing.
+  // Enter picks, in order: the exact label (case and Unicode form only), else
+  // the one label that is equal once accents on Latin letters are ignored
+  // ("epicerie fine" picks "Épicerie fine"), else the first row the search
+  // found. Several accent-equal labels count as no match, so Enter does not
+  // guess. Same rule as DS::CategorySelect. A row marked data-filter-context
+  // is only shown around a hit (e.g. a parent category) and is never the
+  // target. An empty query picks nothing.
   selectSearchMatch(rawQuery, visibleOptions) {
     const query = rawQuery.trim()
     if (!this.#normalizeForSearch(query)) return
@@ -337,20 +338,27 @@ export default class extends Controller {
     const hits = visibleOptions.filter(opt => !opt.hasAttribute("data-filter-context"))
     const label = opt => (opt.dataset.filterName || "").trim()
     const exact = this.#exactName(query)
-    const folded = this.#normalizeForSearch(query)
+    const folded = this.#foldLatinAccents(query)
+    const accentEqual = hits.filter(opt => this.#foldLatinAccents(label(opt)) === folded)
 
     const match = hits.find(opt => this.#exactName(label(opt)) === exact) ??
-      hits.find(opt => this.#normalizeForSearch(label(opt)) === folded) ??
+      (accentEqual.length === 1 ? accentEqual[0] : null) ??
       hits[0]
     match?.click()
   }
 
   #exactName(value) {
-    return value.normalize("NFC").toLocaleLowerCase()
+    return value.normalize("NFC").toLowerCase()
   }
 
-  // Same folding as list-filter#normalize, so an option the search shows
-  // can count as its folded match (accents, "_" as space, case).
+  // Marks on other scripts stay: without them Japanese dakuten, Indic vowel
+  // signs or the Cyrillic "й" spell a different word.
+  #foldLatinAccents(value) {
+    return value.normalize("NFD").replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1").normalize("NFC").toLowerCase()
+  }
+
+  // Same folding as list-filter#normalize: only used to tell whether the
+  // query still has something to search for.
   #normalizeForSearch(value) {
     return value.normalize("NFD").replace(/\p{Mark}/gu, "").replaceAll("_", " ").toLowerCase()
   }

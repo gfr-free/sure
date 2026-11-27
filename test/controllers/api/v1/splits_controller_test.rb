@@ -71,6 +71,60 @@ class Api::V1::SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_includes categories, nil
   end
 
+  test "names a child sent without a name like the split editor when names are generated" do
+    @family.update!(auto_generate_transaction_names: true)
+    category = categories(:food_and_drink)
+    params = { split: { splits: [
+      { amount: "60", category_id: category.id, merchant_id: merchants(:amazon).id },
+      { name: "", amount: "40" }
+    ] } }
+
+    post api_v1_transaction_split_url(@transaction), params: params, headers: api_headers(@api_key), as: :json
+    assert_response :created
+
+    assert_equal [ "Food & Drink - Amazon", "Splittable" ], @entry.reload.child_entries.in_split_order.pluck(:name)
+  end
+
+  test "defaults a child's name to the parent's when names are not generated" do
+    params = { split: { splits: [ { amount: "60", category_id: categories(:food_and_drink).id }, { name: "B", amount: "40" } ] } }
+
+    post api_v1_transaction_split_url(@transaction), params: params, headers: api_headers(@api_key), as: :json
+    assert_response :created
+
+    assert_equal [ "Splittable", "B" ], @entry.reload.child_entries.in_split_order.pluck(:name)
+  end
+
+  test "keeps the parent's merchant for an omitted merchant_id and none for a null one" do
+    @family.update!(auto_generate_transaction_names: true)
+    @transaction.update!(merchant: merchants(:netflix))
+    params = { split: { splits: [
+      { amount: "60" },
+      { amount: "40", merchant_id: nil }
+    ] } }
+
+    post api_v1_transaction_split_url(@transaction), params: params, headers: api_headers(@api_key), as: :json
+    assert_response :created
+
+    children = @entry.reload.child_entries.in_split_order
+    assert_equal [ merchants(:netflix).id, nil ], children.map { |child| child.entryable.merchant_id }
+    assert_equal [ "Netflix", "Splittable" ], children.map(&:name)
+  end
+
+  test "update keeps the parent's merchant for an omitted merchant_id and none for a null one" do
+    @transaction.update!(merchant: merchants(:netflix))
+    @entry.split!([ { name: "A", amount: 50 }, { name: "B", amount: 50 } ])
+    params = { split: { splits: [
+      { name: "A", amount: "60" },
+      { name: "B", amount: "40", merchant_id: nil }
+    ] } }
+
+    patch api_v1_transaction_split_url(@transaction), params: params, headers: api_headers(@api_key), as: :json
+    assert_response :ok
+
+    children = @entry.reload.child_entries.in_split_order
+    assert_equal [ merchants(:netflix).id, nil ], children.map { |child| child.entryable.merchant_id }
+  end
+
   test "returns 422 when the children do not sum to the parent" do
     params = { split: { splits: [ { name: "Too small", amount: "1.00" } ] } }
 

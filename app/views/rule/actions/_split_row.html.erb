@@ -50,7 +50,7 @@
               merchants,
               :id, :name,
               { selected: Rule::ActionExecutor::SplitTransaction.known_merchant_id(split["merchant_id"], merchants),
-                include_blank: t("splits.new.no_merchant"), searchable: true, scoped_ids: true },
+                include_blank: t("splits.new.parent_merchant"), searchable: true, scoped_ids: true },
               aria: { label: t("rules.actions.split.merchant_label") } %>
       </div>
     </div>

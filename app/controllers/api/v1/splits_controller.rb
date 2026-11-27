@@ -44,7 +44,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
 
     # Two concurrent POSTs can both clear the check above; split_once! locks
     # the parent and re-checks, so only one set of children is inserted.
-    raise NotSplittable unless @entry.split_once!(splits)
+    raise NotSplittable unless @entry.split_once!(splits, inherit_merchant: false)
     @entry.sync_account_later
     @entry.reload
 
@@ -72,7 +72,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
 
     # The split_parent? test above runs before the lock, so a concurrent DELETE can unsplit in
     # between; resplit! re-checks under the lock instead of resurrecting the split.
-    raise NotSplit unless @entry.resplit!(splits)
+    raise NotSplit unless @entry.resplit!(splits, inherit_merchant: false)
     @entry.sync_account_later
     @entry.reload
 
@@ -166,7 +166,7 @@ class Api::V1::SplitsController < Api::V1::BaseController
         return nil
       end
 
-      raw.map do |s|
+      splits = raw.map do |s|
         unless s.respond_to?(:permit)
           render_unprocessable("each split must be an object")
           return nil
@@ -208,16 +208,19 @@ class Api::V1::SplitsController < Api::V1::BaseController
           return nil
         end
 
-        {
-          # Documented as optional, defaulting to the parent's name; Entry
-          # validates presence, so apply the default rather than 422 on it.
-          name: s[:name].presence || @entry.name,
-          amount: amount,
-          excluded: s[:excluded],
-          # Nothing is dropped here (unknown ids were rejected above); scope only normalizes.
-          # Without a merchant_id the child keeps the parent's merchant (Entry#split!).
-          **split_references.scope(**references)
-        }
+        # Nothing is dropped here (unknown ids were rejected above); scope only normalizes.
+        scoped = split_references.scope(**references)
+        # An omitted merchant_id keeps the parent's merchant. A null or empty one leaves the
+        # child without a merchant, like an empty merchant field in the split editor.
+        scoped[:merchant_id] = @transaction.merchant_id unless s.key?(:merchant_id)
+
+        { name: s[:name], amount: amount, excluded: s[:excluded], **scoped }
+      end
+
+      # Blank names are filled like the split editor fills them. With generated names off they
+      # default to the parent's name, as documented, rather than failing presence validation.
+      @entry.name_blank_splits(splits, user: current_resource_owner).map do |split|
+        split[:name].present? ? split : split.merge(name: @entry.name)
       end
     end
 

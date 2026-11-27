@@ -69,7 +69,9 @@ components:
                   name:
                     type: string
                     nullable: true
-                    description: Defaults to the parent name when omitted
+                    description: Omitted or blank, the child is named "Category -
+                      Merchant" when the family generates transaction names, else
+                      the parent name
                   amount:
                     type: string
                     description: Same sign convention as the transaction amount
@@ -79,7 +81,8 @@ components:
                   merchant_id:
                     type: string
                     nullable: true
-                    description: Omitted or null, the child takes the parent's merchant
+                    description: Omitted, the child takes the parent's merchant; null
+                      or empty, the child has no merchant
                   tag_ids:
                     type: array
                     items:
@@ -10231,8 +10234,9 @@ paths:
       - apiKeyAuth: []
       description: Replaces the children of an existing split. The previous children
         are destroyed, so anything set on them afterwards is not carried over. Send
-        each child in full, including its merchant_id and tag_ids. A child without
-        a merchant_id takes the parent's merchant.
+        each child in full, including its merchant_id and tag_ids. A child that omits
+        merchant_id takes the parent's merchant; a null merchant_id leaves it without
+        one.
       parameters: []
       responses:
         '200':

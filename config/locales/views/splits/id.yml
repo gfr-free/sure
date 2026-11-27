@@ -16,7 +16,8 @@ id:
       category_label: Kategori
       uncategorized: "(tanpa kategori)"
       merchant_label: Merchant
-      no_merchant: "(merchant transaksi)"
+      no_merchant: "(tidak ada)"
+      parent_merchant: "(merchant transaksi)"
       tags_label: Tag
       original_name: "Nama:"
       original_date: "Tanggal:"

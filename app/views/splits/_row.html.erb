@@ -1,5 +1,7 @@
 <%# locals: (index:, categories:, merchants:, tags:, name: nil, amount: nil, category_id: nil, merchant_id: nil, tag_ids: [], removable: true) %>
 
+<% auto_generate_names = Current.family.auto_generate_transaction_names? %>
+
 <%# Styled builder fields and DS pickers, the same controls as the transaction form. %>
 <%# Like the transaction form, picking a past name suggests that name's usual category. %>
 <div class="p-3 rounded-lg border border-secondary bg-container space-y-2"
@@ -16,7 +18,7 @@
               autocomplete: :list,
               label: t("splits.new.name_label"),
               placeholder: t("splits.new.name_placeholder"),
-              required: true,
+              required: !auto_generate_names,
               input: { data: { split_transaction_target: "nameInput", category_suggestion_target: "name" } } %>
       </div>
 

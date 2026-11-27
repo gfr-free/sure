@@ -89,10 +89,10 @@ RSpec.configure do |config|
                       type: :object,
                       required: %w[amount],
                       properties: {
-                        name: { type: :string, nullable: true, description: 'Defaults to the parent name when omitted' },
+                        name: { type: :string, nullable: true, description: 'Omitted or blank, the child is named "Category - Merchant" when the family generates transaction names, else the parent name' },
                         amount: { type: :string, description: 'Same sign convention as the transaction amount' },
                         category_id: { type: :string, nullable: true },
-                        merchant_id: { type: :string, nullable: true, description: "Omitted or null, the child takes the parent's merchant" },
+                        merchant_id: { type: :string, nullable: true, description: "Omitted, the child takes the parent's merchant; null or empty, the child has no merchant" },
                         tag_ids: { type: :array, items: { type: :string }, nullable: true, description: 'No tags when omitted' },
                         excluded: { type: :boolean, nullable: true }
                       }

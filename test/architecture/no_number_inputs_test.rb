@@ -8,6 +8,7 @@ require "test_helper"
 # a decimal point, may stay a number input, and is listed here with why.
 class NoNumberInputsTest < ActiveSupport::TestCase
   WHOLE_NUMBER_FIELDS = {
+    "app/views/accounts/_liquidity_fields.html.erb" => { "renewal_term_months" => "a term in whole months" },
     "app/views/goals/_form.html.erb" => { "target_months" => "months to reach a goal" },
     "app/views/import/configurations/_transaction_import.html.erb" => { "rows_to_skip" => "a row count" },
     "app/views/loans/_form.html.erb" => { "term_months" => "a loan term in months" },

@@ -464,7 +464,8 @@ class PortfoliosControllerTest < ActionDispatch::IntegrationTest
     assert_equal baseline.size, grown.size, "adding 20 holdings changed the query count:\n#{(grown - baseline).join("\n")}"
   end
 
-  PORTFOLIO_QUERY_CEILING = 50
+  # Production stack: upstream 4003 adds one grouped unread count for the sidebar.
+  PORTFOLIO_QUERY_CEILING = 51
 
   private
     def enable_preview(user)

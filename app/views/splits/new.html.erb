@@ -29,8 +29,7 @@
           class: "space-y-3",
           data: {
             controller: "split-transaction",
-            action: "formdata->split-transaction#syncNames",
-            action: "change->split-transaction#updateNamePlaceholders",
+            action: "formdata->split-transaction#syncNames change->split-transaction#updateNamePlaceholders",
             split_transaction_total_value: (-@entry.amount).to_f,
             split_transaction_currency_value: @entry.currency,
             split_transaction_generate_names_value: Current.family.auto_generate_transaction_names?,

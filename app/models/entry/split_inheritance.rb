@@ -26,7 +26,8 @@ class Entry::SplitInheritance
 
   # extra is copied key by key, see EXTRA_KEYS.
   TRANSACTION_COLUMNS = {
-    inherited: %w[investment_activity_label kind],
+    # The counterparty is the parent's bank row, so every part shares it.
+    inherited: %w[counterparty_iban_last4 counterparty_own_account_id counterparty_reference_last4 investment_activity_label kind],
     per_part: %w[category_id merchant_id],
     by_key: %w[extra],
     not_inherited: %w[created_at external_id id locked_attributes provider_entry_reference transfer_id updated_at]
@@ -40,9 +41,12 @@ class Entry::SplitInheritance
     # the part pending), goal pledges are unique per transaction, and the
     # matching and merge bookkeeping is about the parent.
     # A rate the parent failed validation with is not copied: the part would
-    # fail it too and roll back the whole split.
+    # fail it too and roll back the whole split. A full counterparty IBAN an
+    # older sync left in extra is never copied.
     not_inherited: %w[
-      akahu auto_claimed_pending_ids auto_excluded_stale_pending binance coinspot
+      akahu auto_claimed_pending_ids auto_excluded_stale_pending
+      auto_generated_transfer_counterpart binance coinspot counterparty_iban
+      counterparty_reference counterparty_transfer_suggestion_dismissed
       demo_financekit_activity_version enable_banking exchange_rate_invalid
       financekit goal kraken lunchflow manual_merge mercury monarch monobank plaid
       potential_posted_match provider_name redbark simplefin superseded_external_ids

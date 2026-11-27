@@ -112,7 +112,8 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     name_input = doc.at_css("input[name='split[splits][0][name]']")
     assert_not_nil name_input
     assert_nil name_input["value"]
-    assert_nil name_input["required"]
+    # The visible combobox input carries `required`, the hidden field the value.
+    assert_nil doc.at_css("input[data-split-transaction-target='nameInput']")["required"]
 
     form = doc.at_css("form[data-controller='split-transaction']")
     assert_equal "true", form["data-split-transaction-generate-names-value"]
@@ -126,7 +127,7 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     doc = Nokogiri::HTML::Document.parse(response.body)
     name_input = doc.at_css("input[name='split[splits][0][name]']")
     assert_equal "Grocery Store", name_input["value"]
-    assert_not_nil name_input["required"]
+    assert_not_nil doc.at_css("input[data-split-transaction-target='nameInput']")["required"]
     assert_equal "false", doc.at_css("form[data-controller='split-transaction']")["data-split-transaction-generate-names-value"]
   end
 

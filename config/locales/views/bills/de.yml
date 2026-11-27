@@ -4,14 +4,6 @@ de:
     auto_post_pill:
       label: Automatisch
       title: Sure bucht diese Buchung an jedem Fälligkeitstag selbst
-    detail:
-      auto_posted: Automatisch gebucht
-    show:
-      auto_post_on: Automatisch buchen
-      auto_post_off: Automatisches Buchen beenden
-      auto_posting_since: "Bucht automatisch seit %{date}"
-      auto_posting_stopped_linked: Automatisches Buchen wurde beendet, weil ein Konto dieser Rechnung jetzt mit einer Bank verknüpft ist.
-      auto_posting_stopped_currency: Automatisches Buchen wurde beendet, weil die Währung des Kontos nicht mehr zu dieser Rechnung passt.
     due_label:
       overdue:
         one: Seit 1 Tag überfällig · fällig am %{date}
@@ -164,6 +156,7 @@ de:
         autopay_on: "An"
         apply: "Auswahl übernehmen"
     detail:
+      auto_posted: Automatisch gebucht
       current: "Aktuell"
       next_payment: "Nächste Zahlung"
       around: "um den %{date}"
@@ -335,4 +328,9 @@ de:
       month_totals: "%{expected} erwartet · %{paid} bezahlt"
       empty_month: "In diesem Monat sind keine Rechnungen fällig."
     show:
+      auto_post_on: Automatisch buchen
+      auto_post_off: Automatisches Buchen beenden
+      auto_posting_since: "Bucht automatisch seit %{date}"
+      auto_posting_stopped_linked: Automatisches Buchen wurde beendet, weil ein Konto dieser Rechnung jetzt mit einer Bank verknüpft ist.
+      auto_posting_stopped_currency: Automatisches Buchen wurde beendet, weil die Währung des Kontos nicht mehr zu dieser Rechnung passt.
       edit: "Rechnung bearbeiten"

@@ -11,7 +11,7 @@
 <% if product&.bar? %>
   <div class="flex gap-2">
     <div class="grow">
-      <%= form.number_field :bullion_weight, label: t("trades.form.bullion_weight"), placeholder: "100", min: 0.0001, step: "any",
+      <%= form.decimal_field :bullion_weight, label: t("trades.form.bullion_weight"), placeholder: "100", min: "0.0001", step: "any",
             value: trade_form_param(:bullion_weight) || defaults[:bullion_weight], required: true %>
     </div>
     <%= form.select :bullion_weight_unit, bullion_weight_unit_options,
@@ -26,8 +26,8 @@
         value: trade_form_param(:custom_bullion_name), required: true %>
   <%= form.select :custom_bullion_metal, bullion_metal_options,
       { label: t("trades.form.custom_bullion_metal"), selected: trade_form_param(:custom_bullion_metal) } %>
-  <%= form.number_field :custom_bullion_fine_grams, label: t("trades.form.custom_bullion_fine_grams"), placeholder: "6.22",
-        value: trade_form_param(:custom_bullion_fine_grams), min: 0.0001, step: "any", required: true %>
+  <%= form.decimal_field :custom_bullion_fine_grams, label: t("trades.form.custom_bullion_fine_grams"), placeholder: "6.22",
+        value: trade_form_param(:custom_bullion_fine_grams), min: "0.0001", step: "any", required: true %>
   <%= form.money_field :custom_bullion_face_value, currency_method: :custom_bullion_face_value_currency,
         label: t("trades.form.custom_bullion_face_value"), placeholder: "20", step: "any", min: 0.0001,
         value: trade_form_decimal_param(:custom_bullion_face_value),

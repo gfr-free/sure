@@ -175,6 +175,8 @@ class TransactionsController < ApplicationController
   def update
     rule_input = @entry.rule_input_snapshot
     suggested_fill = params[:fill_empty_category] == "1"
+    # Decided before the row lock: rule conditions can be slow.
+    @leave_category_to_rules = suggested_fill && @entry.transaction? && @entry.transaction.categorized_by_immediate_rule?
 
     updated = Entry.transaction do
       # A suggested category only fills an empty one. The row lock and fresh
@@ -869,8 +871,10 @@ class TransactionsController < ApplicationController
       end
 
       # A category suggested from a picked name only fills an empty one; a
-      # category a rule or the user set in the meantime is kept.
-      if permitted[:entryable_attributes]&.key?(:category_id) && params[:fill_empty_category] == "1" && @entry.transaction.category_id.present?
+      # category a rule or the user set in the meantime is kept, and an
+      # immediate rule that would categorize the transaction goes first.
+      if permitted[:entryable_attributes]&.key?(:category_id) && params[:fill_empty_category] == "1" &&
+          (@entry.transaction.category_id.present? || @leave_category_to_rules)
         permitted[:entryable_attributes] = permitted[:entryable_attributes].except(:category_id)
       end
 

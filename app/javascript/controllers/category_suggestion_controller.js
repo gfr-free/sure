@@ -27,6 +27,10 @@ export default class extends Controller {
     this.lastPickedName = this.#renderedName()
   }
 
+  disconnect() {
+    this.#stopWaitingToResend()
+  }
+
   syncName(event) {
     // Async combobox options can arrive after submission. The visible free-text
     // value, including an intentional blank, is authoritative for the name.
@@ -76,10 +80,36 @@ export default class extends Controller {
     // Only the pick's own save settles it: an earlier save finishing late
     // (even for the same name) must neither fill nor drop its category.
     if (!pick?.submission || event.detail?.formSubmission !== pick.submission) return
+
+    // Turbo cancels a save still in flight when another drawer form submits,
+    // and reports no result for it. Send the picked name again once that
+    // submission is done; the repeat save is the one that settles the pick.
+    if (event.detail.success === undefined) {
+      const cancelled = pick.submission
+      pick.submission = null
+      const frame = this.element.closest("turbo-frame") || document
+      const resend = (later) => {
+        // This very event still bubbles up to the frame.
+        if (later.detail?.formSubmission === cancelled) return
+        this.#stopWaitingToResend()
+        this.#resendPickedName(pick)
+      }
+      this.#stopWaitingToResend()
+      frame.addEventListener("turbo:submit-end", resend)
+      this.stopWaitingToResend = () => frame.removeEventListener("turbo:submit-end", resend)
+      return
+    }
     this.pendingPick = null
 
+    if (!event.detail.success) {
+      // The save failed, so the field's next change or a new pick of the
+      // same name has to send it.
+      this.savedPickName = null
+      this.lastPickedName = null
+      return
+    }
     const categoryId = pick.categoryId
-    if (!categoryId || !event.detail?.success) return
+    if (!categoryId) return
     // The user may have typed on before the debounced save went out.
     if (this.nameTarget.value !== pick.name) return
     if (this.userPickedCategory || this.#hasCategorySelection()) return
@@ -99,6 +129,17 @@ export default class extends Controller {
     if (!this.hasNameTarget || event.target !== this.nameTarget || !event.isTrusted) return
     if (this.nameTarget.value === this.savedPickName) event.stopPropagation()
     this.savedPickName = null
+  }
+
+  #stopWaitingToResend() {
+    this.stopWaitingToResend?.()
+    this.stopWaitingToResend = null
+  }
+
+  #resendPickedName(pick) {
+    if (this.pendingPick !== pick || pick.submission || this.nameTarget.value !== pick.name) return
+
+    this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
   }
 
   #setFillOnly(on) {

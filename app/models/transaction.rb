@@ -595,6 +595,18 @@ class Transaction < ApplicationRecord
     category.touch(:last_used_at) if saved_change_to_category_id? && category.present?
   end
 
+  # Whether an "apply immediately" rule that sets a category matches this
+  # transaction as it is now. A category suggested from a picked name leaves
+  # such a transaction to the rule, which may only match while it is empty.
+  def categorized_by_immediate_rule?
+    family = entry&.account&.family
+    return false unless family
+
+    category_actions = Rule::Action.where(action_type: "set_transaction_category").where.not(value: [ nil, "" ])
+    family.rules.applied_immediately.where(id: category_actions.select(:rule_id))
+      .any? { |rule| rule.matches_transaction?(self) }
+  end
+
   def pending?
     self.class.pending_extra?(extra)
   end

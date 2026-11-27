@@ -3,6 +3,35 @@ require "application_system_test_case"
 class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
   include EntriesTestHelper
 
+  # Holds the server's response to drawer saves of one name until the test
+  # fails or sends it, so responses can arrive in a chosen order.
+  module HeldNameSaves
+    mattr_accessor :held_name, :waiting, instance_accessor: false
+
+    def self.hold(name)
+      self.waiting = []
+      self.held_name = name
+    end
+
+    def self.release
+      self.held_name = nil
+      waiting&.each { |gate| gate << :send }
+    end
+
+    def update
+      return super unless HeldNameSaves.held_name && params.dig(:entry, :name) == HeldNameSaves.held_name
+
+      gate = Thread::Queue.new
+      HeldNameSaves.waiting << gate
+      return super if gate.pop(timeout: 30) != :fail
+
+      render turbo_stream: [], status: :unprocessable_entity
+    end
+  end
+  TransactionsController.prepend(HeldNameSaves)
+
+  teardown { HeldNameSaves.release }
+
   setup do
     sign_in users(:family_admin)
     @account = accounts(:depository)
@@ -91,34 +120,88 @@ class TransactionDrawerNameSuggestionsTest < ApplicationSystemTestCase
     assert_nil entry.entryable.category
   end
 
-  test "a late failed save of an earlier pick does not drop the same name picked again" do
+  test "a save of an earlier pick that fails late does not drop the same name picked again" do
+    create_transaction(account: @account, name: "Plain shop", amount: 3)
     entry = create_transaction(account: @account, name: "CARD 4716", amount: 7)
     visit transaction_path(entry)
-    assert_selector "[data-controller~='category-suggestion'] input[role='combobox']"
+    find("input[role='combobox'][id$='name']")
+    count_failed_saves
+    HeldNameSaves.hold("Starbucks")
 
-    # Request order A (in flight), B, A again: the first A save fails after
-    # the second A pick, then the second A save succeeds.
-    still_pending = execute_script(<<~JS, categories(:food_and_drink).id)
-      const element = document.querySelector("[data-controller~='category-suggestion']");
-      const controller = window.Stimulus.getControllerForElementAndIdentifier(element, "category-suggestion");
-      const first = {}, second = {};
-      controller.pendingPick = { name: "Starbucks", categoryId: arguments[0] };
-      controller.nameSubmitting({ detail: { formSubmission: first } });
-      controller.pendingPick = { name: "Starbucks", categoryId: arguments[0] };
-      controller.nameSubmitting({ detail: { formSubmission: second } });
-      controller.nameSaved({ detail: { formSubmission: first, success: false } });
-      const pending = controller.pendingPick !== null;
-      controller.nameTarget.value = "Starbucks";
-      controller.nameSaved({ detail: { formSubmission: second, success: true } });
-      return pending;
-    JS
+    # Request order: Starbucks (held), Plain shop, Starbucks again (held).
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_held_name_saves 1
+    pick_name_suggestion("Plain", "Plain shop")
+    assert_equal "Plain shop", wait_for { entry.reload.name == "Plain shop" && entry.name }
+    # Turbo cancels the save still in flight when the next one starts.
+    assert_equal 1, evaluate_script("window.failedSaves")
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_held_name_saves 2
 
-    assert still_pending, "the earlier save's failure cleared the later pick"
+    # The first Starbucks save fails on the server only after the second pick.
+    HeldNameSaves.waiting[0] << :fail
+    HeldNameSaves.waiting[1] << :send
+
+    assert_equal "Starbucks", wait_for { entry.reload.name == "Starbucks" && entry.name }
+    assert_category categories(:food_and_drink)
+    assert_equal categories(:food_and_drink), wait_for { entry.reload.entryable.category }
+    assert_equal 1, evaluate_script("window.failedSaves")
+  end
+
+  test "a picked name whose save another field cancels is saved again and fills its category" do
+    entry = create_transaction(account: @account, name: "CARD 4717", amount: 7)
+    visit transaction_path(entry)
+    find("input[role='combobox'][id$='name']")
+    HeldNameSaves.hold("Starbucks")
+
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_held_name_saves 1
+    # Saving the date while the name save is in flight makes Turbo cancel it.
+    date_input = find("input[name='entry[date]']")
+    date_input.set(1.day.ago.to_date)
+    date_input.send_keys(:tab)
+    assert_equal 1.day.ago.to_date, wait_for { entry.reload.date == 1.day.ago.to_date && entry.date }
+
+    assert_held_name_saves 2
+    HeldNameSaves.waiting.each { |gate| gate << :send }
+
+    assert_category categories(:food_and_drink)
+    assert_equal categories(:food_and_drink), wait_for { entry.reload.entryable.category }
+    assert_equal "Starbucks", entry.name
+  end
+
+  test "a picked name whose save failed can be picked again" do
+    entry = create_transaction(account: @account, name: "CARD 4718", amount: 7)
+    visit transaction_path(entry)
+    find("input[role='combobox'][id$='name']")
+    count_failed_saves
+    HeldNameSaves.hold("Starbucks")
+
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_held_name_saves 1
+    HeldNameSaves.waiting[0] << :fail
+    assert_equal 1, wait_for { evaluate_script("window.failedSaves") == 1 && 1 }
+
+    pick_name_suggestion("Starb", "Starbucks")
+    assert_held_name_saves 2
+    HeldNameSaves.waiting[1] << :send
+
     assert_category categories(:food_and_drink)
     assert_equal categories(:food_and_drink), wait_for { entry.reload.entryable.category }
   end
 
   private
+    def count_failed_saves
+      execute_script(<<~JS)
+        window.failedSaves = 0;
+        document.addEventListener("turbo:submit-end", (event) => { if (!event.detail.success) window.failedSaves++ });
+      JS
+    end
+
+    def assert_held_name_saves(count)
+      assert_equal count, wait_for { HeldNameSaves.waiting.size == count && count }
+    end
+
     def pick_name_suggestion(typed, name)
       name_input = find("input[role='combobox'][id$='name']")
       name_input.fill_in with: typed

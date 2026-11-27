@@ -2766,6 +2766,35 @@ end
     assert_nil flash[:cta]
   end
 
+  test "a suggested category leaves the transaction to a matching immediate rule" do
+    @entry.transaction.update!(category: nil)
+    @entry.update!(name: "Coffee corner")
+    family = @entry.account.family
+    family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_category", operator: "is_null") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id) ]
+    )
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_response :success
+    assert_nil @entry.transaction.reload.category
+  end
+
+  test "a suggested category still fills when no immediate category rule matches" do
+    @entry.transaction.update!(category: nil)
+    @entry.account.family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "no such shop") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id) ]
+    )
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_equal categories(:food_and_drink), @entry.transaction.reload.category
+  end
+
   test "a suggested category keeps a category set in the meantime" do
     @entry.transaction.update!(category: categories(:income))
 

@@ -176,6 +176,11 @@ module ApplicationHelper
     )
   end
 
+  # For raw date inputs; see StyledFormBuilder.past_date_max.
+  def past_date_max(saved_date = nil)
+    StyledFormBuilder.past_date_max(saved_date)
+  end
+
   # Wrapper around I18n.l to support custom date formats
   def format_date(object, format = :default, options = {})
     date = object.to_date

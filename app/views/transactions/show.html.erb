@@ -75,7 +75,7 @@
               class: "space-y-2",
               data: { controller: "auto-submit-form" } do |f| %>
           <%= hidden_field_tag :grouped, "true" if params[:grouped] == "true" %>
-          <%= f.date_field :date,
+          <%= f.entry_date_field :date,
                 label: t(".date_label"),
                 disabled: @entry.linked? || split_locked || edit_locked,
                 "data-auto-submit-form-target": "auto" %>

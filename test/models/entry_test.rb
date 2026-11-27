@@ -99,6 +99,18 @@ class EntryTest < ActiveSupport::TestCase
     assert_not_equal before, entry.rule_input_snapshot
   end
 
+  test "an entry older than the supported range can still be saved with its date unchanged" do
+    entry = entries(:transaction)
+    entry.update_column(:date, Entry.min_supported_date - 1.day)
+
+    entry.name = "Renamed"
+    assert entry.valid?, entry.errors.full_messages.to_sentence
+
+    entry.date = Entry.min_supported_date - 2.days
+    assert_not entry.valid?
+    assert entry.errors[:date].any?
+  end
+
   test "reconciled_status defaults to unreconciled" do
     entry = create_transaction(account: accounts(:depository))
 

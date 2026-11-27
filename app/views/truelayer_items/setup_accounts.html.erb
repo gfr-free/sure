@@ -51,7 +51,7 @@
                 <%= form.date_field :sync_start_date,
                       label: t(".sync_start_date_label"),
                       value: @truelayer_item.sync_start_date&.to_date,
-                      max: Date.current,
+                      max: past_date_max(@truelayer_item.sync_start_date_in_database),
                       help_text: t(".sync_start_date_help") %>
               </div>
             </div>

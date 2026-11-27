@@ -61,11 +61,9 @@
       <% end %>
     </div>
 
-    <%= f.date_field :date,
+    <%= f.entry_date_field :date,
       label: t(".date"),
       required: true,
-      min: Entry.min_supported_date,
-      value: f.object.date || Date.current,
       data: { transaction_form_target: "date", action: "change->transaction-form#checkCurrencyDifference" } %>
 
     <% convert_input = capture do %>

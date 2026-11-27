@@ -183,6 +183,95 @@ class SplitsTest < ApplicationSystemTestCase
     end
   end
 
+  test "a new split row starts with the remaining amount" do
+    entry = create_transaction(amount: 100, name: "Prefill remaining", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      assert_equal "", amount_fields.call.first.value
+      amount_fields.call.first.fill_in with: "-30"
+
+      click_button I18n.t("splits.new.add_row")
+
+      assert_equal 2, amount_fields.call.size
+      assert_equal "-70.00", amount_fields.call.last.value
+      assert_selector "[data-split-transaction-target='remaining']", text: "0.00"
+      assert_not find("button[type='submit']").disabled?
+    end
+  end
+
+  test "a new split row stays empty when nothing is left to assign" do
+    visit edit_transaction_split_path(@entry)
+
+    within "dialog" do
+      click_button I18n.t("splits.new.add_row")
+
+      amount_fields = all("[data-split-transaction-target='amountInput']", minimum: 3)
+      assert_equal "", amount_fields.last.value
+    end
+  end
+
+  test "the newest split row follows changes to the other amounts until it is edited" do
+    entry = create_transaction(amount: 100, name: "Prefill follows", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      click_button I18n.t("splits.new.add_row")
+      assert_equal "-100.00", amount_fields.call.last.value
+
+      amount_fields.call.first.fill_in with: "-30"
+      assert_equal "-70.00", amount_fields.call.last.value
+
+      amount_fields.call.last.fill_in with: "-60"
+      amount_fields.call.first.fill_in with: "-20"
+      assert_equal(-60, amount_fields.call.last.value.to_d)
+      assert_selector "[data-split-transaction-target='remaining']", text: "-20.00"
+    end
+  end
+
+  test "the following split row empties instead of taking the opposite sign" do
+    entry = create_transaction(amount: 100, name: "Prefill overshoot", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      amount_fields.call.first.fill_in with: "-30"
+      click_button I18n.t("splits.new.add_row")
+
+      amount_fields.call.first.fill_in with: "-120"
+      assert_equal "", amount_fields.call.last.value
+      assert_selector "[data-split-transaction-target='remaining']", text: "20.00"
+
+      amount_fields.call.first.fill_in with: "-90"
+      assert_equal "-10.00", amount_fields.call.last.value
+    end
+  end
+
+  test "a following split row stops following once its text is changed without an input event" do
+    entry = create_transaction(amount: 100, name: "Prefill replaced", account: accounts(:depository))
+
+    visit new_transaction_split_path(entry)
+
+    within "dialog" do
+      amount_fields = -> { all("[data-split-transaction-target='amountInput']") }
+
+      amount_fields.call.first.fill_in with: "-30"
+      click_button I18n.t("splits.new.add_row")
+      execute_script("arguments[0].value = '-55'", amount_fields.call.last)
+
+      amount_fields.call.first.fill_in with: "-20"
+      assert_equal "-55", amount_fields.call.last.value
+    end
+  end
+
   private
     def assert_category(category, scope: current_scope)
       within(scope) do

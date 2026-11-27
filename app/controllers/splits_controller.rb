@@ -103,6 +103,8 @@ class SplitsController < ApplicationController
       @categories = grouped_categories
       @merchants = Current.family.available_merchants_for(Current.user).with_attached_logo.alphabetically
       @tags = Current.family.tags.alphabetically
+      # New split rows start with the parent's merchant; existing rows in the edit dialog show their own.
+      @parent_merchant_id = @entry.entryable.try(:merchant_id)
     end
 
     # Builds Entry#split! input from submitted params. Category, merchant and tag ids are

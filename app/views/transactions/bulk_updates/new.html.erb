@@ -17,9 +17,28 @@
               <%= form.collection_select :category_id, @categories, :id, ->(category) { @category_labels[category.id] }, { prompt: t(".category_prompt"), label: t(".category_label"), class: "text-subdued", variant: :badge, searchable: true } %>
             <% end %>
             <% if @has_normal_transaction_entry %>
-              <%= form.collection_select :merchant_id, Current.family.available_merchants_for(Current.user).alphabetically, :id, :name, { prompt: t(".merchant_prompt"), label: t(".merchant_label"), class: "text-subdued" } %>
+              <%= render DS::MerchantSelect.new(
+                    form: form,
+                    method: :merchant_id,
+                    merchants: Current.family.available_merchants_for(Current.user).alphabetically,
+                    selected_id: nil,
+                    label: t(".merchant_label"),
+                    include_blank: t(".merchant_prompt")
+                  ) %>
             <% end %>
-            <%= form.select :tag_ids, Current.family.tags.alphabetically.pluck(:name, :id), { include_blank: t(".none"), multiple: true, label: t(".tags_label"), include_hidden: false } %>
+            <%= render DS::TagSelect.new(
+                  form: form,
+                  tags: Current.family.tags.alphabetically,
+                  selected_ids: [],
+                  label: t(".tags_label"),
+                  keep_until_edited: true,
+                  placeholder: t(".no_change")
+                ) %>
+            <%# An explicit empty tag list clears tags; tags picked above take precedence. %>
+            <label class="flex items-center gap-2 text-sm text-secondary px-1">
+              <%= check_box_tag "bulk_update[tag_ids][]", "", false, id: "bulk_update_clear_tags", class: "checkbox checkbox--light" %>
+              <%= t(".clear_tags") %>
+            </label>
             <% if Current.family&.manual_reconciliation? && @has_transaction_entry %>
               <%= form.select :reconciled_status,
                   Entry.reconciled_statuses.keys.map { |status| [ t("transactions.reconcile.statuses.#{status}"), status ] },

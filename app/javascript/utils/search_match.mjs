@@ -90,7 +90,9 @@ export function matchesSearch(element, rawQuery) {
 // offered. Case folds without the browser locale: in Turkish,
 // toLocaleLowerCase turns "Income" into "ıncome".
 export function exactName(value) {
-  return String(value ?? "").normalize("NFC").trim().toLowerCase();
+  // toLowerCase, not toLocaleLowerCase: in a Turkish browser the latter
+  // turns "I" into a dotless "ı", so "Income" would not equal "income".
+  return String(value ?? "").trim().normalize("NFC").toLowerCase();
 }
 
 // Enter and Escape that finish an IME composition must not act on the list.

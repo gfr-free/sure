@@ -38,6 +38,7 @@ fr:
         cancel: Annuler
         category_label: Catégorie
         category_prompt: Sélectionnez une catégorie
+        clear_tags: Retirer toutes les étiquettes
         date_label: Date
         header_title: Modifier les transactions
         merchant_label: Marchand
@@ -45,7 +46,6 @@ fr:
         name_label: Nom
         name_placeholder: Entrez un nom qui sera appliqué aux transactions sélectionnées
         no_change: "(aucun changement)"
-        none: "(aucun)"
         notes_label: Remarques
         notes_placeholder: Saisissez une note qui sera appliquée aux transactions sélectionnées
         overview: Aperçu

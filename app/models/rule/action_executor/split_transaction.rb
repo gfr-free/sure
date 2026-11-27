@@ -25,11 +25,19 @@ class Rule::ActionExecutor::SplitTransaction < Rule::ActionExecutor
     Category::Group.select_options(family.categories)
   end
 
-  def merchant_options
-    family.merchants.alphabetically.pluck(:name, :id)
+  # Records, loaded once per form: each split row's searchable select reads
+  # the same list.
+  def merchant_records
+    family.merchants.alphabetically.to_a
   end
 
-  # Records, not [name, id] pairs: DS::TagSelect renders each tag's color.
+  # A saved split's merchant if it still exists, else nil: a merchant deleted
+  # or merged since then shows as blank and saves as blank, rather than
+  # failing the save with an id the picker does not show.
+  def self.known_merchant_id(merchant_id, merchants)
+    merchant_id.to_s.presence_in(merchants.map { |merchant| merchant.id.to_s })
+  end
+
   def tag_records
     family.tags.alphabetically
   end

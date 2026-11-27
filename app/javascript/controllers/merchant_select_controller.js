@@ -1,5 +1,6 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
+import { matchesSearch, namesExactly } from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -125,18 +126,18 @@ export default class extends Controller {
   filter() {
     this.clearCreateError();
 
-    const query = this.searchTarget.value.trim().toLowerCase();
+    const query = this.searchTarget.value;
     let hasExactMatch = false;
 
     this.optionTargets.forEach((option) => {
-      const name = (option.dataset.filterName || "").toLowerCase();
-      const isMatch = name.includes(query);
-      option.classList.toggle("hidden", !isMatch);
-
-      if (name === query) hasExactMatch = true;
+      option.classList.toggle("hidden", !matchesSearch(option, query));
+      // The blank row ("No merchant") is not a merchant name.
+      if (option.dataset.merchantId && namesExactly(option, query)) {
+        hasExactMatch = true;
+      }
     });
 
-    const canCreate = query.length > 0 && !hasExactMatch;
+    const canCreate = query.trim().length > 0 && !hasExactMatch;
     this.createFormTarget.classList.toggle("hidden", !canCreate);
     this.createFormTarget.classList.toggle("flex", canCreate);
     this.createNameElement.textContent = this.searchTarget.value.trim();
@@ -153,11 +154,10 @@ export default class extends Controller {
 
     event.preventDefault();
 
-    const query = this.searchTarget.value.trim().toLowerCase();
     const match = this.optionTargets.find(
       (option) =>
         !option.classList.contains("hidden") &&
-        (option.dataset.filterName || "").toLowerCase() === query,
+        namesExactly(option, this.searchTarget.value),
     );
 
     if (match) {

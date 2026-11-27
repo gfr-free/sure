@@ -6,13 +6,14 @@ id:
         cancel: Batal
         category_label: Kategori
         category_prompt: Pilih kategori
+        clear_tags: Hapus semua tag
         date_label: Tanggal
         header_title: Edit transaksi
         merchant_label: Merchant
         merchant_prompt: Pilih merchant
         name_label: Nama
         name_placeholder: Masukkan nama yang akan diterapkan pada transaksi terpilih
-        none: "(tidak ada)"
+        no_change: "(tidak ada perubahan)"
         notes_label: Catatan
         notes_placeholder: Masukkan catatan yang akan diterapkan pada transaksi terpilih
         overview: Ringkasan

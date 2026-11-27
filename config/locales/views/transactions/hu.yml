@@ -6,13 +6,14 @@ hu:
         cancel: Mégse
         category_label: Kategória
         category_prompt: Válassz kategóriát
+        clear_tags: Összes címke eltávolítása
         date_label: Dátum
         header_title: Tranzakciók szerkesztése
         merchant_label: Kereskedő
         merchant_prompt: Válassz kereskedőt
         name_label: Név
         name_placeholder: Add meg a kiválasztott tranzakciókra alkalmazandó nevet
-        none: "(egyik sem)"
+        no_change: "(nincs változás)"
         notes_label: Megjegyzések
         notes_placeholder: Add meg a kiválasztott tranzakciókra alkalmazandó megjegyzést
         overview: Áttekintés

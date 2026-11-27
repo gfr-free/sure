@@ -1,5 +1,6 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
+import { matchesSearch, namesExactly } from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -19,6 +20,8 @@ export default class extends Controller {
     defaultColor: String,
     disabled: Boolean,
     autoSubmit: Boolean,
+    // Bulk edit: send nothing (tags stay as they are) until a tag is toggled.
+    keepUntilEdited: Boolean,
     updateUrl: String,
     menuPlacement: { type: String, default: "auto" },
     offset: { type: Number, default: 6 },
@@ -96,6 +99,7 @@ export default class extends Controller {
     const option = event.currentTarget;
     const id = option.dataset.tagId;
 
+    this.edited = true;
     if (this.selectedIds.has(id)) {
       this.selectedIds.delete(id);
     } else {
@@ -110,18 +114,15 @@ export default class extends Controller {
   filter() {
     this.clearCreateError();
 
-    const query = this.searchTarget.value.trim().toLowerCase();
+    const query = this.searchTarget.value;
     let hasExactMatch = false;
 
     this.optionTargets.forEach((option) => {
-      const name = option.dataset.tagName.toLowerCase();
-      const isMatch = name.includes(query);
-      option.classList.toggle("hidden", !isMatch);
-
-      if (name === query) hasExactMatch = true;
+      option.classList.toggle("hidden", !matchesSearch(option, query));
+      if (namesExactly(option, query)) hasExactMatch = true;
     });
 
-    const canCreate = query.length > 0 && !hasExactMatch;
+    const canCreate = query.trim().length > 0 && !hasExactMatch;
     this.createFormTarget.classList.toggle("hidden", !canCreate);
     this.createFormTarget.classList.toggle("flex", canCreate);
     this.createNameElement.textContent = this.searchTarget.value.trim();
@@ -172,6 +173,7 @@ export default class extends Controller {
       }
 
       this.createFormTarget.insertAdjacentHTML("beforebegin", tag.html);
+      this.edited = true;
       this.selectedIds.add(String(tag.id));
       this.renderSelection();
       this.searchTarget.value = "";
@@ -185,7 +187,14 @@ export default class extends Controller {
 
   renderSelection() {
     this.hiddenInputsElement.innerHTML = "";
-    this.hiddenInputsElement.appendChild(this.buildHiddenInput(""));
+    // In keep-until-edited mode an empty pick sends nothing, so ticking and
+    // unticking a tag cannot clear tags; clearing is a choice of its own.
+    const sendsTags =
+      !this.keepUntilEditedValue ||
+      (this.edited && this.selectedIds.size > 0);
+    if (sendsTags) {
+      this.hiddenInputsElement.appendChild(this.buildHiddenInput(""));
+    }
     this.selectionContainerTarget.innerHTML = "";
 
     const selectedOptions = this.optionTargets.filter((option) =>
@@ -193,9 +202,11 @@ export default class extends Controller {
     );
 
     selectedOptions.forEach((option) => {
-      this.hiddenInputsElement.appendChild(
-        this.buildHiddenInput(option.dataset.tagId),
-      );
+      if (sendsTags) {
+        this.hiddenInputsElement.appendChild(
+          this.buildHiddenInput(option.dataset.tagId),
+        );
+      }
       const badge = option.querySelector("[data-tag-select-badge]");
       if (badge) {
         this.selectionContainerTarget.appendChild(badge.cloneNode(true));

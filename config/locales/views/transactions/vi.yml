@@ -6,13 +6,14 @@ vi:
         cancel: Hủy
         category_label: Danh mục
         category_prompt: Chọn danh mục
+        clear_tags: Xóa tất cả nhãn
         date_label: Ngày
         header_title: Chỉnh sửa giao dịch
         merchant_label: Nhà cung cấp
         merchant_prompt: Chọn nhà cung cấp
         name_label: Tên
         name_placeholder: Nhập tên sẽ được áp dụng cho các giao dịch đã chọn
-        none: "(không có)"
+        no_change: "(không thay đổi)"
         notes_label: Ghi chú
         notes_placeholder: Nhập ghi chú sẽ được áp dụng cho các giao dịch đã chọn
         overview: Tổng quan

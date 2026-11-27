@@ -4,6 +4,7 @@
      data-tag-select-default-color-value="<%= Tag::COLORS.first %>"
      data-tag-select-disabled-value="<%= disabled %>"
      data-tag-select-auto-submit-value="<%= auto_submit %>"
+     data-tag-select-keep-until-edited-value="<%= keep_until_edited %>"
      data-tag-select-update-url-value="<%= update_url %>"
      data-tag-select-menu-placement-value="<%= menu_placement %>"
      data-tag-select-offset-value="<%= offset %>"
@@ -28,15 +29,17 @@
                 <%= "disabled" if disabled %>>
           <span class="flex flex-wrap gap-1 <%= selection_class %>"
                 data-tag-select-target="selectionContainer"
-                data-placeholder="<%= helpers.t("transactions.form.none") %>">
-            <span class="text-secondary"><%= helpers.t("transactions.form.none") %></span>
+                data-placeholder="<%= placeholder_text %>">
+            <span class="text-secondary"><%= placeholder_text %></span>
           </span>
         </button>
       </div>
     </div>
 
     <div data-tag-select-hidden-inputs>
-      <input type="hidden" name="<%= field_name %>" value="" <%= "disabled" if disabled %>>
+      <% unless keep_until_edited %>
+        <input type="hidden" name="<%= field_name %>" value="" <%= "disabled" if disabled %>>
+      <% end %>
     </div>
 
     <% unless disabled %>

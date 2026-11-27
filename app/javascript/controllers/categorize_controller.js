@@ -1,4 +1,9 @@
 import { Controller } from "@hotwired/stimulus";
+import {
+  enterTarget,
+  hasSearchQuery,
+  isConfirmingEnter,
+} from "utils/search_match";
 
 export default class extends Controller {
   static targets = [
@@ -25,8 +30,12 @@ export default class extends Controller {
     clearTimeout(this._previewTimer);
   }
 
+  // The shared Enter rule (utils/search_match), but a partial name picks a
+  // category only when it is the single one left: Enter here assigns the
+  // whole group and may create a rule. With nothing typed, likewise only a
+  // single visible category is picked.
   selectFirst(event) {
-    if (event.key !== "Enter") return;
+    if (!isConfirmingEnter(event)) return;
 
     const tag = event.target.tagName;
     if (tag === "BUTTON" || tag === "A") return;
@@ -40,9 +49,17 @@ export default class extends Controller {
       this.listTarget.querySelectorAll(".filterable-item")
     ).filter((el) => el.style.display !== "none");
 
-    if (visible.length !== 1) return;
-
-    visible[0].click();
+    // A typed search picks its match only from the search box itself.
+    const query =
+      this.hasFilterTarget && event.target === this.filterTarget
+        ? this.filterTarget.value
+        : "";
+    const match = hasSearchQuery(query)
+      ? enterTarget(visible, query, { firstVisible: visible.length === 1 })
+      : visible.length === 1
+        ? visible[0]
+        : null;
+    match?.click();
   }
 
   clearFilter(event) {

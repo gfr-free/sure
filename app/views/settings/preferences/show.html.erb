@@ -248,7 +248,7 @@
                 placeholder: t(".currency_search_placeholder"),
                 data: {
                   list_filter_target: "input",
-                  action: "input->list-filter#filter"
+                  action: "input->list-filter#filter keydown->list-filter#handleKeydown"
                 }
               ) %>
               <div data-list-filter-target="list" class="max-h-80 overflow-auto rounded-xl border border-secondary divide-y divide-alpha-black-100 theme-dark:divide-alpha-white-100">

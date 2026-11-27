@@ -479,6 +479,16 @@ class TransactionTest < ActiveSupport::TestCase
     assert_equal [ tags(:two).id ], transaction.reload.tag_ids
   end
 
+  test "add_tag! adds a missing tag and leaves a present one" do
+    transaction = transactions(:one)
+    transaction.update!(tag_ids: [ tags(:one).id ])
+
+    assert_not transaction.add_tag!(tags(:one))
+    assert transaction.add_tag!(tags(:two))
+
+    assert_equal [ tags(:one).id, tags(:two).id ].sort, transaction.reload.tag_ids.sort
+  end
+
   test "toggle_tag! keeps a tag added by a concurrent toggle" do
     transaction = transactions(:one)
     transaction.update!(tag_ids: [])

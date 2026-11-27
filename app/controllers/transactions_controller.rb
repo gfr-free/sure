@@ -250,12 +250,20 @@ class TransactionsController < ApplicationController
 
     rule_input = @entry.rule_input_snapshot
 
-    # The transaction-row tag picker toggles one tag at a time; the drawer's
+    # The transaction-row tag picker toggles one tag at a time (a pick made by
+    # Enter in its search box, from_search, only adds); the drawer's
     # multiselect sends the full set, plus the set it last saved so only its
     # own changes apply and tags a rule added meanwhile stay.
+    changed = true
     if params[:toggle_tag_id].present?
       @toggled_tag = Current.family.tags.find(params[:toggle_tag_id])
-      @entry.transaction.toggle_tag!(@toggled_tag)
+      if params[:from_search].present?
+        # Already there (a rule added it, or a retry): nothing the user
+        # changed, so nothing is locked.
+        changed = @entry.transaction.add_tag!(@toggled_tag)
+      else
+        @entry.transaction.toggle_tag!(@toggled_tag)
+      end
     elsif params.key?(:previous_tag_ids)
       previous_ids = Array(params[:previous_tag_ids]).reject(&:blank?)
       @entry.transaction.merge_tag_changes!(tag_ids_param, previous_ids, available_tags: Current.family.tags)
@@ -263,10 +271,12 @@ class TransactionsController < ApplicationController
       @entry.transaction.replace_tags!(tag_ids_param, available_tags: Current.family.tags)
     end
 
-    @entry.lock_saved_attributes!
-    @entry.mark_user_modified!
-    @entry.transaction.lock_attr!(:tag_ids)
-    @entry.apply_immediate_rules_later(changed_from: rule_input)
+    if changed
+      @entry.lock_saved_attributes!
+      @entry.mark_user_modified!
+      @entry.transaction.lock_attr!(:tag_ids)
+      @entry.apply_immediate_rules_later(changed_from: rule_input)
+    end
 
     respond_to do |format|
       # JSON stays first so Accept: */* callers keep the original response.
@@ -284,11 +294,13 @@ class TransactionsController < ApplicationController
         end
         if @toggled_tag
           # autofocus hands keyboard focus back to the re-rendered option,
-          # which Turbo focuses after the stream renders.
+          # which Turbo focuses after the stream renders. A pick made by Enter
+          # in the search box (list-filter sends from_search) keeps focus
+          # there, so the next tag can be typed right away.
           streams << turbo_stream.replace(
             "#{dom_id(@entry, :tag_option)}_#{@toggled_tag.id}",
             partial: "tag/dropdowns/row",
-            locals: { tag: @toggled_tag, entry: @entry, selected: transaction.tag_ids.include?(@toggled_tag.id), autofocus: true }
+            locals: { tag: @toggled_tag, entry: @entry, selected: transaction.tag_ids.include?(@toggled_tag.id), autofocus: params[:from_search].blank? }
           )
         end
         render turbo_stream: streams

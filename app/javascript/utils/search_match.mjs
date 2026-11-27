@@ -86,9 +86,64 @@ export function matchesSearch(element, rawQuery) {
 
 // Whether a typed name is an existing one: exact but for case and Unicode
 // form, so "Café" can sit next to "Cafe" yet a pasted decomposed "Café"
-// still counts as the existing one. This decides whether "create" is offered.
+// still counts as the existing one. This decides whether "create" is
+// offered. Case folds without the browser locale: in Turkish,
+// toLocaleLowerCase turns "Income" into "ıncome".
 export function exactName(value) {
-  return String(value ?? "").trim().normalize("NFC").toLocaleLowerCase();
+  return String(value ?? "").normalize("NFC").trim().toLowerCase();
+}
+
+// Enter and Escape that finish an IME composition must not act on the list.
+export function isComposing(event) {
+  return event.isComposing || event.keyCode === 229;
+}
+
+// The existing row Enter stands for: the one the query names exactly, else
+// the only one it names once accents on Latin letters are ignored, so Enter
+// on "epicerie fine" picks "Épicerie fine" (creating the near-duplicate takes
+// a click on the create row). Several such rows ("Résumé", "Resumé") give no
+// single answer. With no row, Enter creates while the create row shows and
+// otherwise picks the first visible row.
+export function enterMatch(rows, rawQuery) {
+  const exact = exactMatch(rows, rawQuery);
+  if (exact) return exact;
+
+  const query = String(rawQuery ?? "").trim();
+  if (query.length === 0) return undefined;
+
+  const folded = rows.filter((row) =>
+    searchNames(row).some((name) => sameNameIgnoringLatinAccents(name, query)),
+  );
+  return folded.length === 1 ? folded[0] : undefined;
+}
+
+// Whether two names are the same once accents on Latin letters are
+// ignored. Marks on other scripts stay: without them Japanese dakuten, Indic
+// vowel signs or the Cyrillic "й" spell a different word. Letters without a
+// decomposition ("ł", "ø", "ß") are not folded.
+export function sameNameIgnoringLatinAccents(a, b) {
+  return foldLatinAccents(a) === foldLatinAccents(b);
+}
+
+function foldLatinAccents(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1")
+    .normalize("NFC")
+    .toLowerCase();
+}
+
+// The visible row the query names exactly, preferring a row whose stored
+// name it is: two categories can show the same name (a default one
+// translated, a custom one stored under that label).
+export function exactMatch(rows, rawQuery) {
+  const query = exactName(rawQuery);
+  if (query.length === 0) return undefined;
+
+  return (
+    rows.find((row) => exactName(primarySearchName(row)) === query) ??
+    rows.find((row) => namesExactly(row, rawQuery))
+  );
 }
 
 export function namesExactly(element, rawQuery) {

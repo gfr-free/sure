@@ -2,7 +2,10 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  enterMatch,
+  exactMatch,
   exactName,
+  isComposing,
   hasSearchQuery,
   matchesSearch,
   namesExactly,
@@ -73,9 +76,58 @@ describe("namesExactly", () => {
 })
 
 describe("exactName", () => {
+  it("ignores the browser locale", () => {
+    // Simulate a Turkish browser, where "I" lowercases to a dotless "ı".
+    const original = String.prototype.toLocaleLowerCase
+    String.prototype.toLocaleLowerCase = function () {
+      return original.call(this, "tr")
+    }
+    try {
+      assert.equal(exactName("Income"), exactName("income"))
+    } finally {
+      String.prototype.toLocaleLowerCase = original
+    }
+  })
+
   it("treats composed and decomposed accents as the same name", () => {
     assert.equal(exactName("Cafe\u0301"), exactName("Café"))
     assert.notEqual(exactName("Cafe"), exactName("Café"))
+  })
+})
+
+describe("exactMatch", () => {
+  it("prefers the row whose stored name the query is", () => {
+    const custom = row("Restaurants & Bars", ["Restaurants & Bars"])
+    assert.equal(exactMatch([translated, custom], "restaurants & bars"), custom)
+    assert.equal(exactMatch([translated], "Restaurants & Bars"), translated)
+    assert.equal(exactMatch([translated], "Restaurants"), undefined)
+    assert.equal(exactMatch([translated], " "), undefined)
+  })
+})
+
+describe("enterMatch", () => {
+  it("takes the exact name, else the only Latin-accent match", () => {
+    const epicerie = row("Épicerie fine")
+    const pet = row("Pet Supplies")
+    assert.equal(enterMatch([pet, translated], "food & drink"), translated)
+    assert.equal(enterMatch([pet, epicerie], "epicerie fine"), epicerie)
+    assert.equal(enterMatch([pet, epicerie], "pet"), undefined)
+  })
+
+  it("gives no answer when several rows differ only in accents", () => {
+    assert.equal(enterMatch([row("Résumé"), row("Resumé")], "resume"), undefined)
+  })
+
+  it("keeps marks outside Latin script", () => {
+    assert.equal(enterMatch([row("ハンバーガー")], "ハンハーカー"), undefined)
+  })
+})
+
+describe("isComposing", () => {
+  it("recognises an IME composition", () => {
+    assert.equal(isComposing({ isComposing: true, keyCode: 13 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 229 }), true)
+    assert.equal(isComposing({ isComposing: false, keyCode: 13 }), false)
   })
 })
 

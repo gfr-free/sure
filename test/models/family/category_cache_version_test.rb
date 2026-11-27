@@ -61,6 +61,20 @@ class Family::CategoryCacheVersionTest < ActiveSupport::TestCase
     assert_equal before, entry_versions(family)
   end
 
+  test "entry and category versions read each table once" do
+    family = families(:dylan_family)
+    queries = []
+    counter = ->(*, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" }
+    versions = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      ActiveRecord::Base.uncached { [ family.entries_version, family.entries_cache_version ] }
+    end
+
+    entries_part = "#{family.entries.count}-#{family.entries.maximum(:updated_at).to_f}"
+    categories_part = "#{family.categories.count}-#{family.categories.maximum(:updated_at).to_f}"
+    assert_equal [ "#{entries_part}-#{categories_part}" ] * 2, versions
+    assert_equal 4, queries.size, queries.join("\n")
+  end
+
   private
     def entry_versions(family)
       [ family.entries_cache_version, family.entries_version ]

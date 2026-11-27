@@ -272,6 +272,16 @@ class Transaction < ApplicationRecord
   # A JSON number 0.0 renders as '0.0' and is pending here; #pending? agrees,
   # because FALSE_VALUES is a Set keyed by eql? and 0.0 is not eql? to 0. The
   # parity test carries the case.
+  #
+  # Each provider term first requires `extra @> '{"<provider>":{}}'`, which
+  # holds exactly when the provider key is an object, the only case in which
+  # the flag can be read, so it changes no result. It is there for the
+  # planner: PostgreSQL keeps no statistics on the COALESCE expressions and
+  # guesses each NOT IN as true for ~96% of rows, which makes NOT (...) look
+  # like it keeps almost nothing. Containment on the column is estimated from
+  # its statistics (or as rare without them), which keeps the posted filter's
+  # estimate much closer to the real share of rows. Written without `?`, so
+  # callers can embed the fragment in sanitize_sql_array with positional binds.
   def self.pending_sql(table_alias = "transactions", providers: PENDING_PROVIDERS)
     quoted_table = connection.quote_table_name(table_alias)
     selected_providers = Array(providers).map(&:to_s).uniq & PENDING_PROVIDERS
@@ -279,7 +289,8 @@ class Transaction < ApplicationRecord
 
     selected_providers
       .map do |provider|
-        "COALESCE(#{quoted_table}.extra -> #{connection.quote(provider)} ->> #{connection.quote("pending")}, #{connection.quote("")}) NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL})"
+        "(#{quoted_table}.extra @> #{connection.quote(%({"#{provider}":{}}))} AND " \
+          "COALESCE(#{quoted_table}.extra -> #{connection.quote(provider)} ->> #{connection.quote("pending")}, #{connection.quote("")}) NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL}))"
       end
       .join(" OR ")
       .then { |predicate| "(#{predicate})" }
@@ -290,7 +301,7 @@ class Transaction < ApplicationRecord
   PENDING_CHECK_SQL = begin
     PENDING_PROVIDERS
       .map do |provider|
-        "COALESCE(t.extra -> '#{provider}' ->> 'pending', '') NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL})"
+        "(t.extra @> '{\"#{provider}\":{}}' AND COALESCE(t.extra -> '#{provider}' ->> 'pending', '') NOT IN (#{PENDING_FLAG_FALSE_VALUES_SQL}))"
       end
       .join(" OR ")
       .then { |predicate| "(#{predicate})" }

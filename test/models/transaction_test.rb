@@ -164,6 +164,37 @@ class TransactionTest < ActiveSupport::TestCase
     end
   end
 
+  test "a provider key that is not an object leaves the transaction posted in every form" do
+    account = families(:empty).accounts.create! name: "Pending parity", balance: 0, currency: "USD", accountable: Depository.new
+
+    [ { "plaid" => "pending" }, { "plaid" => [ "pending" ] }, { "plaid" => nil }, { "plaid" => true }, [ "plaid" ], "plaid" ].each do |extra|
+      transaction = create_transaction(account: account, amount: 10).entryable
+      transaction.update_column(:extra, extra)
+
+      assert_not Transaction.pending_extra?(extra)
+      sql_pending_answers(transaction).each do |form, answer|
+        assert_not answer, "#{form} should call extra #{extra.inspect} posted"
+      end
+    end
+  end
+
+  # PostgreSQL keeps no statistics on the per-provider flag expressions; the
+  # posted filter must still be estimated as keeping most rows, or joins
+  # through it are planned around a full scan of transactions.
+  test "the planner expects most transactions to pass the posted filter" do
+    account = families(:empty).accounts.create! name: "Pending estimate", balance: 0, currency: "USD", accountable: Depository.new
+    40.times { |i| create_transaction(account: account, amount: i + 1) }
+    # Fresh statistics, so the estimate does not depend on whatever an earlier
+    # autovacuum saw. Only reltuples/relpages outlive the rollback.
+    Transaction.connection.execute("ANALYZE transactions")
+
+    total = Transaction.count
+    plan = Transaction.connection.select_value("EXPLAIN (FORMAT JSON) #{Transaction.excluding_pending.to_sql}")
+    estimated = JSON.parse(plan).first.dig("Plan", "Plan Rows")
+
+    assert_operator estimated, :>=, total / 2, "estimated #{estimated} of #{total} transactions as posted"
+  end
+
   test "pending_duplicate_candidates offers only transactions pending? calls posted" do
     account = families(:empty).accounts.create! name: "Merge", balance: 0, currency: "USD", accountable: Depository.new
     pending_entry = create_transaction(account: account, amount: 10)

@@ -451,6 +451,13 @@ class Category < ApplicationRecord
       label = "#{label} (#{category.name})" if counts[label.downcase] > 1 && category.name != label
       [ category.id, label ]
     end
+    # The stored name can collide too (a custom "Einkommen (Income)" beside
+    # the two above); then later ones, by id, get a running number.
+    labels.group_by { |_id, label| label.downcase }.each_value do |same|
+      same.sort_by { |id, _label| id.to_s }.drop(1).each.with_index(2) do |(id, label), number|
+        labels[id] = "#{label} (#{number})"
+      end
+    end
     return labels unless with_parent
 
     categories.to_h do |category|

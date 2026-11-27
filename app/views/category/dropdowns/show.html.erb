@@ -28,7 +28,7 @@
           <%= icon("search", class: "absolute inset-0 ml-2 transform top-1/2 -translate-y-1/2") %>
         </div>
       </div>
-      <% parent_options = can_create ? @categories.select { |category| category.parent_id.nil? }.sort_by { |category| category.name.downcase } : [] %>
+      <% parent_options = can_create ? Category::Group.parent_options(@categories) : [] %>
       <div data-list-filter-target="list" data-category-quick-create-target="list" role="listbox" class="flex flex-col gap-0.5 p-1.5 mt-0.5 mr-2 max-h-64 overflow-y-scroll scrollbar">
         <div class="pb-2 pl-4 mr-2 text-secondary hidden" data-list-filter-target="emptyMessage">
           <%= t(".no_categories") %>

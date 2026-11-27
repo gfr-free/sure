@@ -11,8 +11,9 @@
     <%# Rows %>
     <div class="shadow-border-xs rounded-lg overflow-hidden">
       <div class="max-h-[32rem] overflow-y-auto divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200 text-sm">
+        <% category_options = Category::Group.select_options(categories) %>
         <% entries.each do |entry| %>
-          <%= render partial: "transactions/categorizes/entry_row", locals: { entry: entry, categories: categories } %>
+          <%= render partial: "transactions/categorizes/entry_row", locals: { entry: entry, categories: categories, category_options: category_options } %>
         <% end %>
       </div>
     </div>

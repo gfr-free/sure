@@ -296,4 +296,81 @@ class CategoryTest < ActiveSupport::TestCase
 
     assert_equal [ c ], result.to_a
   end
+
+  test "select options use translated names and sort by them" do
+    I18n.with_locale(:de) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_equal [ "Einkommen", "Restaurants & Bars", "↳ Restaurants", "Test" ], labels
+    end
+  end
+
+  test "translated names starting with an accent sort among the other letters" do
+    groceries = @family.categories.create!(name: "Groceries", color: "#407706")
+    zebra = @family.categories.create!(name: "Zoo", color: "#407706")
+
+    I18n.with_locale(:fr) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_operator labels.index(groceries.display_name), :<, labels.index(zebra.display_name)
+      assert_equal "Épicerie", groceries.display_name
+    end
+  end
+
+  test "a default name translated into a custom name keeps both options apart" do
+    custom = @family.categories.create!(name: "Einkommen", color: "#407706")
+
+    I18n.with_locale(:de) do
+      labels = Category::Group.select_options(@family.categories).map(&:first)
+
+      assert_includes labels, "Einkommen"
+      assert_includes labels, "Einkommen (Income)"
+      assert_equal "Einkommen", Category.option_labels(@family.categories)[custom.id]
+    end
+  end
+
+  test "labels stay apart when the stored-name suffix collides too" do
+    @family.categories.create!(name: "Einkommen", color: "#407706")
+    @family.categories.create!(name: "Einkommen (Income)", color: "#407706")
+
+    I18n.with_locale(:de) do
+      labels = Category.option_labels(@family.categories).values
+      assert_equal labels.map(&:downcase).uniq.size, labels.size
+    end
+  end
+
+  test "labels with parent read Parent > Child and other scripts sort as they are" do
+    labels = Category.option_labels(@family.categories, with_parent: true)
+    assert_equal "#{categories(:food_and_drink).display_name} > Restaurants", labels[categories(:subcategory).id]
+
+    alpha = @family.categories.create!(name: "Банк", color: "#407706")
+    beta = @family.categories.create!(name: "Аренда", color: "#407706")
+    assert_equal [ beta, alpha ], [ alpha, beta ].sort_by(&:display_sort_key)
+
+    # Й is a letter of its own after И; only Latin accents fold (É as E).
+    yogurt = @family.categories.create!(name: "Йогурт", color: "#407706")
+    raisins = @family.categories.create!(name: "Изюм", color: "#407706")
+    savings = @family.categories.create!(name: "Épargne", color: "#407706")
+    fuel = @family.categories.create!(name: "Fuel", color: "#407706")
+    assert_equal [ raisins, yogurt ], [ yogurt, raisins ].sort_by(&:display_sort_key)
+    assert_equal [ savings, fuel ], [ fuel, savings ].sort_by(&:display_sort_key)
+  end
+
+  test "ordered keeps the children of a category left out of the list" do
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+
+    ordered = Category::Group.ordered(@family.categories).without(parent)
+
+    assert_includes ordered, child
+    assert_not_includes ordered, parent
+  end
+
+  test "rule split category options match the other category selects" do
+    executor = Rule::ActionExecutor::SplitTransaction.new(rules(:one))
+
+    I18n.with_locale(:de) do
+      assert_equal Category::Group.select_options(@family.categories), executor.category_options
+    end
+  end
 end

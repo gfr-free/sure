@@ -49,6 +49,6 @@ class DS::CategorySelect < DesignSystemComponent
 
   # Only top-level categories can be parents (categories are two levels deep).
   def parent_options
-    categories.select { |category| category.parent_id.nil? }.sort_by { |category| category.name.downcase }
+    Category::Group.parent_options(categories)
   end
 end

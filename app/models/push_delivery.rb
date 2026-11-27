@@ -34,7 +34,7 @@ class PushDelivery < ApplicationRecord
     CHANNELS.map(&:constantize).select(&:channel_ready?).each do |channel|
       channel.joins(:user).where(users: { family_id: insight.family_id, active: true })
         .includes(:user).find_each do |subscription|
-        for_subscription(subscription, insight) if subscription.eligible? && insight.notifies?(subscription.user)
+        for_subscription(subscription, insight) if subscription.eligible? && insight.notifies?(subscription.user, channel: subscription.class.name)
       end
     end
   end
@@ -177,7 +177,7 @@ class PushDelivery < ApplicationRecord
     return false unless subscription&.eligible?
 
     if insight
-      insight.notification_version == insight_version && insight.notifies?(subscription.user)
+      insight.notification_version == insight_version && insight.notifies?(subscription.user, channel: subscription.class.name)
     else
       # Diagnostic test sends expire quickly.
       subscription.user.preview_features_enabled? && created_at > TEST_SEND_WINDOW.ago

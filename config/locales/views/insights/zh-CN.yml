@@ -50,6 +50,7 @@ zh-CN:
       loan_payment_change: 贷款还款
       bank_fees: 费用
       fixed_commitments_ratio: 固定支出
+      connection_needs_attention: "银行同步"
     meta:
       next_n_days:
         one: 未来一天
@@ -88,6 +89,7 @@ zh-CN:
       loan_payment_change: 查看贷款
       bank_fees: 查看费用
       fixed_commitments_ratio: 检查循环交易
+      connection_needs_attention: "前往账户"
     titles:
       spending_anomaly:
         above: "%{category} 支出呈上升趋势"
@@ -114,6 +116,10 @@ zh-CN:
       fixed_commitments_ratio:
         up: 固定支出占您收入的比例正在上升
         over_half: 固定支出目前已占您收入的一半及以上
+      connection_needs_attention:
+        reconnect: "您与 %{provider} 的连接需要续期"
+        failing: "与 %{provider} 的同步一直失败"
+        expiring: "您对 %{provider} 的授权即将到期"
     templates:
       spending_anomaly:
         above: "按目前进度，您本月在 %{category} 上的支出预计为 %{projected_spend}，比近期月均支出 %{baseline_spend} 高出约 %{deviation_pct}%。"
@@ -141,6 +147,10 @@ zh-CN:
         recurring: "%{account} 在过去 %{days} 天内产生了 %{amount} 的费用。"
         new: "%{account} 在过去 %{days} 天内产生了 %{amount} 的费用，而此前 %{days} 天内没有此类费用。"
       fixed_commitments_ratio: "每月 %{commitments} 的固定循环支出占您平常月收入 %{income} 的 %{current_ratio}%，高于六个月前的 %{previous_ratio}%。%{explanation}"
+      connection_needs_attention:
+        reconnect: "在连接续期之前，%{provider} 的新交易和余额将不会被导入。账户页面会显示谁可以重新连接。"
+        failing: "自 %{since} 起没有收到来自 %{provider} 的新数据。同步一直失败，因此余额和交易可能已过时。"
+        expiring: "您对 %{provider} 的授权将于 %{expires_on} 到期。请在此之前续期连接，以免缺少交易。"
     fixed_commitments_ratio:
       contributors: "主要变化：%{list}。"
       contributor:

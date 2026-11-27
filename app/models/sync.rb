@@ -22,6 +22,7 @@ class Sync < ApplicationRecord
   scope :visible, -> { incomplete.where("syncs.created_at > ?", VISIBLE_FOR.ago).where(cancel_requested_at: nil) }
 
   after_commit :update_family_sync_timestamp, on: [ :create, :update ]
+  after_commit :refresh_connection_insights, on: :update, if: :connection_sync_finished?
 
   serialize :sync_stats, coder: JSON
 
@@ -417,6 +418,27 @@ class Sync < ApplicationRecord
       if window_start_date && window_end_date && window_start_date > window_end_date
         errors.add(:window_end_date, "must be greater than window_start_date")
       end
+    end
+
+    # A connection's sync settling either way can start or clear a "needs
+    # attention" insight; rechecking now notifies within minutes instead of at
+    # the next nightly insight run. Insights are a preview feature, like the
+    # nightly sweep.
+    def refresh_connection_insights
+      return unless family&.preview_features_enabled?
+
+      GenerateInsightsJob.perform_later(family_id: family.id, types: [ Insight::Generators::ConnectionAttentionGenerator::TYPE ])
+    rescue => e
+      DebugLogEntry.capture(
+        category: "insights", level: "error", source: "Sync#refresh_connection_insights", family: family,
+        message: "Failed to enqueue connection insight refresh: #{e.class}: #{e.message}",
+        metadata: { sync_id: id, syncable_type: syncable_type, syncable_id: syncable_id }
+      )
+    end
+
+    def connection_sync_finished?
+      saved_change_to_status? && (completed? || failed? || stale?) &&
+        ProviderConnectionStatus::PROVIDERS.any? { |provider| provider[:type] == syncable_type }
     end
 
     def update_family_sync_timestamp

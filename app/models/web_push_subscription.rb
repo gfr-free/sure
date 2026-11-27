@@ -134,7 +134,7 @@ class WebPushSubscription < ApplicationRecord
         title: Rails.configuration.x.product_name,
         body: I18n.t(delivery.insight ? "web_push.notification.body" : "web_push.notification.test_body"),
         tag: delivery.insight ? "insight-#{delivery.insight_id}" : "web-push-test-#{delivery.id}",
-        data: { path: delivery.insight ? "/insights#insight_#{delivery.insight_id}" : "/insights" }
+        data: { path: delivery.insight ? delivery.insight.notification_path_for(user) : "/insights" }
       }
     end
     WebPush::Client.new.deliver(subscription: self, payload: payload)

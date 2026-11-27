@@ -1,15 +1,20 @@
 class GenerateInsightsJob < ApplicationJob
   # Metadata that says which accounts an insight is about, not what it found.
-  ACCOUNT_SCOPE_KEYS = %w[accounts_digest account_id].freeze
+  ACCOUNT_SCOPE_KEYS = %w[accounts_digest account_id account_ids].freeze
+
+  RETRY_WHEN_LOCKED_AFTER = 2.minutes
+  RETRIES_WHEN_LOCKED = 5
 
   queue_as :scheduled
   sidekiq_options lock: :until_executed, on_conflict: :log
 
   # Without args (cron): fans out one job per family.
   # With family_id: generates and upserts that family's insights.
-  def perform(family_id: nil)
+  # With types as well: only the generators producing those insight types run,
+  # and only those types expire.
+  def perform(family_id: nil, types: nil, attempt: 1)
     if family_id.present?
-      generate_for_family(family_id)
+      generate_for_family(family_id, types, attempt: attempt)
     else
       fan_out
     end
@@ -30,7 +35,7 @@ class GenerateInsightsJob < ApplicationJob
       end
     end
 
-    def generate_for_family(family_id)
+    def generate_for_family(family_id, types = nil, attempt: 1)
       family = Family.find_by(id: family_id)
       return unless family
       return if family.accounts.none?
@@ -40,12 +45,21 @@ class GenerateInsightsJob < ApplicationJob
       # broadcast below too, not just the generation.
       return unless family.preview_features_enabled?
 
-      with_advisory_lock(family_id) do
+      locked = with_advisory_lock(family_id) do
         I18n.with_locale(family.locale) do
-          result = Insight::GeneratorRegistry.new(family).generate_all
+          result = Insight::GeneratorRegistry.new(family).generate_all(types: types)
           upsert_insights(family, result.insights)
           expire_stale_insights(family, result)
         end
+        true
+      end
+
+      # An event-driven refresh (a sync just settled) that finds a run in
+      # progress may have been missed by it, so it tries again shortly instead
+      # of waiting for the nightly sweep, backing off while a long full run
+      # holds the lock.
+      if types && !locked && attempt < RETRIES_WHEN_LOCKED
+        GenerateInsightsJob.set(wait: RETRY_WHEN_LOCKED_AFTER * attempt).perform_later(family_id: family_id, types: types, attempt: attempt + 1)
       end
 
       # Outside the lock on purpose: even a lock-skipped run re-broadcasts the
@@ -85,9 +99,13 @@ class GenerateInsightsJob < ApplicationJob
     # generator crashed are left untouched so a transient failure can't wipe
     # out healthy insights. By status rather than `visible`, so a row hidden
     # because its account is no longer shared with everyone expires too.
+    #
+    # An episodic type (Insight::EPISODIC_TYPES) expires even when acknowledged:
+    # the acknowledgement covered that occurrence of the problem, not the next.
     def expire_stale_insights(family, result)
+      episodic = result.succeeded_types & Insight::EPISODIC_TYPES
       family.insights
-        .where(status: %w[active read])
+        .where(status: %w[active read]).or(family.insights.where(status: "dismissed", insight_type: episodic))
         .where(insight_type: result.succeeded_types)
         .where.not(dedup_key: result.insights.map(&:dedup_key))
         .update_all(status: "expired", updated_at: Time.current)

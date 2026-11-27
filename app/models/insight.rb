@@ -38,7 +38,12 @@ class Insight < ApplicationRecord
     loan_payment_change
     bank_fees
     fixed_commitments_ratio
+    connection_needs_attention
   ].freeze
+
+  # Types whose insight stands for one ongoing problem: once the problem clears
+  # the row expires even if it was acknowledged, so the next occurrence is new.
+  EPISODIC_TYPES = %w[connection_needs_attention].freeze
 
   # How many the dashboard widget shows. Shared so PagesController (first render)
   # and InsightsController (re-render after acknowledging) can't drift apart.
@@ -86,6 +91,28 @@ class Insight < ApplicationRecord
     where("NOT (insights.metadata ? 'account_id')").or(where(shared_account.arel.exists))
       .where("NOT (insights.metadata ? 'accounts_digest') OR insights.metadata->>'accounts_digest' = (#{current_digest.to_sql})")
       .about_shared_recurring_transactions
+      .about_shared_account_sets
+  }
+
+  # An insight about several accounts at once (metadata account_ids, such as a
+  # provider connection) shows only while every active member can open each of
+  # them, by the same rule as a single account_id.
+  scope :about_shared_account_sets, -> {
+    shared_account = Account.visible.accessible_by_all_active_members
+      .where("accounts.family_id = insights.family_id")
+      .where(<<~SQL.squish)
+        accounts.id = CASE
+          WHEN listed.id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN listed.id::uuid
+        END
+      SQL
+    hidden_account = <<~SQL.squish
+      SELECT 1 FROM jsonb_array_elements_text(insights.metadata->'account_ids') AS listed(id)
+      WHERE NOT EXISTS (#{shared_account.to_sql})
+    SQL
+
+    where("NOT (insights.metadata ? 'account_ids')")
+      .or(where("jsonb_typeof(insights.metadata->'account_ids') = 'array' AND NOT EXISTS (#{hidden_account})"))
   }
 
   # A recurring series can move to another account after its insight was
@@ -116,11 +143,26 @@ class Insight < ApplicationRecord
   # The one push policy, read by every channel: high-priority insights, plus
   # near-limit (medium) budget warnings for users who opt in. Tenancy and
   # shared-account visibility mirror the feed.
-  def notifies?(user)
+  def notifies?(user, channel: nil)
     return false unless active? && user.active? && user.family_id == family_id && user.preview_features_enabled?
     return false unless priority_high? || (insight_type == "budget_at_risk" && priority_medium? && user.push_budget_warnings_enabled?)
+    return connection_audience?(user, channel) if insight_type == "connection_needs_attention"
 
     Insight.about_shared_accounts.exists?(id)
+  end
+
+  # Where a push for this insight opens. A connection problem may be hidden
+  # from the shared feed (a linked account is private), so it opens the first
+  # linked account the recipient can see, whose page says who can reconnect;
+  # an admin who can see none of them goes to where connections are repaired.
+  def notification_path_for(user)
+    routes = Rails.application.routes.url_helpers
+    return routes.insights_path(anchor: ActionView::RecordIdentifier.dom_id(self)) unless insight_type == "connection_needs_attention"
+
+    account = user.accessible_accounts.visible.where(id: connection_account_ids).order(:name).first
+    return routes.account_path(account) if account
+
+    metadata["connection_type"].in?(%w[PlaidItem SimplefinItem]) ? routes.accounts_path : routes.settings_providers_path
   end
 
   def mark_read!
@@ -146,6 +188,20 @@ class Insight < ApplicationRecord
   end
 
   private
+    # Admins can reconnect; a member hears about a connection only when it
+    # feeds an account they can open, so nobody learns of another member's
+    # private bank. The native app opens the insight itself, which the API only
+    # serves from the shared feed, so APNs waits for one the feed shows.
+    def connection_audience?(user, channel)
+      return false if channel == "PushSubscription" && !Insight.about_shared_accounts.exists?(id)
+
+      user.admin? || user.accessible_accounts.visible.where(id: connection_account_ids).exists?
+    end
+
+    def connection_account_ids
+      Array(metadata&.dig("account_ids"))
+    end
+
     def new_notification_version?
       previously_new_record? || saved_change_to_notification_version?
     end

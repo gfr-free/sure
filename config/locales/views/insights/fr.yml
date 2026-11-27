@@ -17,6 +17,7 @@ fr:
       savings_rate_change: Voir les transactions de ces mois
       spending_anomaly: Voir les transactions de %{category}
       subscription_audit: Vérifier les transactions récurrentes
+      connection_needs_attention: "Voir le compte"
     card:
       acknowledge: Compris
       acknowledge_title: Masquer jusqu'à ce que les chiffres changent
@@ -108,6 +109,10 @@ fr:
       subscription_audit: "%{name} (%{amount}) n'est pas réapparu depuis la date
         prévue du %{expected_on}. Il est possible que l'abonnement ait été annulé
         ou que le prélèvement ait changé de date."
+      connection_needs_attention:
+        reconnect: "Les nouvelles transactions et les soldes de %{provider} ne seront plus importés tant que la connexion n'aura pas été renouvelée. La page du compte indique qui peut la reconnecter."
+        failing: "Aucune nouvelle donnée n'est arrivée de %{provider} depuis le %{since}. Ses synchronisations échouent sans cesse, les soldes et les transactions peuvent donc ne pas être à jour."
+        expiring: "Votre consentement pour %{provider} expire le %{expires_on}. Renouvelez la connexion avant cette date pour qu'aucune transaction ne manque."
     fixed_commitments_ratio:
       contributors: 'Principaux changements : %{list}.'
       contributor:
@@ -140,6 +145,10 @@ fr:
         above: Les dépenses de %{category} sont en hausse
         below: Les dépenses de %{category} sont en baisse
       subscription_audit: "%{name} est-il toujours actif ?"
+      connection_needs_attention:
+        reconnect: "Votre connexion à %{provider} doit être renouvelée"
+        failing: "La synchronisation avec %{provider} échoue sans cesse"
+        expiring: "Votre consentement pour %{provider} expire bientôt"
     types:
       bank_fees: Frais
       bill_not_covered: Factures
@@ -154,6 +163,7 @@ fr:
       savings_rate_change: Taux d'épargne
       spending_anomaly: Dépenses
       subscription_audit: Abonnements
+      connection_needs_attention: "Synchronisation bancaire"
     dig_in:
       prompt: |-
         Aide-moi à approfondir cette analyse.

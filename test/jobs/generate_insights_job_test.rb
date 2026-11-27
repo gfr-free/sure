@@ -517,7 +517,100 @@ class GenerateInsightsJobTest < ActiveJob::TestCase
     assert insight.reload.expired?, "a hidden row whose condition cleared must not come back stale once access returns"
   end
 
+  test "with types runs only the generators producing them and expires only those types" do
+    stale_connection = @family.insights.create!(
+      insight_type: "connection_needs_attention", priority: "high", status: "active", title: "t", body: "b",
+      metadata: { "reason" => "reconnect", "account_ids" => [ accounts(:depository).id ] },
+      dedup_key: "connection_needs_attention:TradeRepublicItem:gone:reconnect", generated_at: Time.current
+    )
+    other = @family.insights.create!(
+      insight_type: "idle_cash", priority: "low", status: "active", title: "t", body: "b",
+      metadata: {}, dedup_key: "idle_cash:untouched", generated_at: Time.current
+    )
+    Insight::Generators::IdleCashGenerator.any_instance.expects(:generate).never
+
+    GenerateInsightsJob.perform_now(family_id: @family.id, types: [ "connection_needs_attention" ])
+
+    assert stale_connection.reload.expired?, "the connection problem cleared, so its insight expires"
+    assert other.reload.active?, "a type that did not run is left alone"
+  end
+
+  test "a typed refresh that finds a run in progress tries again with backoff, a few times" do
+    GenerateInsightsJob.any_instance.stubs(:with_advisory_lock).returns(nil)
+    types = [ "connection_needs_attention" ]
+
+    assert_enqueued_with(job: GenerateInsightsJob, args: [ { family_id: @family.id, types: types, attempt: 2 } ]) do
+      GenerateInsightsJob.perform_now(family_id: @family.id, types: types)
+    end
+
+    assert_no_enqueued_jobs(only: GenerateInsightsJob) do
+      GenerateInsightsJob.perform_now(family_id: @family.id, types: types, attempt: GenerateInsightsJob::RETRIES_WHEN_LOCKED)
+      GenerateInsightsJob.perform_now(family_id: @family.id)
+    end
+  end
+
+  test "a cleared connection problem expires even when it was acknowledged" do
+    connection = @family.insights.create!(
+      insight_type: "connection_needs_attention", priority: "high", status: "dismissed", title: "t", body: "b",
+      metadata: { "reason" => "reconnect", "account_ids" => [ accounts(:depository).id ] },
+      dedup_key: "connection_needs_attention:TradeRepublicItem:cleared:reconnect", generated_at: Time.current
+    )
+    other = @family.insights.create!(
+      insight_type: "idle_cash", priority: "low", status: "dismissed", title: "t", body: "b",
+      metadata: {}, dedup_key: "idle_cash:acknowledged", generated_at: Time.current
+    )
+    stub_generated([], succeeded_types: %w[connection_needs_attention idle_cash])
+
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+
+    assert connection.reload.expired?
+    assert other.reload.acknowledged?, "other types keep their acknowledgement"
+  end
+
+  test "an account added to a connection updates its insight without notifying again" do
+    generated = connection_generated(account_ids: [ accounts(:depository).id ])
+    stub_generated([ generated ])
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+    insight = @family.insights.find_by!(dedup_key: generated.dedup_key)
+    insight.mark_read!
+
+    stub_generated([ connection_generated(account_ids: [ accounts(:depository).id, accounts(:credit_card).id ].sort) ])
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+
+    assert insight.reload.read?
+    assert_equal 1, insight.notification_version
+  end
+
+  test "the reminder notifies a connection problem a second time" do
+    stub_generated([ connection_generated(reminder: false) ])
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+    insight = @family.insights.find_by!(dedup_key: connection_generated.dedup_key)
+    insight.acknowledge!
+
+    stub_generated([ connection_generated(reminder: true) ])
+    GenerateInsightsJob.perform_now(family_id: @family.id)
+
+    assert insight.reload.active?, "a reminder resurfaces even an acknowledged card"
+    assert_equal 2, insight.notification_version
+  end
+
   private
+    def connection_generated(reminder: false, account_ids: [ accounts(:depository).id ])
+      Insight::Generator::GeneratedInsight.new(
+        insight_type: "connection_needs_attention",
+        priority: "high",
+        title: "Your connection to Test Bank needs to be renewed",
+        template_key: "connection_needs_attention.reconnect",
+        facts: { provider: "Test Bank" },
+        metadata: { connection_type: "TradeRepublicItem", connection_id: "tr-1", reason: "reconnect",
+                    detected_on: "2026-11-20", reminder: reminder, account_ids: account_ids },
+        currency: "USD",
+        period_start: nil,
+        period_end: nil,
+        dedup_key: "connection_needs_attention:TradeRepublicItem:tr-1:reconnect"
+      )
+    end
+
     def enable_preview_features(family)
       family.users.each { |user| set_preview_features(user, true) }
     end

@@ -624,4 +624,25 @@ class SyncTest < ActiveSupport::TestCase
       sync.mark_stale!
     end
   end
+
+  test "a connection sync that settles refreshes the family's connection insights" do
+    family = families(:dylan_family)
+    users(:family_admin).update!(preferences: users(:family_admin).preferences.merge("preview_features_enabled" => true))
+    sync = Sync.create!(syncable: plaid_items(:one), status: :syncing)
+
+    assert_enqueued_with(job: GenerateInsightsJob, args: [ { family_id: family.id, types: [ "connection_needs_attention" ] } ]) do
+      sync.fail!
+    end
+  end
+
+  test "an account sync or a family without preview features does not refresh connection insights" do
+    account_sync = Sync.create!(syncable: accounts(:depository), status: :syncing)
+    users(:family_admin).update!(preferences: users(:family_admin).preferences.merge("preview_features_enabled" => true))
+
+    assert_no_enqueued_jobs(only: GenerateInsightsJob) { account_sync.fail! }
+
+    families(:dylan_family).users.find_each { |user| user.update!(preferences: user.preferences.merge("preview_features_enabled" => false)) }
+    connection_sync = Sync.create!(syncable: plaid_items(:one), status: :syncing)
+    assert_no_enqueued_jobs(only: GenerateInsightsJob) { connection_sync.fail! }
+  end
 end

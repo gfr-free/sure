@@ -17,7 +17,8 @@ class Insight::GeneratorRegistry
     Insight::Generators::BillNotCoveredGenerator,
     Insight::Generators::LoanRepaymentChangeGenerator,
     Insight::Generators::BankFeesGenerator,
-    Insight::Generators::FixedCommitmentsRatioGenerator
+    Insight::Generators::FixedCommitmentsRatioGenerator,
+    Insight::Generators::ConnectionAttentionGenerator
   ].freeze
 
   Result = Data.define(:insights, :succeeded_types)
@@ -26,11 +27,14 @@ class Insight::GeneratorRegistry
     @family = family
   end
 
-  def generate_all
+  # `types` narrows the run to the generators producing those insight types,
+  # for a refresh triggered by an event rather than the nightly sweep.
+  def generate_all(types: nil)
     insights = []
     succeeded_types = []
+    generators = types ? GENERATORS.select { |generator| generator.produced_types.intersect?(Array(types)) } : GENERATORS
 
-    GENERATORS.each do |generator_class|
+    generators.each do |generator_class|
       insights.concat(generator_class.new(family).generate)
       succeeded_types.concat(generator_class.produced_types)
     rescue => e

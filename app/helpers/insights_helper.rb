@@ -15,7 +15,8 @@ module InsightsHelper
     "bill_not_covered" => "calendar-x",
     "loan_payment_change" => "landmark",
     "bank_fees" => "receipt",
-    "fixed_commitments_ratio" => "scale"
+    "fixed_commitments_ratio" => "scale",
+    "connection_needs_attention" => "unplug"
   }.freeze
 
   def insight_icon_key(insight)
@@ -136,6 +137,11 @@ module InsightsHelper
     when "budget_at_risk", "budget_on_track"
       return nil unless insight.period_start
       { text: t("insights.actions.budget"), href: budget_path(Budget.date_to_param(insight.period_start)) }
+    when "connection_needs_attention"
+      # The card only shows while everyone can open every linked account. The
+      # account page says who can reconnect and links there.
+      account = insight.family.accounts.visible.where(id: Array(metadata["account_ids"])).order(:name).first
+      account && { text: t("insights.actions.connection_needs_attention"), href: account_path(account) }
     when "maintained_goal_depleted"
       goal = insight.family.goals.find_by(id: metadata["goal_id"])
       goal && { text: t("insights.actions.maintained_goal_depleted"), href: goal_path(goal) }
@@ -218,7 +224,7 @@ module InsightsHelper
       :negative
     when "loan_payment_change"
       metadata["new_payment"].to_f < metadata["previous_payment"].to_f ? :positive : :warning
-    when "budget_at_risk", "maintained_goal_depleted", "bank_fees", "fixed_commitments_ratio"
+    when "budget_at_risk", "maintained_goal_depleted", "bank_fees", "fixed_commitments_ratio", "connection_needs_attention"
       # Warning, not negative: the reserve is short, not overdrawn, and red is
       # reserved here for money actually going the wrong side of zero.
       :warning

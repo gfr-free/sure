@@ -39,6 +39,7 @@ nb:
       loan_payment_change: "Terminbeløp"
       bank_fees: "Gebyrer"
       fixed_commitments_ratio: "Faste utgifter"
+      connection_needs_attention: "Banksynkronisering"
     meta:
       next_n_days:
         one: Neste dag
@@ -77,6 +78,7 @@ nb:
       loan_payment_change: "Vis lån"
       bank_fees: "Vis gebyrer"
       fixed_commitments_ratio: "Se gjennom faste transaksjoner"
+      connection_needs_attention: "Gå til kontoen"
     titles:
       spending_anomaly:
         above: Forbruket på %{category} øker
@@ -103,6 +105,10 @@ nb:
       fixed_commitments_ratio:
         up: "Faste utgifter tar en større del av inntekten din"
         over_half: "Faste utgifter tar nå halvparten av inntekten din eller mer"
+      connection_needs_attention:
+        reconnect: "Tilkoblingen til %{provider} må fornyes"
+        failing: "Synkroniseringen med %{provider} feiler gang på gang"
+        expiring: "Samtykket ditt for %{provider} utløper snart"
     templates:
       spending_anomaly:
         above: Med nåværende tempo bruker du %{projected_spend} på %{category} denne måneden, omtrent %{deviation_pct} % mer enn det nylige månedlige snittet ditt på %{baseline_spend}.
@@ -130,6 +136,10 @@ nb:
         recurring: "%{account} hadde %{amount} i gebyrer de siste %{days} dagene."
         new: "%{account} hadde %{amount} i gebyrer de siste %{days} dagene, etter ingen i de %{days} dagene før."
       fixed_commitments_ratio: "Faste utgifter på %{commitments} i måneden tar %{current_ratio} % av den vanlige månedsinntekten din på %{income}, opp fra %{previous_ratio} % for seks måneder siden. %{explanation}"
+      connection_needs_attention:
+        reconnect: "Nye transaksjoner og saldoer fra %{provider} blir ikke importert før tilkoblingen er fornyet. Kontosiden viser hvem som kan koble den til på nytt."
+        failing: "Det har ikke kommet nye data fra %{provider} siden %{since}. Synkroniseringene feiler gang på gang, så saldoer og transaksjoner kan være utdaterte."
+        expiring: "Samtykket ditt for %{provider} utløper %{expires_on}. Forny tilkoblingen før det, så ingen transaksjoner mangler."
     dig_in:
       prompt: "Hjelp meg å se nærmere på denne innsikten.\n\nInnsikt: %{title}\nHva Sure fant: %{body}\nPeriode: %{period}\nTall:\n%{facts}\n\nHva ligger bak, og er det noe jeg bør gjøre?"
     fixed_commitments_ratio:

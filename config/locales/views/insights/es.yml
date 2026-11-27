@@ -51,6 +51,7 @@ es:
       loan_payment_change: Cuota del préstamo
       bank_fees: Comisiones
       fixed_commitments_ratio: Compromisos fijos
+      connection_needs_attention: Sincronización bancaria
     meta:
       next_n_days:
         one: Próximo día
@@ -95,6 +96,7 @@ es:
       loan_payment_change: Ver préstamo
       bank_fees: Ver comisiones
       fixed_commitments_ratio: Revisar transacciones recurrentes
+      connection_needs_attention: Ir a la cuenta
     titles:
       account_release:
         upcoming: "%{account} se libera pronto"
@@ -125,6 +127,10 @@ es:
       fixed_commitments_ratio:
         up: Tus compromisos fijos pesan más en tus ingresos
         over_half: Tus compromisos fijos ya se llevan la mitad o más de tus ingresos
+      connection_needs_attention:
+        reconnect: Tu conexión con %{provider} debe renovarse
+        failing: La sincronización con %{provider} sigue fallando
+        expiring: Tu consentimiento para %{provider} vence pronto
     templates:
       account_release:
         upcoming: "%{balance} en %{account} estará disponible el %{date}."
@@ -156,6 +162,10 @@ es:
         recurring: "%{account} acumula %{amount} en comisiones en los últimos %{days} días."
         new: "%{account} acumula %{amount} en comisiones en los últimos %{days} días, y ninguna en los %{days} días anteriores."
       fixed_commitments_ratio: "Tus compromisos recurrentes, %{commitments} al mes, se llevan el %{current_ratio}% de tus ingresos mensuales habituales (%{income}), frente al %{previous_ratio}% de hace seis meses. %{explanation}"
+      connection_needs_attention:
+        reconnect: No se importarán nuevas transacciones ni saldos de %{provider} hasta que se renueve la conexión. La página de la cuenta indica quién puede volver a conectarla.
+        failing: No han llegado datos nuevos de %{provider} desde el %{since}. Sus sincronizaciones siguen fallando, así que los saldos y las transacciones pueden estar desactualizados.
+        expiring: Tu consentimiento para %{provider} vence el %{expires_on}. Renueva la conexión antes para que no falten transacciones.
     fixed_commitments_ratio:
       contributors: "Lo que más ha cambiado: %{list}."
       contributor:

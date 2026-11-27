@@ -42,13 +42,14 @@ ca:
         cancel: Cancel·la
         category_label: Categoria
         category_prompt: Selecciona una categoria
+        clear_tags: Elimina totes les etiquetes
         date_label: Data
         header_title: Edita transaccions
         merchant_label: Comerç
         merchant_prompt: Selecciona un comerç
         name_label: Nom
         name_placeholder: Introdueix un nom que s'aplicarà a les transaccions seleccionades
-        none: "(cap)"
+        no_change: "(sense canvis)"
         notes_label: Notes
         notes_placeholder: Introdueix una nota que s'aplicarà a les transaccions seleccionades
         overview: Resum

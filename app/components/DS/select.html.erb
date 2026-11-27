@@ -4,6 +4,9 @@
   <div class="form-field <%= options[:container_class] %>">
     <div class="form-field__body">
         <%= form.label method, options[:label], class: "form-field__label", id: label_id if options[:label].present? %>
+        <%# Without a visible label, an html aria label is read from a hidden
+            span, so the trigger still announces "<label> <selected value>". %>
+        <%= tag.span hidden_label, id: label_id, class: "sr-only" if options[:label].blank? && hidden_label.present? %>
         <% unless disabled? %>
           <%= form.hidden_field method,
               value: @selected_value,
@@ -30,7 +33,7 @@
                 aria-haspopup="listbox"
                 aria-expanded="false"
                 tabindex="0"
-                <%= tag.attributes(aria: { labelledby: "#{label_id} #{trigger_id}" }) if options[:label].present? %>>
+                <%= tag.attributes(aria: { labelledby: "#{label_id} #{trigger_id}" }) if options[:label].present? || hidden_label.present? %>>
           <% if trigger_logo? %>
             <span class="flex items-center gap-2 min-w-0">
               <%= logo_markup(selected_item) %>

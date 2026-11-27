@@ -48,7 +48,7 @@ class TransactionsBulkTransfersTest < ApplicationSystemTestCase
     assert_no_selector "input[name='bulk_update[date]']"
     assert_no_selector "input[name='bulk_update[category_id]']", visible: :all
     assert_no_selector "input[name='bulk_update[merchant_id]']", visible: :all
-    assert_selector "select[name='bulk_update[tag_ids][]']"
+    assert_selector "#bulk_transaction_edit_drawer [data-controller='tag-select']"
     assert_selector "select[name='bulk_update[reconciled_status]']"
     assert_selector "textarea[name='bulk_update[notes]']"
   end

@@ -44,13 +44,14 @@ ru:
         cancel: Отмена
         category_label: Категория
         category_prompt: Выберите категорию
+        clear_tags: Удалить все теги
         date_label: Дата
         header_title: Редактировать операции
         merchant_label: Продавец
         merchant_prompt: Выберите продавца
         name_label: Название
         name_placeholder: Введите название, которое будет применено к выбранным операциям
-        none: "(нет)"
+        no_change: "(без изменений)"
         notes_label: Заметки
         notes_placeholder: Введите заметку, которая будет применена к выбранным операциям
         overview: Обзор

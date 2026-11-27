@@ -5,7 +5,7 @@
   config ||= { "splits" => [ { "type" => "percentage" }, { "type" => "percentage" } ] }
   split_executor = action.rule.registry.get_executor!("split_transaction")
   categories = split_executor.category_options
-  merchants = split_executor.merchant_options
+  merchants = split_executor.merchant_records
   tags = split_executor.tag_records
 %>
 

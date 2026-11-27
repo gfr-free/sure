@@ -1,11 +1,12 @@
 class DS::TagSelect < DesignSystemComponent
   attr_reader :form, :tags, :selected_ids, :attribute, :label, :show_label, :disabled,
-              :auto_submit, :update_url, :menu_placement, :offset, :compact
+              :auto_submit, :update_url, :menu_placement, :offset, :compact, :keep_until_edited, :placeholder
 
   MENU_PLACEMENTS = %w[auto down up].freeze
 
   def initialize(form:, tags:, selected_ids:, attribute: :tag_ids, label: nil, show_label: true,
-                 disabled: false, auto_submit: false, update_url: nil, menu_placement: :auto, offset: 6, compact: false)
+                 disabled: false, auto_submit: false, update_url: nil, menu_placement: :auto, offset: 6, compact: false,
+                 keep_until_edited: false, placeholder: nil)
     @form = form
     @tags = tags
     @selected_ids = selected_ids.map(&:to_s)
@@ -18,6 +19,14 @@ class DS::TagSelect < DesignSystemComponent
     @menu_placement = normalize_menu_placement(menu_placement)
     @offset = offset
     @compact = compact
+    # Sends tag_ids only once tags are picked, so a form where blank means
+    # "leave unchanged" (bulk edit) never clears tags by itself.
+    @keep_until_edited = keep_until_edited
+    @placeholder = placeholder
+  end
+
+  def placeholder_text
+    placeholder || helpers.t("transactions.form.none")
   end
 
   def field_name

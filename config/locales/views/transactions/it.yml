@@ -6,13 +6,14 @@ it:
         cancel: Annulla
         category_label: Categoria
         category_prompt: Seleziona una categoria
+        clear_tags: Rimuovi tutte le etichette
         date_label: Data
         header_title: Modifica transazioni
         merchant_label: Esercente
         merchant_prompt: Seleziona un esercente
         name_label: Nome
         name_placeholder: Inserisci un nome da applicare alle transazioni selezionate
-        none: "(nessuno)"
+        no_change: "(nessuna modifica)"
         notes_label: Note
         notes_placeholder: Inserisci una nota da applicare alle transazioni selezionate
         overview: Panoramica

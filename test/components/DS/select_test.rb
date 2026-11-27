@@ -67,6 +67,18 @@ class DS::SelectTest < ViewComponent::TestCase
     assert_no_selector "button[data-select-target=button] img"
   end
 
+  # aria-label on the button would hide its text, the selected value.
+  test "without a visible label an html aria label still lets the trigger read its value" do
+    account = accounts(:depository)
+
+    render_select(items: [ account ], selected: account.id, html_options: { aria: { label: "Split account" } })
+
+    label = page.find("span.sr-only", text: "Split account", visible: :all)
+    trigger = page.find("button[data-select-target=button]")
+    assert_equal "#{label[:id]} #{trigger[:id]}", trigger["aria-labelledby"]
+    assert_nil trigger["aria-label"]
+  end
+
   test "the simple variant keeps a plain-text trigger" do
     account = accounts(:depository)
 

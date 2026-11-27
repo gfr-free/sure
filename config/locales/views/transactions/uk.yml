@@ -5,13 +5,14 @@ uk:
         cancel: Скасувати
         category_label: Категорія
         category_prompt: Вибрати категорію
+        clear_tags: Видалити всі теги
         date_label: Дата
         header_title: Редагувати транзакції
         merchant_label: Продавець
         merchant_prompt: Вибрати продавця
         name_label: Назва
         name_placeholder: Введіть назву, яка буде застосована до вибраних транзакцій
-        none: "(немає)"
+        no_change: "(без змін)"
         notes_label: Нотатки
         notes_placeholder: Введіть нотатку, яка буде застосована до вибраних транзакцій
         overview: Огляд

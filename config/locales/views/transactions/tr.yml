@@ -42,13 +42,14 @@ tr:
         cancel: İptal
         category_label: Kategori
         category_prompt: Bir kategori seçin
+        clear_tags: Tüm etiketleri kaldır
         date_label: Tarih
         header_title: İşlemleri düzenle
         merchant_label: Satıcı
         merchant_prompt: Bir satıcı seçin
         name_label: İsim
         name_placeholder: Seçilen işlemlere uygulanacak bir isim girin
-        none: "(yok)"
+        no_change: "(değişiklik yok)"
         notes_label: Notlar
         notes_placeholder: Seçilen işlemlere uygulanacak bir not girin
         overview: Genel Bakış

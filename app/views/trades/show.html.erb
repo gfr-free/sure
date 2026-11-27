@@ -24,7 +24,7 @@
               url: trade_path(@entry),
               class: "space-y-2",
               data: { controller: "auto-submit-form" } do |f| %>
-          <%= f.date_field :date,
+          <%= f.entry_date_field :date,
                 label: t(".date_label"),
                 disabled: @entry.linked?,
                 "data-auto-submit-form-target": "auto" %>

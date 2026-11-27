@@ -384,7 +384,8 @@ class WiseAccount::Transactions::ProcessorTest < ActiveSupport::TestCase
   # next sync tries again (and nothing is pruned meanwhile).
   test "a statement row whose entry cannot be renamed fails without booking a second entry" do
     old = stale_entry("wise_transfer_905", amount: 100)
-    old.update_column(:date, 40.years.ago.to_date)
+    # A saved entry that no longer validates, so renaming it fails.
+    old.update_column(:name, "")
     store(payout(905).merge("wise_superseded_by" => "wise_statement_TRANSFER-905"),
           statement_row("TRANSFER-905", -100, supersedes: { "main" => "wise_transfer_905" }))
 

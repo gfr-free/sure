@@ -27,6 +27,49 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
   # Keep `form.text_area` styled after Rails 8 renamed the helper to `textarea`.
   alias_method :text_area, :textarea if method_defined?(:textarea)
 
+  # The date of an entry (transaction, trade, transfer, valuation). Entry
+  # rejects a date on or before Entry.min_supported_date, so the earliest
+  # selectable day is the one after it. Without a value the field starts at
+  # the record's date, or today for a new record; pass `value: nil` where blank means "leave
+  # unchanged" (bulk edit). `past_only: true` also caps it at today.
+  #
+  # A saved date outside those bounds (aged past the lower limit, or a future
+  # date from an import) widens them, so the form it shares with other fields
+  # can still be submitted. Only a persisted value counts: a rejected value
+  # re-rendered after a failed save must not loosen the bounds.
+  def entry_date_field(method = :date, options = {})
+    options = options.symbolize_keys
+    past_only = options.delete(:past_only)
+    current = object.try(method)
+    # Only a new record starts at today: a saved record shown again after a
+    # failed save keeps its blank date, so the error stays visible.
+    options[:value] = current || (Date.current unless object.try(:persisted?)) unless options.key?(:value)
+
+    saved_date = saved_date_for(method, options[:value])
+    unless options.key?(:min)
+      options[:min] = Entry.min_supported_date + 1.day
+      options[:min] = [ options[:min], saved_date ].min if saved_date
+    end
+    options[:max] = self.class.past_date_max(saved_date) if past_only && !options.key?(:max)
+
+    date_field(method, options)
+  end
+
+  # Latest day a past-only date input offers. A record saved with a later
+  # date keeps that date selectable, so its form can still be saved unchanged.
+  def self.past_date_max(saved_date = nil)
+    [ Date.current, saved_date&.to_date ].compact.max
+  end
+
+  # A sync start date lies in the past by definition; a saved later value
+  # stays selectable so the rest of the settings form can be saved.
+  def sync_start_date_field(method = :sync_start_date, options = {})
+    options = options.symbolize_keys
+    options[:max] = self.class.past_date_max(saved_date_for(method, options.fetch(:value) { object.try(method) })) unless options.key?(:max)
+
+    date_field(method, options)
+  end
+
   def radio_button(method, tag_value, options = {})
     merged_options = { class: "form-field__radio" }.merge(options)
     super(method, tag_value, merged_options)
@@ -135,6 +178,19 @@ class StyledFormBuilder < ActionView::Helpers::FormBuilder
   end
 
   private
+    def saved_date_for(method, shown_value)
+      return unless object.try(:persisted?)
+
+      # A database column counts with its saved value only. A virtual
+      # attribute (a vehicle's purchase_date) or a plain method has none, so
+      # the date the form shows stands in for it.
+      column = object.class.try(:column_names)&.include?(method.to_s)
+      saved = column ? object.attribute_in_database(method) : shown_value
+      # A string is what someone just typed (re-rendered after a failed save),
+      # not a saved date; it must not widen the bounds.
+      saved.to_date if saved.is_a?(Date) || saved.acts_like?(:time)
+    end
+
     def build_field(method, options = {}, html_options = {}, &block)
       if options[:help_text].present?
         help_text_id = field_id(method, :help_text)

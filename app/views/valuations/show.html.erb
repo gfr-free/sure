@@ -19,9 +19,9 @@
               method: :post,
               data: { turbo_frame: :modal },
               class: "space-y-4" do |f| %>
-          <%= f.date_field :date,
+          <%= f.entry_date_field :date,
                 label: t(".date_label"),
-                max: Date.current %>
+                past_only: true %>
           <%= f.money_field :amount,
                 label: t(".amount_label"),
                 disable_currency: true %>

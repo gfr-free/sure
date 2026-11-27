@@ -74,7 +74,7 @@ class Entry < ApplicationRecord
 
   validates :date, :name, :amount, :currency, presence: true
   validates :date, uniqueness: { scope: [ :account_id, :entryable_type ] }, if: -> { valuation? }
-  validates :date, comparison: { greater_than: -> { min_supported_date } }
+  validates :date, comparison: { greater_than: -> { min_supported_date } }, if: :will_save_change_to_date?
   validates :external_id, uniqueness: { scope: [ :account_id, :source ] }, if: -> { external_id.present? && source.present? }
 
   validate :cannot_unexclude_split_parent

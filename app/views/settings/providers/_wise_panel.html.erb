@@ -95,10 +95,9 @@
                                   label: t("wise_items.provider_panel.connection_name_label"),
                                   placeholder: t("wise_items.provider_panel.connection_name_placeholder") %>
 
-              <%= form.date_field :sync_start_date,
+              <%= form.sync_start_date_field :sync_start_date,
                                   label: t("wise_items.provider_panel.sync_start_date_label"),
                                   value: item.sync_start_date || 365.days.ago.to_date,
-                                  max: Date.current,
                                   help_text: t("wise_items.provider_panel.sync_start_date_help") %>
 
               <%= form.text_field :token,

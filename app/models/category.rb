@@ -430,11 +430,11 @@ class Category < ApplicationRecord
   end
 
   # Sort key for lists ordered by what people read: the display name with
-  # accents folded (Épargne files under E, not after Z; other scripts kept as
-  # they are), then the id, so equal labels keep one order across renders.
-  # utils/search_match normalizeSearchText folds the same way in the browser.
+  # accents on Latin letters folded (Épargne files under E, not after Z),
+  # then the id, so equal labels keep one order across renders. Marks in
+  # other scripts make a letter of its own (Й after И) and stay.
   def display_sort_key
-    [ display_name.unicode_normalize(:nfd).gsub(/\p{Mn}/, "").downcase, id.to_s ]
+    [ display_name.unicode_normalize(:nfd).gsub(/([A-Za-z])\p{Mn}+/, '\1').unicode_normalize(:nfc).downcase, id.to_s ]
   end
 
   # Option labels by id. A default category's translation can equal a

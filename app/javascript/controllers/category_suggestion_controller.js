@@ -66,11 +66,18 @@ export default class extends Controller {
 
   // Drawer: the picked name's form saved; fill the category it suggested.
   nameSaved(event) {
-    const categoryId = this.pendingCategoryId
-    this.pendingCategoryId = null
+    const pick = this.pendingPick
+    if (!pick) return
+    // Only the save that sent this pick's name settles it: an earlier save
+    // finishing late must neither fill nor drop the later pick's category.
+    const sentName = event.detail?.formSubmission?.formData?.get?.("entry[name]")
+    if (sentName != null && sentName !== pick.name) return
+    this.pendingPick = null
+
+    const categoryId = pick.categoryId
     if (!categoryId || !event.detail?.success) return
     // The user may have typed on before the debounced save went out.
-    if (this.nameTarget.value !== this.pendingName) return
+    if (this.nameTarget.value !== pick.name) return
     if (this.userPickedCategory || this.#hasCategorySelection()) return
 
     // The category form submits synchronously on the click, so the flag only
@@ -95,8 +102,7 @@ export default class extends Controller {
   }
 
   #saveNameThenFill(value, categoryId) {
-    this.pendingCategoryId = categoryId || null
-    this.pendingName = value
+    this.pendingPick = { name: value, categoryId: categoryId || null }
     this.savedPickName = value
     // A pick sets the value without a native "change"; the drawer saves on change.
     this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))

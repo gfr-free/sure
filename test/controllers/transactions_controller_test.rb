@@ -612,6 +612,17 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Starbucks", response.body
   end
 
+  test "a rejected update keeps the tags it would have replaced" do
+    @entry.entryable.update!(tag_ids: [ tags(:one).id ], locked_attributes: {})
+
+    patch transaction_url(@entry), params: {
+      entry: { name: "", entryable_attributes: { id: @entry.entryable_id, tag_ids: [ "" ] } }
+    }
+
+    assert_response :unprocessable_entity
+    assert_equal [ tags(:one).id ], @entry.reload.entryable.tag_ids
+  end
+
   test "updates with transaction details" do
     assert_no_difference [ "Entry.count", "Transaction.count" ] do
       patch transaction_url(@entry), params: {

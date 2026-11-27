@@ -183,7 +183,9 @@ class TransactionsController < ApplicationController
         @entry.transaction.lock!
         rule_input = @entry.rule_input_snapshot
       end
-      @entry.update(permitted_entry_params)
+      # A failed update must also undo what assignment already wrote (tag_ids=
+      # saves at once); its own rollback is swallowed inside this transaction.
+      @entry.update(permitted_entry_params) || raise(ActiveRecord::Rollback)
     end
 
     if updated

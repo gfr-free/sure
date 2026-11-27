@@ -756,20 +756,23 @@ class Family < ApplicationRecord
 
   # Used for invalidating entry related aggregation queries
   def entries_cache_version
-    "#{entries.count}-#{entries.maximum(:updated_at)&.to_f || 0}-#{categories_version}"
+    count, max_at = entries_count_and_max_updated_at
+    "#{count}-#{max_at&.to_f || 0}-#{categories_version}"
   end
 
   # Used for caches keyed on entries (e.g. the transactions index's
   # uncategorized count). Counts capture deletions, and full-precision
   # timestamps distinguish updates within the same second.
   def entries_version
-    "#{entries.count}-#{entries.maximum(:updated_at)&.to_f}-#{categories_version}"
+    count, max_at = entries_count_and_max_updated_at
+    "#{count}-#{max_at&.to_f}-#{categories_version}"
   end
 
   # Category deletion can nullify a late assignment without touching its
   # entry; category metadata also affects cached entry results.
   def categories_version
-    "#{categories.count}-#{categories.maximum(:updated_at)&.to_f || 0}"
+    count, max_at = categories.pick(Arel.sql("count(*)"), Arel.sql('max("categories"."updated_at")'))
+    "#{count}-#{max_at&.to_f || 0}"
   end
 
   # Tag changes write taggings without touching their entries, so caches
@@ -796,7 +799,8 @@ class Family < ApplicationRecord
   # transactions index's projected recurring list). See #entries_version for
   # why .count is included alongside the timestamp.
   def recurring_transactions_version
-    "#{recurring_transactions.count}-#{recurring_transactions.maximum(:updated_at)&.to_f}"
+    count, max_at = recurring_transactions.pick(Arel.sql("count(*)"), Arel.sql('max("recurring_transactions"."updated_at")'))
+    "#{count}-#{max_at&.to_f}"
   end
 
   # Used for invalidating caches whose results depend on which accounts are
@@ -897,6 +901,11 @@ class Family < ApplicationRecord
   private_constant :INVALID_TIMEZONE_LOG_INTERVAL
 
   private
+    # One scan of the family's entries instead of two separate aggregates.
+    def entries_count_and_max_updated_at
+      entries.pick(Arel.sql("count(*)"), Arel.sql('max("entries"."updated_at")'))
+    end
+
     # Currencies of the given visible accounts' balances, and of each
     # account's holdings on its latest holding date.
     def currencies_held_now(scope)

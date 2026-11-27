@@ -27,8 +27,10 @@ class TransactionsController < ApplicationController
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id)
     @search = Transaction::Search.new(Current.family, filters: @q, accessible_account_ids: @accessible_account_ids, user: Current.user)
 
+    # transactions_scope already joins entries; Transaction.reverse_chronological
+    # would join them a second time and slow the page count.
     base_scope = @search.transactions_scope
-                       .reverse_chronological
+                       .merge(Entry.reverse_chronological)
                        .includes(
                          { entry: :account },
                          :category, { merchant: { logo_attachment: :blob } }, :tags,

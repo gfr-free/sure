@@ -716,6 +716,21 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal 0, Transaction::Search.new(@family.reload, filters: { search: "amazon" }).totals.count
   end
 
+  # Two renames can commit out of updated_at order, so a rename whose
+  # timestamp is not the newest must still change the cached totals.
+  test "cached totals for a text search follow a rename that keeps the newest merchant timestamp" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    create_transaction(account: @checking_account, amount: 20, name: "AMZN Mktp DE", merchant: merchants(:amazon))
+    create_transaction(account: @checking_account, amount: 20, name: "Streaming", merchant: merchants(:netflix))
+    merchants(:netflix).touch
+
+    assert_equal 1, Transaction::Search.new(@family, filters: { search: "amazon" }).totals.count
+
+    merchants(:amazon).update_columns(name: "Online retailer")
+
+    assert_equal 0, Transaction::Search.new(@family.reload, filters: { search: "amazon" }).totals.count
+  end
+
   # Merging or deduplicating merchants moves transactions with update_all,
   # touching no entry; the set of merchants in use can stay the same.
   test "cached totals for a text search follow a transaction moved between merchants" do

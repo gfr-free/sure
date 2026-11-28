@@ -802,15 +802,15 @@ class Family < ApplicationRecord
   # filter. Renaming a merchant changes those results without touching any
   # entry, and merging, deduplicating or deleting one moves
   # transactions.merchant_id with update_all. The hash over every
-  # (transaction, merchant) pair catches a move between merchants that are
-  # both still in use; the latest merchant update catches a rename.
+  # (transaction, merchant, merchant name) triple catches a move between
+  # merchants that are both still in use and a rename, also when renames
+  # commit out of updated_at order.
   def transaction_merchants_version
-    count, pairs_hash, merchants_max_at = transactions.joins(:merchant).pick(
+    count, pairs_hash = transactions.joins(:merchant).pick(
       Arel.sql("count(*)"),
-      Arel.sql("sum(hashtext(transactions.id::text || ':' || transactions.merchant_id::text)::bigint)"),
-      Arel.sql('max("merchants"."updated_at")')
+      Arel.sql("sum(hashtext(transactions.id::text || ':' || transactions.merchant_id::text || ':' || merchants.name)::bigint)")
     )
-    "#{count}-#{pairs_hash || 0}-#{merchants_max_at&.to_f || 0}"
+    "#{count}-#{pairs_hash || 0}"
   end
 
   def self_hoster?

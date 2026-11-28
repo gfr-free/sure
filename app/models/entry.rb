@@ -769,6 +769,8 @@ class Entry < ApplicationRecord
   #   merchant_id and tag_ids are optional per split and fall back to the parent's merchant / no tags.
   # @param lock_attributes [Boolean] locks the category and merchant each split sets on its child, so
   #   rules further down (or a later run) don't overwrite them. Tags are only ever added by rules.
+  #   A child that keeps the parent's merchant takes the parent's merchant lock instead, with or
+  #   without this flag.
   # @return [Array<Entry>] the created child entries
   def split!(splits, lock_attributes: false)
     total = splits.sum { |s| s[:amount].to_d }
@@ -784,9 +786,16 @@ class Entry < ApplicationRecord
           tag_ids: split_attrs[:tag_ids] || [],
           kind: entryable.try(:kind)
         )
-        if lock_attributes
+        locked_keys = lock_attributes ? split_attrs.slice(:category_id, :merchant_id).compact_blank.keys.map(&:to_s) : []
+        # A part that keeps the parent's merchant keeps the parent's lock on it: locked only if the
+        # parent's merchant was chosen by hand, so an unchanged prefill never counts as a choice.
+        if child_transaction.merchant_id.present? && child_transaction.merchant_id == entryable.try(:merchant_id)
+          locked_keys.delete("merchant_id")
+          locked_keys << "merchant_id" if entryable.locked?(:merchant_id)
+        end
+        if locked_keys.any?
           locked_at = Time.current
-          child_transaction.locked_attributes = split_attrs.slice(:category_id, :merchant_id).compact_blank.keys.index_with { locked_at }
+          child_transaction.locked_attributes = locked_keys.index_with { locked_at }
         end
 
         child_entries.create!(

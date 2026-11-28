@@ -49,6 +49,51 @@ class EntrySplitTest < ActiveSupport::TestCase
     assert children.all? { |child| child.transaction.locked_attributes.empty? }
   end
 
+  test "split! passes a hand-picked parent merchant's lock on to parts that keep that merchant" do
+    parent_merchant = @entry.account.family.merchants.create!(name: "Picked merchant", type: "FamilyMerchant")
+    other_merchant = @entry.account.family.merchants.create!(name: "Other merchant", type: "FamilyMerchant")
+    @entry.transaction.update!(merchant: parent_merchant)
+    @entry.transaction.lock_attr!(:merchant_id)
+
+    kept_prefill, inherited, own = @entry.split!([
+      { name: "Kept prefill", amount: 50, merchant_id: parent_merchant.id },
+      { name: "Inherited", amount: 30 },
+      { name: "Own", amount: 20, merchant_id: other_merchant.id }
+    ]).map(&:transaction)
+
+    assert kept_prefill.locked?(:merchant_id)
+    assert inherited.locked?(:merchant_id)
+    assert_not own.locked?(:merchant_id), "a split that doesn't lock leaves a different merchant open"
+  end
+
+  test "split! does not lock a kept parent merchant the parent never locked" do
+    parent_merchant = @entry.account.family.merchants.create!(name: "Synced merchant", type: "FamilyMerchant")
+    other_merchant = @entry.account.family.merchants.create!(name: "Chosen merchant", type: "FamilyMerchant")
+    @entry.transaction.update!(merchant: parent_merchant)
+
+    kept_prefill, own = @entry.split!([
+      { name: "Kept prefill", amount: 70, merchant_id: parent_merchant.id },
+      { name: "Own", amount: 30, merchant_id: other_merchant.id }
+    ], lock_attributes: true).map(&:transaction)
+
+    assert_not kept_prefill.locked?(:merchant_id)
+    assert own.locked?(:merchant_id)
+  end
+
+  test "resplit! keeps passing the parent's merchant lock on" do
+    parent_merchant = @entry.account.family.merchants.create!(name: "Picked merchant", type: "FamilyMerchant")
+    @entry.transaction.update!(merchant: parent_merchant)
+    @entry.transaction.lock_attr!(:merchant_id)
+    @entry.split!([ { name: "A", amount: 60 }, { name: "B", amount: 40 } ])
+
+    assert @entry.resplit!([
+      { name: "A", amount: 50, merchant_id: parent_merchant.id },
+      { name: "B", amount: 50, merchant_id: parent_merchant.id }
+    ])
+
+    assert @entry.reload.child_entries.all? { |child| child.transaction.locked?(:merchant_id) }
+  end
+
   test "split! supports a per-split merchant override, falling back to the parent's merchant" do
     parent_merchant = @entry.account.family.merchants.create!(name: "Parent merchant", type: "FamilyMerchant")
     split_merchant = @entry.account.family.merchants.create!(name: "Split merchant", type: "FamilyMerchant")

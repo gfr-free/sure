@@ -344,17 +344,10 @@ class Api::V1::TransactionsController < Api::V1::BaseController
       query
     end
 
+    # Same matching as the web list: every word in the name, notes or
+    # merchant name, with "%" and "_" taken literally.
     def apply_search(query)
-      # Escape the caller's term so "%" and "_" match literally instead of
-      # acting as ILIKE wildcards, where a bare "%" returns everything.
-      search_term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:search].to_s)}%"
-
-      query
-        .left_joins(:merchant)
-        .where(
-          "entries.name ILIKE ? OR entries.notes ILIKE ? OR merchants.name ILIKE ?",
-          search_term, search_term, search_term
-        )
+      EntrySearch.apply_search_filter(query, params[:search])
     end
 
     def transaction_params

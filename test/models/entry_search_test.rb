@@ -193,4 +193,47 @@ class EntrySearchTest < ActiveSupport::TestCase
 
     assert_includes result_ids, txn.id
   end
+
+  test "search text matches the merchant name as well as name and notes" do
+    by_merchant = create_transaction(account: @account, name: "AMZN Mktp DE", merchant: merchants(:amazon))
+    by_notes = create_transaction(account: @account, name: "Card payment", notes: "amazon gift card")
+    unrelated = create_transaction(account: @account, name: "Grocery store", merchant: merchants(:netflix))
+    valuation = create_valuation(account: @account)
+
+    result_ids = @account.entries.search({ search: "Amazon" }).pluck(:id)
+
+    assert_includes result_ids, by_merchant.id
+    assert_includes result_ids, by_notes.id
+    assert_not_includes result_ids, unrelated.id
+    assert_not_includes result_ids, valuation.id
+  end
+
+  test "every search word must match, in any order and field" do
+    both = create_transaction(account: @account, name: "Book order", merchant: merchants(:amazon))
+    reversed = create_transaction(account: @account, name: "Amazon book order")
+    one_word = create_transaction(account: @account, name: "Book order")
+
+    result_ids = @account.entries.search({ search: "  amazon   BOOK " }).pluck(:id)
+
+    assert_includes result_ids, both.id
+    assert_includes result_ids, reversed.id
+    assert_not_includes result_ids, one_word.id
+  end
+
+  test "search words are matched literally, not as LIKE wildcards" do
+    percent = create_transaction(account: @account, name: "Refund 100% back")
+    other = create_transaction(account: @account, name: "Refund 100 back")
+
+    result_ids = @account.entries.search({ search: "100%" }).pluck(:id)
+
+    assert_equal [ percent.id ], result_ids & [ percent.id, other.id ]
+  end
+
+  test "search splits on any space and ignores repeated words" do
+    entry = create_transaction(account: @account, name: "AMZN Mktp", merchant: merchants(:amazon))
+
+    assert_includes @account.entries.search({ search: "amzn\u00A0mktp" }).pluck(:id), entry.id
+    assert_equal %w[AMZN mktp], EntrySearch.search_words("AMZN\u00A0mktp amzn\u3000")
+    assert_equal EntrySearch::MAX_SEARCH_WORDS, EntrySearch.search_words((1..20).map { |i| "w#{i}" }.join(" ")).size
+  end
 end

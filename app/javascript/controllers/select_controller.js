@@ -268,6 +268,15 @@ export default class extends Controller {
     const visibleOptions = this.visibleOptions()
 
     if (fromSearch) {
+      // keyCode 229: Safari reports the Enter that ends an IME composition
+      // with isComposing === false.
+      if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) {
+        // The search box sits inside the surrounding form, so Enter must never
+        // fall through and submit it.
+        event.preventDefault()
+        this.selectSearchMatch(event.target.value, visibleOptions)
+        return
+      }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
       if (visibleOptions.length === 0) return
       event.preventDefault()
@@ -313,6 +322,46 @@ export default class extends Controller {
     } else {
       this.menuTarget.removeAttribute("inert")
     }
+  }
+
+  // Enter picks, in order: the exact label (case and Unicode form only), else
+  // the one label that is equal once accents on Latin letters are ignored
+  // ("epicerie fine" picks "Épicerie fine"), else the first row the search
+  // found that is not the blank row ("Uncategorized" would clear the field,
+  // and auto-submit forms save that at once). Several accent-equal labels
+  // count as no match, so Enter does not guess. Same rule as DS::CategorySelect. A row marked data-filter-context
+  // is only shown around a hit (e.g. a parent category) and is never the
+  // target. An empty query picks nothing.
+  selectSearchMatch(rawQuery, visibleOptions) {
+    const query = rawQuery.trim()
+    if (!this.#normalizeForSearch(query)) return
+
+    const hits = visibleOptions.filter(opt => !opt.hasAttribute("data-filter-context"))
+    const label = opt => (opt.dataset.filterName || "").trim()
+    const exact = this.#exactName(query)
+    const folded = this.#foldLatinAccents(query)
+    const accentEqual = hits.filter(opt => this.#foldLatinAccents(label(opt)) === folded)
+
+    const match = hits.find(opt => this.#exactName(label(opt)) === exact) ??
+      (accentEqual.length === 1 ? accentEqual[0] : null) ??
+      hits.find(opt => opt.dataset.value !== "")
+    match?.click()
+  }
+
+  #exactName(value) {
+    return value.normalize("NFC").toLowerCase()
+  }
+
+  // Marks on other scripts stay: without them Japanese dakuten, Indic vowel
+  // signs or the Cyrillic "й" spell a different word.
+  #foldLatinAccents(value) {
+    return value.normalize("NFD").replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1").normalize("NFC").toLowerCase()
+  }
+
+  // Same folding as list-filter#normalize: only used to tell whether the
+  // query still has something to search for.
+  #normalizeForSearch(value) {
+    return value.normalize("NFD").replace(/\p{Mark}/gu, "").replaceAll("_", " ").toLowerCase()
   }
 
   // Options the user can currently see — list-filter hides non-matches

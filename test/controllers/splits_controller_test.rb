@@ -389,6 +389,25 @@ class SplitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal merchants(:amazon).id, template.at_css("input[type='hidden'][name$='[merchant_id]']")["value"]
   end
 
+  test "create locks a kept prefilled merchant only when the parent's merchant was picked by hand" do
+    @entry.transaction.update!(merchant: merchants(:amazon))
+    @entry.transaction.lock_attr!(:merchant_id)
+
+    post transaction_split_path(@entry), params: {
+      split: {
+        splits: [
+          { name: "Groceries", amount: "-70", category_id: "", merchant_id: merchants(:amazon).id },
+          { name: "Household", amount: "-30", category_id: "", merchant_id: merchants(:netflix).id }
+        ]
+      }
+    }
+
+    kept, own = @entry.reload.child_entries.order(:amount).reverse.map(&:transaction)
+    assert_equal merchants(:amazon).id, kept.merchant_id
+    assert kept.locked?(:merchant_id)
+    assert_not own.locked?(:merchant_id)
+  end
+
   test "create passes a prefilled parent merchant on to the split as sent" do
     @entry.transaction.update!(merchant: merchants(:amazon))
 

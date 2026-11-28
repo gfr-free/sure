@@ -2782,6 +2782,21 @@ end
     assert_nil @entry.transaction.reload.category
   end
 
+  test "a suggested category fills when a matching immediate rule cannot write the locked category" do
+    @entry.transaction.update!(category: nil)
+    @entry.transaction.lock_attr!(:category_id)
+    @entry.account.family.rules.create!(
+      resource_type: "transaction", active: true, apply_immediately: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_category", operator: "is_null") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: categories(:income).id) ]
+    )
+
+    patch transaction_url(@entry), params: { fill_empty_category: "1", entry: { entryable_attributes: { id: @entry.entryable_id, category_id: categories(:food_and_drink).id } } }, as: :turbo_stream
+
+    assert_response :success
+    assert_equal categories(:food_and_drink), @entry.transaction.reload.category
+  end
+
   test "a suggested category still fills when no immediate category rule matches" do
     @entry.transaction.update!(category: nil)
     @entry.account.family.rules.create!(

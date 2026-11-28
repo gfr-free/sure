@@ -598,7 +598,11 @@ class Transaction < ApplicationRecord
   # Whether an "apply immediately" rule that sets a category matches this
   # transaction as it is now. A category suggested from a picked name leaves
   # such a transaction to the rule, which may only match while it is empty.
+  # Immediate rules respect attribute locks, so a locked category is never
+  # left to them.
   def categorized_by_immediate_rule?
+    return false if locked?(:category_id)
+
     family = entry&.account&.family
     return false unless family
 

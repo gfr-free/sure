@@ -8,8 +8,13 @@ import comboboxHiddenField from "utils/combobox_hidden_field"
 //
 // The category field can be a DS::CategorySelect (transaction form) or a searchable
 // DS::Select of categories (split rows); both are driven by clicking their option.
+//
+// With autoSaves (the transaction drawer, where every field saves on its own) a
+// suggestion only fills an empty category, once, after the picked name is saved,
+// and asks the server to keep a category that was set meanwhile (fillOnly target).
 export default class extends Controller {
-  static targets = ["categoryField", "name"]
+  static targets = ["categoryField", "name", "fillOnly"]
+  static values = { autoSaves: Boolean }
 
   connect() {
     // A category already present when the controller connects (e.g. prefilled from
@@ -20,6 +25,10 @@ export default class extends Controller {
     // The combobox reports a "selection" every time its list closes. A prefilled name (split
     // rows, duplicated transactions) only counts once the user picks a different one.
     this.lastPickedName = this.#renderedName()
+  }
+
+  disconnect() {
+    this.#stopWaitingToResend()
   }
 
   syncName(event) {
@@ -33,6 +42,8 @@ export default class extends Controller {
     if (event.target !== this.#categoryHiddenInput()) return
 
     this.userPickedCategory = true
+    // A manual pick is the user's choice and is saved as such.
+    this.#setFillOnly(false)
   }
 
   onNameSuggestionSelected(event) {
@@ -46,10 +57,100 @@ export default class extends Controller {
     const option = event.target.querySelector(`[role="option"][data-value="${CSS.escape(value)}"]`)
     const categoryId = option?.querySelector("[data-category-id]")?.dataset.categoryId
 
+    if (this.autoSavesValue) {
+      this.#saveNameThenFill(value, categoryId)
+      return
+    }
+
     // A name with no usual category (categoryId undefined) still needs to clear a category
     // that was auto-applied for a previously selected name — otherwise it stays attached to
     // the new, unrelated name. #selectCategoryOption already leaves a manual pick untouched.
     this.#selectCategoryOption(categoryId || "")
+  }
+
+  // Drawer: the first save that starts after a pick is the one that sends it.
+  nameSubmitting(event) {
+    const pick = this.pendingPick
+    if (pick && !pick.submission) pick.submission = event.detail?.formSubmission
+  }
+
+  // Drawer: the picked name's form saved; fill the category it suggested.
+  nameSaved(event) {
+    const pick = this.pendingPick
+    // Only the pick's own save settles it: an earlier save finishing late
+    // (even for the same name) must neither fill nor drop its category.
+    if (!pick?.submission || event.detail?.formSubmission !== pick.submission) return
+
+    // Turbo cancels a save still in flight when another drawer form submits,
+    // and reports no result for it. Send the picked name again once that
+    // submission is done; the repeat save is the one that settles the pick.
+    if (event.detail.success === undefined) {
+      const cancelled = pick.submission
+      pick.submission = null
+      const frame = this.element.closest("turbo-frame") || document
+      const resend = (later) => {
+        // This very event still bubbles up to the frame.
+        if (later.detail?.formSubmission === cancelled) return
+        this.#stopWaitingToResend()
+        this.#resendPickedName(pick)
+      }
+      this.#stopWaitingToResend()
+      frame.addEventListener("turbo:submit-end", resend)
+      this.stopWaitingToResend = () => frame.removeEventListener("turbo:submit-end", resend)
+      return
+    }
+    this.pendingPick = null
+
+    if (!event.detail.success) {
+      // The save failed, so the field's next change or a new pick of the
+      // same name has to send it.
+      this.savedPickName = null
+      this.lastPickedName = null
+      return
+    }
+    const categoryId = pick.categoryId
+    if (!categoryId) return
+    // The user may have typed on before the debounced save went out.
+    if (this.nameTarget.value !== pick.name) return
+    if (this.userPickedCategory || this.#hasCategorySelection()) return
+
+    // The category form submits synchronously on the click, so the flag only
+    // rides along with this one request.
+    this.#setFillOnly(true)
+    const filled = this.#selectCategoryOption(categoryId)
+    this.#setFillOnly(false)
+    if (filled) this.userPickedCategory = true
+  }
+
+  // Drawer: after a pick the browser still fires its own "change" when the field
+  // is left; the pick already saved that value, so that one change is not sent
+  // twice. Any later change is the user's and is saved.
+  skipRepeatedNameChange(event) {
+    if (!this.hasNameTarget || event.target !== this.nameTarget || !event.isTrusted) return
+    if (this.nameTarget.value === this.savedPickName) event.stopPropagation()
+    this.savedPickName = null
+  }
+
+  #stopWaitingToResend() {
+    this.stopWaitingToResend?.()
+    this.stopWaitingToResend = null
+  }
+
+  #resendPickedName(pick) {
+    if (this.pendingPick !== pick || pick.submission || this.nameTarget.value !== pick.name) return
+
+    this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
+  }
+
+  #setFillOnly(on) {
+    if (this.hasFillOnlyTarget) this.fillOnlyTarget.value = on ? "1" : ""
+  }
+
+  #saveNameThenFill(value, categoryId) {
+    this.pendingPick = { name: value, categoryId: categoryId || null }
+    this.savedPickName = value
+    // A pick sets the value without a native "change"; the drawer saves on change.
+    this.nameTarget.dispatchEvent(new Event("change", { bubbles: true }))
   }
 
   // In content loaded into a frame this controller can connect before the combobox has copied
@@ -70,14 +171,15 @@ export default class extends Controller {
       : null
   }
 
+  // Returns whether a suggested option was clicked.
   #selectCategoryOption(categoryId) {
-    if (this.userPickedCategory || !this.hasCategoryFieldTarget) return
+    if (this.userPickedCategory || !this.hasCategoryFieldTarget) return false
 
     const id = CSS.escape(String(categoryId))
     const option = this.categoryFieldTarget.querySelector(
       `[data-category-select-target="option"][data-category-id="${id}"], [data-select-target="option"][data-value="${id}"]`
     )
-    if (!option) return
+    if (!option) return false
 
     // DS::Select moves focus to its trigger on a pick; keep it where the user is typing.
     const focused = document.activeElement
@@ -85,5 +187,6 @@ export default class extends Controller {
     option.click()
     this.applyingSuggestion = false
     if (focused instanceof HTMLElement && document.activeElement !== focused) focused.focus()
+    return true
   }
 }

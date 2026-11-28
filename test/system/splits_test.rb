@@ -136,7 +136,10 @@ class SplitsTest < ApplicationSystemTestCase
       click_button I18n.t("splits.edit.submit")
     end
 
-    assert_text I18n.t("splits.update.success")
+    # Waits on the saved row, not the flash: the combobox's own suggestion request
+    # can land between the save and its redirect and use up the flash.
+    assert_no_selector "dialog[open]"
+    assert_text "Typed name"
     assert_equal [ "Household", "Typed name" ], @entry.reload.child_entries.map(&:name).sort
   end
 

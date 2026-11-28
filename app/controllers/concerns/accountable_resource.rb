@@ -91,6 +91,7 @@ module AccountableResource
     # crypto account's subtype and with it whether the account trades.
     cost_basis_method = account_params[:cost_basis_method]
     previous_cost_basis_method = @account.cost_basis_method
+    previous_balance_from_transactions = @account.balance_from_transactions?
     # An uploaded logo is meant to be seen, so it takes over from Brandfetch.
     update_params[:logo_selection] = "automatic" if account_params[:logo].present?
     @account.logo_chosen = logo_chosen?
@@ -147,7 +148,11 @@ module AccountableResource
     # The stored figures were worked out under the old method; a sync restates
     # them. Compared by hand: lock_saved_attributes! saves again, which clears
     # saved_change_to_cost_basis_method?.
-    @account.sync_later if @account.cost_basis_method != previous_cost_basis_method
+    if @account.balance_from_transactions? != previous_balance_from_transactions
+      @account.sync_after_balance_switch_later
+    elsif @account.cost_basis_method != previous_cost_basis_method
+      @account.sync_later
+    end
     @account_updated = true
 
     notice = t("accounts.update.success", type: accountable_type.name.underscore.humanize)
@@ -240,7 +245,7 @@ module AccountableResource
         :name, :balance, :subtype, :currency, :accountable_type, :return_to,
         :opening_balance_date,
         :institution_name, :institution_domain, :notes, :exclude_from_reports,
-        :enable_category_matcher, :cost_basis_method, :logo,
+        :enable_category_matcher, :balance_from_transactions, :cost_basis_method, :logo,
         accountable_attributes: self.class.permitted_accountable_attributes
       )
     end

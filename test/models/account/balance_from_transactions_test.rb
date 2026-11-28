@@ -183,6 +183,17 @@ class Account::BalanceFromTransactionsTest < ActiveSupport::TestCase
     assert_equal 5000, @account.balance
   end
 
+  test "switching off syncs the account itself when no provider item can sync" do
+    @account.update!(balance_from_transactions: true)
+    @account.update!(balance_from_transactions: false)
+    @account.plaid_account.plaid_item.update!(scheduled_for_deletion: true)
+
+    PlaidItem.any_instance.expects(:sync_later_with_provider_refresh).never
+    @account.expects(:sync_later).once
+
+    @account.sync_after_balance_switch_later
+  end
+
   test "an account unlinked with the switch on is rebuilt like any manual account" do
     @account.update!(balance_from_transactions: true)
     @account.stubs(:linked?).returns(false)

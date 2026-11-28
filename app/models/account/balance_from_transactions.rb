@@ -96,6 +96,8 @@ module Account::BalanceFromTransactions
   # balances. Switching off goes back to the provider's balance, whose anchor
   # has stood still while the switch was on, so the provider items sync first
   # and anchor a fresh reading; each of them syncs the account when it is done.
+  # Only items the family sync would run count (their `syncable` scope); with
+  # none left, the account syncs on its own.
   def sync_after_balance_switch_later
     items = balance_from_transactions? ? [] : provider_items
     return sync_later if items.empty?
@@ -120,7 +122,7 @@ module Account::BalanceFromTransactions
       items = account_providers.filter_map { |account_provider| account_provider.adapter&.item }
       items << plaid_account.plaid_item if plaid_account
       items << simplefin_account.simplefin_item if simplefin_account
-      items.compact.uniq
+      items.compact.uniq.select { |item| item.class.syncable.exists?(item.id) }
     end
 
     # Providers write their balance straight to the account on every sync. An
